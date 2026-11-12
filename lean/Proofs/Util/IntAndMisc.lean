@@ -488,6 +488,13 @@ theorem varlenUint_length' (n : Nat) : (varlenUint n).length = varlenUintSize n 
   · simp [h]
   · simp
 
+theorem trailingOnes_eq (b : U8) (t : Nat) (ht : t ≤ 8) (hall : ∀ j < t, b.val.testBit j = true)
+    (hstop : t < 8 → b.val.testBit t = false) : trailingOnes b = t := by
+  unfold trailingOnes
+  obtain rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl :
+    t = 0 ∨ t = 1 ∨ t = 2 ∨ t = 3 ∨ t = 4 ∨ t = 5 ∨ t = 6 ∨ t = 7 ∨ t = 8 := by omega
+  all_goals simp [List.range, List.range.loop, List.takeWhile, hall, hstop]
+
 /-! ## `RawInt` -/
 
 @[step]
