@@ -187,6 +187,91 @@ theorem deserialize_usize_ok (len : Usize) (buf : io.ParseBuf) :
   step*
   all_goals split_ifs at * <;> simp_all [okPart]
 
+/-! ## Length-encoded integers, `position_of_zero` -/
+
+theorem cast_usize_64 (h64 : Target64) (x : U64) : (UScalar.cast .Usize x).val = x.val :=
+  UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by simp [Target64] at h64; simp [h64])
+
+theorem byte_val (n : Nat) : (byte n).val = n % 256 := by
+  simp [byte, UScalar.val]
+
+theorem length_leBytes (k n : Nat) : (leBytes k n).length = k := by
+  induction k generalizing n with
+  | zero => rfl
+  | succ k ih => simp [leBytes, ih]
+
+theorem leNat_leBytes (k n : Nat) : leNat (leBytes k n) = n % 2 ^ (8 * k) := by
+  induction k generalizing n with
+  | zero => simp [leBytes, leNat, Nat.mod_one]
+  | succ k ih =>
+    simp only [leBytes, leNat, ih, byte_val]
+    rw [show 8 * (k + 1) = 8 + 8 * k by ring, pow_add, Nat.mod_mul]
+    norm_num
+
+theorem readLE_leBytes (k n : Nat) (t : List U8) (hn : n < 2 ^ (8 * k)) :
+    readLE k (leBytes k n ++ t) = some (n, t) := by
+  have hl := length_leBytes k n
+  simp [readLE, hl, leNat_leBytes,
+    Nat.mod_eq_of_lt hn]
+
+theorem checkedLenencInt_lenencInt (n : Nat) (t : List U8) (hn : n < 2 ^ 64) :
+    checkedLenencInt (lenencInt n ++ t) = (some n, t) := by
+  unfold lenencInt
+  split_ifs with h1 h2 h3
+  · simp [checkedLenencInt, lenencIntDecode, byte_val, Nat.mod_eq_of_lt (by omega : n < 256)]
+    rw [if_neg (by omega), if_pos h1]
+  · simp [checkedLenencInt, lenencIntDecode, byte_val, readLE_leBytes 2 n t (by omega)]
+  · simp [checkedLenencInt, lenencIntDecode, byte_val, readLE_leBytes 3 n t (by omega)]
+  · simp [checkedLenencInt, lenencIntDecode, byte_val, readLE_leBytes 8 n t (by omega)]
+
+@[step]
+
+theorem position_of_zero_ok (s : Slice U8) :
+    io.position_of_zero s ⦃ r => match r with
+      | some i => i.val < s.length ∧ (∀ b ∈ s.val.take i.val, b.val ≠ 0) ∧ (s.val[i.val]!).val = 0
+      | none => ∀ b ∈ s.val, b.val ≠ 0 ⦄ := by
+  unfold io.position_of_zero io.position_of_zero_loop
+  apply loop.spec_decr_nat (fun i => s.length - i.val)
+    (fun i => i.val ≤ s.length ∧ ∀ b ∈ s.val.take i.val, b.val ≠ 0)
+  · rintro i ⟨hi, hall⟩
+    unfold io.position_of_zero_loop.body
+    step*
+    · have hlt : i.val < s.length := by scalar_tac
+      refine ⟨hlt, hall, ?_⟩
+      rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
+      simp only [Option.getD_some, ← i2_post]
+      have h0 : i2 = 0#u8 := by assumption
+      rw [h0]; rfl
+    · have hlt : i.val < s.length := by scalar_tac
+      refine ⟨by omega, ?_, by omega⟩
+      rw [i3_post, List.take_succ, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
+      intro b hb
+      simp only [List.mem_append, Option.toList_some, List.mem_singleton] at hb
+      rcases hb with hb | rfl
+      · exact hall b hb
+      · rw [← i2_post]; intro h0; apply ‹¬i2 = 0#u8›; simp [UScalar.eq_equiv, h0]
+    · have : i.val = s.length := by scalar_tac
+      rw [this, Slice.length, List.take_length] at hall
+      exact hall
+  · simp
+
+theorem beforeZero_of_all (l : List U8) (h : ∀ b ∈ l, b.val ≠ 0) : beforeZero l = l := by
+  unfold beforeZero
+  induction l with
+  | nil => rfl
+  | cons b l ih =>
+    rw [List.takeWhile_cons, if_pos (by simpa using h b (by simp))]
+    rw [ih (fun x hx => h x (by simp [hx]))]
+
+theorem beforeZero_of_zero (l : List U8) (i : Nat) (hi : i < l.length) (hall : ∀ b ∈ l.take i, b.val ≠ 0)
+    (h0 : (l[i]!).val = 0) : beforeZero l = l.take i := by
+  unfold beforeZero
+  conv => lhs; rw [← List.take_append_drop i l]
+  rw [List.takeWhile_append_of_pos (by simpa using hall)]
+  rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some] at h0
+  rw [List.drop_eq_getElem_cons hi, List.takeWhile_cons, if_neg (by simp [h0])]
+  simp
+
 /-! ## Tactics for the fixed-width readers -/
 
 macro "pb_finish" : tactic => `(tactic| (

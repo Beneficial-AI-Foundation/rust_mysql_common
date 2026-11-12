@@ -1,7 +1,7 @@
 import Defs
 import Proofs.Util.ParseBuf
 
-/-! Statements for `impl MyDeserialize for ParseBuf` (spec file: `Specs/Misc/Raw.lean`). Proofs: TODO. -/
+/-! Statements for `impl MyDeserialize for ParseBuf` (spec file: `Specs/Misc/Raw.lean`). Helper lemmas: `Proofs/Util/ParseBuf.lean`. -/
 
 set_option autoImplicit false
 

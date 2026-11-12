@@ -1,7 +1,7 @@
 import Defs
 import Proofs.Util.ParseBuf
 
-/-! Statements for `impl ParseBuf` (spec file: `Specs/Io.lean`). Proofs: TODO. -/
+/-! Statements for `impl ParseBuf` (spec file: `Specs/Io.lean`). Helper lemmas: `Proofs/Util/ParseBuf.lean`. -/
 
 set_option autoImplicit false
 
@@ -1011,7 +1011,7 @@ theorem io.ParseBuf.eat_f32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_f32_le buf ⦃ x rest =>
       x.bits.val = leNat (buf.val.take 4) ∧ rest.val = buf.val.drop 4 ⦄ := by
   unfold io.ParseBuf.eat_f32_le
-  simp only [io.ParseBuf.eat_f32_le.SIZE, core.f32.F32.from_le_bytes, core.f32.F32.from_be_bytes, core.f64.F64.from_le_bytes, core.f64.F64.from_be_bytes]
+  simp only [io.ParseBuf.eat_f32_le.SIZE, core.f32.F32.from_le_bytes]
   step*
   pb_finish
 
@@ -1037,7 +1037,7 @@ theorem io.ParseBuf.eat_f32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_f32_be buf ⦃ x rest =>
       x.bits.val = beNat (buf.val.take 4) ∧ rest.val = buf.val.drop 4 ⦄ := by
   unfold io.ParseBuf.eat_f32_be
-  simp only [io.ParseBuf.eat_f32_be.SIZE, core.f32.F32.from_le_bytes, core.f32.F32.from_be_bytes, core.f64.F64.from_le_bytes, core.f64.F64.from_be_bytes]
+  simp only [io.ParseBuf.eat_f32_be.SIZE, core.f32.F32.from_be_bytes]
   step*
   pb_finish
 
@@ -1063,7 +1063,7 @@ theorem io.ParseBuf.eat_f64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_f64_le buf ⦃ x rest =>
       x.bits.val = leNat (buf.val.take 8) ∧ rest.val = buf.val.drop 8 ⦄ := by
   unfold io.ParseBuf.eat_f64_le
-  simp only [io.ParseBuf.eat_f64_le.SIZE, core.f32.F32.from_le_bytes, core.f32.F32.from_be_bytes, core.f64.F64.from_le_bytes, core.f64.F64.from_be_bytes]
+  simp only [io.ParseBuf.eat_f64_le.SIZE, core.f64.F64.from_le_bytes]
   step*
   pb_finish
 
@@ -1089,7 +1089,7 @@ theorem io.ParseBuf.eat_f64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_f64_be buf ⦃ x rest =>
       x.bits.val = beNat (buf.val.take 8) ∧ rest.val = buf.val.drop 8 ⦄ := by
   unfold io.ParseBuf.eat_f64_be
-  simp only [io.ParseBuf.eat_f64_be.SIZE, core.f32.F32.from_le_bytes, core.f32.F32.from_be_bytes, core.f64.F64.from_le_bytes, core.f64.F64.from_be_bytes]
+  simp only [io.ParseBuf.eat_f64_be.SIZE, core.f64.F64.from_be_bytes]
   step*
   pb_finish
 
@@ -1113,9 +1113,47 @@ theorem io.ParseBuf.checked_eat_f64_be_spec (buf : io.ParseBuf) :
     `checkedLenencInt` describes it (protocol decoding, plus the documented quirk that `0xFB` and
     `0xFF` give `0`). Panics exactly when `checked_eat_lenenc_int` would return `None` (this and
     `eat_lenenc_int_panics`). -/
+@[step]
 theorem io.ParseBuf.eat_lenenc_int_spec (buf : io.ParseBuf) (h : (checkedLenencInt buf.val).1.isSome) :
     io.ParseBuf.eat_lenenc_int buf ⦃ n rest => (some n.val, rest.val) = checkedLenencInt buf.val ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_lenenc_int
+  rcases hb : buf.val with _ | ⟨b, rest⟩
+  · simp [hb, checkedLenencInt] at h
+  · have hl : 1 ≤ buf.length := by simp [Slice.length, hb]
+    step
+    simp [hb, leNat] at x_post x_post1
+    have hx : x = b := by scalar_tac
+    subst hx
+    rw [hb] at h
+    have h0 : 0#u8 ≤ x := by scalar_tac
+    rw [if_pos h0]
+    by_cases h250 : x ≤ 250#u8
+    · rw [if_pos h250]
+      step*
+      have : x.val < 251 := by scalar_tac
+      simp [checkedLenencInt, lenencIntDecode, x_post1, i_post, this,
+        show ¬(x.val = 251 ∨ x.val = 255) by omega]
+    · rw [if_neg h250]
+      split
+      all_goals simp [checkedLenencInt, lenencIntDecode, readLE, val_mk] at h
+      · split_ifs at h with hlen
+        · step*
+          all_goals (simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length])
+        · simp at h
+      · split_ifs at h with hlen
+        · step*
+          all_goals (simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length])
+        · simp at h
+      · split_ifs at h with hlen
+        · step*
+          all_goals (simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length])
+        · simp at h
+      · simp [checkedLenencInt, x_post1, val_mk]
+      · simp [checkedLenencInt, x_post1, val_mk]
+      · exfalso
+        simp only [UScalar.eq_equiv, val_mk] at *; norm_num at *
+        have := x.hBounds
+        scalar_tac
 
 /-- `eat_lenenc_int` panics when `checked_eat_lenenc_int` would return `None` (empty or truncated input). -/
 theorem io.ParseBuf.eat_lenenc_int_panics (buf : io.ParseBuf) (h : (checkedLenencInt buf.val).1 = none) :
@@ -1190,12 +1228,20 @@ theorem io.ParseBuf.checked_eat_lenenc_int_spec (buf : io.ParseBuf) :
           simp only [UScalar.eq_equiv, val_mk, BitVec.toNat_ofNat] at *; norm_num at *
           have := x.hBounds
           scalar_tac
-  all_goals sorry
 
 /-- Round trip: `checked_eat_lenenc_int` reads back `lenencInt n`, for every `n : u64`. -/
 theorem io.ParseBuf.checked_eat_lenenc_int_roundtrip (n : U64) (tail : List U8) (buf : io.ParseBuf) (h : buf.val = lenencInt n.val ++ tail) :
     io.ParseBuf.checked_eat_lenenc_int buf ⦃ o rest => o = some n ∧ rest.val = tail ⦄ := by
-  sorry
+  apply WP.spec_mono (io.ParseBuf.checked_eat_lenenc_int_spec buf)
+  rintro ⟨o, rest⟩ ho
+  simp only [WP.uncurry'_pair] at ho ⊢
+  rw [h, checkedLenencInt_lenencInt n.val tail (by scalar_tac)] at ho
+  simp only [Prod.mk.injEq] at ho
+  obtain ⟨h1, h2⟩ := ho
+  refine ⟨?_, h2⟩
+  cases o with
+  | none => simp at h1
+  | some x => simp at h1; simp [UScalar.eq_equiv, h1]
 
 /-- `eat_lenenc_str`: the length-encoded string at the head of the buffer (`checkedLenencStr`).
     Panics exactly when `checked_eat_lenenc_str` would return `None` (this and
@@ -1204,13 +1250,42 @@ theorem io.ParseBuf.checked_eat_lenenc_int_roundtrip (n : U64) (tail : List U8) 
     to `0xFB` too.) -/
 theorem io.ParseBuf.eat_lenenc_str_spec (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1.isSome) :
     io.ParseBuf.eat_lenenc_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenencStr buf.val ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_lenenc_str
+  have hs : (checkedLenencInt buf.val).1.isSome := by
+    simp only [checkedLenencStr] at h; split at h <;> simp_all
+  simp only [checkedLenencStr] at h ⊢
+  step*
+  all_goals (
+    rw [← len_post] at h
+    try rw [← len_post]
+    simp only [] at h ⊢
+    split_ifs at h with hle <;> try simp at h
+    have hb : (↑self1 : List U8).length < 2 ^ UScalarTy.Usize.numBits := by
+      have := self1.property; simp [Usize.max] at this ⊢; scalar_tac
+    have hi : i.val = len.val := by
+      rw [i_post]; exact UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by omega)
+    first | (simp only [Slice.length, hi]; omega) | simp_all)
 
 /-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`. (Needs the 64-bit
     target: on a 32-bit `usize` a length `≥ 2^32` is truncated by `len as usize` and may fit.) -/
 theorem io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1 = none) :
     ¬ io.ParseBuf.eat_lenenc_str buf ⦃ _ => True ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_lenenc_str
+  simp only [checkedLenencStr] at h
+  rcases hc : checkedLenencInt buf.val with ⟨_ | n, rest⟩
+  · exact not_spec_bind_left (io.ParseBuf.eat_lenenc_int_panics buf (by simp [hc]))
+  · rw [hc] at h
+    simp at h
+    apply not_spec_bind (io.ParseBuf.eat_lenenc_int_spec buf (by simp [hc]))
+    rintro ⟨len, self1⟩ hpost
+    rw [hc] at hpost
+    simp at hpost
+    simp only [lift, bind_ok]
+    apply eat_fail
+    rw [cast_usize_64 h64]
+    obtain ⟨h1, h2⟩ := hpost
+    simp only [Slice.length, h1, h2]
+    split_ifs at h with hle <;> first | omega | simp at h
 
 /-- `checked_eat_lenenc_str`: total; exactly `checkedLenencStr`: `None` after consuming the
     length's first byte if the length is truncated, `None` after consuming the whole length if the
@@ -1219,50 +1294,162 @@ theorem io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (
 theorem io.ParseBuf.checked_eat_lenenc_str_spec (h64 : Target64) (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_lenenc_str buf ⦃ o rest =>
       (o.map (·.val), rest.val) = checkedLenencStr buf.val ⦄ := by
-  sorry
+  unfold io.ParseBuf.checked_eat_lenenc_str
+  apply WP.spec_bind (io.ParseBuf.checked_eat_lenenc_int_spec buf)
+  rintro ⟨o, self1⟩ ho
+  simp only [WP.uncurry'_pair] at ho
+  simp only [checkedLenencStr, ← ho]
+  cases o with
+  | none => simp
+  | some x =>
+    simp only [lift, bind_ok, Option.map_some]
+    apply WP.spec_mono (checked_eat_ok self1 _)
+    rintro ⟨o', rest⟩ h'
+    rw [cast_usize_64 h64] at h'
+    simp only [WP.uncurry'_pair] at h' ⊢
+    split_ifs at h' ⊢ <;> simp_all
 
 /-- Round trip: `checked_eat_lenenc_str` reads back `lenencStr s`. -/
 theorem io.ParseBuf.checked_eat_lenenc_str_roundtrip (s : List U8) (tail : List U8) (buf : io.ParseBuf) (h : buf.val = lenencStr s ++ tail) :
     io.ParseBuf.checked_eat_lenenc_str buf ⦃ o rest => o.map (·.val) = some s ∧ rest.val = tail ⦄ := by
-  sorry
+  have hb : buf.val.length < 2 ^ UScalarTy.Usize.numBits := by
+    have := buf.property; simp [Usize.max] at this ⊢; scalar_tac
+  have hsl : s.length < 2 ^ UScalarTy.Usize.numBits := by
+    have : s.length ≤ buf.val.length := by simp [h, lenencStr]; omega
+    omega
+  have hs64 : s.length < 2 ^ 64 := by
+    have : 2 ^ UScalarTy.Usize.numBits ≤ 2 ^ 64 := Nat.pow_le_pow_right (by norm_num) (by
+      simp only [UScalarTy.Usize_numBits_eq]; cases System.Platform.numBits_eq <;> omega)
+    omega
+  unfold io.ParseBuf.checked_eat_lenenc_str
+  apply WP.spec_bind (io.ParseBuf.checked_eat_lenenc_int_spec buf)
+  rintro ⟨o, self1⟩ ho
+  simp only [WP.uncurry'_pair] at ho
+  rw [h, lenencStr, List.append_assoc, checkedLenencInt_lenencInt _ _ hs64] at ho
+  simp only [Prod.mk.injEq] at ho
+  obtain ⟨h1, h2⟩ := ho
+  cases o with
+  | none => simp at h1
+  | some x =>
+    simp at h1
+    simp only [lift, bind_ok]
+    have hi : (UScalar.cast .Usize x).val = s.length := by
+      rw [UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by omega), h1]
+    apply WP.spec_mono (checked_eat_ok self1 _)
+    rintro ⟨o', rest⟩ h'
+    simp only [WP.uncurry'_pair, hi, Slice.length, h2] at h' ⊢
+    simp at h'
+    simp_all
 
 /-- `eat_u8_str`: a string with a `u8` length prefix. Panics exactly when `checked_eat_u8_str` returns `None` (this and `eat_u8_str_panics`). -/
 theorem io.ParseBuf.eat_u8_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed 1 buf.val).1.isSome) :
     io.ParseBuf.eat_u8_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_u8_str
+  simp only [checkedLenPrefixed, readLE] at h ⊢
+  split_ifs at h ⊢ with h1 h2
+  · step*
+    all_goals (simp_all; try (split_ifs at h <;> simp_all))
+  all_goals simp_all
 
 /-- `eat_u8_str` panics when `checked_eat_u8_str` returns `None`. -/
 theorem io.ParseBuf.eat_u8_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 1 buf.val).1 = none) :
     ¬ io.ParseBuf.eat_u8_str buf ⦃ _ => True ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_u8_str
+  simp only [checkedLenPrefixed, readLE] at h
+  split_ifs at h with h1 h2
+  · apply not_spec_bind (io.ParseBuf.eat_u8_spec buf h1)
+    rintro ⟨x, self1⟩ ⟨hx, hs⟩
+    simp only [lift, bind_ok]
+    apply eat_fail
+    simp_all [Slice.length]
+    split_ifs at h <;> simp_all
+  · exact not_spec_bind_left (io.ParseBuf.eat_u8_panics buf (by simp only [Slice.length]; omega))
 
 /-- `checked_eat_u8_str`: total; `checkedLenPrefixed 1` (a missing body gives `None` after consuming the length byte). -/
 theorem io.ParseBuf.checked_eat_u8_str_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_u8_str buf ⦃ o rest =>
       (o.map (·.val), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
-  sorry
+  unfold io.ParseBuf.checked_eat_u8_str
+  step*
+  all_goals (simp only [checkedLenPrefixed, readLE]; split_ifs at * <;> simp_all)
 
 /-- `eat_u32_str`: a string with a little-endian `u32` length prefix. Panics exactly when `checked_eat_u32_str` returns `None` (this and `eat_u32_str_panics`). -/
 theorem io.ParseBuf.eat_u32_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed 4 buf.val).1.isSome) :
     io.ParseBuf.eat_u32_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenPrefixed 4 buf.val ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_u32_str
+  simp only [checkedLenPrefixed, readLE] at h ⊢
+  split_ifs at h ⊢ with h1 h2
+  · step*
+    all_goals (simp_all; try (split_ifs at h <;> simp_all))
+  all_goals simp_all
 
 /-- `eat_u32_str` panics when `checked_eat_u32_str` returns `None`. -/
 theorem io.ParseBuf.eat_u32_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 4 buf.val).1 = none) :
     ¬ io.ParseBuf.eat_u32_str buf ⦃ _ => True ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_u32_str
+  simp only [checkedLenPrefixed, readLE] at h
+  split_ifs at h with h1 h2
+  · apply not_spec_bind (io.ParseBuf.eat_u32_le_spec buf h1)
+    rintro ⟨x, self1⟩ ⟨hx, hs⟩
+    simp only [lift, bind_ok]
+    apply eat_fail
+    simp_all [Slice.length]
+    split_ifs at h <;> simp_all
+  · exact not_spec_bind_left (io.ParseBuf.eat_u32_le_panics buf (by simp only [Slice.length]; omega))
 
 /-- `checked_eat_u32_str`: total; `checkedLenPrefixed 4` (a missing body gives `None` after consuming the 4 length bytes). -/
 theorem io.ParseBuf.checked_eat_u32_str_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_u32_str buf ⦃ o rest =>
       (o.map (·.val), rest.val) = checkedLenPrefixed 4 buf.val ⦄ := by
-  sorry
+  unfold io.ParseBuf.checked_eat_u32_str
+  step*
+  all_goals (simp only [checkedLenPrefixed, readLE]; split_ifs at * <;> simp_all)
 
 /-- `eat_null_str`: total; the bytes before the first `0`, consuming the `0` too; if there is no
     `0`, the whole buffer (documented). -/
 theorem io.ParseBuf.eat_null_str_spec (buf : io.ParseBuf) :
     io.ParseBuf.eat_null_str buf ⦃ s rest =>
       s.val = beforeZero buf.val ∧ rest.val = buf.val.drop ((beforeZero buf.val).length + 1) ⦄ := by
-  sorry
+  unfold io.ParseBuf.eat_null_str
+  step
+  cases o with
+  | none =>
+    simp only at o_post
+    have hbz := beforeZero_of_all _ o_post
+    step*
+    all_goals
+      have hpos : pos.val = buf.val.length := by simp [pos_post, Slice.length]
+      have hx : x.val = buf.val := by rw [x_post, hpos, List.take_length]
+      have hs1 : self1.val = [] := by rw [x_post1, hpos, List.drop_length]
+    · exfalso
+      have hm : i1 ∈ x.val := by rw [i1_post]; exact List.getElem_mem _
+      rw [hx] at hm
+      apply o_post i1 hm
+      have h0 : i1 = 0#u8 := by assumption
+      rw [h0]; rfl
+    · exact ⟨by rw [hx, hbz], by rw [hs1, hbz, List.drop_eq_nil_of_le (by omega)]⟩
+    · exact ⟨by rw [hx, hbz], by rw [hs1, hbz, List.drop_eq_nil_of_le (by omega)]⟩
+  | some p =>
+    simp only at o_post
+    obtain ⟨hp, hall, h0⟩ := o_post
+    have hp' : p.val < buf.val.length := by simpa [Slice.length] using hp
+    have hbz := beforeZero_of_zero _ _ hp' hall h0
+    have hlbz : (beforeZero buf.val).length = p.val := by rw [hbz]; simp; omega
+    step*
+    all_goals
+      have hx : x.val = buf.val.take (p.val + 1) := by rw [x_post, pos_post]
+      have hxl : x.val.length = p.val + 1 := by rw [hx]; simp; omega
+      have hs1 : self1.val = buf.val.drop (p.val + 1) := by rw [x_post1, pos_post]
+    · refine ⟨?_, by rw [hs1, hlbz]⟩
+      have hi : i.val = p.val := by scalar_tac
+      rw [x1_post, List.slice_zero_j, hi, hx, List.take_take, hbz]
+      congr 1; omega
+    · exfalso
+      have hi : i.val = p.val := by scalar_tac
+      have : i1 = buf.val[p.val]! := by
+        rw [i1_post, List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hp']
+        simp [hx, hi]
+      apply ‹¬i1 = 0#u8›
+      rw [UScalar.eq_equiv, this, h0]; rfl
 
 end mysql_common
