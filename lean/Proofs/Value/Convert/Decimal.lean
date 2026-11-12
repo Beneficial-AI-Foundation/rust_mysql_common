@@ -1,6 +1,7 @@
 import Defs
+import Proofs.Util.ConvDeps
 
-/-! Statements for `impl FromValue for Decimal, impl From<Decimal> for Value` (spec file: `Specs/Value/Convert/Decimal.lean`). Proofs: TODO. -/
+/-! Statements for `impl FromValue for Decimal, impl From<Decimal> for Value` (spec file: `Specs/Value/Convert/Decimal.lean`). -/
 
 set_option autoImplicit false
 
@@ -21,19 +22,28 @@ theorem value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError
           | none => .Err v
         else .Err v
       | _ => .Err v) := by
-  sorry
+  cases v <;> simp [value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from,
+    ConvDeps.str_from_utf8_eq, value.convert.trusted.decimal_from_i64, value.convert.trusted.decimal_from_u64,
+    value.convert.trusted.decimal_from_str]
+  case Bytes b =>
+    by_cases h : IsUtf8 b.val
+    · simp only [h, ite_true]
+      cases Trusted.decimalFromStr (alloc.vec.Vec.deref b) <;> simp
+    · simp [h]
 
 /-- `From<ParseIr<Decimal>>` for `Decimal` is `commit`, for `Value` is `rollback`. -/
 theorem value.Value.Insts.CoreConvertFromParseIrDecimal.from_eq (x : rust_decimal.decimal.Decimal) (w : value.Value) :
     rust_decimal.decimal.Decimal.Insts.CoreConvertFromParseIrDecimal.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrDecimal.from (x, w) = ok w := by
-  sorry
+  exact ⟨rfl, rfl⟩
 
 /-- `From<Decimal> for Value`: `Bytes` of its text (`to_string`, opaque). -/
 theorem value.Value.Insts.CoreConvertFromDecimal.from_spec (x : rust_decimal.decimal.Decimal) (h : (utf8 (Trusted.decimalToString x)).length ≤ Usize.max) :
     value.Value.Insts.CoreConvertFromDecimal.from x ⦃ w =>
       Val.ofValue w = .bytes (utf8 (Trusted.decimalToString x)) ⦄ := by
-  sorry
+  obtain ⟨b, hb, hv⟩ := ConvDeps.string_into_bytes_val _ h
+  simp [value.Value.Insts.CoreConvertFromDecimal.from, value.convert.trusted.decimal_to_string,
+    hb, Val.ofValue, hv]
 
 /-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 theorem rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal.from_value_opt_eq (v : value.Value) :
@@ -47,6 +57,14 @@ theorem rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValuePars
           | none => .Err v
         else .Err v
       | _ => .Err v) := by
-  sorry
+  simp only [value.convert.from_value_opt,
+    value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from_eq]
+  cases v <;> simp [rust_decimal.decimal.Decimal.Insts.CoreConvertFromParseIrDecimal.from,
+    value.convert.ParseIr.commit, core.convert.IntoFrom.into]
+  case Bytes b =>
+    by_cases h : IsUtf8 b.val
+    · simp only [h, ite_true]
+      cases Trusted.decimalFromStr (alloc.vec.Vec.deref b) <;> simp
+    · simp [h]
 
 end mysql_common
