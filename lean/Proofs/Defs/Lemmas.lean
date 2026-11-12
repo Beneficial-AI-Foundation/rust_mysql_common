@@ -61,14 +61,29 @@ theorem varlenUintDecode_varlenUint (n : Nat) (t : List U8) (hn : n < 2 ^ 64) :
 /-- The JSONB reader reads back the JSONB encoding of every `n < 2^32`. -/
 theorem jsonbVarLenRead_jsonbVarLen (n : Nat) (t : List U8) (hn : n < 2 ^ 32) :
     jsonbVarLenRead (jsonbVarLen n ++ t) = (some n, t) := by
-  sorry
+  exact IntAndMisc.jsonbVarLenRead_jsonbVarLen' n t hn
 
 /-- The two encodings `BytesRepr for VarLen` mixes up disagree from 128 on: the JSONB reader does
     not read back a lenenc length `128 ≤ n < 251` (it continues into the following bytes, or fails
     at the end of input). -/
 theorem jsonbVarLenRead_lenencInt_ne (n : Nat) (t : List U8) (hn : 128 ≤ n ∧ n < 251) :
     jsonbVarLenRead (lenencInt n ++ t) ≠ (some n, t) := by
-  sorry
+  have hl : lenencInt n = [byte n] := by simp [lenencInt, show n < 251 by omega]
+  have hb : (byte n).val = n := by rw [PBUtil.byte_val]; omega
+  rw [hl]
+  unfold jsonbVarLenRead
+  simp only [List.cons_append, List.nil_append, List.take_succ_cons, List.findIdx?_cons, hb,
+    show ¬ n < 128 by omega, decide_false, Bool.false_eq_true, ↓reduceIte]
+  cases h : List.findIdx? (fun b => decide (b.val < 128)) (List.take 4 t) with
+  | none => simp
+  | some j =>
+    simp only [Option.map_some, ne_eq, Prod.mk.injEq, not_and]
+    intro _ hd
+    rw [List.findIdx?_eq_some_iff_findIdx_eq] at h
+    have hj : j < t.length := by have := h.1; simp at this; omega
+    have := congrArg List.length hd
+    simp at this
+    omega
 
 /-- The exact misreading: a lenenc length byte `128 ≤ n < 251` followed by a byte `b < 128` is
     read as the JSONB value `(n - 128) + 128 * b`, consuming both bytes. E.g. a 200-byte string
@@ -76,7 +91,15 @@ theorem jsonbVarLenRead_lenencInt_ne (n : Nat) (t : List U8) (hn : 128 ≤ n ∧
 theorem jsonbVarLenRead_lenencInt_misread (n : Nat) (b : U8) (t : List U8)
     (hn : 128 ≤ n ∧ n < 251) (hb : b.val < 128) :
     jsonbVarLenRead (lenencInt n ++ b :: t) = (some (n - 128 + 128 * b.val), t) := by
-  sorry
+  have hl : lenencInt n = [byte n] := by simp [lenencInt, show n < 251 by omega]
+  have hbn : (byte n).val = n := by rw [PBUtil.byte_val]; omega
+  rw [hl]
+  have := IntAndMisc.jsonbVarLenRead_some ([byte n] ++ b :: t) 1 (by norm_num)
+    (by intro c hc; simp at hc; subst hc; omega) b t (by simp) hb
+  rw [this]
+  simp only [List.singleton_append, List.take_succ_cons, List.take_zero, base128, hbn, pow_one]
+  have hv : n % 128 + 128 * 0 + 128 * (b.val % 128) = n - 128 + 128 * b.val := by omega
+  rw [hv, if_pos (by omega)]
 
 /-- The crate's lenient DATE/DATETIME/TIMESTAMP reader agrees with the protocol's format on the
     lengths the protocol defines (on a truncated input both fail; the crate's reader then has
@@ -111,6 +134,16 @@ theorem binRead_binEnc (v : mysql_common.value.Value) (ct : mysql_common.constan
 /-- The text decoder reads a length-encoded string as `Bytes`. -/
 theorem textRead_lenencStr (s t : List U8) (hs : s.length < 2 ^ 64) :
     textRead (lenencStr s ++ t) = (some (.bytes s), t) := by
-  sorry
+  have hb : ∃ b r, lenencStr s ++ t = b :: r ∧ b.val ≠ 0xFB := by
+    unfold lenencStr lenencInt
+    split_ifs with h1 h2 h3
+    · exact ⟨_, _, rfl, by rw [PBUtil.byte_val]; omega⟩
+    · exact ⟨_, _, rfl, by rw [PBUtil.byte_val]; omega⟩
+    · exact ⟨_, _, rfl, by rw [PBUtil.byte_val]; omega⟩
+    · exact ⟨_, _, rfl, by rw [PBUtil.byte_val]; omega⟩
+  obtain ⟨b, r, hbr, hne⟩ := hb
+  have hc := checkedLenencStr_lenencStr s t hs
+  rw [hbr] at hc ⊢
+  simp [textRead, hne, hc]
 
 end Defs
