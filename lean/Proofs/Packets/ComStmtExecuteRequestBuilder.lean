@@ -3,6 +3,11 @@ import Proofs.Util.PacketsColStmt
 import Proofs.Packets.NullBitmap
 import Proofs.Packets.ComStmtExecuteRequest
 import Proofs.Value.Value
+import Proofs.Misc.Raw.Int.RawInt
+import Proofs.Misc.Raw.Const.Const
+import Proofs.Misc.Raw.Int.ConstU8
+import Proofs.Misc.Raw.Int.ConstU32
+import Proofs.Misc.Raw.Bytes.RawBytes
 
 /-! Statements for `struct ComStmtExecuteRequestBuilder and its impls` (spec file: `Specs/Packets.lean`). Proofs: TODO. -/
 
@@ -30,6 +35,31 @@ private theorem sum_take_le (l : List Nat) (k : Nat) : (l.take k).sum ≤ l.sum 
 private theorem sum_take_succ (l : List Nat) (k : Nat) (hk : k < l.length) :
     (l.take (k + 1)).sum = (l.take k).sum + l[k] := by
   rw [List.take_add_one, List.getElem?_eq_getElem hk, List.sum_append]; simp
+
+@[step]
+private theorem constu8_new_ok (T : Type) (N : U8) : misc.raw.int.ConstU8.new T N ⦃ _ => True ⦄ := by
+  rw [misc.raw.int.ConstU8.new_eq]; exact (WP.spec_ok _).mpr trivial
+
+@[step]
+private theorem constu32_new_ok (T : Type) (N : U32) : misc.raw.int.ConstU32.new T N ⦃ _ => True ⦄ := by
+  rw [misc.raw.int.ConstU32.new_eq]; exact (WP.spec_ok _).mpr trivial
+
+@[step]
+private theorem rawint_new_ok {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) :
+    misc.raw.int.RawInt.new inst x ⦃ r => r.1 = x ⦄ := by
+  rw [misc.raw.int.RawInt.new_eq]; exact (WP.spec_ok _).mpr rfl
+
+@[step]
+private theorem const_new_ok {T : Type} (U : Type) (t : T) :
+    misc.raw._const.Const.new U t ⦃ r => r.1 = t ⦄ := by
+  rw [misc.raw._const.Const.new_eq]; exact (WP.spec_ok _).mpr rfl
+
+@[step]
+private theorem bitmap_rawbytes_new_ok (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
+    misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 8192#usize)
+      (core.convert.IntoFrom (core.convert.FromSame (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))) c
+      ⦃ r => r.1 = c ⦄ := by
+  rw [misc.raw.bytes.RawBytes.new_eq _ _ c c rfl]; exact (WP.spec_ok _).mpr rfl
 
 private theorem build_loop_spec (params : Slice value.Value) (k : Usize)
     (bm : packets.NullBitmap value.ClientSide (alloc.vec.Vec U8)) (dl : Usize)
@@ -142,7 +172,85 @@ theorem packets.ComStmtExecuteRequestBuilder.build_spec (self : packets.ComStmtE
       cowList req.bitmap.1 = nullBitmap 0 (params.val.map (fun v => isNullVal (Val.ofValue v))) ∧
       req.params_flags.1.val = 1 ∧ req.params = params ∧ req.as_long_data = b ∧
       (b = true ↔ maxPayloadLen < stmtExecuteLen (params.val.map Val.ofValue)) ⦄ := by
-  sorry
+  have hoffv := value.ClientSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val
+  have hlenp : (params.val.map Val.ofValue).length = params.length := by simp
+  simp only [stmtExecuteLen, hlenp, List.map_map] at h
+  have hsum : (lensOf params.val).sum = (List.map ((fun v => (binEnc v).length) ∘ Val.ofValue) params.val).sum := rfl
+  simp only [Slice.length] at h
+  have hn' : params.val.length + 7 ≤ Usize.max := by omega
+  unfold packets.ComStmtExecuteRequestBuilder.build
+  step with packets.NullBitmap.bitmap_len_spec value.ClientSide.Insts.Mysql_commonValueSerializationSide _
+    value.ClientSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET rfl (Slice.len params)
+    (by rw [hoffv]; simpa using hn') as ⟨bl, hbl⟩
+  step*
+  have hbm1 : bitmap.1 = v := ‹_›
+  have hvv : v.val = List.replicate bl.val 0#u8 := ‹_›
+  have hbl' : bl.val = nullBitmapLen 0 params.val.length := by rw [hbl, hoffv]; simp
+  have hmax : (lensOf params.val).sum ≤ Usize.max := by rw [hsum]; omega
+  apply WP.spec_bind (build_loop_spec params 0#usize bitmap 0#usize (by simp)
+    (by rw [hbm1]; simp [alloc.vec.Vec.length, hvv, hbl'])
+    (by intro pos; rw [hbm1, hvv]; simp only [bitAt, List.getD_eq_getElem?_getD, List.getElem?_replicate]
+        split <;> simp [mysql_common.PBUtil.byte_val])
+    (by simp) hmax (by simpa using hn'))
+  rintro ⟨⟨bb, pd⟩, dl'⟩ ⟨hL, hB, hD⟩
+  show (do
+    let i3 ← 10#usize + bl
+    let i4 ← i3 + 1#usize
+    let i5 ← i4 + meta_len
+    let total_len ← i5 + dl'
+    let cu ← misc.raw.int.ConstU8.new packets.InvalidComStmtExecuteHeader 23#u8
+    let ri ← misc.raw.int.RawInt.new misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.stmt_id
+    let c ← misc.raw._const.Const.new U8 constants.CursorType.CURSOR_TYPE_NO_CURSOR
+    let cu1 ← misc.raw.int.ConstU32.new packets.InvalidIterationCount 1#u32
+    let c1 ← misc.raw._const.Const.new U8 constants.StmtExecuteParamsFlags.NEW_PARAMS_BOUND
+    let rb ← misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 8192#usize)
+        (core.convert.IntoFrom (core.convert.FromSame (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))))
+        (alloc.borrow.Cow.Owned bb)
+    ok ((⟨cu, ri, c, cu1, rb, c1, params, decide (total_len > constants.MAX_PAYLOAD_LEN)⟩ :
+        packets.ComStmtExecuteRequest), decide (total_len > constants.MAX_PAYLOAD_LEN))) ⦃ _ ⦄
+  have hL' : bb.length = nullBitmapLen 0 params.val.length := hL
+  have hB' : ∀ pos, bitAt bb.val pos = (nullsOf params.val).getD pos false := hB
+  have hlen' : (Slice.len params).val = params.val.length := by simp [Slice.len]
+  step*
+  have hns := nullBitmap_spec 0 (params.val.map (fun v => isNullVal (Val.ofValue v)))
+  have hmp : constants.MAX_PAYLOAD_LEN.val = maxPayloadLen := by
+    simp [constants.MAX_PAYLOAD_LEN, maxPayloadLen]
+  refine ⟨by simp_all, by rw [‹c.1 = constants.CursorType.CURSOR_TYPE_NO_CURSOR›]; simp [constants.CursorType.CURSOR_TYPE_NO_CURSOR], ?_,
+    by rw [‹c1.1 = constants.StmtExecuteParamsFlags.NEW_PARAMS_BOUND›]; simp [constants.StmtExecuteParamsFlags.NEW_PARAMS_BOUND], ?_⟩
+  · rw [rb_post]
+    show bb.val = _
+    apply bytes_ext_bits
+    · rw [hns.1, List.length_map]; exact hL'
+    · intro pos
+      have := hns.2 pos
+      simp only [bitmapBit, Nat.add_zero] at this
+      rw [this, hB']
+  · have ht : total_len.val = stmtExecuteLen (params.val.map Val.ofValue) := by
+      simp only [stmtExecuteLen, hlenp, List.map_map]
+      simp only [Slice.length] at hlenp
+      rw [total_len_post, i5_post, i4_post, i3_post, meta_len_post, hbl', hD, hsum, hlen']
+      simp [Slice.length]; ring
+    simp only [decide_eq_true_eq, gt_iff_lt, UScalar.lt_equiv, hmp, ht]
+
+private theorem paramType_length (v : Val) : (paramType v).length = 2 := by
+  cases v <;> rfl
+
+private theorem paramValue_length_le (ld : Bool) (v : Val) : (paramValue ld v).length ≤ (binEnc v).length := by
+  cases v <;> simp [paramValue] <;> split <;> simp
+
+private theorem types_length (l : List Val) : ((l.map paramType).flatten).length = 2 * l.length := by
+  induction l with
+  | nil => rfl
+  | cons v l ih => simp [paramType_length] at ih ⊢; omega
+
+private theorem values_length_le (ld : Bool) (l : List Val) :
+    ((l.map (paramValue ld)).flatten).length ≤ (l.map (fun v => (binEnc v).length)).sum := by
+  induction l with
+  | nil => simp
+  | cons v l ih =>
+    simp only [List.map_cons, List.flatten_cons, List.length_append, List.sum_cons]
+    have := paramValue_length_le ld v
+    omega
 
 /-- Headline: `build` then `serialize` appends the protocol's `COM_STMT_EXECUTE` packet (`comStmtExecute`), with the `Bytes` values left out iff `as_long_data`, for at most 65536 parameters (beyond, the bitmap is truncated). -/
 theorem packets.ComStmtExecuteRequestBuilder.build_serialize (self : packets.ComStmtExecuteRequestBuilder) (params : Slice value.Value) (buf : alloc.vec.Vec U8)
@@ -151,6 +259,34 @@ theorem packets.ComStmtExecuteRequestBuilder.build_serialize (self : packets.Com
       packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize p.1 buf) ⦃ buf' =>
       buf'.val = buf.val ++ comStmtExecute self.stmt_id.val (params.val.map Val.ofValue)
         (decide (maxPayloadLen < stmtExecuteLen (params.val.map Val.ofValue))) ⦄ := by
-  sorry
+  have hlenp : (params.val.map Val.ofValue).length = params.length := by simp
+  have hbm : nullBitmapLen 0 params.length ≤ 8192 := by simp only [nullBitmapLen]; omega
+  apply WP.spec_bind (packets.ComStmtExecuteRequestBuilder.build_spec self params (by omega))
+  rintro ⟨req, b⟩ ⟨h1, h2, h3, h4, h5, h6, h7⟩
+  simp only at h1 h2 h3 h4 h5 h6 h7 ⊢
+  have hns := nullBitmap_spec 0 (params.val.map (fun v => isNullVal (Val.ofValue v)))
+  have hnsl : (nullBitmap 0 (params.val.map (fun v => isNullVal (Val.ofValue v)))).length =
+      nullBitmapLen 0 params.length := by rw [hns.1, List.length_map]
+  have hbits : (cowList req.bitmap.1).take 8192 = nullBitmap 0 (params.val.map (fun v => isNullVal (Val.ofValue v))) := by
+    rw [h3]
+    apply List.take_of_length_le
+    rw [hnsl]; exact hbm
+  have hlenB : (stmtExecuteBytes req.stmt_id.1.val req.flags.1.val ((cowList req.bitmap.1).take 8192)
+      req.params_flags.1.val (req.params.val.map Val.ofValue) req.as_long_data).length ≤
+      stmtExecuteLen (params.val.map Val.ofValue) := by
+    rw [hbits, h5]
+    have hT := types_length (params.val.map Val.ofValue)
+    have hV := values_length_le req.as_long_data (params.val.map Val.ofValue)
+    unfold stmtExecuteBytes stmtExecuteLen
+    split <;> simp only [List.length_append, List.length_cons, List.length_nil, hT, hnsl,
+      mysql_common.PBUtil.length_leBytes, hlenp] <;> omega
+  apply WP.spec_mono (packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize_spec req buf
+    (by omega))
+  intro buf' hb'
+  rw [hb', hbits, h5, h1, h2, h4, h6]
+  have : b = decide (maxPayloadLen < stmtExecuteLen (params.val.map Val.ofValue)) := by
+    cases b <;> simp_all
+  rw [this]
+  simp [comStmtExecute, List.map_map, Function.comp_def]
 
 end mysql_common
