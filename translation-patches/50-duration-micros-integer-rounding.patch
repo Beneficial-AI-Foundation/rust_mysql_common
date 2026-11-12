@@ -1,0 +1,19 @@
+Translation patch: `From<Duration> for Value`
+
+Change: `(f64::from(nanos) / 1000_f64).round() as u32` becomes `(nanos + 500) / 1000` in `u32`, where `nanos` is `subsec_nanos()`.
+Why: Aeneas rejects the float constant ("Improperly typed constant value"); float arithmetic is not modelled.
+Behaviour: Identical for every `nanos < 10^9` (all values of `subsec_nanos`). Write `nanos = 1000 k + r` with `k < 10^6`, `r < 1000`. If `r = 500`, `k + 0.5` is exactly representable, so the division is exact and `round` (half away from zero) gives `k + 1`. Otherwise the exact quotient is at least `0.001` away from `k + 0.5`, far more than the f64 rounding error at this magnitude (below `2^-32`), so `round` gives `k` for `r < 500` and `k + 1` for `r > 500`. In all cases this is `(nanos + 500) / 1000`, which is at most `10^6` (so `as u32` was exact) and `nanos + 500` does not overflow.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index 1b91119..4e667c8 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -702,7 +702,7 @@ fn parse_mysql_time_string(mut bytes: &[u8]) -> Option<(bool, u32, u8, u8, u32)>
+ impl From<Duration> for Value {
+     fn from(x: Duration) -> Value {
+         let mut secs_total = trusted::duration_as_secs(&x);
+-        let micros = (f64::from(trusted::duration_subsec_nanos(&x)) / 1000_f64).round() as u32;
++        let micros = (trusted::duration_subsec_nanos(&x) + 500) / 1000;
+         let seconds = (secs_total % 60) as u8;
+         secs_total -= u64::from(seconds);
+         let minutes = ((secs_total % (60 * 60)) / 60) as u8;

@@ -1,0 +1,69 @@
+Translation patch: integer widenings in `value::convert::{chrono, time}`
+
+Change: `year.into()` (`u16` to `i32`, chrono) and `days.into()`, `hours.into()`, `minutes.into()`, `seconds.into()`, `microseconds.into()` (`u8`/`u32` to `i64`, time) become `as` casts.
+Why: These `From` impls between integer types are not modelled by Aeneas.
+Behaviour: Identical: the conversions are lossless widenings, which `as` computes.
+
+diff --git a/src/value/convert/chrono.rs b/src/value/convert/chrono.rs
+index c08d6ce..513de81 100644
+--- a/src/value/convert/chrono.rs
++++ b/src/value/convert/chrono.rs
+@@ -43,7 +43,7 @@ impl TryFrom<Value> for ParseIr<NaiveDateTime> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+             Value::Date(year, month, day, hour, minute, second, micros) => {
+-                let date = trusted::naive_date_from_ymd(year.into(), month.into(), day.into());
++                let date = trusted::naive_date_from_ymd(year as i32, month.into(), day.into());
+                 let time = trusted::naive_time_from_hms_micro(
+                     hour.into(),
+                     minute.into(),
+@@ -83,7 +83,7 @@ impl TryFrom<Value> for ParseIr<NaiveDate> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         let result = match v {
+             Value::Date(year, month, day, hour, minute, second, micros) => {
+-                let date = trusted::naive_date_from_ymd(year.into(), month.into(), day.into());
++                let date = trusted::naive_date_from_ymd(year as i32, month.into(), day.into());
+                 Ok((
+                     date,
+                     Value::Date(year, month, day, hour, minute, second, micros),
+diff --git a/src/value/convert/time.rs b/src/value/convert/time.rs
+index 82be50c..5e5fa91 100644
+--- a/src/value/convert/time.rs
++++ b/src/value/convert/time.rs
+@@ -204,14 +204,14 @@ impl TryFrom<Value> for ParseIr<time::Duration> {
+                     trusted::time_duration_add(
+                         trusted::time_duration_add(
+                             trusted::time_duration_add(
+-                                trusted::time_duration_days(days.into()),
+-                                trusted::time_duration_hours(hours.into()),
++                                trusted::time_duration_days(days as i64),
++                                trusted::time_duration_hours(hours as i64),
+                             ),
+-                            trusted::time_duration_minutes(minutes.into()),
++                            trusted::time_duration_minutes(minutes as i64),
+                         ),
+-                        trusted::time_duration_seconds(seconds.into()),
++                        trusted::time_duration_seconds(seconds as i64),
+                     ),
+-                    trusted::time_duration_microseconds(microseconds.into()),
++                    trusted::time_duration_microseconds(microseconds as i64),
+                 );
+                 Ok(ParseIr(
+                     if is_neg {
+@@ -231,12 +231,12 @@ impl TryFrom<Value> for ParseIr<time::Duration> {
+                         let duration = trusted::time_duration_add(
+                             trusted::time_duration_add(
+                                 trusted::time_duration_add(
+-                                    trusted::time_duration_hours(hours.into()),
+-                                    trusted::time_duration_minutes(minutes.into()),
++                                    trusted::time_duration_hours(hours as i64),
++                                    trusted::time_duration_minutes(minutes as i64),
+                                 ),
+-                                trusted::time_duration_seconds(seconds.into()),
++                                trusted::time_duration_seconds(seconds as i64),
+                             ),
+-                            trusted::time_duration_microseconds(microseconds.into()),
++                            trusted::time_duration_microseconds(microseconds as i64),
+                         );
+                         if is_neg {
+                             trusted::time_duration_neg(duration)

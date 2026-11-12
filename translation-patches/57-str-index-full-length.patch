@@ -1,0 +1,19 @@
+Translation patch: `parse_mysql_datetime_string_with_time`
+
+Change: in the branch where `s.len() == 19`, `&s[..19]` becomes `s`.
+Why: Aeneas does not model range indexing on `str`.
+Behaviour: Identical: `..19` is the whole string when its length is 19 (and the end of a string is a char boundary, so the indexing never panicked).
+
+diff --git a/src/value/convert/time.rs b/src/value/convert/time.rs
+index dc84805..ea8d3d8 100644
+--- a/src/value/convert/time.rs
++++ b/src/value/convert/time.rs
+@@ -178,7 +178,7 @@ pub(crate) fn parse_mysql_datetime_string_with_time(
+             if trusted::str_as_bytes(s).len() > 19 {
+                 trusted::time_primitive_date_time_parse_date_time_micro(s)
+             } else if trusted::str_as_bytes(s).len() == 19 {
+-                trusted::time_primitive_date_time_parse_date_time(&s[..19])
++                trusted::time_primitive_date_time_parse_date_time(s)
+             } else if trusted::str_as_bytes(s).len() >= 10 {
+                 trusted::time_primitive_date_time_parse_date(s)
+             } else {
