@@ -21,6 +21,13 @@ open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PCSUtil
 
 namespace mysql_common
 
+@[local step]
+private theorem branch_spec_col {T E : Type} (r : core.result.Result T E) :
+    core.result.Result.Insts.CoreOpsTry.branch r ⦃ cf =>
+      (∀ v, cf = .Continue v → r = .Ok v) ∧
+      (∀ res, cf = .Break res → ∃ e, r = .Err e ∧ res = .Err e) ⦄ :=
+  mysql_common.PCSUtil.branch_spec' r
+
 /-- `MyDeserialize for Column`: `SIZE` is `None`. -/
 theorem packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq :
     packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
@@ -240,7 +247,7 @@ theorem packets.Column.Insts.Mysql_commonProtoMySerialize.serialize_spec (self :
   step with packets.ColumnMeta.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨b1, h1⟩
   · simp [metaFields, alloc.vec.Vec.length] at h ⊢; omega
   step*
-  all_goals (simp_all [colDefEncCrate, ColDef.ofColumn, metaFields, alloc.vec.Vec.length, mysql_common.PBUtil.length_leBytes]; try omega)
+  all_goals (simp_all [colDefEncCrate, ColDef.ofColumn, metaFields, alloc.vec.Vec.length]; try omega)
   all_goals rfl
 
 /-- `column_length`: the field. -/

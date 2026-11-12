@@ -10,6 +10,8 @@ open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PCSUtil
 
 namespace mysql_common
 
+attribute [local step] mysql_common.PCSUtil.branch_spec'
+
 /-- `into_owned`: the same fields. -/
 theorem packets.ColumnMeta.into_owned_spec (self : packets.ColumnMeta) :
     packets.ColumnMeta.into_owned self ⦃ m => metaFields m = metaFields self ⦄ := by

@@ -190,7 +190,7 @@ private theorem loop1_spec (params : Slice value.Value) (ld : Bool) (k : Usize) 
           | (rw [h3']; simp [paramValue, Val.ofValue, binEnc])))
   · exact ⟨rfl, hk, hbuf⟩
 
-@[step]
+@[local step]
 private theorem serialize_params_spec (params : Slice value.Value) (ld : Bool) (buf : alloc.vec.Vec U8)
     (h : buf.length + ((params.val.map (fun v => paramType (Val.ofValue v))).flatten).length
       + ((params.val.map (fun v => paramValue ld (Val.ofValue v))).flatten).length ≤ Usize.max) :
@@ -205,7 +205,7 @@ private theorem serialize_params_spec (params : Slice value.Value) (ld : Bool) (
   intro b2 hb2
   rw [hb2, hb1]
 
-@[step]
+@[local step]
 private theorem const_cursor_serialize (x : misc.raw._const.Const constants.CursorType U8) (buf : alloc.vec.Vec U8)
     (h : buf.length + 1 ≤ Usize.max) :
     misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize constants.CursorType.Insts.CoreMarkerCopy
@@ -215,7 +215,7 @@ private theorem const_cursor_serialize (x : misc.raw._const.Const constants.Curs
     (U8.Insts.CoreConvertFromCursorType.from_eq _), byte_eq_self]
   exact U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec _ _ h
 
-@[step]
+@[local step]
 private theorem const_pflags_serialize (x : misc.raw._const.Const constants.StmtExecuteParamsFlags U8) (buf : alloc.vec.Vec U8)
     (h : buf.length + 1 ≤ Usize.max) :
     misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize constants.StmtExecuteParamsFlags.Insts.CoreMarkerCopy
@@ -225,7 +225,7 @@ private theorem const_pflags_serialize (x : misc.raw._const.Const constants.Stmt
     (U8.Insts.CoreConvertFromStmtExecuteParamsFlags.from_eq _), byte_eq_self]
   exact U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec _ _ h
 
-@[step]
+@[local step]
 private theorem bitmap_serialize (rb : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 8192#usize) Usize) (buf : alloc.vec.Vec U8)
     (h : buf.length + ((cowList rb.1).take 8192).length ≤ Usize.max) :
     misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
@@ -255,7 +255,7 @@ theorem packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.seriali
   simp only [stmtExecuteBytes, List.length_cons, List.length_append, mysql_common.PBUtil.length_leBytes] at h
   unfold packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
   step*
-  all_goals (simp_all [stmtExecuteBytes, alloc.vec.Vec.length, mysql_common.PBUtil.length_leBytes,
+  all_goals (simp_all [stmtExecuteBytes, alloc.vec.Vec.length,
     Function.comp_def]; try omega)
   all_goals rfl
 

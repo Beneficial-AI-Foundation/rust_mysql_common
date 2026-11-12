@@ -10,18 +10,18 @@ open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PCSUtil
 
 namespace mysql_common
 
-@[step]
+@[local step]
 private theorem vec_as_mut_ok (v : alloc.vec.Vec U8) :
     alloc.vec.Vec.Insts.CoreConvertAsMutSlice.as_mut alloc.alloc.Global v ⦃ s back =>
       s = v.slice ∧ back = fun s => ({ slice := s } : alloc.vec.Vec U8) ⦄ :=
   (WP.spec_ok _).mpr ⟨rfl, rfl⟩
 
-@[step]
+@[local step]
 private theorem from_bytes_ok {T U : Type} (inst : value.SerializationSide T) (asRef : core.convert.AsRef U (Slice U8)) (bytes : U) :
     packets.NullBitmap.from_bytes inst asRef bytes ⦃ nb => nb.1 = bytes ⦄ :=
   (WP.spec_ok _).mpr rfl
 
-@[step]
+@[local step]
 private theorem bitmap_len_ok {T U : Type} (inst : value.SerializationSide T) (asRef : core.convert.AsRef U (Slice U8))
     (off : Usize) (hoff : inst.BIT_OFFSET = ok off) (n : Usize) (hn : n.val + 7 + off.val ≤ Usize.max) :
     packets.NullBitmap.bitmap_len inst asRef n ⦃ r => r.val = nullBitmapLen off.val n.val ⦄ := by
@@ -93,7 +93,7 @@ theorem packets.NullBitmapTVecU8.read_panics {T : Type} (inst : value.Serializat
     simp only [Slice.length] at hin; scalar_tac
   simp [hc]
 
-@[step]
+@[local step]
 private theorem byte_and_bit_ok {T U : Type} (inst : value.SerializationSide T) (asRef : core.convert.AsRef U (Slice U8))
     (off : Usize) (hoff : inst.BIT_OFFSET = ok off) (self : packets.NullBitmap T U) (s : Slice U8)
     (hs : asRef.as_ref self.1 = ok s) (i : Usize) (hi : i.val + off.val ≤ Usize.max)

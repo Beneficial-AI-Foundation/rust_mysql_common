@@ -36,25 +36,30 @@ private theorem sum_take_succ (l : List Nat) (k : Nat) (hk : k < l.length) :
     (l.take (k + 1)).sum = (l.take k).sum + l[k] := by
   rw [List.take_add_one, List.getElem?_eq_getElem hk, List.sum_append]; simp
 
-@[step]
+@[local step]
+private theorem from_bytes_ok' {T U : Type} (inst : value.SerializationSide T) (asRef : core.convert.AsRef U (Slice U8)) (bytes : U) :
+    packets.NullBitmap.from_bytes inst asRef bytes ⦃ nb => nb.1 = bytes ⦄ := by
+  rw [packets.NullBitmap.from_bytes_eq]; exact (WP.spec_ok _).mpr rfl
+
+@[local step]
 private theorem constu8_new_ok (T : Type) (N : U8) : misc.raw.int.ConstU8.new T N ⦃ _ => True ⦄ := by
   rw [misc.raw.int.ConstU8.new_eq]; exact (WP.spec_ok _).mpr trivial
 
-@[step]
+@[local step]
 private theorem constu32_new_ok (T : Type) (N : U32) : misc.raw.int.ConstU32.new T N ⦃ _ => True ⦄ := by
   rw [misc.raw.int.ConstU32.new_eq]; exact (WP.spec_ok _).mpr trivial
 
-@[step]
+@[local step]
 private theorem rawint_new_ok {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) :
     misc.raw.int.RawInt.new inst x ⦃ r => r.1 = x ⦄ := by
   rw [misc.raw.int.RawInt.new_eq]; exact (WP.spec_ok _).mpr rfl
 
-@[step]
+@[local step]
 private theorem const_new_ok {T : Type} (U : Type) (t : T) :
     misc.raw._const.Const.new U t ⦃ r => r.1 = t ⦄ := by
   rw [misc.raw._const.Const.new_eq]; exact (WP.spec_ok _).mpr rfl
 
-@[step]
+@[local step]
 private theorem bitmap_rawbytes_new_ok (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
     misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 8192#usize)
       (core.convert.IntoFrom (core.convert.FromSame (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))) c

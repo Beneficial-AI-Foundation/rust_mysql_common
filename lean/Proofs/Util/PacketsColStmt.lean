@@ -14,7 +14,8 @@ import Proofs.Constants.ColumnFlags
 import Proofs.Defs.LemmasCF
 import Proofs.Util.ParseBuf
 
-/-! Helper lemmas for the `Column`, `ColumnMeta`, `NullBitmap` and `ComStmtExecuteRequest` proofs
+/-! Helper lemmas (`branch_spec'` is not tagged `@[step]` globally, since it changes how `step*`
+handles `?`; the files that use it enable it locally) for the `Column`, `ColumnMeta`, `NullBitmap` and `ComStmtExecuteRequest` proofs
 (`Proofs/Packets/{Column,ColumnMeta,NullBitmap,ComStmtExecuteRequest,ComStmtExecuteRequestBuilder}.lean`). -/
 
 set_option autoImplicit false
@@ -64,7 +65,6 @@ theorem lenenc_raw_deserialize (h64 : Target64) (buf : io.ParseBuf) :
   rw [← h]; simp
 
 /-- `?` on a `Result`, in a form `simp_all` can use once the branch taken is known. -/
-@[step]
 theorem branch_spec' {T E : Type} (r : core.result.Result T E) :
     core.result.Result.Insts.CoreOpsTry.branch r ⦃ cf =>
       (∀ v, cf = .Continue v → r = .Ok v) ∧
