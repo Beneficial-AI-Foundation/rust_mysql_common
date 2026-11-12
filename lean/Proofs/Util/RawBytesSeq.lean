@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Util.ParseBuf
 
 /-! Helper lemmas for the proofs of `Proofs/Misc/Raw/Bytes/*` and `Proofs/Misc/Raw/Seq/*`. -/
 
@@ -218,5 +219,38 @@ theorem rawint_parse_unchecked_spec {T P : Type} (inst : misc.raw.int.IntRepr T 
     apply (WP.spec_ok _).mpr
     simpa [okPart, hri] using hr
   | Err e => simpa [okPart] using hr
+
+/-! ## `put_u64_le` -/
+
+theorem leNat_inj : ∀ (l1 l2 : List U8), l1.length = l2.length → leNat l1 = leNat l2 → l1 = l2
+  | [], [], _, _ => rfl
+  | b1 :: l1, b2 :: l2, hl, he => by
+    simp only [List.length_cons, Nat.add_right_cancel_iff] at hl
+    simp only [leNat] at he
+    have h1 : b1.val < 256 := by scalar_tac
+    have h2 : b2.val < 256 := by scalar_tac
+    have hv : b1.val = b2.val := by omega
+    have hb : b1 = b2 := by scalar_tac
+    rw [hb, leNat_inj l1 l2 hl (by omega)]
+
+theorem toLEBytes_u64 (x : U64) :
+    x.bv.toLEBytes.map (@UScalar.mk UScalarTy.U8) = leBytes 8 x.val := by
+  apply leNat_inj
+  · simp [PBUtil.length_leBytes, BitVec.toLEBytes_length]
+  · rw [PBUtil.leNat_leBytes, ← PBUtil.fromLEBytes_toNat, List.map_map]
+    have : (U8.bv ∘ @UScalar.mk UScalarTy.U8) = id := by funext b; rfl
+    rw [this, List.map_id, BitVec.fromLEBytes_toLEBytes (by decide)]
+    simp only [BitVec.toNat_cast]
+    have := x.hBounds
+    rw [Nat.mod_eq_of_lt (by simpa using x.hBounds)]
+    rfl
+
+theorem put_u64_le_spec (buf : alloc.vec.Vec U8) (x : U64) (h : buf.length + 8 ≤ Usize.max) :
+    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u64_le buf x ⦃ v => v.val = buf.val ++ leBytes 8 x.val ⦄ := by
+  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u64_le
+  step as ⟨ a, ha ⟩
+  step*
+  simp_all
+  exact toLEBytes_u64 x
 
 end mysql_common
