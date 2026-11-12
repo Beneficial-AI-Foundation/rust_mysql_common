@@ -51,12 +51,12 @@ theorem checkedLenencStr_lenencStr (s t : List U8) (hs : s.length < 2 ^ 64) :
 
 /-- The size of a varlen encoding. -/
 theorem varlenUint_length (n : Nat) : (varlenUint n).length = varlenUintSize n := by
-  sorry
+  exact IntAndMisc.varlenUint_length' n
 
 /-- The serialization-library decoder reads back every encoding of `n < 2^64`. -/
 theorem varlenUintDecode_varlenUint (n : Nat) (t : List U8) (hn : n < 2 ^ 64) :
     varlenUintDecode (varlenUint n ++ t) = some (n, t) := by
-  sorry
+  exact IntAndMisc.varlenUintDecode_varlenUint' n t hn
 
 /-- The JSONB reader reads back the JSONB encoding of every `n < 2^32`. -/
 theorem jsonbVarLenRead_jsonbVarLen (n : Nat) (t : List U8) (hn : n < 2 ^ 32) :

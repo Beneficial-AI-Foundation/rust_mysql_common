@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Io.ParseBuf
+import Proofs.Util.ParseBuf
 
 /-! Helper lemmas for the `IntAndMisc` proofs. -/
 
@@ -398,6 +399,94 @@ theorem and128 (c : Nat) (hc : c < 256) : (c &&& 128 = 0 ↔ c < 128) := by
     simp [this, h]
   · have : c / 128 % 2 = 1 := by omega
     simp [this, h]
+
+/-! ## Serialization-library varlen -/
+
+theorem varlen_tb (n k i : Nat) (hk1 : 1 ≤ k) (hi : i < k) (hi8 : i < 8) :
+    ((n * 2 ^ k + (2 ^ (k - 1) - 1)) % 256).testBit i = decide (i < k - 1) := by
+  have hb : 2 ^ (k - 1) - 1 < 2 ^ k := by
+    have : 2 ^ (k - 1) < 2 ^ k := Nat.pow_lt_pow_right (by norm_num) (by omega)
+    have := Nat.one_le_two_pow (n := k - 1)
+    omega
+  rw [show (256 : Nat) = 2 ^ 8 from rfl, Nat.testBit_mod_two_pow, mul_comm,
+    Nat.testBit_two_pow_mul_add n hb]
+  simp [hi, hi8]
+
+theorem varlen_trailingOnes (n k : Nat) (hk1 : 1 ≤ k) (hk : k ≤ 8) :
+    trailingOnes (byte (n * 2 ^ k + (2 ^ (k - 1) - 1))) = k - 1 := by
+  unfold trailingOnes
+  rw [byte_val']
+  have h := fun i => varlen_tb n k i hk1
+  generalize (n * 2 ^ k + (2 ^ (k - 1) - 1)) % 256 = m at h
+  obtain rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl : k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 ∨ k = 5 ∨ k = 6 ∨ k = 7 ∨ k = 8 := by omega
+  all_goals simp [List.range, List.range.loop, List.takeWhile, h]
+
+theorem varlenUintSize_eq (n : Nat) : varlenUintSize n = if n < 128 then 1 else if n < 16384 then 2
+    else if n < 2097152 then 3 else if n < 268435456 then 4 else if n < 34359738368 then 5
+    else if n < 4398046511104 then 6 else if n < 562949953421312 then 7
+    else if n < 72057594037927936 then 8 else 9 := by
+  simp only [varlenUintSize, List.range', List.find?]
+  norm_num
+  split_ifs <;> simp [*]
+
+theorem varlenUintSize_spec (n : Nat) :
+    1 ≤ varlenUintSize n ∧ varlenUintSize n ≤ 9 ∧
+    (varlenUintSize n ≤ 8 → n < 2 ^ (7 * varlenUintSize n)) ∧
+    (varlenUintSize n = 9 → 2 ^ 56 ≤ n) := by
+  rw [varlenUintSize_eq]
+  split_ifs <;> norm_num <;> omega
+
+theorem trailingOnes_255 : trailingOnes (byte 0xFF) = 8 := by
+  unfold trailingOnes; rw [byte_val']
+  simp [List.range, List.range.loop, List.takeWhile]
+  decide
+
+theorem varlenUintDecode_varlenUint' (n : Nat) (t : List U8) (hn : n < 2 ^ 64) :
+    varlenUintDecode (varlenUint n ++ t) = some (n, t) := by
+  obtain ⟨h1, h9, hlt, hge⟩ := varlenUintSize_spec n
+  unfold varlenUint
+  generalize hk : varlenUintSize n = k at *
+  simp only
+  split_ifs with hk9
+  · subst hk9
+    simp only [List.cons_append, varlenUintDecode, trailingOnes_255, ↓reduceIte]
+    exact PBUtil.readLE_leBytes 8 n t hn
+  · have hk8 : k ≤ 8 := by omega
+    have hn7 := hlt hk8
+    obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
+    have htr := varlen_trailingOnes n (k' + 1) (by omega) hk8
+    simp only [Nat.add_sub_cancel] at htr ⊢
+    have hp1 := Nat.one_le_two_pow (n := k')
+    have hpk : (2 : Nat) ^ (k' + 1) = 2 * 2 ^ k' := by rw [pow_succ]; ring
+    have e2 : 2 ^ k' - 1 < 2 ^ (k' + 1) := by omega
+    have hm : n * 2 ^ (k' + 1) + (2 ^ k' - 1) < 2 ^ (8 * (k' + 1)) := by
+      have e1 : (2 : Nat) ^ (8 * (k' + 1)) = 2 ^ (7 * (k' + 1)) * 2 ^ (k' + 1) := by
+        rw [← pow_add]; congr 1; ring
+      have : n * 2 ^ (k' + 1) + 2 ^ (k' + 1) ≤ 2 ^ (7 * (k' + 1)) * 2 ^ (k' + 1) := by
+        rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right _ hn7
+      omega
+    generalize hM : n * 2 ^ (k' + 1) + (2 ^ k' - 1) = M at *
+    have hlen := length_leBytes' (k' + 1) M
+    obtain ⟨ht, hd⟩ := leBytes_take_drop (k' + 1) M t
+    have hcons : leBytes (k' + 1) M ++ t = byte M :: (leBytes k' (M / 256) ++ t) := rfl
+    rw [hcons] at ht hd
+    rw [hcons]
+    simp only [varlenUintDecode, htr, show k' ≠ 8 by omega, ↓reduceIte]
+    rw [← hcons]
+    simp only [List.length_append, hlen, Nat.le_add_right, ↓reduceIte]
+    rw [← hcons] at ht hd
+    rw [ht, hd, leNat_leBytes', Nat.mod_eq_of_lt hm, ← hM]
+    congr 2
+    rw [Nat.add_div_of_dvd_right (Dvd.intro_left _ rfl), Nat.mul_div_cancel _ (by positivity),
+      Nat.div_eq_of_lt e2]
+    simp
+
+theorem varlenUint_length' (n : Nat) : (varlenUint n).length = varlenUintSize n := by
+  unfold varlenUint
+  dsimp only
+  split_ifs with h
+  · simp [h]
+  · simp
 
 /-! ## `RawInt` -/
 
