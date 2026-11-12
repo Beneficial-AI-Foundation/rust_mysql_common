@@ -43,7 +43,7 @@ theorem value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueErr
             refine ⟨⟨_, rfl⟩, fun x1 w he => ?_⟩
             cases he
             simp [chronoTime, t1, t2, t3, t4, hhv, hmv, hsv]
-        · exact absurd rfl (by assumption)
+        · contradiction
       · simp only [value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError.try_from,
           Bool.false_eq_true, ite_false]
         have hi' : i.val ≠ 0 := fun h0 => hi (UScalar.eq_of_val_eq (by simpa using h0))

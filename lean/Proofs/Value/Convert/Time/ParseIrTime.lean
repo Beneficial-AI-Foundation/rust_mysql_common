@@ -34,7 +34,7 @@ theorem value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.tr
       refine ⟨fun h => by simp [okPart] at h, ⟨fun _ => hiff, fun _ => ⟨_, rfl⟩⟩, fun x1 w he => ?_⟩
       cases he
       simp [timeTime, h1, h2, h3, h4]
-  · rename_i hne; exact absurd rfl hne
+  · contradiction
 
 /-- `TryFrom<Value> for ParseIr<Time>` on `Bytes`: not valid UTF-8 or fewer than 8 bytes is an
     error; 8 bytes: time's `hh:mm:ss` parser; more: the parser with a fraction (both opaque). -/
