@@ -127,8 +127,102 @@ features = [
 # Charon settings for the Aeneas/Lean verification (see VERIFICATION.md and scripts/).
 [package.metadata.charon]
 start_from = [
-  "mysql_common::io",
-  "mysql_common::misc",
+  # src/io.rs: the inherent methods of ParseBuf, and the BufMutExt methods.
+  "mysql_common::io::ParseBuf::_",
+  "mysql_common::io::BufMutExt::put_lenenc_int",
+  "mysql_common::io::BufMutExt::put_lenenc_str",
+  "mysql_common::io::BufMutExt::put_u24_le",
+  "mysql_common::io::BufMutExt::put_i24_le",
+  "mysql_common::io::BufMutExt::put_u48_le",
+  "mysql_common::io::BufMutExt::put_u56_le",
+  "mysql_common::io::BufMutExt::put_i56_le",
+  "mysql_common::io::BufMutExt::put_u8_str",
+  "mysql_common::io::BufMutExt::put_u32_str",
+  # src/misc/mod.rs: length-encoded and variable-length integer helpers.
+  "mysql_common::misc::lenenc_int_len",
+  "mysql_common::misc::lenenc_str_len",
+  "mysql_common::misc::read_varlen_uint",
+  "mysql_common::misc::write_varlen_uint",
+  "mysql_common::misc::varlen_uint_size",
+  "mysql_common::misc::unexpected_buf_eof",
+  # src/misc/raw/mod.rs (the impls for `&[u8]`, `[u8]`, `[u8; N]` and `f64` are not on named
+  # types, which `start_from` patterns cannot express: they are marked `#[verify::start_from]` by
+  # translation-patches/08-start-from-attributes.patch, see `start_from_attribute` below)
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::Skip<_>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::Skip<_>}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::io::ParseBuf}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::Either<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::Either<_, _>}",
+  "mysql_common::misc::raw::Either::_",
+  # src/misc/raw/int.rs
+  "{impl mysql_common::misc::raw::int::IntRepr for _}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::int::RawInt<_>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::int::RawInt<_>}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::int::ConstU8<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::int::ConstU8<_, _>}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::int::ConstU32<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::int::ConstU32<_, _>}",
+  "{impl core::ops::deref::Deref for mysql_common::misc::raw::int::RawInt<_>}",
+  "{impl core::ops::deref::DerefMut for mysql_common::misc::raw::int::RawInt<_>}",
+  "mysql_common::misc::raw::int::RawInt::_",
+  "mysql_common::misc::raw::int::ConstU8::_",
+  "mysql_common::misc::raw::int::ConstU32::_",
+  # src/misc/raw/bytes.rs (RawBytes::as_str and RawBytes::into_owned are out of scope)
+  "{impl mysql_common::misc::raw::bytes::BytesRepr for _}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::bytes::RawBytes<_>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::bytes::RawBytes<_>}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::bytes::ConstBytes<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::bytes::ConstBytes<_, _>}",
+  "mysql_common::misc::raw::bytes::RawBytes::new",
+  "mysql_common::misc::raw::bytes::RawBytes::is_empty",
+  "mysql_common::misc::raw::bytes::RawBytes::len",
+  "mysql_common::misc::raw::bytes::RawBytes::as_bytes",
+  # src/misc/raw/seq.rs
+  "{impl mysql_common::misc::raw::seq::SeqRepr for _}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::seq::Seq<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::seq::Seq<_, _>}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::seq::RawSeq<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::seq::RawSeq<_, _>}",
+  "{impl core::ops::deref::Deref for mysql_common::misc::raw::seq::Seq<_, _>}",
+  "mysql_common::misc::raw::seq::RawSeq::_",
+  # src/misc/raw/flags.rs
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::flags::RawFlags<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::flags::RawFlags<_, _>}",
+  "mysql_common::misc::raw::flags::RawFlags::_",
+  # src/misc/raw/_const.rs
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::_const::Const<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::_const::Const<_, _>}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::_const::RawConst<_, _>}",
+  "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::_const::RawConst<_, _>}",
+  "{impl core::ops::deref::Deref for mysql_common::misc::raw::_const::Const<_, _>}",
+  "{impl core::ops::deref::DerefMut for mysql_common::misc::raw::_const::Const<_, _>}",
+  "{impl core::ops::deref::Deref for mysql_common::misc::raw::_const::RawConst<_, _>}",
+  "{impl core::ops::deref::DerefMut for mysql_common::misc::raw::_const::RawConst<_, _>}",
+  "mysql_common::misc::raw::_const::Const::_",
+  "mysql_common::misc::raw::_const::RawConst::_",
+  # src/value/mod.rs: Value and its binary/text wire format.
+  "mysql_common::value::Value",
+  "{impl mysql_common::proto::MySerialize for mysql_common::value::Value}",
+  "{impl mysql_common::proto::MyDeserialize for mysql_common::value::ValueDeserializer<_>}",
+  "mysql_common::value::Value::bin_len",
+  "mysql_common::value::Value::deserialize_text",
+  "mysql_common::value::Value::deserialize_tiny",
+  "mysql_common::value::Value::deserialize_short",
+  "mysql_common::value::Value::deserialize_long",
+  "mysql_common::value::Value::deserialize_longlong",
+  "mysql_common::value::Value::deserialize_datetime",
+  "mysql_common::value::Value::deserialize_time",
+  "mysql_common::value::Value::deserialize_bin",
 ]
+start_from_attribute = ["verify::start_from"]
 exclude = []
-opaque = []
+opaque = [
+  # Construct an `io::Error`, which goes through `Box<dyn Error + Send + Sync>`: Aeneas does not
+  # support `dyn` types. Specs only ever say that a function returns `Err _`.
+  "mysql_common::misc::io_error_msg",
+  "mysql_common::misc::io_error_from",
+]
+
+[package.metadata.charon.rustc]
+# Lets rustc accept the `#[verify::start_from]` attributes added by the translation patches.
+flags = ["-Zcrate-attr=feature(register_tool)", "-Zcrate-attr=register_tool(verify)"]

@@ -1,0 +1,162 @@
+Translation patch: construction of `io::Error`
+
+Change: Every `io::Error::new(kind, x)` in the in-scope code becomes `io_error_msg(kind, "...")` (static message) or `io_error_from(kind, e)` (error value); these two new helpers in `misc/mod.rs` are just `io::Error::new(kind, x)`. They are `opaque` in Cargo.toml.
+Why: `io::Error::new` takes `E: Into<Box<dyn Error + Send + Sync>>`; Aeneas does not support `dyn` types ("Dynamic trait types are not supported yet").
+Behaviour: Identical: the helpers are the inlined call.
+
+diff --git a/src/misc/mod.rs b/src/misc/mod.rs
+index 10eebf8..6bbdeef 100644
+--- a/src/misc/mod.rs
++++ b/src/misc/mod.rs
+@@ -50,7 +50,7 @@ pub fn lenenc_str_len(s: &[u8]) -> u64 {
+ /// <https://dev.mysql.com/doc/dev/mysql-server/latest/PageLibsMysqlSerialization.html>
+ pub fn read_varlen_uint(buf: &mut ParseBuf<'_>) -> io::Result<u64> {
+     if buf.is_empty() {
+-        return Err(io::Error::new(
++        return Err(io_error_msg(
+             io::ErrorKind::UnexpectedEof,
+             "unexpected end of buffer reading varlen uint",
+         ));
+@@ -62,7 +62,7 @@ pub fn read_varlen_uint(buf: &mut ParseBuf<'_>) -> io::Result<u64> {
+     if trailing_ones == 8 {
+         // Special case: 0xFF → 9 bytes total, remaining 8 bytes are the raw u64
+         if buf.len() < 9 {
+-            return Err(io::Error::new(
++            return Err(io_error_msg(
+                 io::ErrorKind::UnexpectedEof,
+                 "unexpected end of buffer reading 9-byte varlen uint",
+             ));
+@@ -76,7 +76,7 @@ pub fn read_varlen_uint(buf: &mut ParseBuf<'_>) -> io::Result<u64> {
+ 
+     let num_bytes = trailing_ones + 1;
+     if buf.len() < num_bytes {
+-        return Err(io::Error::new(
++        return Err(io_error_msg(
+             io::ErrorKind::UnexpectedEof,
+             "unexpected end of buffer reading varlen uint",
+         ));
+@@ -138,8 +138,23 @@ pub fn varlen_uint_size(value: u64) -> usize {
+     }
+ }
+ 
++/// `io::Error::new(kind, msg)` for a static message. (Translation helper: kept opaque, since
++/// constructing an `io::Error` goes through `Box<dyn Error>`.)
++pub(crate) fn io_error_msg(kind: io::ErrorKind, msg: &'static str) -> io::Error {
++    io::Error::new(kind, msg)
++}
++
++/// `io::Error::new(kind, err)` for an error value. (Translation helper: kept opaque, since
++/// constructing an `io::Error` goes through `Box<dyn Error>`.)
++pub(crate) fn io_error_from<E>(kind: io::ErrorKind, err: E) -> io::Error
++where
++    E: std::error::Error + Send + Sync + 'static,
++{
++    io::Error::new(kind, err)
++}
++
+ pub(crate) fn unexpected_buf_eof() -> io::Error {
+-    io::Error::new(
++    io_error_msg(
+         io::ErrorKind::UnexpectedEof,
+         "can't parse: buf doesn't have enough data",
+     )
+diff --git a/src/misc/raw/_const.rs b/src/misc/raw/_const.rs
+index e99b658..23b8887 100644
+--- a/src/misc/raw/_const.rs
++++ b/src/misc/raw/_const.rs
+@@ -15,6 +15,7 @@ use std::{
+ 
+ use crate::{
+     io::ParseBuf,
++    misc::io_error_from,
+     proto::{MyDeserialize, MySerialize},
+ };
+ 
+@@ -61,7 +62,7 @@ where
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         let raw_val = buf.parse_unchecked::<RawInt<U>>(())?;
+         T::try_from(*raw_val)
+-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
++            .map_err(|e| io_error_from(io::ErrorKind::InvalidData, e))
+             .map(Const::new)
+     }
+ }
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index 162fe82..f602245 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -14,7 +14,7 @@ use crate::io::BufMut;
+ 
+ use crate::{
+     io::{BufMutExt, ParseBuf},
+-    misc::unexpected_buf_eof,
++    misc::{io_error_from, io_error_msg, unexpected_buf_eof},
+     proto::{MyDeserialize, MySerialize},
+ };
+ 
+@@ -203,7 +203,7 @@ impl BytesRepr for NullBytes {
+                 buf.skip(1);
+                 Ok(Cow::Borrowed(out))
+             }
+-            None => Err(io::Error::new(
++            None => Err(io_error_msg(
+                 io::ErrorKind::InvalidData,
+                 "no null terminator for null-terminated string",
+             )),
+@@ -328,7 +328,7 @@ where
+         if bytes == T::VALUE {
+             Ok(Default::default())
+         } else {
+-            Err(io::Error::new(
++            Err(io_error_from(
+                 io::ErrorKind::InvalidData,
+                 T::Error::default(),
+             ))
+diff --git a/src/misc/raw/int.rs b/src/misc/raw/int.rs
+index fe464df..a908304 100644
+--- a/src/misc/raw/int.rs
++++ b/src/misc/raw/int.rs
+@@ -18,6 +18,7 @@ use std::{
+ 
+ use crate::{
+     io::{BufMutExt, ParseBuf},
++    misc::{io_error_from, io_error_msg},
+     proto::{MyDeserialize, MySerialize},
+ };
+ 
+@@ -244,7 +245,7 @@ where
+         if buf.eat_u8() == N {
+             Ok(Self(PhantomData))
+         } else {
+-            Err(io::Error::new(io::ErrorKind::InvalidData, T::default()))
++            Err(io_error_from(io::ErrorKind::InvalidData, T::default()))
+         }
+     }
+ }
+@@ -279,7 +280,7 @@ where
+         if buf.eat_u32_le() == N {
+             Ok(Self(PhantomData))
+         } else {
+-            Err(io::Error::new(io::ErrorKind::InvalidData, T::default()))
++            Err(io_error_from(io::ErrorKind::InvalidData, T::default()))
+         }
+     }
+ }
+@@ -322,7 +323,7 @@ impl IntRepr for VarLen {
+             len |= (byte & 0x7f) << (7 * i);
+             if byte & 0x80 == 0 {
+                 if len > (u32::MAX as u64) {
+-                    return Err(io::Error::new(
++                    return Err(io_error_msg(
+                         io::ErrorKind::InvalidData,
+                         "invalid variable-length value (> u32::MAX)",
+                     ));
+@@ -331,7 +332,7 @@ impl IntRepr for VarLen {
+             }
+         }
+ 
+-        Err(io::Error::new(
++        Err(io_error_msg(
+             io::ErrorKind::InvalidData,
+             "invalid variable-length value (more than 5 bytes)",
+         ))

@@ -1,0 +1,20 @@
+Translation patch: `RawBytes::as_bytes`
+
+Change: `&self.0.as_ref()[..self.len()]` becomes `let len = self.len(); &self.0.as_ref()[..len]`.
+Why: Aeneas fails ("Unreachable", InterpProjectors) when `self.len()` is called while the borrow returned by `as_ref` is live.
+Behaviour: Identical: `len` and `as_ref` have no side effects, so the evaluation order does not matter.
+
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index d007086..3e13674 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -50,7 +50,8 @@ impl<'a, T: BytesRepr> RawBytes<'a, T> {
+ 
+     /// Returns the _effective_ bytes (see `RawBytes::len`).
+     pub fn as_bytes(&self) -> &[u8] {
+-        &self.0.as_ref()[..self.len()]
++        let len = self.len();
++        &self.0.as_ref()[..len]
+     }
+ 
+     /// Returns the value as a UTF-8 string (lossy converted).

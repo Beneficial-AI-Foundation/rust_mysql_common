@@ -1,0 +1,19 @@
+Translation patch: `IntRepr::Primitive`
+
+Change: Drops `Hash` from the bounds of the associated type `IntRepr::Primitive`.
+Why: The bound makes every `IntRepr` impl carry a `Hash` instance for its primitive, whose `hash` methods are unmodelled std functions (eight axioms). Excluding `core::hash::Hash` instead crashes Aeneas.
+Behaviour: No behaviour change: removing a bound does not change any code, and the crate still compiles with all features (nothing relies on it; derived `Hash` impls add their own bounds).
+
+diff --git a/src/misc/raw/int.rs b/src/misc/raw/int.rs
+index f00c5cd..43c333a 100644
+--- a/src/misc/raw/int.rs
++++ b/src/misc/raw/int.rs
+@@ -77,7 +77,7 @@ impl<T: IntRepr> MySerialize for RawInt<T> {
+ /// Serialized representation of an integer.
+ pub trait IntRepr {
+     const SIZE: Option<usize>;
+-    type Primitive: fmt::Debug + Default + Copy + Eq + Ord + Hash;
++    type Primitive: fmt::Debug + Default + Copy + Eq + Ord;
+ 
+     fn serialize(val: Self::Primitive, buf: &mut Vec<u8>);
+     fn deserialize(buf: &mut ParseBuf<'_>) -> io::Result<Self::Primitive>;

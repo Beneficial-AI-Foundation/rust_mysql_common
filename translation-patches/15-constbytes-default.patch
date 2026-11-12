@@ -1,0 +1,19 @@
+Translation patch: `MyDeserialize for ConstBytes`
+
+Change: `Ok(Default::default())` becomes `Ok(ConstBytes(PhantomData))`.
+Why: The derived `Default` calls `PhantomData::default`, which is not modelled.
+Behaviour: Identical: the derived `Default` is `ConstBytes(PhantomData::default())` = `ConstBytes(PhantomData)`.
+
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index 4776299..d007086 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -334,7 +334,7 @@ where
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         let bytes: [u8; LEN] = buf.parse_unchecked(())?;
+         if bytes == T::VALUE {
+-            Ok(Default::default())
++            Ok(ConstBytes(PhantomData))
+         } else {
+             Err(io_error_from(
+                 io::ErrorKind::InvalidData,

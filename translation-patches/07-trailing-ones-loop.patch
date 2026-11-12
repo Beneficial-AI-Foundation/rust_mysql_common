@@ -1,0 +1,23 @@
+Translation patch: `misc::read_varlen_uint`
+
+Change: `first_byte.trailing_ones() as usize` becomes a loop counting the 1 bits of `first_byte` from bit 0 upwards (at most 8).
+Why: `u8::trailing_ones` is not modelled by Aeneas.
+Behaviour: Identical: the loop stops at the first 0 bit or after 8 bits, which is `trailing_ones`.
+
+diff --git a/src/misc/mod.rs b/src/misc/mod.rs
+index 6bbdeef..edf8eb3 100644
+--- a/src/misc/mod.rs
++++ b/src/misc/mod.rs
+@@ -57,7 +57,11 @@ pub fn read_varlen_uint(buf: &mut ParseBuf<'_>) -> io::Result<u64> {
+     }
+ 
+     let first_byte = buf.0[0];
+-    let trailing_ones = first_byte.trailing_ones() as usize;
++    // `first_byte.trailing_ones() as usize`, written as a loop.
++    let mut trailing_ones = 0_usize;
++    while trailing_ones < 8 && (first_byte >> trailing_ones) & 1 == 1 {
++        trailing_ones += 1;
++    }
+ 
+     if trailing_ones == 8 {
+         // Special case: 0xFF → 9 bytes total, remaining 8 bytes are the raw u64
