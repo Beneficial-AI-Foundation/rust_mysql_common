@@ -257,54 +257,6 @@ theorem rawbytes_lenenc_size :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple]
   unfold misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE; rfl
 
-theorem deserialize_text_spec' (h64 : Target64) (buf : io.ParseBuf) :
-    value.Value.deserialize_text buf ⦃ r rest =>
-      ((okPart r).map Val.ofValue, rest.val) = textRead buf.val ⦄ := by
-  unfold value.Value.deserialize_text
-  step with io.ParseBuf.is_empty_spec as ⟨b, hb⟩
-  split
-  · have hv : buf.val = [] := hb.mp (by assumption)
-    simp [misc.unexpected_buf_eof, misc.io_error_msg, okPart, hv, textRead]
-  · have hv : buf.val ≠ [] := fun h => by simp_all
-    obtain ⟨x, rest, hx⟩ : ∃ x rest, buf.val = x :: rest := by
-      cases h : buf.val with
-      | nil => exact absurd h hv
-      | cons x rest => exact ⟨x, rest, rfl⟩
-    step with Slice.index_usize_spec as ⟨i, hi⟩
-    have hix : i = x := by rw [hi]; simp [hx]
-    subst hix
-    rw [mtext]
-    split
-    · step with io.ParseBuf.skip_spec as ⟨rest', hr⟩
-      subst_vars
-      simp [okPart, Val.ofValue, textRead, hx, hr]
-    · rw [io.ParseBuf.parse_of_size_none _ _ _ rawbytes_lenenc_size]
-      have H := misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
-        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple () buf
-        (fun o rest => (o, rest.val) = checkedLenencStr buf.val)
-        (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf h64)
-      apply WP.spec_bind H
-      rintro ⟨r, rest'⟩ hr
-      have hne : ¬ i.val = 0xFB := by
-        intro h; apply (by assumption : ¬ i = 251#u8); apply UScalar.eq_of_val_eq; simpa using h
-      simp only [WP.uncurry'_pair] at hr
-      rw [hx]
-      simp only [textRead, hne, ite_false]
-      rw [← hx]
-      cases r with
-      | Ok rb =>
-        simp only [core.result.Result.Insts.CoreOpsTry.branch]
-        obtain ⟨c, u⟩ := rb
-        step with cow_into_vec_spec as ⟨v, hv⟩
-        simp only [okPart, Option.map] at hr ⊢
-        rw [← hr]
-        simp [Val.ofValue, hv]
-      | Err e =>
-        simp only [core.result.Result.Insts.CoreOpsTry.branch]
-        simp only [okPart, Option.map] at hr ⊢
-        rw [← hr]
-        simp
-
 theorem lenencStr_head (s t : List U8) :
     ∃ b rest, lenencStr s ++ t = b :: rest ∧ b ≠ 251#u8 := by
   unfold lenencStr lenencInt
@@ -385,6 +337,36 @@ theorem deserialize_text_null' (tail : List U8) (buf : io.ParseBuf)
   simp only [mtext, ↓reduceIte]
   step with io.ParseBuf.skip_spec as ⟨rest', hr⟩
   simp [okPart, Val.ofValue, hr, h]
+
+/-- `deserialize_text` in general: empty input, `0xFB` (`deserialize_text_null'`), or a
+length-encoded string (`deserialize_text_bytes_case`). -/
+theorem deserialize_text_spec' (h64 : Target64) (buf : io.ParseBuf) :
+    value.Value.deserialize_text buf ⦃ r rest =>
+      ((okPart r).map Val.ofValue, rest.val) = textRead buf.val ⦄ := by
+  rcases hx : buf.val with _ | ⟨x, rest⟩
+  · unfold value.Value.deserialize_text
+    step with io.ParseBuf.is_empty_spec as ⟨b, hb⟩
+    obtain rfl : b = true := hb.mpr hx
+    simp [misc.unexpected_buf_eof, misc.io_error_msg, okPart, textRead, hx]
+  by_cases hfb : x = 251#u8
+  · subst hfb
+    apply WP.spec_mono (deserialize_text_null' rest buf (by rw [hx]; rfl))
+    rintro ⟨r, rest'⟩ ⟨h1, h2⟩
+    simp only [WP.uncurry'_pair, h1, h2]
+    simp [textRead]
+  have hne : ¬ x.val = 0xFB := fun h => hfb (UScalar.eq_of_val_eq (by simpa using h))
+  apply deserialize_text_bytes_case buf x rest hx hfb
+    (fun o rest' => (o.map Val.ofValue, rest'.val) = textRead (x :: rest))
+  · apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf h64)
+    rintro ⟨r, rest'⟩ h v hv
+    simp only [WP.uncurry'_pair, textRead, hne, ite_false] at h ⊢
+    rw [← hx, ← h, hv]
+    rfl
+  · apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf h64)
+    rintro ⟨r, rest'⟩ h hn
+    simp only [WP.uncurry'_pair, textRead, hne, ite_false] at h ⊢
+    rw [← hx, ← h, hn]
+    rfl
 
 theorem c32 : ∀ i : Fin 16, i.val ≠ 5 → (32#16).getLsbD i.val = false := by decide
 theorem bvaux (b : BitVec 16) : (b &&& 32#16 = 32#16) ↔ b.getLsbD 5 = true := by
