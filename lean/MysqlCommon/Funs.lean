@@ -6488,7 +6488,7 @@ def misc.raw.seq.Seq.Insts.Mysql_commonProtoMyDeserialize {T : Type _} {U :
 }
 
 /-- [mysql_common::misc::raw::seq::parse_items]: loop body 0:
-    Source: 'src/misc/raw/seq.rs', lines 116:4-120:1 -/
+    Source: 'src/misc/raw/seq.rs', lines 119:4-123:1 -/
 @[rust_loop_body]
 def misc.raw.seq.parse_items_loop.body
   {T : Type _} (protoMyDeserializeTTupleInst : proto.MyDeserialize T Unit)
@@ -6517,7 +6517,7 @@ def misc.raw.seq.parse_items_loop.body
       ok (done (r1, buf1))
 
 /-- [mysql_common::misc::raw::seq::parse_items]: loop 0:
-    Source: 'src/misc/raw/seq.rs', lines 116:4-120:1 -/
+    Source: 'src/misc/raw/seq.rs', lines 119:4-123:1 -/
 @[rust_loop]
 def misc.raw.seq.parse_items_loop
   {T : Type _} (protoMyDeserializeTTupleInst : proto.MyDeserialize T Unit)
@@ -6532,22 +6532,21 @@ def misc.raw.seq.parse_items_loop
     (iter, buf, seq)
 
 /-- [mysql_common::misc::raw::seq::parse_items]:
-    Source: 'src/misc/raw/seq.rs', lines 110:0-120:1 -/
+    Source: 'src/misc/raw/seq.rs', lines 110:0-123:1 -/
 def misc.raw.seq.parse_items
   {T : Type _} (corecloneCloneInst : core.clone.Clone T)
   (protoMyDeserializeDeTTupleInst : proto.MyDeserialize T Unit)
-  (len : Std.Usize) (buf : io.ParseBuf) :
+  (len : Std.Usize) (buf : io.ParseBuf) (seq : alloc.vec.Vec T) :
   Result ((core.result.Result (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T))
     core.io.error.Error) × io.ParseBuf)
   := do
-  let seq := alloc.vec.Vec.with_capacity T len
   let (r, buf1) ←
     misc.raw.seq.parse_items_loop protoMyDeserializeDeTTupleInst
       { start := 0#usize, «end» := len } buf seq
   ok (r, buf1)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<usize> for mysql_common::misc::raw::seq::Unknown}::deserialize]:
-    Source: 'src/misc/raw/seq.rs', lines 151:4-163:5
+    Source: 'src/misc/raw/seq.rs', lines 154:4-167:5
     Visibility: public -/
 def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize
   {T : Type _} (corecloneCloneInst : core.clone.Clone T)
@@ -6556,11 +6555,12 @@ def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize
   Result ((core.result.Result (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T))
     core.io.error.Error) × io.ParseBuf)
   := do
+  let seq := alloc.vec.Vec.with_capacity T len
   let o ← protoMyDeserializeDeTTupleInst.SIZE
   match o with
   | none =>
     misc.raw.seq.parse_items corecloneCloneInst protoMyDeserializeDeTTupleInst
-      len buf
+      len buf seq
   | some count =>
     let i ← count * len
     let (r, buf1) ←
@@ -6571,7 +6571,7 @@ def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize
     | core.ops.control_flow.ControlFlow.Continue pb =>
       let (r1, _) ←
         misc.raw.seq.parse_items corecloneCloneInst
-          protoMyDeserializeDeTTupleInst len pb
+          protoMyDeserializeDeTTupleInst len pb seq
       ok (r1, buf1)
     | core.ops.control_flow.ControlFlow.Break residual =>
       let r1 ←
@@ -6581,7 +6581,7 @@ def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize
       ok (r1, buf1)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<usize> for mysql_common::misc::raw::seq::Unknown}::serialize]: loop body 0:
-    Source: 'src/misc/raw/seq.rs', lines 146:8-148:9
+    Source: 'src/misc/raw/seq.rs', lines 149:8-151:9
     Visibility: public -/
 @[rust_loop_body]
 def
@@ -6599,7 +6599,7 @@ def
     ok (cont (iter1, buf1))
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<usize> for mysql_common::misc::raw::seq::Unknown}::serialize]: loop 0:
-    Source: 'src/misc/raw/seq.rs', lines 146:8-148:9
+    Source: 'src/misc/raw/seq.rs', lines 149:8-151:9
     Visibility: public -/
 @[rust_loop]
 def
@@ -6615,7 +6615,7 @@ def
     (iter, buf)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<usize> for mysql_common::misc::raw::seq::Unknown}::serialize]:
-    Source: 'src/misc/raw/seq.rs', lines 145:4-149:5
+    Source: 'src/misc/raw/seq.rs', lines 148:4-152:5
     Visibility: public -/
 def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize
   {T : Type _} (protoMySerializeInst : proto.MySerialize T) (seq : Slice T)
@@ -6627,7 +6627,7 @@ def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize
     protoMySerializeInst iter buf
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<usize> for mysql_common::misc::raw::seq::Unknown}::SIZE]
-    Source: 'src/misc/raw/seq.rs', lines 142:4-142:37
+    Source: 'src/misc/raw/seq.rs', lines 145:4-145:37
     Visibility: public -/
 @[global_simps, irreducible]
 def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.SIZE
@@ -6635,7 +6635,7 @@ def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.SIZE
   none
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<usize> for mysql_common::misc::raw::seq::Unknown}::MAX_LEN]
-    Source: 'src/misc/raw/seq.rs', lines 141:4-141:38
+    Source: 'src/misc/raw/seq.rs', lines 144:4-144:38
     Visibility: public -/
 @[global_simps, irreducible]
 def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.MAX_LEN
@@ -6643,7 +6643,7 @@ def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.MAX_LEN
   core.num.Usize.MAX
 
 /-- Trait implementation: [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<usize> for mysql_common::misc::raw::seq::Unknown}]
-    Source: 'src/misc/raw/seq.rs', lines 140:0-164:1 -/
+    Source: 'src/misc/raw/seq.rs', lines 143:0-168:1 -/
 @[reducible]
 def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize :
   misc.raw.seq.SeqRepr misc.raw.seq.Unknown Std.Usize := {
@@ -6660,7 +6660,7 @@ def misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize :
 }
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU64}::SIZE]
-    Source: 'src/misc/raw/seq.rs', lines 170:12-170:45; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 202:0-202:26
+    Source: 'src/misc/raw/seq.rs', lines 174:12-174:45; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 207:0-207:26
     Visibility: public -/
 @[global_simps, irreducible]
 def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE
@@ -6668,7 +6668,7 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE
   none
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU64}::MAX_LEN]
-    Source: 'src/misc/raw/seq.rs', lines 169:12-169:54; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 202:0-202:26
+    Source: 'src/misc/raw/seq.rs', lines 173:12-173:54; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 207:0-207:26
     Visibility: public -/
 @[global_simps, irreducible]
 def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN
@@ -6676,7 +6676,7 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN
   ok (UScalar.cast .Usize core.num.U64.MAX)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU64}::deserialize]:
-    Source: 'src/misc/raw/seq.rs', lines 181:12-197:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 202:0-202:26
+    Source: 'src/misc/raw/seq.rs', lines 185:12-202:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 207:0-207:26
     Visibility: public -/
 def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
   {T : Type _} (corecloneCloneInst : core.clone.Clone T)
@@ -6696,11 +6696,12 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
       misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
         misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 val
     let len ← lift (UScalar.cast .Usize i)
+    let seq := alloc.vec.Vec.with_capacity T len
     let o ← protoMyDeserializeDeTTupleInst.SIZE
     match o with
     | none =>
       misc.raw.seq.parse_items corecloneCloneInst
-        protoMyDeserializeDeTTupleInst len buf1
+        protoMyDeserializeDeTTupleInst len buf1 seq
     | some count =>
       let i1 ← count * len
       let (r1, buf2) ←
@@ -6711,7 +6712,7 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
       | core.ops.control_flow.ControlFlow.Continue pb =>
         let (r2, _) ←
           misc.raw.seq.parse_items corecloneCloneInst
-            protoMyDeserializeDeTTupleInst len pb
+            protoMyDeserializeDeTTupleInst len pb seq
         ok (r2, buf2)
       | core.ops.control_flow.ControlFlow.Break residual =>
         let r2 ←
@@ -6727,7 +6728,7 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
     ok (r1, buf1)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU64}::serialize]: loop body 0:
-    Source: 'src/misc/raw/seq.rs', lines 202:0-202:26
+    Source: 'src/misc/raw/seq.rs', lines 207:0-207:26
     Visibility: public -/
 @[rust_loop_body]
 def
@@ -6748,7 +6749,7 @@ def
     ok (cont (iter1, buf1))
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU64}::serialize]: loop 0:
-    Source: 'src/misc/raw/seq.rs', lines 202:0-202:26
+    Source: 'src/misc/raw/seq.rs', lines 207:0-207:26
     Visibility: public -/
 @[rust_loop]
 def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop
@@ -6764,7 +6765,7 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop
     (iter, buf)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU64}::serialize]:
-    Source: 'src/misc/raw/seq.rs', lines 173:12-179:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 202:0-202:26
+    Source: 'src/misc/raw/seq.rs', lines 177:12-183:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 207:0-207:26
     Visibility: public -/
 def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize
   {T : Type _} (protoMySerializeInst : proto.MySerialize T) (seq : Slice T)
@@ -6786,7 +6787,7 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize
     protoMySerializeInst iter buf1
 
 /-- Trait implementation: [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU64}]
-    Source: 'src/misc/raw/seq.rs', lines 168:8-198:9; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 202:0-202:26 -/
+    Source: 'src/misc/raw/seq.rs', lines 172:8-203:9; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 207:0-207:26 -/
 @[reducible]
 def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple :
   misc.raw.seq.SeqRepr misc.raw.int.LeU64 Unit := {
@@ -6803,7 +6804,7 @@ def misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple :
 }
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU32}::SIZE]
-    Source: 'src/misc/raw/seq.rs', lines 170:12-170:45; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 203:0-203:26
+    Source: 'src/misc/raw/seq.rs', lines 174:12-174:45; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 208:0-208:26
     Visibility: public -/
 @[global_simps, irreducible]
 def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE
@@ -6811,7 +6812,7 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE
   none
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU32}::MAX_LEN]
-    Source: 'src/misc/raw/seq.rs', lines 169:12-169:54; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 203:0-203:26
+    Source: 'src/misc/raw/seq.rs', lines 173:12-173:54; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 208:0-208:26
     Visibility: public -/
 @[global_simps, irreducible]
 def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN
@@ -6819,7 +6820,7 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN
   ok (UScalar.cast .Usize core.num.U32.MAX)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU32}::deserialize]:
-    Source: 'src/misc/raw/seq.rs', lines 181:12-197:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 203:0-203:26
+    Source: 'src/misc/raw/seq.rs', lines 185:12-202:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 208:0-208:26
     Visibility: public -/
 def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
   {T : Type _} (corecloneCloneInst : core.clone.Clone T)
@@ -6839,11 +6840,12 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
       misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
         misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 val
     let len ← lift (UScalar.cast .Usize i)
+    let seq := alloc.vec.Vec.with_capacity T len
     let o ← protoMyDeserializeDeTTupleInst.SIZE
     match o with
     | none =>
       misc.raw.seq.parse_items corecloneCloneInst
-        protoMyDeserializeDeTTupleInst len buf1
+        protoMyDeserializeDeTTupleInst len buf1 seq
     | some count =>
       let i1 ← count * len
       let (r1, buf2) ←
@@ -6854,7 +6856,7 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
       | core.ops.control_flow.ControlFlow.Continue pb =>
         let (r2, _) ←
           misc.raw.seq.parse_items corecloneCloneInst
-            protoMyDeserializeDeTTupleInst len pb
+            protoMyDeserializeDeTTupleInst len pb seq
         ok (r2, buf2)
       | core.ops.control_flow.ControlFlow.Break residual =>
         let r2 ←
@@ -6870,7 +6872,7 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize
     ok (r1, buf1)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU32}::serialize]: loop body 0:
-    Source: 'src/misc/raw/seq.rs', lines 203:0-203:26
+    Source: 'src/misc/raw/seq.rs', lines 208:0-208:26
     Visibility: public -/
 @[rust_loop_body]
 def
@@ -6891,7 +6893,7 @@ def
     ok (cont (iter1, buf1))
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU32}::serialize]: loop 0:
-    Source: 'src/misc/raw/seq.rs', lines 203:0-203:26
+    Source: 'src/misc/raw/seq.rs', lines 208:0-208:26
     Visibility: public -/
 @[rust_loop]
 def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop
@@ -6907,7 +6909,7 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop
     (iter, buf)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU32}::serialize]:
-    Source: 'src/misc/raw/seq.rs', lines 173:12-179:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 203:0-203:26
+    Source: 'src/misc/raw/seq.rs', lines 177:12-183:13; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 208:0-208:26
     Visibility: public -/
 def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize
   {T : Type _} (protoMySerializeInst : proto.MySerialize T) (seq : Slice T)
@@ -6929,7 +6931,7 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize
     protoMySerializeInst iter buf1
 
 /-- Trait implementation: [mysql_common::misc::raw::seq::{impl mysql_common::misc::raw::seq::SeqRepr<()> for mysql_common::misc::raw::int::LeU32}]
-    Source: 'src/misc/raw/seq.rs', lines 168:8-198:9; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 203:0-203:26 -/
+    Source: 'src/misc/raw/seq.rs', lines 172:8-203:9; this code is generated from a macro invocation at: 'src/misc/raw/seq.rs', lines 208:0-208:26 -/
 @[reducible]
 def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple :
   misc.raw.seq.SeqRepr misc.raw.int.LeU32 Unit := {
@@ -6946,7 +6948,7 @@ def misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple :
 }
 
 /-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::RawSeq<'a, T, U, Clause0_Primitive>}::new]:
-    Source: 'src/misc/raw/seq.rs', lines 212:4-214:5
+    Source: 'src/misc/raw/seq.rs', lines 217:4-219:5
     Visibility: public -/
 def misc.raw.seq.RawSeq.new
   {T : Type _} (U : Type _) {T3 : Type _} {Clause0_Primitive : Type _}
@@ -6959,7 +6961,7 @@ def misc.raw.seq.RawSeq.new
   ok (c, ())
 
 /-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::RawSeq<'a, T, U, Clause0_Primitive>}::len]:
-    Source: 'src/misc/raw/seq.rs', lines 217:4-219:5
+    Source: 'src/misc/raw/seq.rs', lines 222:4-224:5
     Visibility: public -/
 def misc.raw.seq.RawSeq.len
   {T : Type _} {U : Type _} {Clause0_Primitive : Type _} (intIntReprInst :
@@ -6975,7 +6977,7 @@ def misc.raw.seq.RawSeq.len
   ok (Slice.len s)
 
 /-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::RawSeq<'a, T, U, Clause0_Primitive>}::is_empty]:
-    Source: 'src/misc/raw/seq.rs', lines 222:4-224:5
+    Source: 'src/misc/raw/seq.rs', lines 227:4-229:5
     Visibility: public -/
 def misc.raw.seq.RawSeq.is_empty
   {T : Type _} {U : Type _} {Clause0_Primitive : Type _} (intIntReprInst :
@@ -6991,7 +6993,7 @@ def misc.raw.seq.RawSeq.is_empty
   core.slice.Slice.is_empty s
 
 /-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::RawSeq<'a, T, U, Clause0_Primitive>}::into_owned]:
-    Source: 'src/misc/raw/seq.rs', lines 227:4-229:5
+    Source: 'src/misc/raw/seq.rs', lines 232:4-234:5
     Visibility: public -/
 def misc.raw.seq.RawSeq.into_owned
   {T : Type _} {U : Type _} {Clause0_Primitive : Type _} (intIntReprInst :
@@ -7004,7 +7006,7 @@ def misc.raw.seq.RawSeq.into_owned
   ok (alloc.borrow.Cow.Owned v, pd)
 
 /-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::RawSeq<'_0, T, U, Clause0_Primitive>}::get]:
-    Source: 'src/misc/raw/seq.rs', lines 238:4-243:5
+    Source: 'src/misc/raw/seq.rs', lines 243:4-248:5
     Visibility: public -/
 def misc.raw.seq.RawSeq.get
   {T : Type _} {U : Type _} {Clause0_Primitive : Type _} {Clause2_Error :
@@ -7029,7 +7031,7 @@ def misc.raw.seq.RawSeq.get
     ok (some rc)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::proto::MyDeserialize<'de, usize> for mysql_common::misc::raw::seq::RawSeq<'de, T, U, u8>}::deserialize]:
-    Source: 'src/misc/raw/seq.rs', lines 250:4-253:5
+    Source: 'src/misc/raw/seq.rs', lines 255:4-258:5
     Visibility: public -/
 def
   misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize
@@ -7053,7 +7055,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::proto::MyDeserialize<'de, usize> for mysql_common::misc::raw::seq::RawSeq<'de, T, U, u8>}::SIZE]
-    Source: 'src/misc/raw/seq.rs', lines 247:4-247:37
+    Source: 'src/misc/raw/seq.rs', lines 252:4-252:37
     Visibility: public -/
 @[global_simps, irreducible]
 def misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE
@@ -7062,7 +7064,7 @@ def misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE
   none
 
 /-- Trait implementation: [mysql_common::misc::raw::seq::{impl mysql_common::proto::MyDeserialize<'de, usize> for mysql_common::misc::raw::seq::RawSeq<'de, T, U, u8>}]
-    Source: 'src/misc/raw/seq.rs', lines 246:0-254:1 -/
+    Source: 'src/misc/raw/seq.rs', lines 251:0-259:1 -/
 @[reducible]
 def misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize {T :
   Type _} (U : Type _) (intIntReprTU8Inst : misc.raw.int.IntRepr T Std.U8) :
@@ -7076,7 +7078,7 @@ def misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize {T :
 }
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::seq::RawSeq<'_0, T, U, u8>}::serialize]:
-    Source: 'src/misc/raw/seq.rs', lines 257:4-259:5
+    Source: 'src/misc/raw/seq.rs', lines 262:4-264:5
     Visibility: public -/
 def misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize.serialize
   {T : Type _} {U : Type _} (intIntReprTU8Inst : misc.raw.int.IntRepr T Std.U8)
@@ -7090,7 +7092,7 @@ def misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize.serialize
   alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice buf s
 
 /-- Trait implementation: [mysql_common::misc::raw::seq::{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::seq::RawSeq<'_0, T, U, u8>}]
-    Source: 'src/misc/raw/seq.rs', lines 256:0-260:1 -/
+    Source: 'src/misc/raw/seq.rs', lines 261:0-265:1 -/
 @[reducible]
 def misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize {T : Type _} (U
   : Type _) (intIntReprTU8Inst : misc.raw.int.IntRepr T Std.U8) :

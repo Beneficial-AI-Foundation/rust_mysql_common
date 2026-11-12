@@ -157,7 +157,7 @@
       "reducible": false
     },
     {
-      "def_id": 780,
+      "def_id": 781,
       "lean_name": "alloc.vec.Vec.Insts.CoreBorrowBorrowSlice.borrow",
       "lean_file": "MysqlCommon/FunsExternal_Template.lean",
       "rust_name": "alloc::slice::{impl core::borrow::Borrow<[T]> for alloc::vec::Vec<T>}::borrow",
@@ -242,7 +242,7 @@
       "reducible": false
     },
     {
-      "def_id": 555,
+      "def_id": 556,
       "lean_name": "mysql_common.constants.__7.InternalBitFlags.contains",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::constants::_#7::{mysql_common::constants::_#7::InternalBitFlags}::contains",
@@ -310,7 +310,7 @@
       "reducible": false
     },
     {
-      "def_id": 554,
+      "def_id": 555,
       "lean_name": "mysql_common.constants.ColumnType.Insts.CoreFmtDebug.fmt",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::ColumnType}::fmt",
@@ -353,7 +353,7 @@
       "reducible": false
     },
     {
-      "def_id": 548,
+      "def_id": 549,
       "lean_name": "mysql_common.alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_f64_le",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::io::{impl mysql_common::io::BufMut for alloc::vec::Vec<u8>}::put_f64_le",
@@ -379,7 +379,7 @@
       "reducible": false
     },
     {
-      "def_id": 547,
+      "def_id": 548,
       "lean_name": "mysql_common.alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_f32_le",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::io::{impl mysql_common::io::BufMut for alloc::vec::Vec<u8>}::put_f32_le",
@@ -392,7 +392,7 @@
       "reducible": false
     },
     {
-      "def_id": 572,
+      "def_id": 573,
       "lean_name": "mysql_common.alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_int_le",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::io::{impl mysql_common::io::BufMut for alloc::vec::Vec<u8>}::put_int_le",
@@ -405,7 +405,7 @@
       "reducible": false
     },
     {
-      "def_id": 571,
+      "def_id": 572,
       "lean_name": "mysql_common.alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_uint_le",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::io::{impl mysql_common::io::BufMut for alloc::vec::Vec<u8>}::put_uint_le",
@@ -3858,7 +3858,7 @@
       "reducible": false
     },
     {
-      "def_id": 540,
+      "def_id": 541,
       "lean_name": "mysql_common.misc.raw.seq.Seq.new",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::Seq<'a, T, U>}::new",
@@ -3909,15 +3909,15 @@
       "reducible": false
     },
     {
-      "def_id": 532,
+      "def_id": 533,
       "lean_name": "mysql_common.misc.raw.seq.parse_items_loop.body",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::misc::raw::seq::parse_items",
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 116,
-        "end_line": 120
+        "begin_line": 119,
+        "end_line": 123
       },
       "is_opaque": false,
       "can_fail": true,
@@ -3928,15 +3928,15 @@
       "parent_lean_name": "mysql_common.misc.raw.seq.parse_items"
     },
     {
-      "def_id": 532,
+      "def_id": 533,
       "lean_name": "mysql_common.misc.raw.seq.parse_items_loop",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::misc::raw::seq::parse_items",
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 116,
-        "end_line": 120
+        "begin_line": 119,
+        "end_line": 123
       },
       "is_opaque": false,
       "can_fail": true,
@@ -3947,7 +3947,7 @@
       "parent_lean_name": "mysql_common.misc.raw.seq.parse_items"
     },
     {
-      "def_id": 532,
+      "def_id": 533,
       "lean_name": "mysql_common.misc.raw.seq.parse_items",
       "lean_file": "MysqlCommon/Funs.lean",
       "rust_name": "mysql_common::misc::raw::seq::parse_items",
@@ -3955,7 +3955,7 @@
       "source": {
         "file": "src/misc/raw/seq.rs",
         "begin_line": 110,
-        "end_line": 120
+        "end_line": 123
       },
       "is_opaque": false,
       "can_fail": true,
@@ -3971,8 +3971,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 151,
-        "end_line": 163
+        "begin_line": 154,
+        "end_line": 167
       },
       "is_opaque": false,
       "can_fail": true,
@@ -3988,8 +3988,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 146,
-        "end_line": 148
+        "begin_line": 149,
+        "end_line": 151
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4007,8 +4007,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 146,
-        "end_line": 148
+        "begin_line": 149,
+        "end_line": 151
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4026,8 +4026,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 145,
-        "end_line": 149
+        "begin_line": 148,
+        "end_line": 152
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4043,8 +4043,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 202,
-        "end_line": 202
+        "begin_line": 207,
+        "end_line": 207
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4060,8 +4060,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 202,
-        "end_line": 202
+        "begin_line": 207,
+        "end_line": 207
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4079,8 +4079,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 202,
-        "end_line": 202
+        "begin_line": 207,
+        "end_line": 207
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4098,8 +4098,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 202,
-        "end_line": 202
+        "begin_line": 207,
+        "end_line": 207
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4115,8 +4115,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 203,
-        "end_line": 203
+        "begin_line": 208,
+        "end_line": 208
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4132,8 +4132,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 203,
-        "end_line": 203
+        "begin_line": 208,
+        "end_line": 208
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4151,8 +4151,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 203,
-        "end_line": 203
+        "begin_line": 208,
+        "end_line": 208
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4170,8 +4170,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 203,
-        "end_line": 203
+        "begin_line": 208,
+        "end_line": 208
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4187,8 +4187,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 212,
-        "end_line": 214
+        "begin_line": 217,
+        "end_line": 219
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4204,8 +4204,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 217,
-        "end_line": 219
+        "begin_line": 222,
+        "end_line": 224
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4221,8 +4221,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 222,
-        "end_line": 224
+        "begin_line": 227,
+        "end_line": 229
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4238,8 +4238,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 227,
-        "end_line": 229
+        "begin_line": 232,
+        "end_line": 234
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4255,8 +4255,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 238,
-        "end_line": 243
+        "begin_line": 243,
+        "end_line": 248
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4272,8 +4272,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 250,
-        "end_line": 253
+        "begin_line": 255,
+        "end_line": 258
       },
       "is_opaque": false,
       "can_fail": true,
@@ -4289,8 +4289,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 257,
-        "end_line": 259
+        "begin_line": 262,
+        "end_line": 264
       },
       "is_opaque": false,
       "can_fail": true,
@@ -5000,8 +5000,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 137,
-        "end_line": 137
+        "begin_line": 140,
+        "end_line": 140
       }
     },
     {
@@ -5012,8 +5012,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 208,
-        "end_line": 208
+        "begin_line": 213,
+        "end_line": 213
       }
     },
     {
@@ -6066,8 +6066,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 142,
-        "end_line": 142
+        "begin_line": 145,
+        "end_line": 145
       },
       "can_fail": false
     },
@@ -6079,8 +6079,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 141,
-        "end_line": 141
+        "begin_line": 144,
+        "end_line": 144
       },
       "can_fail": false
     },
@@ -6092,8 +6092,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 202,
-        "end_line": 202
+        "begin_line": 207,
+        "end_line": 207
       },
       "can_fail": false
     },
@@ -6105,8 +6105,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 202,
-        "end_line": 202
+        "begin_line": 207,
+        "end_line": 207
       },
       "can_fail": true
     },
@@ -6118,8 +6118,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 203,
-        "end_line": 203
+        "begin_line": 208,
+        "end_line": 208
       },
       "can_fail": false
     },
@@ -6131,8 +6131,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 203,
-        "end_line": 203
+        "begin_line": 208,
+        "end_line": 208
       },
       "can_fail": true
     },
@@ -6144,8 +6144,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 247,
-        "end_line": 247
+        "begin_line": 252,
+        "end_line": 252
       },
       "can_fail": false
     },
@@ -6333,8 +6333,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 123,
-        "end_line": 134
+        "begin_line": 126,
+        "end_line": 137
       }
     }
   ],
@@ -7329,8 +7329,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 140,
-        "end_line": 164
+        "begin_line": 143,
+        "end_line": 168
       },
       "impl_trait_def_id": 27,
       "impl_trait_rust_name": "mysql_common::misc::raw::seq::SeqRepr",
@@ -7344,8 +7344,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 202,
-        "end_line": 202
+        "begin_line": 207,
+        "end_line": 207
       },
       "impl_trait_def_id": 27,
       "impl_trait_rust_name": "mysql_common::misc::raw::seq::SeqRepr",
@@ -7359,8 +7359,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 203,
-        "end_line": 203
+        "begin_line": 208,
+        "end_line": 208
       },
       "impl_trait_def_id": 27,
       "impl_trait_rust_name": "mysql_common::misc::raw::seq::SeqRepr",
@@ -7374,8 +7374,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 246,
-        "end_line": 254
+        "begin_line": 251,
+        "end_line": 259
       },
       "impl_trait_def_id": 10,
       "impl_trait_rust_name": "mysql_common::proto::MyDeserialize",
@@ -7389,8 +7389,8 @@
       "is_local": true,
       "source": {
         "file": "src/misc/raw/seq.rs",
-        "begin_line": 256,
-        "end_line": 260
+        "begin_line": 261,
+        "end_line": 265
       },
       "impl_trait_def_id": 14,
       "impl_trait_rust_name": "mysql_common::proto::MySerialize",

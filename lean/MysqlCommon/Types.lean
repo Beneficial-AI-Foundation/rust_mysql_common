@@ -496,7 +496,7 @@ def misc.raw.seq.Seq (T : Type _) (U : Type _) :=
   alloc.borrow.Cow (Slice T) (alloc.vec.Vec T) × core.marker.PhantomData U
 
 /-- Trait declaration: [mysql_common::misc::raw::seq::SeqRepr]
-    Source: 'src/misc/raw/seq.rs', lines 123:0-134:1
+    Source: 'src/misc/raw/seq.rs', lines 126:0-137:1
     Visibility: public -/
 structure misc.raw.seq.SeqRepr (Self : Type _) (Self_Ctx : Type _) where
   MAX_LEN : Result Std.Usize
@@ -509,13 +509,13 @@ structure misc.raw.seq.SeqRepr (Self : Type _) (Self_Ctx : Type _) where
     (alloc.vec.Vec T)) core.io.error.Error) × io.ParseBuf)
 
 /-- [mysql_common::misc::raw::seq::Unknown]
-    Source: 'src/misc/raw/seq.rs', lines 137:0-137:19
+    Source: 'src/misc/raw/seq.rs', lines 140:0-140:19
     Visibility: public -/
 @[reducible]
 def misc.raw.seq.Unknown := Unit
 
 /-- [mysql_common::misc::raw::seq::RawSeq]
-    Source: 'src/misc/raw/seq.rs', lines 208:0-208:82
+    Source: 'src/misc/raw/seq.rs', lines 213:0-213:82
     Visibility: public -/
 def misc.raw.seq.RawSeq (T : Type _) (U : Type _) (Clause0_Primitive : Type _)
   :=

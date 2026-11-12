@@ -2,7 +2,7 @@ Translation patch: `IntRepr::Primitive`
 
 Change: Drops `Hash` from the bounds of the associated type `IntRepr::Primitive`.
 Why: The bound makes every `IntRepr` impl carry a `Hash` instance for its primitive, whose `hash` methods are unmodelled std functions (eight axioms). Excluding `core::hash::Hash` instead crashes Aeneas.
-Behaviour: No behaviour change: removing a bound does not change any code, and the crate still compiles with all features (nothing relies on it; derived `Hash` impls add their own bounds).
+Behaviour: No behaviour change: removing a bound does not change any code, and the patched copy still compiles and passes its tests with `--features test,chrono,time,rust_decimal,bigdecimal,frunk,binlog` (nothing in the crate relies on it; derived `Hash` impls add their own `T::Primitive: Hash` bounds). Public-API note: downstream generic code that relied on the implied `T::Primitive: Hash` would no longer compile against the patched copy; this does not affect the crate's behaviour.
 
 diff --git a/src/misc/raw/int.rs b/src/misc/raw/int.rs
 index f00c5cd..43c333a 100644

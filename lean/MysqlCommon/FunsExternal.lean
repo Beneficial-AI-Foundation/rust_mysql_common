@@ -75,7 +75,11 @@ def Slice.Insts.AllocBorrowToOwnedVec.to_owned
 /-! ## Axioms -/
 
 /-- [core::mem::size_of]: used only by `RawFlags::SIZE` (`size_of::<T::Bits>()` for a generic
-    `T`), which a Lean definition cannot compute. Nothing is assumed about its value. -/
+    `T`), which a Lean definition cannot compute. Nothing is assumed about its value.
+    Caveat: as a function of the *Lean* type, it identifies Rust types that Aeneas maps to the
+    same Lean type (`T`, `&T`, `Box<T>`), e.g. `size_of::<&u8>` with `size_of::<u8>`. Only ever
+    apply it to the integer `Bits` types of `RawFlags`, and never add axioms about its value for
+    non-integer types. -/
 @[rust_fun "core::mem::size_of"]
 axiom core.mem.size_of (T : Type _) : Result Std.Usize
 
