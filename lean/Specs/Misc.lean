@@ -31,8 +31,8 @@ namespace mysql_common
 recall misc.lenenc_int_len_spec (x : U64) :
     misc.lenenc_int_len x ⦃ n => n.val = (lenencInt x.val).length ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.lenenc_int_len_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.lenenc_int_len_spec
 /-! ### `fn lenenc_str_len` -/
 
 /-- `lenenc_str_len(s)`: the length of the length-encoded string `s`. Precondition: that length
@@ -40,8 +40,8 @@ recall misc.lenenc_int_len_spec (x : U64) :
 recall misc.lenenc_str_len_spec (s : Slice U8) (h : (lenencStr s.val).length < 2 ^ 64) :
     misc.lenenc_str_len s ⦃ n => n.val = (lenencStr s.val).length ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.lenenc_str_len_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.lenenc_str_len_spec
 /-! ### `fn read_varlen_uint` -/
 
 /-- `read_varlen_uint`: total; the serialization-library decoder `varlenUintDecode`. On error
@@ -51,28 +51,29 @@ recall misc.read_varlen_uint_spec (buf : io.ParseBuf) :
       (okPart r).map (fun n => (n.val, rest.val)) = varlenUintDecode buf.val ∧
       (okPart r = none → rest = buf) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.read_varlen_uint_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.read_varlen_uint_spec
 /-- Round trip: `read_varlen_uint` reads back `varlenUint v` (what `write_varlen_uint` writes), for every `v : u64`. -/
 recall misc.read_varlen_uint_roundtrip (v : U64) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = varlenUint v.val ++ tail) :
     misc.read_varlen_uint buf ⦃ r rest => okPart r = some v ∧ rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.read_varlen_uint_roundtrip`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.read_varlen_uint_roundtrip
 /-! ### `fn write_varlen_uint` -/
 
 /-- `write_varlen_uint`: appends the serialization-library encoding `varlenUint v` (1 to 9 bytes). -/
 recall misc.write_varlen_uint_spec (buf : alloc.vec.Vec U8) (v : U64) (h : buf.length + 9 ≤ Usize.max) :
     misc.write_varlen_uint buf v ⦃ buf' => buf'.val = buf.val ++ varlenUint v.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.write_varlen_uint_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.write_varlen_uint_spec
 /-! ### `fn varlen_uint_size` -/
 
 /-- `varlen_uint_size(v)`: the number of bytes of the encoding (`(varlenUint v).length = varlenUintSize v` is `Defs.varlenUint_length`). -/
 recall misc.varlen_uint_size_spec (v : U64) :
     misc.varlen_uint_size v ⦃ n => n.val = varlenUintSize v.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.varlen_uint_size_spec`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.varlen_uint_size_spec
 end mysql_common
