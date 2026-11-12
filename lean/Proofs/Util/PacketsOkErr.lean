@@ -419,4 +419,68 @@ theorem okPacketRead_eof (k : OkKind) (hk : k = .oldEof ∨ k = .networkStreamTe
     rw [eofBodyRead_enc w s hw hs hsk]
     simp [OkBody.toPkt]
 
+/-! ## Fixed-size readers, `put_u8`, `RawBytes::new` -/
+
+theorem parse_array_spec (n : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple n) buf () ⦃ r rest =>
+      if n.val ≤ buf.length then
+        (okPart r).map (·.val) = some (buf.val.take n.val) ∧ rest.val = buf.val.drop n.val
+      else okPart r = none ∧ rest = buf ⦄ := by
+  have hs : (ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple n).SIZE = ok (some n) := by
+    simp [ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq]
+  by_cases hl : n.val ≤ buf.length
+  · simp only [hl, ite_true]
+    apply io.ParseBuf.parse_of_size _ _ _ n hs hl (fun o => o.map (·.val) = some (buf.val.take n.val))
+    intro sub hsub
+    apply WP.spec_mono (ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec n sub
+      (by simp only [Slice.length, hsub, List.length_take]; simp only [Slice.length] at hl; omega))
+    rintro ⟨r, _⟩ ⟨h1, _⟩
+    simp only [WP.uncurry'_pair]
+    rw [h1, hsub]; simp
+  · simp only [hl, ite_false]
+    exact io.ParseBuf.parse_of_size_short _ _ _ n hs (by omega)
+
+theorem parse_unchecked_u8_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8) buf () ⦃ r rest =>
+      (okPart r).map (·.1.val) = some (leNat (buf.val.take 1)) ∧ rest.val = buf.val.drop 1 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := misc.raw.int.RawInt.deserialize_spec U8.Insts.Mysql_commonMiscRawIntIntReprU8 buf
+    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 1)) ∧ rest.val = buf.val.drop 1)
+    (U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_spec buf h)
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ hr
+  simpa [Option.map_map] using hr
+
+theorem parse_unchecked_leu24_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
+      (okPart r).map (·.1.val) = some (leNat (buf.val.take 3)) ∧ rest.val = buf.val.drop 3 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32 buf
+    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 3)) ∧ rest.val = buf.val.drop 3)
+    (misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec buf h)
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ hr
+  simpa [Option.map_map] using hr
+
+theorem put_u8_spec (buf : alloc.vec.Vec U8) (x : U8) (h : buf.length + 1 ≤ Usize.max) :
+    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 buf x ⦃ buf' => buf'.val = buf.val ++ [x] ⦄ :=
+  U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec x buf h
+
+@[step] theorem rawbytes_new_spec {T T2 Ctx : Type} (inst : misc.raw.bytes.BytesRepr T Ctx)
+    (into : core.convert.Into T2 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (text : T2)
+    (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) (h : into.into text = ok c) :
+    misc.raw.bytes.RawBytes.new inst into text ⦃ r => r.1 = c ⦄ := by
+  rw [misc.raw.bytes.RawBytes.new_eq inst into text c h]
+  exact (WP.spec_ok _).mpr rfl
+
+theorem byte_val_self (x : U8) : byte x.val = x := by
+  unfold byte; cases x; simp [UScalar.val]
+
+theorem leNat_take_one (l : List U8) (h : 1 ≤ l.length) : leNat (l.take 1) = (l.getD 0 (byte 0)).val := by
+  cases l with
+  | nil => simp at h
+  | cons a t => simp [leNat]
+
 end mysql_common.PKUtil
