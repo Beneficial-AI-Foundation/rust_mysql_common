@@ -144,7 +144,20 @@ theorem leNat_leBytes' (k : Nat) : ∀ n : Nat, leNat (leBytes k n) = n % 2 ^ (8
 @[simp] theorem length_leBytesI (k : Nat) (x : Int) : (leBytesI k x).length = k := by
   simp [leBytesI]
 
-theorem leNat_lt: ∀ bs : List U8, leNat bs < 2 ^ (8 * bs.length)
+theorem leBytes_mod (k : Nat) : ∀ n : Nat, leBytes k (n % 2 ^ (8 * k)) = leBytes k n := by
+  induction k with
+  | zero => intro n; rfl
+  | succ k ih =>
+    intro n
+    simp only [leBytes]
+    congr 1
+    · simp only [byte]; congr 1
+      apply BitVec.eq_of_toNat_eq
+      simp only [BitVec.toNat_ofNat]
+      rw [show 8 * (k + 1) = 8 + 8 * k by ring, Nat.pow_add, Nat.mod_mul_right_mod]
+    · rw [show 8 * (k + 1) = 8 + 8 * k by ring, Nat.pow_add, Nat.mod_mul_right_div_self, ih]
+
+theorem leNat_lt : ∀ bs : List U8, leNat bs < 2 ^ (8 * bs.length)
   | [] => by simp [leNat]
   | b :: bs => by
     have := leNat_lt bs
@@ -245,5 +258,34 @@ theorem parse_rawint {T P : Type} (inst : misc.raw.int.IntRepr T P) (n : Usize)
     apply spec_mono this
     rintro ⟨r, rest⟩ h
     simpa [hl] using h
+
+/-- `parse::<T>` for a fixed-size `T` (`SIZE = Some n`). -/
+theorem parse_fixed {T Ctx : Type} (inst : proto.MyDeserialize T Ctx) (n : Usize)
+    (hs : inst.SIZE = ok (some n)) (buf : io.ParseBuf) (ctx : Ctx) (Q : Option T → Prop)
+    (hd : ∀ sub : io.ParseBuf, sub.val = buf.val.take n.val → n.val ≤ buf.length →
+      inst.deserialize ctx sub ⦃ r _ => Q (okPart r) ⦄) :
+    io.ParseBuf.parse inst buf ctx ⦃ r rest =>
+      if n.val ≤ buf.length then Q (okPart r) ∧ rest.val = buf.val.drop n.val
+      else okPart r = none ∧ rest = buf ⦄ := by
+  by_cases hl : n.val ≤ buf.length
+  · have := io.ParseBuf.parse_of_size inst buf ctx n hs hl Q (fun sub hsub => hd sub hsub hl)
+    apply spec_mono this
+    rintro ⟨r, rest⟩ h
+    simpa [hl] using h
+  · have := io.ParseBuf.parse_of_size_short inst buf ctx n hs (by omega)
+    apply spec_mono this
+    rintro ⟨r, rest⟩ h
+    simpa [hl] using h
+
+/-! ## Errors -/
+
+@[step]
+theorem io_error_from_spec {E : Type} (inst : core.error.Error E) (kind : core.io.error.ErrorKind) (err : E) :
+    misc.io_error_from inst kind err ⦃ _ => True ⦄ := by
+  simp [misc.io_error_from]
+
+@[step]
+theorem unexpected_buf_eof_spec : misc.unexpected_buf_eof ⦃ _ => True ⦄ := by
+  simp [misc.unexpected_buf_eof, misc.io_error_msg]
 
 end IntAndMisc
