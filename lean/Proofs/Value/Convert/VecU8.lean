@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `impl FromValue for Vec<u8>` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `impl FromValue for Vec<u8>` (spec file: `Specs/Value/Convert.lean`).  -/
 
 set_option autoImplicit false
 
@@ -12,11 +12,12 @@ namespace mysql_common
     conversion of numbers to text). -/
 theorem alloc.vec.VecU8.Insts.CoreConvertTryFromValueFromValueError.try_from_eq (v : value.Value) :
     alloc.vec.VecU8.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok (match v with | .Bytes b => .Ok b | _ => .Err v) := by
-  sorry
+  cases v <;> rfl
 
 /-- `from_value_opt::<Vec<u8>>`: as `try_from`. -/
 theorem alloc.vec.VecU8.Insts.Mysql_commonValueConvertFromValueVecU8.from_value_opt_eq (v : value.Value) :
     value.convert.from_value_opt alloc.vec.VecU8.Insts.Mysql_commonValueConvertFromValueVecU8 v = ok (match v with | .Bytes b => .Ok b | _ => .Err v) := by
-  sorry
+  simp only [value.convert.from_value_opt]
+  cases v <;> simp [alloc.vec.VecU8.Insts.CoreConvertTryFromValueFromValueError.try_from, core.convert.IntoFrom.into, core.convert.FromSame.from]
 
 end mysql_common
