@@ -13,9 +13,7 @@ namespace mysql_common.ValueUtil
 open mysql_common
 
 /-! The `put_*` writers come from `Proofs/Util/IntAndMisc.lean` (`IntAndMisc.put_u8_spec`, …,
-all `@[step]`), as do `length_leBytes'` and `leNat_leBytes'`. -/
-
-open IntAndMisc (length_leBytes' leNat_leBytes')
+all `@[step]`); `PBUtil.length_leBytes` and `PBUtil.leNat_leBytes` from `Proofs/Util/ParseBuf.lean`. -/
 
 @[simp] theorem byte_val (x : U8) : byte x.val = x := by
   simp [byte]
@@ -89,11 +87,11 @@ theorem byte_lits : byte 0 = 0#u8 ∧ byte 1 = 1#u8 ∧ byte 4 = 4#u8 ∧ byte 7
 /-- One branch of the `Date`/`Time` serializer: run the `put_*` steps, discharge each length
 side condition with `omega`, and match the bytes written against `binEnc`. -/
 local macro "serialize_tac " hb:ident : tactic => `(tactic| (
-  simp only [List.length_cons, List.length_append, length_leBytes', List.length_nil] at $hb:ident
+  simp only [List.length_cons, List.length_append, PBUtil.length_leBytes, List.length_nil] at $hb:ident
   step*
   all_goals first
     | (simp only [alloc.vec.Vec.length] at *
-       simp only [*, List.length_append, List.length_cons, List.length_nil, length_leBytes'] <;>
+       simp only [*, List.length_append, List.length_cons, List.length_nil, PBUtil.length_leBytes] <;>
          omega)
     | simp only [*, byte_lits, byte_val, List.append_assoc, List.cons_append, List.nil_append,
         ite_true, ite_false, Bool.false_eq_true]))
@@ -184,12 +182,12 @@ theorem bin_len_spec' (v : value.Value)
   | Date y mo d hh mi s us =>
     rw [bin_len_date_eq]
     simp only [Val.ofValue, binEnc, u8_val_eq_zero, u16_val_eq_zero, u32_val_eq_zero]
-    split_ifs <;> simp [length_leBytes']
+    split_ifs <;> simp [PBUtil.length_leBytes]
   | Time neg d hh m s us =>
     rw [bin_len_time_eq]
     simp only [Val.ofValue, binEnc, u8_val_eq_zero, u32_val_eq_zero]
-    split_ifs <;> simp [length_leBytes']
-  | _ => unfold value.Value.bin_len; simp [Val.ofValue, binEnc, length_leBytes', leBytesI]
+    split_ifs <;> simp [PBUtil.length_leBytes]
+  | _ => unfold value.Value.bin_len; simp [Val.ofValue, binEnc, PBUtil.length_leBytes, leBytesI]
 
 theorem serialize_spec' (v : value.Value) (buf : alloc.vec.Vec U8)
     (h : buf.length + (binEnc (Val.ofValue v)).length ≤ Usize.max) :
@@ -208,21 +206,21 @@ theorem serialize_spec' (v : value.Value) (buf : alloc.vec.Vec U8)
   | Int x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
     simp only [Val.ofValue, binEnc] at h ⊢
-    exact IntAndMisc.put_i64_le_spec _ _ (by simpa [leBytesI, length_leBytes'] using h)
+    exact IntAndMisc.put_i64_le_spec _ _ (by simpa [leBytesI, PBUtil.length_leBytes] using h)
   | UInt x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
     simp only [Val.ofValue, binEnc] at h ⊢
-    exact IntAndMisc.put_u64_le_spec _ _ (by simpa [length_leBytes'] using h)
+    exact IntAndMisc.put_u64_le_spec _ _ (by simpa [PBUtil.length_leBytes] using h)
   | Float x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
       alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_f32_le core.f32.F32.to_bits
     simp only [Val.ofValue, binEnc, Std.bind_ok] at h ⊢
-    exact IntAndMisc.put_u32_le_spec _ _ (by simpa [length_leBytes'] using h)
+    exact IntAndMisc.put_u32_le_spec _ _ (by simpa [PBUtil.length_leBytes] using h)
   | Double x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
       alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_f64_le core.f64.F64.to_bits
     simp only [Val.ofValue, binEnc, Std.bind_ok] at h ⊢
-    exact IntAndMisc.put_u64_le_spec _ _ (by simpa [length_leBytes'] using h)
+    exact IntAndMisc.put_u64_le_spec _ _ (by simpa [PBUtil.length_leBytes] using h)
 
 
 set_option linter.auxLemma false in
@@ -658,7 +656,7 @@ theorem deserialize_bin_spec' (h64 : Target64) (ct : constants.ColumnType)
 
 theorem readLE_leBytes (k n : Nat) (t : List U8) :
     readLE k (leBytes k n ++ t) = some (n % 2 ^ (8 * k), t) := by
-  simp [readLE, length_leBytes', leNat_leBytes']
+  simp [readLE, PBUtil.length_leBytes, PBUtil.leNat_leBytes]
 
 
 theorem binRead_int (x : Int) (hx : -2 ^ 63 ≤ x ∧ x < 2 ^ 63) (u : Bool) (t : List U8) :
