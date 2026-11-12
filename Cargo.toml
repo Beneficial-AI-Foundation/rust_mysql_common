@@ -213,6 +213,11 @@ start_from = [
   "mysql_common::value::Value::deserialize_datetime",
   "mysql_common::value::Value::deserialize_time",
   "mysql_common::value::Value::deserialize_bin",
+  # The two `SerializationSide` impls: `ServerSide` (NULL-bitmap offset 2) is the side real result
+  # rows use, so the binary-row specs are instantiated at it; `ClientSide` (offset 0) is used by
+  # COM_STMT_EXECUTE.
+  "{impl mysql_common::value::SerializationSide for mysql_common::value::ServerSide}",
+  "{impl mysql_common::value::SerializationSide for mysql_common::value::ClientSide}",
   # src/row/mod.rs: Row and its wire-format deserializers. (`new_row` (`map(Some).collect()`) and
   # the `FromValue` getters are out of scope.)
   "mysql_common::row::Row",

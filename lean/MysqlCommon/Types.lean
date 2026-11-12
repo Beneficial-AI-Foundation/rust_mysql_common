@@ -1084,4 +1084,10 @@ Unit
 structure value.convert.ToValue (Self : Type _) where
   to_value : Self → Result value.Value
 
+/-- [mysql_common::value::ServerSide]
+    Source: 'src/value/mod.rs', lines 39:0-39:22
+    Visibility: public -/
+@[reducible]
+def value.ServerSide := Unit
+
 end mysql_common
