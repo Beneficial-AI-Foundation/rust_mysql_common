@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `impl FromValue for Cow<'static, [u8]>` (spec file: `Specs/Value/Convert.lean`).  -/
+/-! Statements for `impl FromValue for Cow<'static, [u8]>` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 
