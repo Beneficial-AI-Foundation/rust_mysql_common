@@ -122,6 +122,18 @@ theorem duration_new_spec (secs : U64) (nanos : U32) (h : secs.val + nanos.val /
       simp only [UScalar.inBounds, UScalarTy.numBits]
       simp [U64.max, U64.numBits, UScalarTy.numBits] at h ⊢; omega
 
+/-! ## Splitting seconds into days, hours, minutes and seconds -/
+
+theorem split_a1 (S : Nat) : (S - S % 60) % 3600 / 60 = S % 3600 / 60 := by omega
+theorem split_a2 (S : Nat) : S - S % 60 - S % 3600 / 60 * 60 = S - S % 3600 := by omega
+theorem split_a3 (S : Nat) : (S - S % 3600) % 86400 / 3600 = S % 86400 / 3600 := by omega
+theorem split_a4 (S : Nat) : S - S % 3600 - S % 86400 / 3600 * 3600 = S - S % 86400 := by omega
+theorem split_a5 (S : Nat) : (S - S % 86400) / 86400 = S / 86400 := by omega
+theorem split_join (S : Nat) :
+    ((S / 86400 % 2 ^ 32 * 24 + S % 86400 / 3600) * 60 + S % 3600 / 60) * 60 + S % 60 =
+      S % (86400 * 2 ^ 32) := by
+  norm_num; omega
+
 /-! ## Text literals: bounds -/
 
 theorem digitsVal_lt (ds : List U8) (h : ds.all isDigit) : digitsVal ds < 10 ^ ds.length := by
