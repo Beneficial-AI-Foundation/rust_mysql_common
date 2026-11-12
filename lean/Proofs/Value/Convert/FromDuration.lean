@@ -8,8 +8,9 @@ open Aeneas Aeneas.Std Result mysql_common Defs Classical
 
 namespace mysql_common
 
-/-- `From<Duration> for Value`: the positive `TIME` `durationTime` (microseconds rounded half
-    up, not carried; days truncated to `u32`). -/
+/-- `From<Duration> for Value`: the non-negative `TIME` `durationTime` (microseconds rounded half
+    up, not carried; days truncated to `u32`). The rounding `(nanos + 500) / 1000` is patch 50's;
+    it equals upstream's `(nanos as f64 / 1000.0).round()` for every `nanos < 10^9`. -/
 theorem value.Value.Insts.CoreConvertFromDuration.from_spec (d : core.time.Duration) :
     value.Value.Insts.CoreConvertFromDuration.from d ⦃ w =>
       Val.ofValue w = durationTime d.secs.val d.nanos.val ⦄ := by

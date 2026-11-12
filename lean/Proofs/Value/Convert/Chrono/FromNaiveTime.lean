@@ -8,7 +8,7 @@ open Aeneas Aeneas.Std Result mysql_common Defs Classical
 
 namespace mysql_common
 
-/-- `From<NaiveTime> for Value`: the positive `TIME` with 0 days of its fields (taken mod 256 by
+/-- `From<NaiveTime> for Value`: the non-negative `TIME` with 0 days of its fields (taken mod 256 by
     `as u8`; nanoseconds truncated to microseconds). -/
 theorem value.Value.Insts.CoreConvertFromNaiveTime.from_spec (x : chrono.naive.time.NaiveTime) :
     value.Value.Insts.CoreConvertFromNaiveTime.from x ⦃ w =>

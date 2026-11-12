@@ -42,7 +42,8 @@ def allDigits (bs : List U8) : Bool := !bs.isEmpty && bs.all isDigit
 
 /-- The integer written by `bs` in the format `[+-]?[0-9]+`: an optional sign `+` (43) or `-`
     (45), then at least one ASCII digit, nothing else (no spaces). Leading zeros are allowed and
-    `-0` is `0`. `none` for anything else. -/
+    `-0` is `0` (so an unsigned target type accepts `"-0"`, as btoi does). `none` for anything
+    else. -/
 def asciiInt : List U8 → Option Int
   | [] => none
   | c :: rest =>
@@ -130,7 +131,7 @@ def timeNanos (days hours minutes seconds micros : Nat) : Nat :=
   (((days * 24 + hours) * 60 + minutes) * 60 + seconds) * 10 ^ 9 + micros * 1000
 
 /-- The `TIME` value that `From<Duration> for Value` makes of a duration of `secs` seconds and
-    `nanos < 10^9` nanoseconds: positive, the seconds split into days, hours, minutes and
+    `nanos < 10^9` nanoseconds: non-negative (sign flag false), the seconds split into days, hours, minutes and
     seconds, the nanoseconds rounded to the nearest microsecond (half up). Two departures from a
     faithful `TIME`, both the crate's behaviour:
     * the rounding is not carried: `nanos ≥ 999_999_500` gives `micros = 1_000_000`;
@@ -184,7 +185,10 @@ def timeStringRead (bs : List U8) : Option (Bool × Nat × Nat × Nat × Nat) :=
     ASCII input, as `(year, month, day, hour, minute, second, microsecond)`: `YYYY-MM-DD`,
     `YYYY-MM-DD hh:mm:ss` and `YYYY-MM-DD hh:mm:ss.f` (`f` one to six digits, `fracRead`), with
     exactly these digit counts and separators; time fields absent are 0. The fields are not
-    range-checked here (any digits are accepted; the callers check them). -/
+    range-checked here (any digits are accepted; the callers check them). MySQL forms the crate
+    does **not** accept: the `T` separator (`2024-01-31T12:00:00`), two-digit years, relaxed or
+    other delimiters (`2024/01/31`, `2024-1-31`), the forms without delimiters (`YYYYMMDD`,
+    `YYYYMMDDhhmmss`), and more than six fractional digits. -/
 def datetimeStringRead (bs : List U8) : Option (Nat × Nat × Nat × Nat × Nat × Nat × Nat) :=
   match bs with
   | y1 :: y2 :: y3 :: y4 :: d1 :: mo1 :: mo2 :: d2 :: dd1 :: dd2 :: rest =>
@@ -206,7 +210,7 @@ def datetimeStringRead (bs : List U8) : Option (Nat × Nat × Nat × Nat × Nat 
 /-! ## What the temporal conversions read from a `Value` -/
 
 /-- The nanoseconds of the non-negative duration a value denotes, for `FromValue for
-    std::time::Duration`: a positive `TIME` (`timeNanos`, fields not range-checked), or `Bytes`
+    std::time::Duration`: a non-negative (sign flag false) `TIME` (`timeNanos`, fields not range-checked), or `Bytes`
     holding a non-negative text `TIME` literal (`timeStringRead`); `none` for anything else,
     including every negative `TIME` (even a negative zero). -/
 def Val.durationNanos : Val → Option Nat
@@ -218,7 +222,7 @@ def Val.durationNanos : Val → Option Nat
   | _ => none
 
 /-- The calendar fields `(year, month, day, hour, minute, second, microsecond)` a value denotes,
-    for the date-time conversions: a `Date`, or `Bytes` holding a text `DATE`/`DATETIME` literal
+    for the chrono date-time conversions (`NaiveDateTime`, `NaiveDate`): a `Date`, or `Bytes` holding a text `DATE`/`DATETIME` literal
     (`datetimeStringRead`); `none` for anything else. Not range-checked. -/
 def Val.dateTimeFields : Val → Option (Nat × Nat × Nat × Nat × Nat × Nat × Nat)
   | .date y mo d h mi s us => some (y, mo, d, h, mi, s, us)
@@ -226,7 +230,7 @@ def Val.dateTimeFields : Val → Option (Nat × Nat × Nat × Nat × Nat × Nat 
   | _ => none
 
 /-- The time-of-day fields `(hour, minute, second, microsecond)` a value denotes, for the
-    time-of-day conversions: a positive `TIME` with 0 days, or `Bytes` holding a non-negative text
+    chrono time-of-day conversion (`NaiveTime`): a non-negative (sign flag false) `TIME` with 0 days, or `Bytes` holding a non-negative text
     `TIME` literal (`timeStringRead`); `none` for anything else. Not range-checked. -/
 def Val.timeOfDayFields : Val → Option (Nat × Nat × Nat × Nat)
   | .time false 0 h m s us => some (h, m, s, us)

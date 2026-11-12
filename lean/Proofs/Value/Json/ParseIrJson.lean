@@ -26,4 +26,14 @@ theorem value.Value.Insts.CoreConvertFromParseIrValue.from_eq (x : serde_json.va
     value.Value.Insts.CoreConvertFromParseIrValue.from (x, w) = ok w := by
   sorry
 
+/-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+theorem serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue.from_value_opt_eq (v : value.Value) :
+    value.convert.from_value_opt serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue v = ok (match v with
+      | .Bytes b =>
+        match Trusted.jsonFromSlice (alloc.vec.Vec.deref b) with
+        | some x => .Ok x
+        | none => .Err v
+      | _ => .Err v) := by
+  sorry
+
 end mysql_common

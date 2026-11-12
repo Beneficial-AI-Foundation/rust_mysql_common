@@ -17,6 +17,7 @@ import Specs.Value.Convert.Bigdecimal
 import Specs.Value.Json.SerdeIntegration
 import Specs.Defs
 import Specs.DefsCF
+import Specs.DefsG
 import Specs.Constants
 import Specs.Row
 import Specs.Packets

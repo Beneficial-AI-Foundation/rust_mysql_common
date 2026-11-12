@@ -23,4 +23,16 @@ theorem value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValu
       | none => r = .Err v ⦄ := by
   sorry
 
+/-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+theorem chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
+    value.convert.from_value_opt chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime v ⦃ r =>
+      (okPart r = none → r = .Err v) ∧
+      match (Val.ofValue v).dateTimeFields with
+      | some (y, mo, d, h, mi, s, us) =>
+        ((∃ p, r = .Ok p) ↔
+          Trusted.chronoYmdValid y mo d ∧ Trusted.chronoHmsMicroValid h mi s us) ∧
+        ∀ x, r = .Ok x → chronoDateTime x = (((y : ℤ), mo, d), (h, mi, s, us * 1000))
+      | none => r = .Err v ⦄ := by
+  sorry
+
 end mysql_common

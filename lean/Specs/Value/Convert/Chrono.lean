@@ -35,7 +35,7 @@ import Proofs.Value.Convert.Chrono.FromNaiveTime
       `[1000, 9999]`, although chrono and MySQL `DATE` (`1000-01-01` to `9999-12-31` is only the
       *supported* range) allow others.
     * `FromValue for NaiveDate` accepts a `DATETIME` (value or text) and silently drops the time.
-    * `FromValue for NaiveTime` accepts only a positive `TIME` with 0 days (no `-00:00:01`, no
+    * `FromValue for NaiveTime` accepts only a non-negative (sign flag false) `TIME` with 0 days (no `-00:00:01`, no
       hours ≥ 24), and a leap second (micros in `[10^6, 2·10^6)` at second 59) as chrono does.
     * Sub-microsecond nanoseconds are truncated by `From<_> for Value`.
     * Reading from `Bytes` needs ASCII input (the non-ASCII panic of the string parsers).
@@ -65,6 +65,19 @@ recall value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValue
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
 
+/-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+recall chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
+    value.convert.from_value_opt chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime v ⦃ r =>
+      (okPart r = none → r = .Err v) ∧
+      match (Val.ofValue v).dateTimeFields with
+      | some (y, mo, d, h, mi, s, us) =>
+        ((∃ p, r = .Ok p) ↔
+          Trusted.chronoYmdValid y mo d ∧ Trusted.chronoHmsMicroValid h mi s us) ∧
+        ∀ x, r = .Ok x → chronoDateTime x = (((y : ℤ), mo, d), (h, mi, s, us * 1000))
+      | none => r = .Err v ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime.from_value_opt_spec`
+
 /-! ### `impl TryFrom<Value> for ParseIr<NaiveDate>` -/
 
 /-- `TryFrom<Value> for ParseIr<NaiveDate>`: as for `NaiveDateTime`, but only the date fields
@@ -80,9 +93,21 @@ recall value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueErro
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
 
+/-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+recall chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
+    value.convert.from_value_opt chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate v ⦃ r =>
+      (okPart r = none → r = .Err v) ∧
+      match (Val.ofValue v).dateTimeFields with
+      | some (y, mo, d, _, _, _, _) =>
+        ((∃ p, r = .Ok p) ↔ Trusted.chronoYmdValid y mo d) ∧
+        ∀ x, r = .Ok x → chronoDate x = ((y : ℤ), mo, d)
+      | none => r = .Err v ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate.from_value_opt_spec`
+
 /-! ### `impl TryFrom<Value> for ParseIr<NaiveTime>` -/
 
-/-- `TryFrom<Value> for ParseIr<NaiveTime>`: a positive `TIME` with 0 days, or `Bytes` holding a
+/-- `TryFrom<Value> for ParseIr<NaiveTime>`: a non-negative (sign flag false) `TIME` with 0 days, or `Bytes` holding a
     non-negative text `TIME` literal (ASCII hypothesis), converts exactly when chrono accepts the
     time; anything else is an error carrying the value. -/
 recall value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
@@ -95,6 +120,18 @@ recall value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueErro
       | none => r = .Err v ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
+
+/-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+recall chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
+    value.convert.from_value_opt chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime v ⦃ r =>
+      (okPart r = none → r = .Err v) ∧
+      match (Val.ofValue v).timeOfDayFields with
+      | some (h, m, s, us) =>
+        ((∃ p, r = .Ok p) ↔ Trusted.chronoHmsMicroValid h m s us) ∧
+        ∀ x, r = .Ok x → chronoTime x = (h, m, s, us * 1000)
+      | none => r = .Err v ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime.from_value_opt_spec`
 
 /-! ### `impl From<ParseIr<_>> for NaiveDateTime, NaiveDate, NaiveTime and for Value` -/
 
@@ -176,7 +213,7 @@ recall value.Value.Insts.CoreConvertFromNaiveDate.roundtrip (x : chrono.naive.da
 
 /-! ### `impl From<NaiveTime> for Value` -/
 
-/-- `From<NaiveTime> for Value`: the positive `TIME` with 0 days of its fields (taken mod 256 by
+/-- `From<NaiveTime> for Value`: the non-negative `TIME` with 0 days of its fields (taken mod 256 by
     `as u8`; nanoseconds truncated to microseconds). -/
 recall value.Value.Insts.CoreConvertFromNaiveTime.from_spec (x : chrono.naive.time.NaiveTime) :
     value.Value.Insts.CoreConvertFromNaiveTime.from x ⦃ w =>

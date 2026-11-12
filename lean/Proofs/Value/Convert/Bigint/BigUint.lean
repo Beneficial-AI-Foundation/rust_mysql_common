@@ -31,11 +31,26 @@ theorem value.Value.Insts.CoreConvertFromParseIrBigUint.from_eq (x : num_bigint_
   sorry
 
 /-- `From<BigUint> for Value`: `UInt` if it fits in a `u64`, else `Bytes` of its decimal text. -/
-theorem value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.biguint.BigUint) (h : (utf8 (Trusted.biguintToString x)).length ≤ Usize.max) :
+theorem value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.biguint.BigUint) (h : Trusted.biguintToU64 x = none → (utf8 (Trusted.biguintToString x)).length ≤ Usize.max) :
     value.Value.Insts.CoreConvertFromBigUint.from x ⦃ w =>
       Val.ofValue w = match Trusted.biguintToU64 x with
         | some u => .uint u.val
         | none => .bytes (utf8 (Trusted.biguintToString x)) ⦄ := by
+  sorry
+
+/-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+theorem num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint.from_value_opt_eq (v : value.Value) :
+    value.convert.from_value_opt num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint v = ok (match v with
+      | .Int x =>
+        match Trusted.biguintFromI64 x with
+        | some y => .Ok y
+        | none => .Err v
+      | .UInt x => .Ok (Trusted.biguintFromU64 x)
+      | .Bytes b =>
+        match Trusted.biguintParseBytes (alloc.vec.Vec.deref b) with
+        | some x => .Ok x
+        | none => .Err v
+      | _ => .Err v) := by
   sorry
 
 end mysql_common

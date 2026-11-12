@@ -59,4 +59,25 @@ recall value.Value.Insts.CoreConvertFromBigDecimal.from_spec (x : bigdecimal.Big
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigDecimal.from_spec`
 
+/-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+recall bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal.from_value_opt_eq (v : value.Value) :
+    value.convert.from_value_opt bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal v = ok (match v with
+      | .Int x => .Ok (Trusted.bigdecimalFromI64 x)
+      | .UInt x => .Ok (Trusted.bigdecimalFromU64 x)
+      | .Float x =>
+        match Trusted.bigdecimalTryFromF32 x with
+        | some y => .Ok y
+        | none => .Err v
+      | .Double x =>
+        match Trusted.bigdecimalTryFromF64 x with
+        | some y => .Ok y
+        | none => .Err v
+      | .Bytes b =>
+        match Trusted.bigdecimalParseBytes (alloc.vec.Vec.deref b) with
+        | some x => .Ok x
+        | none => .Err v
+      | _ => .Err v)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal.from_value_opt_eq`
+
 end mysql_common

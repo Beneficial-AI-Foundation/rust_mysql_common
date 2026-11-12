@@ -8,7 +8,7 @@ open Aeneas Aeneas.Std Result mysql_common Defs Classical
 
 namespace mysql_common
 
-/-- `From<Time> for Value`: total; the positive `TIME` with 0 days of its fields. -/
+/-- `From<Time> for Value`: total; the non-negative `TIME` with 0 days of its fields. -/
 theorem value.Value.Insts.CoreConvertFromTime.from_spec (x : time.time.Time) :
     value.Value.Insts.CoreConvertFromTime.from x ⦃ w =>
       Val.ofValue w = match timeTime x with | (h, m, s, us) => .time false 0 h m s us ⦄ := by

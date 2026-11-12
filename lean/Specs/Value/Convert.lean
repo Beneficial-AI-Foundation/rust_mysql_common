@@ -77,16 +77,26 @@ import Proofs.Value.Convert.FromBytes
       protocol sends microseconds as 4 bytes, so a server can send such a value.
     * **Non-ASCII digits** (upstream bug, confirmed in review): the regexes run in Unicode mode, so
       `\d` also matches non-ASCII decimal digits, which `btou` then rejects; the following
-      `.unwrap()` panics, e.g. on `"00:00:00.\u{0660}"`. The regexes are only specified on ASCII
-      input (`Trusted.isMatch_ascii`), so the panic cannot be stated; instead every statement that
-      reads a date/time from `Bytes` has an explicit ASCII hypothesis.
+      `.unwrap()` panics, e.g. on `"00:00:00.\u{0660}"`. Only the fractional forms can panic
+      (TIME `*_MS`, DATETIME of length 21–26): the fixed lengths 8/9 (TIME) and 10/19
+      (DATETIME) force every digit to be one byte, i.e. ASCII. **Non-ASCII `Bytes` inputs to the
+      date/time parsers are unspecified** (panic or not): we deliberately add no axiom about the
+      regexes off ASCII (`Trusted.isMatch_ascii` is the only one), so every statement that reads a
+      date/time from `Bytes` has an explicit ASCII hypothesis.
     * `ParseIrOpt::rollback` of a `Ready` intermediate is `Value::from` of the number, not the
       original value: `UInt 5` read as an `i8` rolls back to `Int 5`, `Int 7` read as a `bool` to
       `Int 1`, a `Float` read as an `f64` to a `Double` (`intRecover`, `recover` statements).
     * `Option<T>`: `Some(x)` whose `Value::from(x)` is `NULL` (e.g. `Some(Value::NULL)`,
       `Some(None)`) reads back as `None`.
     * `From<Duration> for Value` rounds to microseconds without carrying (micros can be
-      1000000) and truncates days to `u32` (`durationTime`).
+      1000000) and truncates days to `u32` (`durationTime`). The rounding is patch 50's integer
+      `(nanos + 500) / 1000`, equal to upstream's `f64` `round` for every `nanos < 10^9`.
+
+    **Semantic patches these statements are about** (each argued behaviour-preserving in its
+    header): 47 (`from_value`'s panic message only), 50 (`From<Duration>` rounding in integers),
+    55 (`From<i128>`/`From<u128>`: range checks for `to_i64`/`to_u64`), 56 (integer `try_from`:
+    range checks for `TryFrom<i64>`/`TryFrom<u64>`). The others (40–46, 48, 49, 51–54, 57–59)
+    only route calls through `trusted` or rewrite syntax Aeneas cannot translate.
 -/
 
 set_option autoImplicit false
@@ -831,13 +841,13 @@ recall value.convert.mysql_time_to_duration_overflow (d : U32) (h m s : U8) (us 
 
 /-! ### `impl FromValue for std::time::Duration` -/
 
-/-- `TryFrom<Value> for ParseIrOpt<Duration>`: a positive `TIME`, or `Bytes` holding a
+/-- `TryFrom<Value> for ParseIrOpt<Duration>`: a non-negative (sign flag false) `TIME`, or `Bytes` holding a
     non-negative text `TIME` literal, is `Parsed` with that duration (`Val.durationNanos`);
     everything else, including every negative `TIME`, is an error. Hypotheses: the `Bytes` are
-    ASCII (see the module docstring: the non-ASCII panic), and a `TIME` has at most 4294967
-    microseconds (the `mysql_time_to_duration` overflow, stated separately). -/
+    ASCII (see the module docstring: the non-ASCII panic), and a non-negative `TIME` has at most 4294967
+    microseconds (negative ones are rejected before any arithmetic) (the `mysql_time_to_duration` overflow, stated separately). -/
 recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
-    (hus : ∀ n d h m s us, v = .Time n d h m s us → us.val ≤ 4294967) :
+    (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v ⦃ r =>
       (okPart r).map (fun ir => durNanos (match ir with | .Ready t => t | .Parsed t _ => t)) =
         (Val.ofValue v).durationNanos ∧
@@ -846,7 +856,7 @@ recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueEr
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
 
 /-- **Crash path.** `TryFrom<Value> for ParseIrOpt<Duration>` (and so `from_value_opt::<Duration>`)
-    fails on a positive `TIME` with more than 4294967 microseconds (the `mysql_time_to_duration`
+    fails on a non-negative `TIME` with more than 4294967 microseconds (the `mysql_time_to_duration`
     overflow). -/
 recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_overflow (d : U32) (h m s : U8) (us : U32) (hus : 4294967 < us.val) :
     value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from
@@ -856,7 +866,7 @@ recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueEr
 
 /-- `from_value_opt::<Duration>`: as `try_from`, committed (same hypotheses). -/
 recall core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
-    (hus : ∀ n d h m s us, v = .Time n d h m s us → us.val ≤ 4294967) :
+    (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration v ⦃ r =>
       (okPart r).map durNanos = (Val.ofValue v).durationNanos ∧ (okPart r = none → r = .Err v) ⦄
 
@@ -865,7 +875,7 @@ recall core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDurat
 /-- `From<ParseIrOpt<Duration>> for Value` after `try_from` gives back the original value (every
     successful conversion is `Parsed`). Same hypotheses. -/
 recall value.Value.Insts.CoreConvertFromParseIrOptDuration.recover (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
-    (hus : ∀ n d h m s us, v = .Time n d h m s us → us.val ≤ 4294967) :
+    (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     (do
       let r ← value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v
       match r with
@@ -1031,7 +1041,7 @@ recall ArrayU8N.Insts.Mysql_commonValueConvertFromValueArrayU8N.from_value_opt_s
 /-- `parse_mysql_time_string` (private, used by the `Duration`, chrono and time conversions): on
     ASCII input, total; the text `TIME` literal `timeStringRead`, as `(negative, hours, minutes,
     seconds, microseconds)`. **ASCII hypothesis:** on non-ASCII input the Unicode-mode regexes
-    can match non-ASCII digits and `btou(..).unwrap()` (or the padding loop's `6 - len`) panics,
+    can match non-ASCII digits and `btou(..).unwrap()` panics,
     e.g. on `"00:00:00.\u{0660}"`; the regexes are only specified on ASCII input, so that case is
     excluded rather than stated. -/
 recall value.convert.parse_mysql_time_string_spec (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :
@@ -1043,8 +1053,9 @@ recall value.convert.parse_mysql_time_string_spec (b : Slice U8) (ha : ∀ c ∈
 
 /-! ### `impl From<Duration> for Value` -/
 
-/-- `From<Duration> for Value`: the positive `TIME` `durationTime` (microseconds rounded half
-    up, not carried; days truncated to `u32`). -/
+/-- `From<Duration> for Value`: the non-negative `TIME` `durationTime` (microseconds rounded half
+    up, not carried; days truncated to `u32`). The rounding `(nanos + 500) / 1000` is patch 50's;
+    it equals upstream's `(nanos as f64 / 1000.0).round()` for every `nanos < 10^9`. -/
 recall value.Value.Insts.CoreConvertFromDuration.from_spec (d : core.time.Duration) :
     value.Value.Insts.CoreConvertFromDuration.from d ⦃ w =>
       Val.ofValue w = durationTime d.secs.val d.nanos.val ⦄

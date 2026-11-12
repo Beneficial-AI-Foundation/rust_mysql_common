@@ -35,4 +35,18 @@ theorem value.Value.Insts.CoreConvertFromDecimal.from_spec (x : rust_decimal.dec
       Val.ofValue w = .bytes (utf8 (Trusted.decimalToString x)) ⦄ := by
   sorry
 
+/-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+theorem rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal.from_value_opt_eq (v : value.Value) :
+    value.convert.from_value_opt rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal v = ok (match v with
+      | .Int x => .Ok (Trusted.decimalFromI64 x)
+      | .UInt x => .Ok (Trusted.decimalFromU64 x)
+      | .Bytes b =>
+        if IsUtf8 b.val then
+          match Trusted.decimalFromStr (alloc.vec.Vec.deref b) with
+          | some x => .Ok x
+          | none => .Err v
+        else .Err v
+      | _ => .Err v) := by
+  sorry
+
 end mysql_common

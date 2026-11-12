@@ -50,7 +50,8 @@ recall value.Value.Insts.CoreConvertFromParseIrBigInt.from_eq (x : num_bigint_1.
 
 /-- `From<BigInt> for Value`: `Int` if it fits in an `i64`, else `UInt` if it fits in a `u64`, else
     `Bytes` of its decimal text (all three tests opaque). -/
-recall value.Value.Insts.CoreConvertFromBigInt.from_spec (x : num_bigint_1.bigint.BigInt) (h : (utf8 (Trusted.bigintToString x)).length ≤ Usize.max) :
+recall value.Value.Insts.CoreConvertFromBigInt.from_spec (x : num_bigint_1.bigint.BigInt) (h : Trusted.bigintToI64 x = none → Trusted.bigintToU64 x = none →
+      (utf8 (Trusted.bigintToString x)).length ≤ Usize.max) :
     value.Value.Insts.CoreConvertFromBigInt.from x ⦃ w =>
       Val.ofValue w = match Trusted.bigintToI64 x, Trusted.bigintToU64 x with
         | some i, _ => .int i.val
@@ -58,6 +59,19 @@ recall value.Value.Insts.CoreConvertFromBigInt.from_spec (x : num_bigint_1.bigin
         | none, none => .bytes (utf8 (Trusted.bigintToString x)) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigInt.from_spec`
+
+/-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+recall num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt.from_value_opt_eq (v : value.Value) :
+    value.convert.from_value_opt num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt v = ok (match v with
+      | .Int x => .Ok (Trusted.bigintFromI64 x)
+      | .UInt x => .Ok (Trusted.bigintFromU64 x)
+      | .Bytes b =>
+        match Trusted.bigintParseBytes (alloc.vec.Vec.deref b) with
+        | some x => .Ok x
+        | none => .Err v
+      | _ => .Err v)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt.from_value_opt_eq`
 
 /-! ### `impl FromValue for BigUint, impl From<BigUint> for Value` -/
 
@@ -86,12 +100,28 @@ recall value.Value.Insts.CoreConvertFromParseIrBigUint.from_eq (x : num_bigint_1
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrBigUint.from_eq`
 
 /-- `From<BigUint> for Value`: `UInt` if it fits in a `u64`, else `Bytes` of its decimal text. -/
-recall value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.biguint.BigUint) (h : (utf8 (Trusted.biguintToString x)).length ≤ Usize.max) :
+recall value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.biguint.BigUint) (h : Trusted.biguintToU64 x = none → (utf8 (Trusted.biguintToString x)).length ≤ Usize.max) :
     value.Value.Insts.CoreConvertFromBigUint.from x ⦃ w =>
       Val.ofValue w = match Trusted.biguintToU64 x with
         | some u => .uint u.val
         | none => .bytes (utf8 (Trusted.biguintToString x)) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigUint.from_spec`
+
+/-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+recall num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint.from_value_opt_eq (v : value.Value) :
+    value.convert.from_value_opt num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint v = ok (match v with
+      | .Int x =>
+        match Trusted.biguintFromI64 x with
+        | some y => .Ok y
+        | none => .Err v
+      | .UInt x => .Ok (Trusted.biguintFromU64 x)
+      | .Bytes b =>
+        match Trusted.biguintParseBytes (alloc.vec.Vec.deref b) with
+        | some x => .Ok x
+        | none => .Err v
+      | _ => .Err v)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint.from_value_opt_eq`
 
 end mysql_common

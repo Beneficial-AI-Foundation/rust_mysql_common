@@ -11,7 +11,7 @@ namespace mysql_common
 /-- `parse_mysql_time_string` (private, used by the `Duration`, chrono and time conversions): on
     ASCII input, total; the text `TIME` literal `timeStringRead`, as `(negative, hours, minutes,
     seconds, microseconds)`. **ASCII hypothesis:** on non-ASCII input the Unicode-mode regexes
-    can match non-ASCII digits and `btou(..).unwrap()` (or the padding loop's `6 - len`) panics,
+    can match non-ASCII digits and `btou(..).unwrap()` panics,
     e.g. on `"00:00:00.\u{0660}"`; the regexes are only specified on ASCII input, so that case is
     excluded rather than stated. -/
 theorem value.convert.parse_mysql_time_string_spec (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :

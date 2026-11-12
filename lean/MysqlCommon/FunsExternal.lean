@@ -563,8 +563,17 @@ axiom PrimitiveDateTime.time_new (d : time.date.Date) (t : time.time.Time) :
 axiom dateParseDate : Str → Option time.date.Date
 axiom timeParseTime : Str → core.result.Result time.time.Time time.error.parse.Parse
 axiom timeParseTimeMicro : Str → core.result.Result time.time.Time time.error.parse.Parse
-axiom pdtParseDate :
-  Str → core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse
+/-- `PrimitiveDateTime::parse(s, DATE_FORMAT)`: exact. Whatever the input, it is an error: if
+    parsing the format fails, that parse error; if it succeeds, only a year, month and day have
+    been parsed, and time 0.3.55's `TryFrom<Parsed> for Time` needs an hour (parsed.rs:1235-1241,
+    used for `PrimitiveDateTime` at parsed.rs:1304), so the result is
+    `Parse::TryFromParsed(TryFromParsed::InsufficientInformation)`, the value modelled by
+    `time_parse_insufficient_information`. Only `Ok`/`Err` is observed by the caller (the error is
+    discarded), so the constant error models it exactly. (Checked by test in review:
+    `"2024-01-31"` is rejected.) -/
+def pdtParseDate (_s : Str) :
+    core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse :=
+  .Err (.TryFromParsed .InsufficientInformation)
 axiom pdtParseDateTime :
   Str → core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse
 axiom pdtParseDateTimeMicro :

@@ -8,7 +8,7 @@ open Aeneas Aeneas.Std Result mysql_common Defs Classical
 
 namespace mysql_common
 
-/-- `TryFrom<Value> for ParseIr<Time>` on a positive `TIME` with 0 days: total; converts exactly
+/-- `TryFrom<Value> for ParseIr<Time>` on a non-negative (sign flag false) `TIME` with 0 days: total; converts exactly
     when time accepts the fields. -/
 theorem value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_time (h m s : U8) (us : U32) :
     value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from (.Time false 0#u32 h m s us) ⦃ r =>
@@ -34,6 +34,31 @@ theorem value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.tr
     days) is an error. -/
 theorem value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_other (v : value.Value) (hv : ∀ h m s us, v ≠ .Time false 0#u32 h m s us) (hb : ∀ b, v ≠ .Bytes b) :
     value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok (.Err v) := by
+  sorry
+
+/-- `from_value_opt`: as `try_from_time` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+theorem time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_time (h m s : U8) (us : U32) :
+    value.convert.from_value_opt time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime (.Time false 0#u32 h m s us) ⦃ r =>
+      (okPart r = none → r = .Err (.Time false 0#u32 h m s us)) ∧
+      ((∃ p, r = .Ok p) ↔ timeTimeValid h.val m.val s.val us.val) ∧
+      ∀ x, r = .Ok x → timeTime x = (h.val, m.val, s.val, us.val) ⦄ := by
+  sorry
+
+/-- `from_value_opt`: as `try_from_bytes` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+theorem time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_bytes (b : alloc.vec.Vec U8) :
+    value.convert.from_value_opt time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime (.Bytes b) = ok (
+      if IsUtf8 b.val then
+        match (if b.val.length < 8 then .Err (.TryFromParsed .InsufficientInformation)
+          else if b.val.length = 8 then Trusted.timeParseTime (alloc.vec.Vec.deref b)
+          else Trusted.timeParseTimeMicro (alloc.vec.Vec.deref b)) with
+        | .Ok x => .Ok x
+        | .Err _ => .Err (.Bytes b)
+      else .Err (.Bytes b)) := by
+  sorry
+
+/-- `from_value_opt`: as `try_from_other` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+theorem time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_other (v : value.Value) (hv : ∀ h m s us, v ≠ .Time false 0#u32 h m s us) (hb : ∀ b, v ≠ .Bytes b) :
+    value.convert.from_value_opt time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime v = ok (.Err v) := by
   sorry
 
 end mysql_common

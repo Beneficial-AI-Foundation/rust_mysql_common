@@ -47,6 +47,17 @@ recall value.Value.Insts.CoreConvertFromParseIrValue.from_eq (x : serde_json.val
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrValue.from_eq`
 
+/-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
+recall serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue.from_value_opt_eq (v : value.Value) :
+    value.convert.from_value_opt serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue v = ok (match v with
+      | .Bytes b =>
+        match Trusted.jsonFromSlice (alloc.vec.Vec.deref b) with
+        | some x => .Ok x
+        | none => .Err v
+      | _ => .Err v)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue.from_value_opt_eq`
+
 /-! ### `impl From<serde_json::Value> for Value` -/
 
 /-- `From<serde_json::Value> for Value`: `Bytes` of `serde_json::to_string` (opaque), when that
