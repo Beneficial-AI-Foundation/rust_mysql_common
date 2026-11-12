@@ -1,0 +1,112 @@
+Translation patch: `MyDeserialize for RowDeserializer<T, Text>` and `RowDeserializer<S, Binary>`
+
+Change:
+  - Text: the loop moves into a helper `deserialize_text_values(columns.len(), buf)` that returns the values.
+  - Binary: the loop `for (i, column) in columns.iter().enumerate()` becomes a recursive helper `deserialize_bin_values(&columns, &bitmap, buf, 0, Vec::with_capacity(columns.len()))`. It handles column `i` and then calls itself on `i + 1`, with the call at the end of both branches of `if bitmap.is_null(i)`. At `i == columns.len()` it returns the values.
+Why:
+  - Text: Aeneas fails ("Could not match the contexts") on the loop when its result is used together with `columns` after it (as in patch 11).
+  - Binary: inside a loop, Aeneas does not support live shared borrows of `columns` (each `Column` contains an `Arc<ColumnMeta<'static>>`) and of the bitmap (which holds a `Cow<'de, [u8]>`): "Found a case of unsupported nested borrows". A recursion needs no loop fixpoint. Aeneas does not model `enumerate` either (see patches 04/05).
+Behaviour: Identical: the same values are deserialized from `buf` in the same order, with the same early `Err` return. The recursion visits `i = 0, 1, .., len - 1` exactly as the loop does.
+
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index 81e2fdb..497f437 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -248,47 +248,71 @@ impl<'de, T> MyDeserialize<'de> for RowDeserializer<T, Text> {
+     type Ctx = Arc<[Column]>;
+ 
+     fn deserialize(columns: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        let mut values = Vec::with_capacity(columns.len());
+-
+-        for _ in 0..columns.len() {
+-            values.push(Some(
+-                ValueDeserializer::<TextValue>::deserialize((), &mut *buf)?.0,
+-            ))
+-        }
+-
++        let values = deserialize_text_values(columns.len(), buf)?;
+         Ok(Self(Row { values, columns }, PhantomData))
+     }
+ }
+ 
++/// The loop of `MyDeserialize for RowDeserializer<T, Text>`: `num_columns` text values.
++fn deserialize_text_values(
++    num_columns: usize,
++    buf: &mut ParseBuf<'_>,
++) -> io::Result<Vec<Option<Value>>> {
++    let mut values = Vec::with_capacity(num_columns);
++
++    for _ in 0..num_columns {
++        values.push(Some(
++            ValueDeserializer::<TextValue>::deserialize((), &mut *buf)?.0,
++        ))
++    }
++
++    Ok(values)
++}
++
+ impl<'de, S: SerializationSide> MyDeserialize<'de> for RowDeserializer<S, Binary> {
+     const SIZE: Option<usize> = None;
+     type Ctx = Arc<[Column]>;
+ 
+     fn deserialize(columns: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        use Value::*;
+-
+         match buf.checked_eat_u8() {
+             Some(_) => (),
+             None => return Err(unexpected_buf_eof()),
+         }
+ 
+         let bitmap = NullBitmap::<S, Cow<'de, [u8]>>::deserialize(columns.len(), &mut *buf)?;
+-        let mut values = Vec::with_capacity(columns.len());
+-
+-        for (i, column) in columns.iter().enumerate() {
+-            if bitmap.is_null(i) {
+-                values.push(Some(NULL))
+-            } else {
+-                values.push(Some(
+-                    ValueDeserializer::<BinValue>::deserialize(
+-                        (column.column_type(), column.flags()),
+-                        &mut *buf,
+-                    )?
+-                    .0,
+-                ));
+-            }
+-        }
+-
++        let values =
++            deserialize_bin_values(&columns, &bitmap, buf, 0, Vec::with_capacity(columns.len()))?;
+         Ok(Self(Row { values, columns }, PhantomData))
+     }
+ }
++
++/// The loop `for i in 0..columns.len() { .. }` of `MyDeserialize for RowDeserializer<S, Binary>`,
++/// written as a recursion on `i`: pushes the values of the columns `i..` to `values`.
++fn deserialize_bin_values<'de, S: SerializationSide>(
++    columns: &[Column],
++    bitmap: &NullBitmap<S, Cow<'de, [u8]>>,
++    buf: &mut ParseBuf<'de>,
++    i: usize,
++    mut values: Vec<Option<Value>>,
++) -> io::Result<Vec<Option<Value>>> {
++    use Value::*;
++
++    if i < columns.len() {
++        let column = &columns[i];
++        if bitmap.is_null(i) {
++            values.push(Some(NULL));
++            deserialize_bin_values(columns, bitmap, buf, i + 1, values)
++        } else {
++            values.push(Some(
++                ValueDeserializer::<BinValue>::deserialize(
++                    (column.column_type(), column.flags()),
++                    &mut *buf,
++                )?
++                .0,
++            ));
++            deserialize_bin_values(columns, bitmap, buf, i + 1, values)
++        }
++    } else {
++        Ok(values)
++    }
++}

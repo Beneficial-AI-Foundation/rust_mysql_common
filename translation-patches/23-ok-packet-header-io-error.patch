@@ -1,0 +1,28 @@
+Translation patch: `MyDeserialize for OkPacketDeserializer<T>`
+
+Change: `io::Error::new(io::ErrorKind::InvalidData, InvalidOkPacketHeader)` becomes `io_error_from(io::ErrorKind::InvalidData, InvalidOkPacketHeader)`, the helper from patch 02.
+Why: The same as patch 02 (`dyn` in the signature of `io::Error::new`).
+Behaviour: Identical: the helper is the inlined call.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 2e7ac78..0091b3e 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -33,7 +33,7 @@ use crate::{
+     },
+     io::{BufMutExt, ParseBuf},
+     misc::{
+-        lenenc_str_len,
++        io_error_from, lenenc_str_len,
+         raw::{
+             Const, Either, RawBytes, RawConst, RawInt, Skip,
+             bytes::{
+@@ -842,7 +842,7 @@ impl<'de, T: OkPacketKind> MyDeserialize<'de> for OkPacketDeserializer<'de, T> {
+             let ok = OkPacket::try_from(body)?;
+             Ok(Self(ok, PhantomData))
+         } else {
+-            Err(io::Error::new(
++            Err(io_error_from(
+                 io::ErrorKind::InvalidData,
+                 InvalidOkPacketHeader,
+             ))

@@ -1,0 +1,136 @@
+Translation patch: `MySerialize for ServerError`, `MySerialize for ComStmtExecuteRequest`
+
+Change:
+  - `ServerError`: `if let Some(state) = &self.state { state.serialize(buf); } self.message.serialize(buf);` becomes a `match` that ends both arms with `self.message.serialize(buf)`.
+  - `ComStmtExecuteRequest`: the two loops after `if !self.params.is_empty() { .. }` move into a new function `serialize_params(params, as_long_data, buf)`, which takes the two fields it reads. It is called at the end of both branches of the `if`, which gets an `else`.
+Why: Aeneas fails to join the contexts after a conditional when the borrowed `self` contains borrows ("Could not match the contexts", "Joining region abstractions containing shared loans whose shared value contains borrows is not supported yet"). In tail position no join is needed. The loops get a context without `self`.
+Behaviour: Identical: the same writes, in the same order.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index e070340..d433c32 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -1177,10 +1177,13 @@ impl<'de> MyDeserialize<'de> for ServerError<'de> {
+ 
+ impl MySerialize for ServerError<'_> {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+-        if let Some(state) = &self.state {
+-            state.serialize(buf);
++        match &self.state {
++            Some(state) => {
++                state.serialize(buf);
++                self.message.serialize(buf);
++            }
++            None => self.message.serialize(buf),
+         }
+-        self.message.serialize(buf);
+     }
+ }
+ 
+@@ -2731,55 +2734,62 @@ impl MySerialize for ComStmtExecuteRequest<'_> {
+         if !self.params.is_empty() {
+             self.bitmap.serialize(&mut *buf);
+             self.params_flags.serialize(&mut *buf);
++            serialize_params(self.params, self.as_long_data, buf);
++        } else {
++            serialize_params(self.params, self.as_long_data, buf);
+         }
++    }
++}
+ 
+-        for i in 0..self.params.len() {
+-            let param: &Value = &self.params[i];
+-            let (column_type, flags) = match param {
+-                Value::NULL => (ColumnType::MYSQL_TYPE_NULL, StmtExecuteParamFlags::empty()),
+-                Value::Bytes(_) => (
+-                    ColumnType::MYSQL_TYPE_VAR_STRING,
+-                    StmtExecuteParamFlags::empty(),
+-                ),
+-                Value::Int(_) => (
+-                    ColumnType::MYSQL_TYPE_LONGLONG,
+-                    StmtExecuteParamFlags::empty(),
+-                ),
+-                Value::UInt(_) => (
+-                    ColumnType::MYSQL_TYPE_LONGLONG,
+-                    StmtExecuteParamFlags::UNSIGNED,
+-                ),
+-                Value::Float(_) => (ColumnType::MYSQL_TYPE_FLOAT, StmtExecuteParamFlags::empty()),
+-                Value::Double(_) => (
+-                    ColumnType::MYSQL_TYPE_DOUBLE,
+-                    StmtExecuteParamFlags::empty(),
+-                ),
+-                Value::Date(..) => (
+-                    ColumnType::MYSQL_TYPE_DATETIME,
+-                    StmtExecuteParamFlags::empty(),
+-                ),
+-                Value::Time(..) => (ColumnType::MYSQL_TYPE_TIME, StmtExecuteParamFlags::empty()),
+-            };
++/// The rest of `MySerialize for ComStmtExecuteRequest`: the parameter types, then the parameter
++/// values (`params` and `as_long_data` are the fields of the request).
++fn serialize_params(params: &[Value], as_long_data: bool, buf: &mut Vec<u8>) {
++    for i in 0..params.len() {
++        let param: &Value = &params[i];
++        let (column_type, flags) = match param {
++            Value::NULL => (ColumnType::MYSQL_TYPE_NULL, StmtExecuteParamFlags::empty()),
++            Value::Bytes(_) => (
++                ColumnType::MYSQL_TYPE_VAR_STRING,
++                StmtExecuteParamFlags::empty(),
++            ),
++            Value::Int(_) => (
++                ColumnType::MYSQL_TYPE_LONGLONG,
++                StmtExecuteParamFlags::empty(),
++            ),
++            Value::UInt(_) => (
++                ColumnType::MYSQL_TYPE_LONGLONG,
++                StmtExecuteParamFlags::UNSIGNED,
++            ),
++            Value::Float(_) => (ColumnType::MYSQL_TYPE_FLOAT, StmtExecuteParamFlags::empty()),
++            Value::Double(_) => (
++                ColumnType::MYSQL_TYPE_DOUBLE,
++                StmtExecuteParamFlags::empty(),
++            ),
++            Value::Date(..) => (
++                ColumnType::MYSQL_TYPE_DATETIME,
++                StmtExecuteParamFlags::empty(),
++            ),
++            Value::Time(..) => (ColumnType::MYSQL_TYPE_TIME, StmtExecuteParamFlags::empty()),
++        };
+ 
+-            buf.put_slice(&[column_type as u8, flags.bits()]);
+-        }
++        buf.put_slice(&[column_type as u8, flags.bits()]);
++    }
+ 
+-        for i in 0..self.params.len() {
+-            let param: &Value = &self.params[i];
+-            match *param {
+-                Value::Int(_)
+-                | Value::UInt(_)
+-                | Value::Float(_)
+-                | Value::Double(_)
+-                | Value::Date(..)
+-                | Value::Time(..) => {
+-                    param.serialize(buf);
+-                }
+-                Value::Bytes(_) if !self.as_long_data => {
+-                    param.serialize(buf);
+-                }
+-                Value::Bytes(_) | Value::NULL => {}
++    for i in 0..params.len() {
++        let param: &Value = &params[i];
++        match *param {
++            Value::Int(_)
++            | Value::UInt(_)
++            | Value::Float(_)
++            | Value::Double(_)
++            | Value::Date(..)
++            | Value::Time(..) => {
++                param.serialize(buf);
++            }
++            Value::Bytes(_) if !as_long_data => {
++                param.serialize(buf);
+             }
++            Value::Bytes(_) | Value::NULL => {}
+         }
+     }
+ }

@@ -72,6 +72,47 @@ def Slice.Insts.AllocBorrowToOwnedVec.to_owned
   Result (alloc.vec.Vec T) :=
   alloc.slice.Slice.to_vec corecloneCloneInst s
 
+/-! ## `Vec<T>` as a slice, and `Display` through a shared reference: the std bodies. -/
+
+/-- `impl AsRef<[T]> for Vec<T>`: `self` (deref coercion). -/
+@[rust_fun "alloc::vec::{core::convert::AsRef<alloc::vec::Vec<@T>, [@T]>}::as_ref"]
+def alloc.vec.Vec.Insts.CoreConvertAsRefSlice.as_ref
+  {T : Type _} (A : Type _) (v : alloc.vec.Vec T) : Result (Slice T) :=
+  ok (alloc.vec.Vec.deref v)
+
+/-- `impl AsMut<[T]> for Vec<T>`: `self` (deref-mut coercion). -/
+@[rust_fun "alloc::vec::{core::convert::AsMut<alloc::vec::Vec<@T>, [@T]>}::as_mut"]
+def alloc.vec.Vec.Insts.CoreConvertAsMutSlice.as_mut
+  {T : Type _} (A : Type _) (v : alloc.vec.Vec T) :
+  Result ((Slice T) × (Slice T → alloc.vec.Vec T)) :=
+  ok (alloc.vec.Vec.deref_mut v)
+
+/-- `impl<T: Display> Display for &T`: `Display::fmt(&**self, f)`. -/
+@[rust_fun "core::fmt::{core::fmt::Display<&'0 @T>}::fmt"]
+def Shared0T.Insts.CoreFmtDisplay.fmt
+  {T : Type _} (DisplayInst : core.fmt.Display T) (x : T) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter) :=
+  DisplayInst.fmt x f
+
+/-! ## `Arc<T>`, modelled by its value (see `alloc.sync.Arc` in TypesExternal.lean). -/
+
+/-- `Arc::new(x)`. -/
+@[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::new"]
+def alloc.sync.Arc.new {T : Type _} (x : T) : Result (alloc.sync.Arc T) := ok x
+
+/-- `impl Clone for Arc<T>`: another `Arc` to the same value. -/
+@[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
+def alloc.sync.Arc.Insts.CoreCloneClone.clone
+  {T : Type _} {A : Type _} (coreallocAllocatorCloneInst : core.alloc.AllocatorClone A)
+  (x : alloc.sync.Arc T) : Result (alloc.sync.Arc T) :=
+  ok x
+
+/-- `impl Deref for Arc<T>`: the value. -/
+@[rust_fun "alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref"]
+def alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
+  {T : Type _} (A : Type _) (x : alloc.sync.Arc T) : Result T :=
+  ok x
+
 /-! ## Axioms -/
 
 /-- [core::mem::size_of]: used only by `RawFlags::SIZE` (`size_of::<T::Bits>()` for a generic
@@ -99,3 +140,16 @@ noncomputable def misc.io_error_from
   {E : Type _} (coreerrorErrorInst : core.error.Error E)
   (kind : core.io.error.ErrorKind) (err : E) : Result core.io.error.Error :=
   ok (core.io.error.Error.ofError coreerrorErrorInst kind err)
+
+/-- [mysql_common::constants::{impl Display for UnknownStatusFlags}::fmt] (opaque in Cargo.toml):
+    the error message (formats the raw value with `{:b}`). Only needed to build the `Error`
+    instance passed to `io_error_from`, whose result is opaque. Nothing is assumed about it. -/
+axiom constants.UnknownStatusFlags.Insts.CoreFmtDisplay.fmt :
+  constants.UnknownStatusFlags → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::constants::{impl Display for UnknownColumnFlags}::fmt] (opaque in Cargo.toml):
+    as for `UnknownStatusFlags`. Nothing is assumed about it. -/
+axiom constants.UnknownColumnFlags.Insts.CoreFmtDisplay.fmt :
+  constants.UnknownColumnFlags → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)

@@ -1,0 +1,28 @@
+Translation patch: `ComStmtExecuteRequestBuilder::build` (the null bitmap)
+
+Change: The bitmap is `NullBitmap::<ClientSide, Vec<u8>>::from_bytes(vec![0; bitmap_len])`, which owns its bytes, and `bitmap_bytes` is taken out of it (`bitmap.0`) after the loop that sets the bits. Before, it was a `NullBitmap<ClientSide, &mut Vec<u8>>` over a separate `bitmap_bytes`.
+Why: With `U = &mut Vec<u8>`, `NullBitmap::set` and `byte_and_bit` use std's blanket `AsRef`/`AsMut` for `&mut T`, which Aeneas does not model. With `U = Vec<u8>` they use the `Vec` impls (`self` as a slice, modelled in FunsExternal.lean).
+Behaviour: Identical: the same zeroed bytes are allocated, the same bits are set, and the same vector ends up in the request.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 6e1fc76..8e37aa1 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -2636,8 +2636,7 @@ impl ComStmtExecuteRequestBuilder {
+     pub fn build(self, params: &[Value]) -> (ComStmtExecuteRequest<'_>, bool) {
+         let bitmap_len = NullBitmap::<ClientSide>::bitmap_len(params.len());
+ 
+-        let mut bitmap_bytes = vec![0; bitmap_len];
+-        let mut bitmap = NullBitmap::<ClientSide, _>::from_bytes(&mut bitmap_bytes);
++        let mut bitmap = NullBitmap::<ClientSide, Vec<u8>>::from_bytes(vec![0; bitmap_len]);
+         let params = params.iter().collect::<Vec<_>>();
+ 
+         let meta_len = params.len() * 2;
+@@ -2649,6 +2648,7 @@ impl ComStmtExecuteRequestBuilder {
+                 x => data_len += x,
+             }
+         }
++        let bitmap_bytes = bitmap.0;
+ 
+         let total_len = 10 + bitmap_len + 1 + meta_len + data_len;
+ 

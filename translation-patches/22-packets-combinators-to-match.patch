@@ -1,0 +1,114 @@
+Translation patch: combinators in packets/mod.rs and row/mod.rs (`OkPacket::{into_owned, info_ref, session_state_info_ref}`, `ServerError::sql_state_ref`, `MyDeserialize` for `ErrPacket`, `NullBitmap`, `RowDeserializer<_, Binary>`)
+
+Change: These become explicit `match`es (with `return Err(unexpected_buf_eof())` where the combinator was followed by `?`): `opt.map(|x| x.into_owned())`, `opt.as_ref().map(|x| x.as_bytes())`, `.map(ErrPacket::Progress)`, `.map(ErrPacket::Error)`, `self.state.as_ref()` and `.ok_or_else(unexpected_buf_eof)?`.
+Why: The same as patch 09: Aeneas fails on closures and constructors used as values, and does not model `ok_or_else`. It does not model `Option::as_ref` either.
+Behaviour: Identical: each `match` is the definition of the combinator.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 569219a..2e7ac78 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -745,8 +745,14 @@ impl OkPacket<'_> {
+             last_insert_id: self.last_insert_id,
+             status_flags: self.status_flags,
+             warnings: self.warnings,
+-            info: self.info.map(|x| x.into_owned()),
+-            session_state_info: self.session_state_info.map(|x| x.into_owned()),
++            info: match self.info {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
++            session_state_info: match self.session_state_info {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
+         }
+     }
+ 
+@@ -772,7 +778,10 @@ impl OkPacket<'_> {
+ 
+     /// Value of the info field of an Ok packet as a byte slice.
+     pub fn info_ref(&self) -> Option<&[u8]> {
+-        self.info.as_ref().map(|x| x.as_bytes())
++        match &self.info {
++            Some(x) => Some(x.as_bytes()),
++            None => None,
++        }
+     }
+ 
+     /// Value of the info field of an Ok packet as a string (lossy converted).
+@@ -782,7 +791,10 @@ impl OkPacket<'_> {
+ 
+     /// Returns raw reference to a session state info.
+     pub fn session_state_info_ref(&self) -> Option<&[u8]> {
+-        self.session_state_info.as_ref().map(|x| x.as_bytes())
++        match &self.session_state_info {
++            Some(x) => Some(x.as_bytes()),
++            None => None,
++        }
+     }
+ 
+     /// Tries to parse session state info, if any.
+@@ -990,13 +1002,18 @@ impl<'de> MyDeserialize<'de> for ErrPacket<'de> {
+         let code: RawInt<LeU16> = sbuf.parse_unchecked(())?;
+ 
+         if *code == 0xFFFF && capabilities.contains(CapabilityFlags::CLIENT_PROGRESS_OBSOLETE) {
+-            buf.parse(()).map(ErrPacket::Progress)
++            match buf.parse(()) {
++                Ok(progress_report) => Ok(ErrPacket::Progress(progress_report)),
++                Err(e) => Err(e),
++            }
+         } else {
+-            buf.parse((
++            match buf.parse((
+                 *code,
+                 capabilities.contains(CapabilityFlags::CLIENT_PROTOCOL_41),
+-            ))
+-            .map(ErrPacket::Error)
++            )) {
++                Ok(server_error) => Ok(ErrPacket::Error(server_error)),
++                Err(e) => Err(e),
++            }
+         }
+     }
+ }
+@@ -1104,7 +1121,10 @@ impl<'a> ServerError<'a> {
+ 
+     /// Returns an sql state.
+     pub fn sql_state_ref(&self) -> Option<&SqlState> {
+-        self.state.as_ref()
++        match &self.state {
++            Some(state) => Some(state),
++            None => None,
++        }
+     }
+ 
+     /// Returns an error message.
+@@ -2522,7 +2542,10 @@ impl<'de, T: SerializationSide> MyDeserialize<'de> for NullBitmap<T, Cow<'de, [u
+ 
+     fn deserialize(num_columns: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         let bitmap_len = Self::bitmap_len(num_columns);
+-        let bytes = buf.checked_eat(bitmap_len).ok_or_else(unexpected_buf_eof)?;
++        let bytes = match buf.checked_eat(bitmap_len) {
++            Some(bytes) => bytes,
++            None => return Err(unexpected_buf_eof()),
++        };
+         Ok(Self::from_bytes(Cow::Borrowed(bytes)))
+     }
+ }
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index dd32573..81e2fdb 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -267,7 +267,10 @@ impl<'de, S: SerializationSide> MyDeserialize<'de> for RowDeserializer<S, Binary
+     fn deserialize(columns: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         use Value::*;
+ 
+-        buf.checked_eat_u8().ok_or_else(unexpected_buf_eof)?;
++        match buf.checked_eat_u8() {
++            Some(_) => (),
++            None => return Err(unexpected_buf_eof()),
++        }
+ 
+         let bitmap = NullBitmap::<S, Cow<'de, [u8]>>::deserialize(columns.len(), &mut *buf)?;
+         let mut values = Vec::with_capacity(columns.len());

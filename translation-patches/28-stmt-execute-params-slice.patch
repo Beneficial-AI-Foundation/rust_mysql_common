@@ -1,0 +1,56 @@
+Translation patch: `ComStmtExecuteRequest::params` stored as a slice
+
+Change: The field `params: Vec<&'a Value>` becomes `params: &'a [Value]`. `build` stores the input slice instead of `params.iter().collect::<Vec<_>>()`. The accessor `params()` returns `&'a [Value]` (it was `&[&'a Value]`). `serialize` reads `&self.params[i]`.
+Why: Aeneas does not support a borrow nested in a borrow through a generic instantiation. Every access to a `Vec<&Value>` through `&self` (`len`, indexing, iteration) is a `&Vec<&Value>`, and fails with "Nested borrows are not supported yet" or "Internal error ... Found an already registered mapping".
+Behaviour: Identical for serialization and for every use inside the crate: element `i` is the same `Value` in both, since the vector held `&params[i]` at position `i`. The derived `Debug`, `PartialEq` and `Clone` of the request are element-wise the same. API difference: `params()` returns a slice of values instead of a slice of references to them. The crate does not call it.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 90bea58..e070340 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -2647,7 +2647,6 @@ impl ComStmtExecuteRequestBuilder {
+                 x => data_len += x,
+             }
+         }
+-        let params = params.iter().collect::<Vec<_>>();
+         let bitmap_bytes = bitmap.0;
+ 
+         let total_len = 10 + bitmap_len + 1 + meta_len + data_len;
+@@ -2692,7 +2691,7 @@ pub struct ComStmtExecuteRequest<'a> {
+     // max params / bits per byte = 8192
+     bitmap: RawBytes<'a, BareBytes<8192>>,
+     params_flags: Const<StmtExecuteParamsFlags, u8>,
+-    params: Vec<&'a Value>,
++    params: &'a [Value],
+     as_long_data: bool,
+ }
+ 
+@@ -2713,8 +2712,8 @@ impl<'a> ComStmtExecuteRequest<'a> {
+         self.params_flags.0
+     }
+ 
+-    pub fn params(&self) -> &[&'a Value] {
+-        self.params.as_ref()
++    pub fn params(&self) -> &'a [Value] {
++        self.params
+     }
+ 
+     pub fn as_long_data(&self) -> bool {
+@@ -2735,7 +2734,7 @@ impl MySerialize for ComStmtExecuteRequest<'_> {
+         }
+ 
+         for i in 0..self.params.len() {
+-            let param: &Value = self.params[i];
++            let param: &Value = &self.params[i];
+             let (column_type, flags) = match param {
+                 Value::NULL => (ColumnType::MYSQL_TYPE_NULL, StmtExecuteParamFlags::empty()),
+                 Value::Bytes(_) => (
+@@ -2766,7 +2765,7 @@ impl MySerialize for ComStmtExecuteRequest<'_> {
+         }
+ 
+         for i in 0..self.params.len() {
+-            let param: &Value = self.params[i];
++            let param: &Value = &self.params[i];
+             match *param {
+                 Value::Int(_)
+                 | Value::UInt(_)

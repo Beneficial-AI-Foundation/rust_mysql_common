@@ -1,0 +1,61 @@
+Translation patch: `TryFrom<OkPacketBody> for OkPacket`
+
+Change: The body is first destructured into its six fields. `if !body.info.is_empty() { Some(body.info) } else { None }`, and the same for `session_state_info`, become calls to a new helper `non_empty(x)` with that body, in which the emptiness test is bound to a local first.
+Why: Aeneas fails ("Internal error, please file an issue") on moving a field out of `body` in the branch of a conditional whose test borrowed it.
+Behaviour: Identical: the same fields are read, tested and moved.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index cadfdbe..6e1fc76 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -700,29 +700,35 @@ impl OkPacketKind for CommonOkPacket {
+     }
+ }
+ 
++/// `if !x.is_empty() { Some(x) } else { None }`.
++fn non_empty<T: crate::misc::raw::bytes::BytesRepr>(x: RawBytes<'_, T>) -> Option<RawBytes<'_, T>> {
++    let is_empty = x.is_empty();
++    if !is_empty { Some(x) } else { None }
++}
++
+ impl<'a> TryFrom<OkPacketBody<'a>> for OkPacket<'a> {
+     type Error = io::Error;
+ 
+     fn try_from(body: OkPacketBody<'a>) -> io::Result<Self> {
++        let OkPacketBody {
++            affected_rows,
++            last_insert_id,
++            status_flags,
++            warnings,
++            info,
++            session_state_info,
++        } = body;
+         Ok(OkPacket {
+-            affected_rows: *body.affected_rows,
+-            last_insert_id: if *body.last_insert_id == 0 {
++            affected_rows: *affected_rows,
++            last_insert_id: if *last_insert_id == 0 {
+                 None
+             } else {
+-                Some(*body.last_insert_id)
+-            },
+-            status_flags: *body.status_flags,
+-            warnings: *body.warnings,
+-            info: if !body.info.is_empty() {
+-                Some(body.info)
+-            } else {
+-                None
+-            },
+-            session_state_info: if !body.session_state_info.is_empty() {
+-                Some(body.session_state_info)
+-            } else {
+-                None
++                Some(*last_insert_id)
+             },
++            status_flags: *status_flags,
++            warnings: *warnings,
++            info: non_empty(info),
++            session_state_info: non_empty(session_state_info),
+         })
+     }
+ }
