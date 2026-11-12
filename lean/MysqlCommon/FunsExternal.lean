@@ -1,0 +1,101 @@
+-- Hand-written: the external functions of the mysql_common translation (from FunsExternal_Template.lean).
+module
+public import Aeneas
+public import MysqlCommon.Types
+@[expose] public section
+open Aeneas Aeneas.Std Result ControlFlow Error
+set_option linter.dupNamespace false
+set_option linter.hashCommand false
+set_option linter.unusedVariables false
+set_option linter.style.whitespace false
+set_option linter.style.setOption false
+set_option linter.style.longLine false
+set_option linter.internalConstructors false
+open mysql_common
+
+/-! ## Floats: exact definitions on the bit pattern (see `F32`/`F64` in TypesExternal.lean).
+    std defines `fN::from_le_bytes(b) = fN::from_bits(uN::from_le_bytes(b))` (same for `be`). -/
+
+@[rust_fun "core::f32::{f32}::to_bits"]
+def core.f32.F32.to_bits (x : F32) : Result Std.U32 := ok x.bits
+
+@[rust_fun "core::f32::{f32}::from_le_bytes"]
+def core.f32.F32.from_le_bytes (a : Array Std.U8 4#usize) : Result F32 :=
+  ok ⟨core.num.U32.from_le_bytes a⟩
+
+@[rust_fun "core::f32::{f32}::from_be_bytes"]
+def core.f32.F32.from_be_bytes (a : Array Std.U8 4#usize) : Result F32 :=
+  ok ⟨core.num.U32.from_be_bytes a⟩
+
+@[rust_fun "core::f64::{f64}::to_bits"]
+def core.f64.F64.to_bits (x : F64) : Result Std.U64 := ok x.bits
+
+@[rust_fun "core::f64::{f64}::from_le_bytes"]
+def core.f64.F64.from_le_bytes (a : Array Std.U8 8#usize) : Result F64 :=
+  ok ⟨core.num.U64.from_le_bytes a⟩
+
+@[rust_fun "core::f64::{f64}::from_be_bytes"]
+def core.f64.F64.from_be_bytes (a : Array Std.U8 8#usize) : Result F64 :=
+  ok ⟨core.num.U64.from_be_bytes a⟩
+
+/-! ## `Cow<'_, [T]>` and its trait instances: the std bodies.
+    (These cannot be patched into the crate: Aeneas fails on matching a `&Cow` whose
+    `Borrowed` variant holds a shared borrow, see translation notes.) -/
+
+/-- `impl Deref for Cow`: `match *self { Borrowed(b) => b, Owned(ref o) => o.borrow() }`. -/
+@[rust_fun
+  "alloc::borrow::{core::ops::deref::Deref<alloc::borrow::Cow<'0, @B, @Clause0_Owned>, @B>}::deref"]
+def alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+  {B : Type _} {Clause0_Owned : Type _} (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned) :
+  alloc.borrow.Cow B Clause0_Owned → Result B
+  | .Borrowed b => ok b
+  | .Owned o => ToOwnedInst.coreborrowBorrowInst.borrow o
+
+/-- `impl AsRef<T> for Cow<'_, T>`: `self` (deref coercion). -/
+@[rust_fun
+  "alloc::borrow::{core::convert::AsRef<alloc::borrow::Cow<'0, @T, @Clause0_Owned>, @T>}::as_ref"]
+def alloc.borrow.Cow.Insts.CoreConvertAsRef.as_ref
+  {T : Type _} {Clause0_Owned : Type _} (ToOwnedInst : alloc.borrow.ToOwned T Clause0_Owned)
+  (c : alloc.borrow.Cow T Clause0_Owned) : Result T :=
+  alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref ToOwnedInst c
+
+/-- `impl Borrow<[T]> for Vec<T>`: `&self[..]`. -/
+@[rust_fun "alloc::slice::{core::borrow::Borrow<alloc::vec::Vec<@T>, [@T]>}::borrow"]
+def alloc.vec.Vec.Insts.CoreBorrowBorrowSlice.borrow
+  {T : Type _} (A : Type _) (v : alloc.vec.Vec T) : Result (Slice T) :=
+  ok (alloc.vec.Vec.deref v)
+
+/-- `impl ToOwned for [T]`: `self.to_vec()`. -/
+@[rust_fun "alloc::slice::{alloc::borrow::ToOwned<[@T], alloc::vec::Vec<@T>>}::to_owned"]
+def Slice.Insts.AllocBorrowToOwnedVec.to_owned
+  {T : Type _} (corecloneCloneInst : core.clone.Clone T) (s : Slice T) :
+  Result (alloc.vec.Vec T) :=
+  alloc.slice.Slice.to_vec corecloneCloneInst s
+
+/-! ## Axioms -/
+
+/-- [core::mem::size_of]: used only by `RawFlags::SIZE` (`size_of::<T::Bits>()` for a generic
+    `T`), which a Lean definition cannot compute. Nothing is assumed about its value. -/
+@[rust_fun "core::mem::size_of"]
+axiom core.mem.size_of (T : Type _) : Result Std.Usize
+
+/-- An opaque `io::Error` built from a kind and a static message. Nothing is assumed about it. -/
+axiom core.io.error.Error.ofMsg : core.io.error.ErrorKind → Str → core.io.error.Error
+
+/-- An opaque `io::Error` built from a kind and an error value. Nothing is assumed about it. -/
+axiom core.io.error.Error.ofError
+  {E : Type _} (coreerrorErrorInst : core.error.Error E) :
+  core.io.error.ErrorKind → E → core.io.error.Error
+
+/-- [mysql_common::misc::io_error_msg] (opaque in Cargo.toml): `io::Error::new(kind, msg)`.
+    Assumed not to fail (Aeneas treats allocation as infallible); the value is opaque. -/
+noncomputable def misc.io_error_msg (kind : core.io.error.ErrorKind) (msg : Str) :
+  Result core.io.error.Error :=
+  ok (core.io.error.Error.ofMsg kind msg)
+
+/-- [mysql_common::misc::io_error_from] (opaque in Cargo.toml): `io::Error::new(kind, err)`.
+    Assumed not to fail; the value is opaque. -/
+noncomputable def misc.io_error_from
+  {E : Type _} (coreerrorErrorInst : core.error.Error E)
+  (kind : core.io.error.ErrorKind) (err : E) : Result core.io.error.Error :=
+  ok (core.io.error.Error.ofError coreerrorErrorInst kind err)

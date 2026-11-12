@@ -1,0 +1,116 @@
+Translation patch: `Value::deserialize_datetime`, `Value::deserialize_time`
+
+Change: The sequence of `if len >= 4 {..} if len >= 7 {..} if len == 11 {..}` updating mutable locals becomes nested `if`s each ending in the result (same for `if len >= 8 {..} if len == 12 {..}`).
+Why: Aeneas fails to join the contexts after an `if` that advanced the local `ParseBuf` and then continues ("found a loan and its corresponding borrow in the same region abstraction", "Could not match the contexts").
+Behaviour: Identical: `len == 11` implies `len >= 7` implies `len >= 4` (and `len == 12` implies `len >= 8`), so the same bytes are eaten in the same order and unset fields stay 0 / `false`.
+
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index d839e28..b590ba6 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -342,34 +342,32 @@ impl Value {
+             None => return Err(unexpected_buf_eof()),
+         };
+ 
+-        let mut year = 0u16;
+-        let mut month = 0u8;
+-        let mut day = 0u8;
+-        let mut hour = 0u8;
+-        let mut minute = 0u8;
+-        let mut second = 0u8;
+-        let mut micro_second = 0u32;
+-
+         let mut buf = match buf.checked_eat_buf(len as usize) {
+             Some(x) => x,
+             None => return Err(unexpected_buf_eof()),
+         };
+ 
++        // `len == 11` implies `len >= 7`, which implies `len >= 4`.
+         if len >= 4u8 {
+-            year = buf.eat_u16_le();
+-            month = buf.eat_u8();
+-            day = buf.eat_u8();
+-        }
+-        if len >= 7u8 {
+-            hour = buf.eat_u8();
+-            minute = buf.eat_u8();
+-            second = buf.eat_u8();
+-        }
+-        if len == 11u8 {
+-            micro_second = buf.eat_u32_le();
++            let year = buf.eat_u16_le();
++            let month = buf.eat_u8();
++            let day = buf.eat_u8();
++            if len >= 7u8 {
++                let hour = buf.eat_u8();
++                let minute = buf.eat_u8();
++                let second = buf.eat_u8();
++                if len == 11u8 {
++                    let micro_second = buf.eat_u32_le();
++                    Ok(Date(year, month, day, hour, minute, second, micro_second))
++                } else {
++                    Ok(Date(year, month, day, hour, minute, second, 0u32))
++                }
++            } else {
++                Ok(Date(year, month, day, 0u8, 0u8, 0u8, 0u32))
++            }
++        } else {
++            Ok(Date(0u16, 0u8, 0u8, 0u8, 0u8, 0u8, 0u32))
+         }
+-
+-        Ok(Date(year, month, day, hour, minute, second, micro_second))
+     }
+ 
+     fn deserialize_time(buf: &mut ParseBuf<'_>) -> io::Result<Self> {
+@@ -378,37 +376,27 @@ impl Value {
+             None => return Err(unexpected_buf_eof()),
+         };
+ 
+-        let mut is_negative = false;
+-        let mut days = 0u32;
+-        let mut hours = 0u8;
+-        let mut minutes = 0u8;
+-        let mut seconds = 0u8;
+-        let mut micro_seconds = 0u32;
+-
+         let mut buf = match buf.checked_eat_buf(len as usize) {
+             Some(x) => x,
+             None => return Err(unexpected_buf_eof()),
+         };
+ 
++        // `len == 12` implies `len >= 8`.
+         if len >= 8u8 {
+-            is_negative = buf.eat_u8() == 1u8;
+-            days = buf.eat_u32_le();
+-            hours = buf.eat_u8();
+-            minutes = buf.eat_u8();
+-            seconds = buf.eat_u8();
+-        }
+-        if len == 12u8 {
+-            micro_seconds = buf.eat_u32_le();
++            let is_negative = buf.eat_u8() == 1u8;
++            let days = buf.eat_u32_le();
++            let hours = buf.eat_u8();
++            let minutes = buf.eat_u8();
++            let seconds = buf.eat_u8();
++            if len == 12u8 {
++                let micro_seconds = buf.eat_u32_le();
++                Ok(Time(is_negative, days, hours, minutes, seconds, micro_seconds))
++            } else {
++                Ok(Time(is_negative, days, hours, minutes, seconds, 0u32))
++            }
++        } else {
++            Ok(Time(false, 0u32, 0u8, 0u8, 0u8, 0u32))
+         }
+-
+-        Ok(Time(
+-            is_negative,
+-            days,
+-            hours,
+-            minutes,
+-            seconds,
+-            micro_seconds,
+-        ))
+     }
+ 
+     pub(crate) fn deserialize_bin(

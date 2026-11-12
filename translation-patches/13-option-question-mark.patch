@@ -1,0 +1,71 @@
+Translation patch: `ParseBuf::checked_eat_buf`, `checked_eat_lenenc_int`, `checked_eat_{lenenc,u8,u32}_str`
+
+Change: `?` on an `Option` becomes a `match` returning `None`.
+Why: Aeneas does not model `Try`/`FromResidual` for `Option`.
+Behaviour: Identical: this is the definition of `?` on `Option`.
+
+diff --git a/src/io.rs b/src/io.rs
+index 4d2a9a4..ffd75c4 100644
+--- a/src/io.rs
++++ b/src/io.rs
+@@ -300,7 +300,10 @@ impl<'a> ParseBuf<'a> {
+     }
+ 
+     pub fn checked_eat_buf(&mut self, n: usize) -> Option<Self> {
+-        Some(Self(self.checked_eat(n)?))
++        match self.checked_eat(n) {
++            Some(x) => Some(Self(x)),
++            None => None,
++        }
+     }
+ 
+     pub fn eat_all(&mut self) -> &'a [u8] {
+@@ -363,7 +366,11 @@ impl<'a> ParseBuf<'a> {
+ 
+     /// Same as `eat_lenenc_int`. Returns `None` if buffer is too small.
+     pub fn checked_eat_lenenc_int(&mut self) -> Option<u64> {
+-        match self.checked_eat_u8()? {
++        let first = match self.checked_eat_u8() {
++            Some(x) => x,
++            None => return None,
++        };
++        match first {
+             x @ 0..=0xfa => Some(x as u64),
+             0xfc => match self.checked_eat_u16_le() {
+                 Some(x) => Some(x as u64),
+@@ -388,7 +395,10 @@ impl<'a> ParseBuf<'a> {
+ 
+     /// Same as `eat_lenenc_str`. Returns `None` if buffer is too small.
+     pub fn checked_eat_lenenc_str(&mut self) -> Option<&'a [u8]> {
+-        let len = self.checked_eat_lenenc_int()?;
++        let len = match self.checked_eat_lenenc_int() {
++            Some(x) => x,
++            None => return None,
++        };
+         self.checked_eat(len as usize)
+     }
+ 
+@@ -400,7 +410,10 @@ impl<'a> ParseBuf<'a> {
+ 
+     /// Same as `eat_u8_str`. Returns `None` if buffer is too small.
+     pub fn checked_eat_u8_str(&mut self) -> Option<&'a [u8]> {
+-        let len = self.checked_eat_u8()?;
++        let len = match self.checked_eat_u8() {
++            Some(x) => x,
++            None => return None,
++        };
+         self.checked_eat(len as usize)
+     }
+ 
+@@ -412,7 +425,10 @@ impl<'a> ParseBuf<'a> {
+ 
+     /// Same as `eat_u32_str`. Returns `None` if buffer is too small.
+     pub fn checked_eat_u32_str(&mut self) -> Option<&'a [u8]> {
+-        let len = self.checked_eat_u32_le()?;
++        let len = match self.checked_eat_u32_le() {
++            Some(x) => x,
++            None => return None,
++        };
+         self.checked_eat(len as usize)
+     }
+ 

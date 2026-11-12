@@ -1,0 +1,90 @@
+Translation patch: `Cow<[T]>` conversions (`RawSeq::into_owned`, `RawSeq` deserialize, `Value::deserialize_text`)
+
+Change: `cow.into_owned()` becomes a new helper `misc::raw::cow_into_vec(cow)` (`match cow { Borrowed(s) => s.to_vec(), Owned(v) => v }`); `RawSeq::new(bytes)` with `bytes: &[u8]` becomes `RawSeq(Cow::Borrowed(bytes), PhantomData)`.
+Why: `Cow::into_owned` and `From<&[T]> for Cow` are foreign bodies (externals).
+Behaviour: Identical: `into_owned` for `[T]` is `to_owned()` = `to_vec()` on `Borrowed`; `From<&[T]> for Cow` is `Cow::Borrowed`, and `RawSeq::new` just wraps `into()`.
+
+diff --git a/src/misc/raw/mod.rs b/src/misc/raw/mod.rs
+index df2f5e3..22dfe1a 100644
+--- a/src/misc/raw/mod.rs
++++ b/src/misc/raw/mod.rs
+@@ -8,7 +8,7 @@
+ 
+ //! Various parsing/serialization primitives.
+ 
+-use std::io;
++use std::{borrow::Cow, io};
+ 
+ use crate::io::BufMut;
+ 
+@@ -33,6 +33,14 @@ pub mod flags;
+ pub mod int;
+ pub mod seq;
+ 
++/// `cow.into_owned()`, written as a `match`.
++pub(crate) fn cow_into_vec<T: Clone>(cow: Cow<'_, [T]>) -> Vec<T> {
++    match cow {
++        Cow::Borrowed(s) => s.to_vec(),
++        Cow::Owned(v) => v,
++    }
++}
++
+ #[verify::start_from]
+ impl<'de> MyDeserialize<'de> for &'de [u8] {
+     const SIZE: Option<usize> = None;
+diff --git a/src/misc/raw/seq.rs b/src/misc/raw/seq.rs
+index a1aac72..725b175 100644
+--- a/src/misc/raw/seq.rs
++++ b/src/misc/raw/seq.rs
+@@ -16,7 +16,7 @@ use crate::{
+ };
+ 
+ use super::{
+-    RawConst, RawInt,
++    RawConst, RawInt, cow_into_vec,
+     int::{IntRepr, LeU32, LeU64},
+ };
+ 
+@@ -225,7 +225,7 @@ impl<'a, T: IntRepr, U> RawSeq<'a, T, U> {
+ 
+     /// Returns a `'static` version of `self`.
+     pub fn into_owned(self) -> RawSeq<'static, T, U> {
+-        RawSeq(Cow::Owned(self.0.into_owned()), self.1)
++        RawSeq(Cow::Owned(cow_into_vec(self.0)), self.1)
+     }
+ }
+ 
+@@ -249,7 +249,7 @@ impl<'de, T: IntRepr<Primitive = u8>, U> MyDeserialize<'de> for RawSeq<'de, T, U
+ 
+     fn deserialize(length: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         let bytes: &[u8] = buf.parse(length)?;
+-        Ok(Self::new(bytes))
++        Ok(Self(Cow::Borrowed(bytes), PhantomData))
+     }
+ }
+ 
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index b590ba6..c2360c4 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -15,7 +15,10 @@ use crate::{
+     io::{BufMutExt, ParseBuf},
+     misc::{
+         lenenc_str_len,
+-        raw::bytes::{LenEnc, RawBytes},
++        raw::{
++            bytes::{LenEnc, RawBytes},
++            cow_into_vec,
++        },
+         unexpected_buf_eof,
+     },
+     proto::{MyDeserialize, MySerialize},
+@@ -310,7 +313,7 @@ impl Value {
+             }
+             _ => {
+                 let bytes: RawBytes<'_, LenEnc> = buf.parse(())?;
+-                Ok(Value::Bytes(bytes.0.into_owned()))
++                Ok(Value::Bytes(cow_into_vec(bytes.0)))
+             }
+         }
+     }

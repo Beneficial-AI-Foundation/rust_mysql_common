@@ -1,0 +1,26 @@
+Translation patch: `ParseBuf::eat_null_str`
+
+Change: `match x { [head @ .., 0_u8] => head, x => x }` becomes `if len > 0 && x[len - 1] == 0 { &x[..len - 1] } else { x }`.
+Why: Aeneas does not support slice patterns (`PtrMetadata`).
+Behaviour: Identical: the slice pattern matches exactly when the slice is non-empty and ends with 0, and `head` is the slice without its last byte.
+
+diff --git a/src/io.rs b/src/io.rs
+index 928eca3..8499cc1 100644
+--- a/src/io.rs
++++ b/src/io.rs
+@@ -418,9 +418,12 @@ impl<'a> ParseBuf<'a> {
+             Some(x) => x + 1,
+             None => self.len(),
+         };
+-        match self.eat(pos) {
+-            [head @ .., 0_u8] => head,
+-            x => x,
++        let x = self.eat(pos);
++        let len = x.len();
++        if len > 0 && x[len - 1] == 0_u8 {
++            &x[..len - 1]
++        } else {
++            x
+         }
+     }
+ }

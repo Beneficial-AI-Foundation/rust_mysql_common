@@ -1,0 +1,33 @@
+Translation patch: `Value::deserialize_longlong`
+
+Change: `match i64::try_from(x) { Ok(y) => Int(y), Err(_) => UInt(x) }` becomes `if x <= i64::MAX as u64 { Int(x as i64) } else { UInt(x) }` (and drops the now unused `TryFrom` import).
+Why: `TryFrom<u64> for i64` is not modelled by Aeneas.
+Behaviour: Identical: the conversion succeeds exactly when `x <= i64::MAX`, and then `x as i64 == x`.
+
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index c2360c4..6805517 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -8,7 +8,7 @@
+ 
+ use crate::io::BufMut;
+ 
+-use std::{convert::TryFrom, fmt, io, marker::PhantomData, str::from_utf8};
++use std::{fmt, io, marker::PhantomData, str::from_utf8};
+ 
+ use crate::{
+     constants::{ColumnFlags, ColumnType},
+@@ -325,9 +325,10 @@ impl Value {
+     fn deserialize_longlong(unsigned: bool, buf: &mut ParseBuf<'_>) -> io::Result<Self> {
+         if unsigned {
+             match buf.checked_eat_u64_le() {
+-                Some(x) => Ok(match i64::try_from(x) {
+-                    Ok(y) => Int(y),
+-                    Err(_) => UInt(x),
++                Some(x) => Ok(if x <= i64::MAX as u64 {
++                    Int(x as i64)
++                } else {
++                    UInt(x)
+                 }),
+                 None => Err(unexpected_buf_eof()),
+             }

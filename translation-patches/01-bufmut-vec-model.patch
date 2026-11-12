@@ -1,0 +1,165 @@
+Translation patch: `bytes::BufMut` methods used on `Vec<u8>`
+
+Change: A crate-local trait `io::BufMut` with exactly the `put_*` methods the crate uses, implemented for `Vec<u8>` with the bodies `bytes` 1.12 gives them (`put_slice` = `extend_from_slice`; `put_u8` etc. = `put_slice` of the little-endian bytes; `put_uint_le`/`put_int_le` = `put_slice(&n.to_le_bytes()[..nbytes])`; `put_f32_le`/`put_f64_le` = `put_u32_le(n.to_bits())`/`put_u64_le(n.to_bits())`). `BufMutExt` and the in-scope files (io, misc/raw/*, value) import it instead of `bytes::BufMut`.
+Why: `bytes::BufMut for Vec<u8>` is an external, `unsafe` implementation (`chunk_mut`/`advance_mut`), and its provided methods are foreign bodies Charon does not translate.
+Behaviour: Identical for `Vec<u8>`: each body is copied from `bytes` 1.12.1 `buf_mut.rs` (the `Vec<u8>` impl overrides only `put_slice`). The only difference is the panic message when `nbytes > 8` (both panic). Every user of `BufMutExt` in the crate uses it on `Vec<u8>` (the crate compiles with all features).
+
+diff --git a/src/io.rs b/src/io.rs
+index 990adbc..604e4f8 100644
+--- a/src/io.rs
++++ b/src/io.rs
+@@ -7,11 +7,88 @@
+ // modified, or distributed except according to those terms.
+ 
+ use byteorder::{LittleEndian as LE, ReadBytesExt, WriteBytesExt};
+-use bytes::BufMut;
+ use std::{cmp::min, io};
+ 
+ use crate::proto::MyDeserialize;
+ 
++/// The methods of `bytes::BufMut` that the crate uses, implemented for `Vec<u8>` with the bodies
++/// they have in `bytes` 1.x (`put_slice` is `extend_from_slice`, the others call `put_slice`).
++pub trait BufMut {
++    fn put_slice(&mut self, src: &[u8]);
++    fn put_u8(&mut self, n: u8);
++    fn put_i8(&mut self, n: i8);
++    fn put_u16_le(&mut self, n: u16);
++    fn put_i16_le(&mut self, n: i16);
++    fn put_u32_le(&mut self, n: u32);
++    fn put_i32_le(&mut self, n: i32);
++    fn put_u64_le(&mut self, n: u64);
++    fn put_i64_le(&mut self, n: i64);
++    fn put_uint_le(&mut self, n: u64, nbytes: usize);
++    fn put_int_le(&mut self, n: i64, nbytes: usize);
++    fn put_f32_le(&mut self, n: f32);
++    fn put_f64_le(&mut self, n: f64);
++}
++
++impl BufMut for Vec<u8> {
++    fn put_slice(&mut self, src: &[u8]) {
++        self.extend_from_slice(src);
++    }
++
++    fn put_u8(&mut self, n: u8) {
++        let src = [n];
++        self.put_slice(&src);
++    }
++
++    fn put_i8(&mut self, n: i8) {
++        let src = [n as u8];
++        self.put_slice(&src)
++    }
++
++    fn put_u16_le(&mut self, n: u16) {
++        self.put_slice(&n.to_le_bytes())
++    }
++
++    fn put_i16_le(&mut self, n: i16) {
++        self.put_slice(&n.to_le_bytes())
++    }
++
++    fn put_u32_le(&mut self, n: u32) {
++        self.put_slice(&n.to_le_bytes())
++    }
++
++    fn put_i32_le(&mut self, n: i32) {
++        self.put_slice(&n.to_le_bytes())
++    }
++
++    fn put_u64_le(&mut self, n: u64) {
++        self.put_slice(&n.to_le_bytes())
++    }
++
++    fn put_i64_le(&mut self, n: i64) {
++        self.put_slice(&n.to_le_bytes())
++    }
++
++    /// Panics if `nbytes > 8`.
++    fn put_uint_le(&mut self, n: u64, nbytes: usize) {
++        let slice = n.to_le_bytes();
++        self.put_slice(&slice[..nbytes]);
++    }
++
++    /// Panics if `nbytes > 8`.
++    fn put_int_le(&mut self, n: i64, nbytes: usize) {
++        let slice = n.to_le_bytes();
++        self.put_slice(&slice[..nbytes]);
++    }
++
++    fn put_f32_le(&mut self, n: f32) {
++        self.put_u32_le(n.to_bits());
++    }
++
++    fn put_f64_le(&mut self, n: f64) {
++        self.put_u64_le(n.to_bits());
++    }
++}
++
+ pub trait BufMutExt: BufMut {
+     /// Writes an unsigned integer to self as MySql length-encoded integer.
+     fn put_lenenc_int(&mut self, n: u64) {
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index d04d344..162fe82 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -10,7 +10,7 @@ pub use super::int::LenEnc;
+ 
+ use std::{borrow::Cow, cmp::min, fmt, io, marker::PhantomData};
+ 
+-use bytes::BufMut;
++use crate::io::BufMut;
+ 
+ use crate::{
+     io::{BufMutExt, ParseBuf},
+diff --git a/src/misc/raw/int.rs b/src/misc/raw/int.rs
+index 6f342ca..fe464df 100644
+--- a/src/misc/raw/int.rs
++++ b/src/misc/raw/int.rs
+@@ -6,7 +6,7 @@
+ // option. All files in the project carrying such notice may not be copied,
+ // modified, or distributed except according to those terms.
+ 
+-use bytes::BufMut;
++use crate::io::BufMut;
+ 
+ use std::{
+     fmt,
+diff --git a/src/misc/raw/mod.rs b/src/misc/raw/mod.rs
+index 5271863..2d9c496 100644
+--- a/src/misc/raw/mod.rs
++++ b/src/misc/raw/mod.rs
+@@ -10,7 +10,7 @@
+ 
+ use std::io;
+ 
+-use ::bytes::BufMut;
++use crate::io::BufMut;
+ 
+ use crate::{
+     io::ParseBuf,
+diff --git a/src/misc/raw/seq.rs b/src/misc/raw/seq.rs
+index 5b40138..5a6e450 100644
+--- a/src/misc/raw/seq.rs
++++ b/src/misc/raw/seq.rs
+@@ -8,7 +8,7 @@
+ 
+ use std::{borrow::Cow, convert::TryFrom, fmt, io, marker::PhantomData, ops::Deref};
+ 
+-use bytes::BufMut;
++use crate::io::BufMut;
+ 
+ use crate::{
+     io::ParseBuf,
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index 0003ed3..0db34d5 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -6,7 +6,7 @@
+ // option. All files in the project carrying such notice may not be copied,
+ // modified, or distributed except according to those terms.
+ 
+-use bytes::BufMut;
++use crate::io::BufMut;
+ 
+ use std::{convert::TryFrom, fmt, io, marker::PhantomData, str::from_utf8};
+ 

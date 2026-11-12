@@ -1,0 +1,78 @@
+Translation patch: search for a 0 byte (`eat_null_str`, `NullBytes`)
+
+Change: `s.iter().position(|x| *x == 0)` becomes a new helper `io::position_of_zero(s)` (a `while` loop returning the first index of a 0 byte); `.map(|x| x + 1).unwrap_or_else(|| self.len())` and `.unwrap_or(text.len())` become `match`es.
+Why: `Iterator::position` and `Option::unwrap_or_else` are not modelled by Aeneas, and closures passed to them do not translate.
+Behaviour: Identical: the loop returns the first index whose byte is 0, or `None`; the `match`es are the definitions of `map`/`unwrap_or_else`/`unwrap_or` (the eager `text.len()` has no effect).
+
+diff --git a/src/io.rs b/src/io.rs
+index eae9c9b..928eca3 100644
+--- a/src/io.rs
++++ b/src/io.rs
+@@ -154,6 +154,18 @@ pub trait BufMutExt: BufMut {
+ 
+ impl<T: BufMut> BufMutExt for T {}
+ 
++/// `s.iter().position(|x| *x == 0)`, written as a loop.
++pub(crate) fn position_of_zero(s: &[u8]) -> Option<usize> {
++    let mut i = 0;
++    while i < s.len() {
++        if s[i] == 0 {
++            return Some(i);
++        }
++        i += 1;
++    }
++    None
++}
++
+ #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+ pub struct ParseBuf<'a>(pub &'a [u8]);
+ 
+@@ -402,12 +414,10 @@ impl<'a> ParseBuf<'a> {
+     ///
+     /// Consumes whole buffer if there is no `0`-byte.
+     pub fn eat_null_str(&mut self) -> &'a [u8] {
+-        let pos = self
+-            .0
+-            .iter()
+-            .position(|x| *x == 0)
+-            .map(|x| x + 1)
+-            .unwrap_or_else(|| self.len());
++        let pos = match position_of_zero(self.0) {
++            Some(x) => x + 1,
++            None => self.len(),
++        };
+         match self.eat(pos) {
+             [head @ .., 0_u8] => head,
+             x => x,
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index f602245..0b3a0a7 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -13,7 +13,7 @@ use std::{borrow::Cow, cmp::min, fmt, io, marker::PhantomData};
+ use crate::io::BufMut;
+ 
+ use crate::{
+-    io::{BufMutExt, ParseBuf},
++    io::{BufMutExt, ParseBuf, position_of_zero},
+     misc::{io_error_from, io_error_msg, unexpected_buf_eof},
+     proto::{MyDeserialize, MySerialize},
+ };
+@@ -191,13 +191,16 @@ impl BytesRepr for NullBytes {
+     type Ctx = ();
+ 
+     fn serialize(text: &[u8], buf: &mut Vec<u8>) {
+-        let last = text.iter().position(|x| *x == 0).unwrap_or(text.len());
++        let last = match position_of_zero(text) {
++            Some(x) => x,
++            None => text.len(),
++        };
+         buf.put_slice(&text[..last]);
+         buf.put_u8(0);
+     }
+ 
+     fn deserialize<'de>((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
+-        match buf.0.iter().position(|x| *x == 0) {
++        match position_of_zero(buf.0) {
+             Some(i) => {
+                 let out = buf.eat(i);
+                 buf.skip(1);

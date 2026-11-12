@@ -1,0 +1,21 @@
+Translation patch: `ParseBuf::eat_*` (whole-width integers and floats)
+
+Change: `unsafe { $t::$fn(*(bytes as *const _ as *const [_; SIZE])) }` becomes `let mut array = [0_u8; SIZE]; array.copy_from_slice(bytes); $t::$fn(array)`.
+Why: Aeneas does not support the raw-pointer cast (`&raw const (*bytes) with_metadata`).
+Behaviour: Identical: `bytes = self.eat(SIZE)` has length exactly `SIZE` (`eat` panics otherwise), so `copy_from_slice` never panics and the array holds the same bytes as the cast reads.
+
+diff --git a/src/io.rs b/src/io.rs
+index 604e4f8..a143225 100644
+--- a/src/io.rs
++++ b/src/io.rs
+@@ -172,7 +172,9 @@ macro_rules! eat_num {
+         pub fn $name(&mut self) -> $t {
+             const SIZE: usize = std::mem::size_of::<$t>();
+             let bytes = self.eat(SIZE);
+-            unsafe { $t::$fn(*(bytes as *const _ as *const [_; SIZE])) }
++            let mut array = [0_u8; SIZE];
++            array.copy_from_slice(bytes);
++            $t::$fn(array)
+         }
+ 
+         #[doc = "Consumes a number from the head of the buffer. Returns `None` if buffer is too small."]
