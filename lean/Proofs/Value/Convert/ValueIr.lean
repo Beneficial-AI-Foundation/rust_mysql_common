@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `struct ValueIr and impl FromValue for Value` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `struct ValueIr and impl FromValue for Value` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 

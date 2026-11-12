@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.ConvInts
 import Proofs.Value.Convert.ImplFromValueNum
 
-/-! Statements for `macro into_value_impl! (i8, i16, i32, i64, isize, u8, u16, u32, u64, usize), impl From<i128>, From<u128> for Value` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `macro into_value_impl! (i8, i16, i32, i64, isize, u8, u16, u32, u64, usize), impl From<i128>, From<u128> for Value` (spec file: `Specs/Value/Convert.lean`). Helper lemmas: `Proofs/Util/ConvInts.lean`. -/
 
 set_option autoImplicit false
 

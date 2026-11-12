@@ -1,7 +1,7 @@
 import Defs
 import Proofs.Util.ConvInts
 
-/-! Statements for `macro impl_from_value_num! (i8, u8, i16, u16, i32, u32, i64, u64, isize, usize, i128, u128)` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `macro impl_from_value_num! (i8, u8, i16, u16, i32, u32, i64, u64, isize, usize, i128, u128)` (spec file: `Specs/Value/Convert.lean`). Helper lemmas: `Proofs/Util/ConvInts.lean`. -/
 
 set_option autoImplicit false
 
@@ -42,9 +42,6 @@ theorem I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8.from_value_opt_sp
     value.convert.from_value_opt I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8 v ⦃ r =>
       (okPart r).map (fun x : Std.I8 => x.val) = intConv I8.min I8.max (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8 v =
-      value.convert.FromValue.from_value_opt.default I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -111,9 +108,6 @@ theorem U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8.from_value_opt_sp
     value.convert.from_value_opt U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8 v ⦃ r =>
       (okPart r).map (fun x : Std.U8 => (x.val : ℤ)) = intConv 0 (U8.max : ℤ) (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8 v =
-      value.convert.FromValue.from_value_opt.default U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -180,9 +174,6 @@ theorem I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16.from_value_opt_
     value.convert.from_value_opt I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16 v ⦃ r =>
       (okPart r).map (fun x : Std.I16 => x.val) = intConv I16.min I16.max (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16 v =
-      value.convert.FromValue.from_value_opt.default I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -249,9 +240,6 @@ theorem U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16.from_value_opt_
     value.convert.from_value_opt U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16 v ⦃ r =>
       (okPart r).map (fun x : Std.U16 => (x.val : ℤ)) = intConv 0 (U16.max : ℤ) (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16 v =
-      value.convert.FromValue.from_value_opt.default U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -318,9 +306,6 @@ theorem I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32.from_value_opt_
     value.convert.from_value_opt I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32 v ⦃ r =>
       (okPart r).map (fun x : Std.I32 => x.val) = intConv I32.min I32.max (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32 v =
-      value.convert.FromValue.from_value_opt.default I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -387,9 +372,6 @@ theorem U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32.from_value_opt_
     value.convert.from_value_opt U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32 v ⦃ r =>
       (okPart r).map (fun x : Std.U32 => (x.val : ℤ)) = intConv 0 (U32.max : ℤ) (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32 v =
-      value.convert.FromValue.from_value_opt.default U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -456,9 +438,6 @@ theorem I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64.from_value_opt_
     value.convert.from_value_opt I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64 v ⦃ r =>
       (okPart r).map (fun x : Std.I64 => x.val) = intConv I64.min I64.max (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64 v =
-      value.convert.FromValue.from_value_opt.default I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -525,9 +504,6 @@ theorem U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64.from_value_opt_
     value.convert.from_value_opt U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64 v ⦃ r =>
       (okPart r).map (fun x : Std.U64 => (x.val : ℤ)) = intConv 0 (U64.max : ℤ) (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64 v =
-      value.convert.FromValue.from_value_opt.default U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -594,9 +570,6 @@ theorem Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize.from_value_
     value.convert.from_value_opt Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize v ⦃ r =>
       (okPart r).map (fun x : Std.Isize => x.val) = intConv Isize.min Isize.max (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize v =
-      value.convert.FromValue.from_value_opt.default Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -663,9 +636,6 @@ theorem Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize.from_value_
     value.convert.from_value_opt Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize v ⦃ r =>
       (okPart r).map (fun x : Std.Usize => (x.val : ℤ)) = intConv 0 (Usize.max : ℤ) (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize v =
-      value.convert.FromValue.from_value_opt.default Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -732,9 +702,6 @@ theorem I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128.from_value_op
     value.convert.from_value_opt I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128 v ⦃ r =>
       (okPart r).map (fun x : Std.I128 => x.val) = intConv I128.min I128.max (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128 v =
-      value.convert.FromValue.from_value_opt.default I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 
@@ -801,9 +768,6 @@ theorem U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128.from_value_op
     value.convert.from_value_opt U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128 v ⦃ r =>
       (okPart r).map (fun x : Std.U128 => (x.val : ℤ)) = intConv 0 (U128.max : ℤ) (Val.ofValue v) ∧
       (okPart r = none → r = .Err v) ⦄ := by
-  have hd : value.convert.from_value_opt U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128 v =
-      value.convert.FromValue.from_value_opt.default U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128 v := rfl
-  rw [hd]
   exact ConvInts.from_value_opt_of_try U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128 (fun _ => rfl) _ _ _ v
     (value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
 

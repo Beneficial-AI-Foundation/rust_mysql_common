@@ -1,7 +1,7 @@
 import Defs
 import Proofs.Defs.LemmasG
 
-/-! Statements for `impl FromValue for f32` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `impl FromValue for f32` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 

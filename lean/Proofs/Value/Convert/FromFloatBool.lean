@@ -1,7 +1,7 @@
 import Defs
 import Proofs.Value.Convert.Bool
 
-/-! Statements for `impl From<f32>, From<f64>, From<bool> for Value` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `impl From<f32>, From<f64>, From<bool> for Value` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 

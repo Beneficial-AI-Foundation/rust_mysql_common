@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `fn from_value, fn from_value_opt` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `fn from_value, fn from_value_opt` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 

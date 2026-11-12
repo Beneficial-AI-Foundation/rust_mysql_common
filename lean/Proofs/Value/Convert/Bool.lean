@@ -1,7 +1,7 @@
 import Defs
 import Proofs.Util.ConvInts
 
-/-! Statements for `impl FromValue for bool` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `impl FromValue for bool` (spec file: `Specs/Value/Convert.lean`). Helper lemmas: `Proofs/Util/ConvInts.lean`. -/
 
 set_option autoImplicit false
 
