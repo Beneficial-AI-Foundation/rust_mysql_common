@@ -24,9 +24,7 @@ theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromVal
   | Bytes b =>
     simp only [Val.ofValue]
     intro hs
-    have ha' : ∀ c ∈ (alloc.vec.Vec.deref b).val, c.val < 128 := by
-      simpa [Val.ofValue, Val.bytesAscii] using ha
-    obtain ⟨o, ho, hm⟩ := ConvDeps.spec_eq_ok (value.convert.parse_mysql_time_string_spec _ ha')
+    obtain ⟨o, ho, hm⟩ := ConvDeps.spec_eq_ok (value.convert.parse_mysql_time_string_spec _ (ConvDeps.bytesAscii_bytes ha))
     simp only [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
       ho, bind_ok] at h
     cases o with
@@ -58,9 +56,7 @@ theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromVal
   cases v with
   | Bytes b =>
     simp only [Val.ofValue] at hv
-    have ha' : ∀ c ∈ (alloc.vec.Vec.deref b).val, c.val < 128 := by
-      simpa [Val.ofValue, Val.bytesAscii] using ha
-    obtain ⟨o, ho, hm⟩ := ConvDeps.spec_eq_ok (value.convert.parse_mysql_time_string_spec _ ha')
+    obtain ⟨o, ho, hm⟩ := ConvDeps.spec_eq_ok (value.convert.parse_mysql_time_string_spec _ (ConvDeps.bytesAscii_bytes ha))
     simp only [ConvDeps.vec_deref_val, hv] at hm
     cases o with
     | none =>
@@ -77,25 +73,16 @@ theorem time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromVa
     | .bytes b => (timeStringRead b).isSome → ∃ x, r = .Ok x
     | _ => r = .Err v := by
   have hsave := h
-  simp only [value.convert.from_value_opt,
-    time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration,
-    value.convert.FromValue.from_value_opt.default] at h
-  obtain ⟨r0, h0, h⟩ := ConvDeps.bind_eq_ok_inv h
+  simp only [value.convert.from_value_opt] at h
+  obtain ⟨r0, h0, -⟩ := ConvDeps.bind_eq_ok_inv h
+  rw [ConvDeps.from_value_opt_eq_of _ rfl (fun _ => rfl) _ h0, ok.injEq] at hsave
+  subst hsave
   have hs := value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v ha r0 h0
-  have hr : r = ConvDeps.mapIr r0 := by
-    rw [ConvDeps.from_value_opt_eq_of _ rfl (fun _ => rfl) _ h0] at hsave
-    simp only [ok.injEq] at hsave; exact hsave.symm
-  subst hr
-  split
-  · rename_i heq; rw [heq] at hs; obtain ⟨x, hx⟩ := hs; exact ⟨x, by rw [hx]; rfl⟩
-  · rename_i heq; rw [heq] at hs; intro hb; obtain ⟨x, hx⟩ := hs hb; exact ⟨x, by rw [hx]; rfl⟩
-  · rename_i h1 h2
-    have : r0 = .Err v := by
-      revert hs; split
-      · rename_i heq; exact absurd heq (h1 _ _ _ _ _ _)
-      · rename_i heq; exact absurd heq (h2 _)
-      · exact id
-    rw [this]; rfl
+  revert hs
+  split <;> intro hs
+  · obtain ⟨x, rfl⟩ := hs; exact ⟨x, rfl⟩
+  · intro hb; obtain ⟨x, rfl⟩ := hs hb; exact ⟨x, rfl⟩
+  · exact ConvDeps.mapIr_err_of hs
 
 /-- `from_value_opt`: as `try_from_err` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 theorem time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err (v : value.Value) (ha : (Val.ofValue v).bytesAscii)

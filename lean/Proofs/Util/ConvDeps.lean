@@ -38,19 +38,24 @@ theorem str_from_utf8_eq (b : Slice U8) :
 @[simp] theorem vec_deref_val {T : Type} (v : alloc.vec.Vec T) : (alloc.vec.Vec.deref v).val = v.val := by
   simp [alloc.vec.Vec.deref]
 
+/-- The ASCII hypothesis on a `Bytes` value, as the text parsers' precondition. -/
+theorem bytesAscii_bytes {b : alloc.vec.Vec U8} (ha : (Val.ofValue (.Bytes b)).bytesAscii) :
+    ∀ c ∈ (alloc.vec.Vec.deref b).val, c.val < 128 := by
+  simpa [Val.ofValue, Val.bytesAscii] using ha
+
 /-! ## Casts -/
 
 theorem u16_hcast_i32_val (y : U16) : (UScalar.hcast .I32 y).val = y.val := by
   rw [UScalar.hcast_val_eq]
   have := y.hBounds
-  apply Int.bmod_eq_of_le <;> simp at * <;> omega
+  apply Int.bmod_eq_of_le <;> scalar_tac
 
 theorem u32_hcast_i32_val (y : U32) (h : y.val < 2 ^ 31) : (UScalar.hcast .I32 y).val = y.val := by
   rw [UScalar.hcast_val_eq]
-  apply Int.bmod_eq_of_le <;> simp at * <;> omega
+  apply Int.bmod_eq_of_le <;> scalar_tac
 
 theorem u8_into_u32_val (x : U8) : ∃ y, core.convert.IntoFrom.into core.convert.FromU32U8 x = ok y ∧ y.val = x.val := by
-  simp [core.convert.IntoFrom.into, core.convert.FromU32U8]
+  simp [core.convert.IntoFrom.into]
 
 /-- Binds that return: the first computation returned. -/
 theorem bind_eq_ok_inv {α β : Type} {m : Result α} {k : α → Result β} {w : β}
@@ -100,16 +105,13 @@ theorem month_from_u8_spec (mo : U8) : ∃ o, value.convert.trusted.time_month_f
     (o.isSome ↔ 1 ≤ mo.val ∧ mo.val ≤ 12) ∧ ∀ m, o = some m → Trusted.monthNumber m = mo.val := by
   unfold value.convert.trusted.time_month_from_u8
   refine ⟨_, rfl, ?_⟩
-  split <;> simp_all [Trusted.monthNumber] <;> omega
+  -- Every month arm is closed by `simp_all`; the out-of-range arm needs `omega`.
+  split <;> simp_all [Trusted.monthNumber]
+  omega
 
 theorem month_to_u8_val (m : time.month.Month) : ∃ u, value.convert.trusted.time_month_to_u8 m = ok u ∧
     u.val = Trusted.monthNumber m := by
   cases m <;> simp [value.convert.trusted.time_month_to_u8, Trusted.monthNumber]
-
-theorem month_from_u8_monthNumber (m : time.month.Month) (u : U8) (hu : u.val = Trusted.monthNumber m) :
-    value.convert.trusted.time_month_from_u8 u = ok (some m) := by
-  unfold value.convert.trusted.time_month_from_u8
-  rw [hu]; cases m <;> rfl
 
 /-! ## `from_value_opt` from `try_from` -/
 
@@ -122,6 +124,31 @@ def mapIr {T E : Type} : core.result.Result (value.convert.ParseIr T) E → core
     (mapIr (.Ok ((x, w) : value.convert.ParseIr T)) : core.result.Result T E) = .Ok x := rfl
 @[simp] theorem mapIr_err {T E : Type} (e : E) :
     (mapIr (T := T) (.Err e) : core.result.Result T E) = .Err e := rfl
+
+/-! The parts of a `try_from` spec carried over to its committed result `mapIr r`. -/
+
+theorem mapIr_okPart {T E : Type} {e : E} {r : core.result.Result (value.convert.ParseIr T) E}
+    (h : okPart r = none → r = .Err e) : okPart (mapIr r) = none → mapIr r = .Err e := by
+  cases r with
+  | Ok p => simp [okPart, mapIr]
+  | Err e' => intro; rw [h rfl]; rfl
+
+theorem mapIr_isOk {T E : Type} {P : Prop} {r : core.result.Result (value.convert.ParseIr T) E}
+    (h : (∃ p, r = .Ok p) ↔ P) : (∃ x, mapIr r = .Ok x) ↔ P := by
+  rw [← h]
+  cases r <;> simp [mapIr]
+
+theorem mapIr_ok_of {T E : Type} {w₀ : value.Value} {Q : T → Prop}
+    {r : core.result.Result (value.convert.ParseIr T) E}
+    (h : ∀ x w, r = .Ok (x, w) → w = w₀ ∧ Q x) : ∀ x, mapIr r = .Ok x → Q x := by
+  intro x hx
+  cases r with
+  | Ok p => obtain ⟨x0, w⟩ := p; cases hx; exact (h x0 w rfl).2
+  | Err e => cases hx
+
+theorem mapIr_err_of {T E : Type} {e : E} {r : core.result.Result (value.convert.ParseIr T) E}
+    (h : r = .Err e) : mapIr r = .Err e := by
+  rw [h]; rfl
 
 theorem spec_eq_ok {α : Type} {m : Result α} {P : α → Prop} (h : m ⦃ P ⦄) : ∃ v, m = ok v ∧ P v := by
   cases m <;> simp_all

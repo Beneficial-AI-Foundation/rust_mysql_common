@@ -14,12 +14,9 @@ namespace mysql_common
 theorem value.Value.Insts.CoreConvertFromUuid.from_spec (x : uuid.Uuid) :
     value.Value.Insts.CoreConvertFromUuid.from x ⦃ w => Val.ofValue w = .bytes (Array.val x) ⦄ := by
   unfold value.Value.Insts.CoreConvertFromUuid.from
-  simp only [uuid.Uuid.as_bytes, bind_tc_ok]
+  simp only [uuid.Uuid.as_bytes]
   step*
-  rename_i _ h1
-  have := congrArg Slice.val (h1.symm.trans s_post)
-  simp [Array.to_slice] at this
-  simp [Val.ofValue, alloc.vec.Vec.val, ← this]
+  simp_all [Val.ofValue, alloc.vec.Vec.val, Array.to_slice]
 
 /-- Round trip: `from_value_opt::<Uuid>(Value::from(x)) = Ok(x)`. -/
 theorem value.Value.Insts.CoreConvertFromUuid.roundtrip (x : uuid.Uuid) :

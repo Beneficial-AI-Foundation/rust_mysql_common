@@ -28,14 +28,14 @@ private theorem create_pdt_spec (y : U16) (mo d h mi s : U8) (us : U32) :
     have hmr : 1 ≤ mo.val ∧ mo.val ≤ 12 := by rw [← hmn]; cases m <;> simp [Trusted.monthNumber]
     rcases hx : Trusted.Date.ofCalendarDate (UScalar.hcast .I32 y) m d with _ | x
     · simp only [hx, Option.isSome_none, Bool.false_eq_true, false_iff, hy, hmn] at hc
-      simp only [bind_ok, hx, WP.spec_ok, timeDateValid]
+      simp only [WP.spec_ok, timeDateValid]
       simp only [Option.isSome_none, Bool.false_eq_true, false_iff, reduceCtorEq, false_implies,
         implies_true, and_true]
       exact fun hv => hc hv.1.2.2
     · simp only [hx, Option.isSome_some, true_iff, hy, hmn] at hc
       obtain ⟨h1, h2, h3⟩ := Trusted.Date.ofCalendarDate_some _ _ _ x hx
       obtain ⟨t, ht, htiff, htf⟩ := Trusted.timeFromHmsMicro_spec h mi s us
-      simp only [bind_ok, hx, value.convert.trusted.time_time_from_hms_micro, ht]
+      simp only [bind_ok, value.convert.trusted.time_time_from_hms_micro, ht]
       cases t with
       | none =>
         simp only [Option.isSome_none, Bool.false_eq_true, false_iff] at htiff
@@ -119,8 +119,8 @@ theorem value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValu
     value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = ok (.Err (.Bytes b)) := by
   rw [value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes]
   split
-  · rw [if_neg (by omega), if_neg (by omega), if_pos hl.1]
-    simp [Trusted.pdtParseDate]
+  · simp [show ¬ 19 < b.val.length by omega, show b.val.length ≠ 19 by omega, hl.1,
+      Trusted.pdtParseDate]
   · rfl
 
 /-- `TryFrom<Value> for ParseIr<PrimitiveDateTime>`: any other value is an error. -/
@@ -139,20 +139,8 @@ theorem time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromVal
       ∀ x, r = .Ok x → timeDateTime x = (((y.val : ℤ), mo.val, d.val), (h.val, mi.val, s.val, us.val)) ⦄ := by
   apply WP.spec_mono (ConvDeps.from_value_opt_spec_of _ rfl (fun _ => rfl) _
     (value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_date y mo d h mi s us))
-  rintro r' ⟨r, ⟨h1, h2, h3⟩, rfl⟩
-  cases r with
-  | Ok p =>
-    obtain ⟨x, w⟩ := p
-    refine ⟨by simp [okPart], ?_, ?_⟩
-    · simp only [ConvDeps.mapIr_ok]; exact ⟨fun _ => h2.1 ⟨_, rfl⟩, fun _ => ⟨_, rfl⟩⟩
-    · intro x' hx; cases hx; exact (h3 x w rfl).2
-  | Err e =>
-    have := h1 (by simp [okPart]); cases this
-    refine ⟨fun _ => rfl, ?_, ?_⟩
-    · simp only [ConvDeps.mapIr_err]; constructor
-      · rintro ⟨_, hp⟩; cases hp
-      · intro hv; obtain ⟨_, hp⟩ := h2.2 hv; cases hp
-    · intro x hx; cases hx
+  rintro _ ⟨r, ⟨h1, h2, h3⟩, rfl⟩
+  exact ⟨ConvDeps.mapIr_okPart h1, ConvDeps.mapIr_isOk h2, ConvDeps.mapIr_ok_of h3⟩
 
 /-- `from_value_opt`: as `try_from_bytes` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 theorem time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_bytes (b : alloc.vec.Vec U8) :

@@ -50,8 +50,7 @@ theorem value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.tr
       have := (hr u).2 (by simp [hb])
       simp at this
     | some u =>
-      simp only [WP.spec_ok, okPart, reduceCtorEq, imp_self, and_true, core.result.Result.Ok.injEq,
-        Prod.mk.injEq]
+      simp only [WP.spec_ok, reduceCtorEq, imp_self, and_true]
       intro u' w
       have h1 := (hr u').1
       have h2 := (hr u').2
@@ -67,24 +66,17 @@ theorem value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.tr
 theorem uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid.from_value_opt_spec (v : value.Value) :
     value.convert.from_value_opt uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid v ⦃ r =>
       (∀ u, r = .Ok u ↔ Val.ofValue v = .bytes (Array.val u)) ∧ (okPart r = none → r = .Err v) ⦄ := by
-  unfold value.convert.from_value_opt
-  simp only [uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid,
-    value.convert.FromValue.from_value_opt.default]
-  apply WP.spec_bind (value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v)
-  rintro r ⟨h1, h2⟩
+  apply WP.spec_mono (ConvDeps.from_value_opt_spec_of _ rfl (fun _ => rfl) _
+    (value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v))
+  rintro _ ⟨r, ⟨h1, h2⟩, rfl⟩
+  refine ⟨fun u => ?_, ConvDeps.mapIr_okPart h2⟩
+  rw [← (h1 u v).trans (and_iff_right rfl)]
   cases r with
   | Ok p =>
-    obtain ⟨u, w⟩ := p
-    have := (h1 u w).1 rfl
-    simp only [core.convert.IntoFrom.into, uuid.Uuid.Insts.CoreConvertFromParseIrUuid.from,
-      value.convert.ParseIr.commit]
-    obtain ⟨rfl, hb⟩ := this
-    simp only [hb]
-    simp
-    refine ⟨fun u' => ⟨fun h => h ▸ rfl, fun h => Std.Array.ext _ _ h⟩, by simp [okPart]⟩
-  | Err e =>
-    have := h2 rfl
-    simp_all [okPart]
+    obtain ⟨u', w⟩ := p
+    obtain ⟨rfl, -⟩ := (h1 u' w).1 rfl
+    exact ⟨fun h => by cases h; rfl, fun h => by cases h; rfl⟩
+  | Err e => simp [ConvDeps.mapIr]
 
 /-- `From<ParseIr<Uuid>> for Uuid` is `commit`, `From<ParseIr<Uuid>> for Value` is `rollback`. -/
 theorem value.Value.Insts.CoreConvertFromParseIrUuid.from_eq (x : uuid.Uuid) (w : value.Value) :

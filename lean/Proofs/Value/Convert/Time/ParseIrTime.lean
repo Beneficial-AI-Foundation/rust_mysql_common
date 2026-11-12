@@ -4,6 +4,9 @@ import Proofs.Util.ConvDeps
 /-! Statements for `impl TryFrom<Value> for ParseIr<Time>` (spec file: `Specs/Value/Convert/Time.lean`). -/
 
 set_option autoImplicit false
+-- The statement names repeat the namespace `time` (crate `time`, module `time`), fixed by the
+-- translation and the specs.
+set_option linter.dupNamespace false
 
 open Aeneas Aeneas.Std Result mysql_common Defs Classical
 
@@ -85,20 +88,8 @@ theorem time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_v
       ∀ x, r = .Ok x → timeTime x = (h.val, m.val, s.val, us.val) ⦄ := by
   apply WP.spec_mono (ConvDeps.from_value_opt_spec_of _ rfl (fun _ => rfl) _
     (value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_time h m s us))
-  rintro r' ⟨r, ⟨h1, h2, h3⟩, rfl⟩
-  cases r with
-  | Ok p =>
-    obtain ⟨x, w⟩ := p
-    refine ⟨by simp [okPart], ?_, ?_⟩
-    · simp only [ConvDeps.mapIr_ok]; exact ⟨fun _ => h2.1 ⟨_, rfl⟩, fun _ => ⟨_, rfl⟩⟩
-    · intro x' hx; cases hx; exact (h3 x w rfl).2
-  | Err e =>
-    have := h1 (by simp [okPart]); cases this
-    refine ⟨fun _ => rfl, ?_, ?_⟩
-    · simp only [ConvDeps.mapIr_err]; constructor
-      · rintro ⟨_, hp⟩; cases hp
-      · intro hv; obtain ⟨_, hp⟩ := h2.2 hv; cases hp
-    · intro x hx; cases hx
+  rintro _ ⟨r, ⟨h1, h2, h3⟩, rfl⟩
+  exact ⟨ConvDeps.mapIr_okPart h1, ConvDeps.mapIr_isOk h2, ConvDeps.mapIr_ok_of h3⟩
 
 /-- `from_value_opt`: as `try_from_bytes` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 theorem time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_bytes (b : alloc.vec.Vec U8) :
