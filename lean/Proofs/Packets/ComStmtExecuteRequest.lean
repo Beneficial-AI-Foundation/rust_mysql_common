@@ -58,7 +58,7 @@ private theorem cast_disc (ct : constants.ColumnType) :
 
 private theorem flatten_take_succ {α β : Type} (f : α → List β) (l : List α) (k : Nat) (hk : k < l.length) :
     ((l.take (k + 1)).map f).flatten = ((l.take k).map f).flatten ++ f (l[k]'hk) := by
-  rw [List.take_succ, List.getElem?_eq_getElem hk, List.map_append, List.flatten_append]
+  rw [List.take_add_one, List.getElem?_eq_getElem hk, List.map_append, List.flatten_append]
   simp only [Option.toList_some, List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil,
     List.append_nil]
 
@@ -95,7 +95,7 @@ private theorem loop0_spec (params : Slice value.Value) (k : Usize) (buf0 buf : 
       · simp_all
     · cases param <;>
         simp only [constants.StmtExecuteParamFlags.empty, constants.StmtExecuteParamFlags.bits,
-          Aeneas.Std.bind_ok, Aeneas.Std.bind_tc_ok] <;>
+          Aeneas.Std.bind_ok] <;>
         step*
       all_goals
         have hc : it.start.val < it.end.val := by
@@ -156,7 +156,7 @@ private theorem loop1_spec (params : Slice value.Value) (ld : Bool) (k : Usize) 
     | (have hc : ¬ it.start.val < it.end.val := by
           intro hc; simp only [hc, ite_true] at o_post; simp_all
        have heq : it.start.val = params.val.length := by simp only [Slice.length] at hend h2; omega
-       rw [h3', heq, List.take_length]; done)
+       rw [h3', heq, List.take_length])
     | (split_ifs at o_post with hc <;> simp_all; done)
     | (have hc : it.start.val < it.end.val := by
           by_contra hc; simp only [hc, ite_false] at o_post; simp_all

@@ -67,8 +67,7 @@ private theorem build_loop_spec (params : Slice value.Value) (k : Usize)
     (hbl : bm.1.length = nullBitmapLen 0 params.length)
     (hbits : ∀ pos, bitAt bm.1.val pos = ((nullsOf params.val).take k.val).getD pos false)
     (hdl : dl.val = ((lensOf params.val).take k.val).sum)
-    (hmax : (lensOf params.val).sum ≤ Usize.max)
-    (hn : params.length + 7 ≤ Usize.max) :
+    (hmax : (lensOf params.val).sum ≤ Usize.max) :
     packets.ComStmtExecuteRequestBuilder.build_loop { start := k, «end» := Slice.len params } params bm dl
       ⦃ bm' dl' => bm'.1.length = nullBitmapLen 0 params.length ∧
         (∀ pos, bitAt bm'.1.val pos = (nullsOf params.val).getD pos false) ∧
@@ -117,7 +116,7 @@ private theorem build_loop_spec (params : Slice value.Value) (k : Usize)
         have : Usize.max < 2 ^ UScalarTy.Usize.numBits := by
           simp only [Usize.max, Usize.numBits, UScalarTy.numBits]; have := Nat.one_le_two_pow (n := System.Platform.numBits); omega
         omega
-      simp only [lift, Aeneas.Std.bind_tc_ok, Aeneas.Std.bind_ok]
+      simp only [lift, Aeneas.Std.bind_ok]
       have hb3 : b.1.length = nullBitmapLen 0 params.length := h3
       have hb4 : ∀ pos, bitAt b.1.val pos = ((nullsOf params.val).take it.start.val).getD pos false := h4
       have hd5 : d.val = ((lensOf params.val).take it.start.val).sum := h5
@@ -137,13 +136,11 @@ private theorem build_loop_spec (params : Slice value.Value) (k : Usize)
         refine ⟨by simp [o_post1, h1'], by simp only [Slice.length]; omega, by rw [hbm1a, hb3], ?_, ?_,
           by simp only [Slice.length]; omega⟩
         · intro pos
-          change bitAt bm1.1.val pos = _
           rw [hbm1b pos, hoffv, Nat.add_zero, hi1, getD_take_succ _ _ _ _ hlenN]
           by_cases hp : pos = it.start.val
           · simp only [hp, ite_true, hnget, hnull]
           · simp only [hp, ite_false, hb4]
-        · change d.val = _
-          rw [hi1, hs1, hget, ← hd5]; omega
+        · rw [hi1, hs1, hget, ← hd5]; omega
       · rename_i hz
         have hnn : isNullVal (Val.ofValue v) = false := by
           cases h : isNullVal (Val.ofValue v)
@@ -155,13 +152,11 @@ private theorem build_loop_spec (params : Slice value.Value) (k : Usize)
         refine ⟨by simp [o_post1, h1'], by simp only [Slice.length]; omega, hb3, ?_, ?_,
           by simp only [Slice.length]; omega⟩
         · intro pos
-          change bitAt b.1.val pos = _
           rw [hi1, getD_take_succ _ _ _ _ hlenN, hb4]
           by_cases hp : pos = it.start.val
           · simp only [hp, ite_true, hnget, hnn, hold]
           · simp only [hp, ite_false]
-        · change d1.val = _
-          rw [hi1, hs1, hget, hd1, hd5, hxv]
+        · rw [hi1, hs1, hget, hd1, hd5, hxv]
   · exact ⟨rfl, hk, hbl, hbits, hdl⟩
 
 /-- `build(params)`: the request for the statement with no cursor, iteration count 1, the NULL bitmap of the parameters (offset 0; a parameter is NULL iff its binary encoding is empty), new-params-bound flag 1 and the parameters; `as_long_data` (also returned) iff the length the builder computes exceeds `MAX_PAYLOAD_LEN`. (The bound keeps that computation from overflowing.) -/
@@ -191,7 +186,7 @@ theorem packets.ComStmtExecuteRequestBuilder.build_spec (self : packets.ComStmtE
     (by rw [hbm1]; simp [alloc.vec.Vec.length, hvv, hbl'])
     (by intro pos; rw [hbm1, hvv]; simp only [bitAt, List.getD_eq_getElem?_getD, List.getElem?_replicate]
         split <;> simp [mysql_common.PBUtil.byte_val])
-    (by simp) hmax (by simpa using hn'))
+    (by simp) hmax)
   rintro ⟨⟨bb, pd⟩, dl'⟩ ⟨hL, hB, hD⟩
   show (do
     let i3 ← 10#usize + bl
@@ -236,7 +231,7 @@ private theorem paramType_length (v : Val) : (paramType v).length = 2 := by
   cases v <;> rfl
 
 private theorem paramValue_length_le (ld : Bool) (v : Val) : (paramValue ld v).length ≤ (binEnc v).length := by
-  cases v <;> simp [paramValue] <;> split <;> simp
+  cases v <;> simp [paramValue]; split <;> simp
 
 private theorem types_length (l : List Val) : ((l.map paramType).flatten).length = 2 * l.length := by
   induction l with
