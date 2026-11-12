@@ -27,7 +27,9 @@ import Proofs.Constants.StmtExecuteParamFlags
     types (not translated), the other constants of the file (later stages).
 
     **Behaviour to note.** `StatusFlags::from_bits` (hence `TryFrom<u16>`) rejects bit 2 (value 4),
-    which MySQL does not assign: an OK or EOF packet whose status has that bit fails to parse.
+    which current MySQL servers do not send (old MySQL 4.x / MariaDB headers name it
+    `SERVER_MORE_RESULTS`): an OK or EOF packet whose status has that bit fails to parse. A
+    robustness quirk rather than a bug.
     Code 244 (MySQL's `MYSQL_TYPE_BOOL` placeholder) is not a `ColumnType`: a column definition with
     it fails to parse.
 -/

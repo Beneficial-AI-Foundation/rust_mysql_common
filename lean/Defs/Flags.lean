@@ -94,7 +94,8 @@ def complementBits (w x : Nat) : Nat := 2 ^ w - 1 - x % 2 ^ w
     `CURSOR_EXISTS` (64), `LAST_ROW_SENT` (128), `DB_DROPPED` (256), `NO_BACKSLASH_ESCAPES` (512),
     `METADATA_CHANGED` (1024), `QUERY_WAS_SLOW` (2048), `PS_OUT_PARAMS` (4096),
     `IN_TRANS_READONLY` (8192), `SESSION_STATE_CHANGED` (16384), and bit 15 (32768, MariaDB's
-    `ANSI_QUOTES`). Bit 2 (value 4) is unassigned in MySQL and unknown to the crate. -/
+    `ANSI_QUOTES`). Bit 2 (value 4) is not used by current MySQL servers (old MySQL 4.x / MariaDB
+    headers name it `SERVER_MORE_RESULTS`) and is unknown to the crate. -/
 def statusFlagsAll : Nat := 0xFFFB
 
 /-- The capability flags (`CLIENT_*`, `u32`): the crate names all 32 bits. -/

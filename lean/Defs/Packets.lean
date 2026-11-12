@@ -17,9 +17,10 @@ From the protocol pages:
   and `last_insert_id` (length-encoded integers), `status_flags` (2 bytes), `warnings` (2 bytes);
   then, with `CLIENT_SESSION_TRACK`, `info` (length-encoded string) and, if the status has
   `SERVER_SESSION_STATE_CHANGED`, `session_state_info` (length-encoded string); without it,
-  `info` as the rest of the packet. (MySQL's `net_send_ok` actually sends `info` without
-  `CLIENT_SESSION_TRACK` as a length-encoded string, and only when it is not empty; the crate
-  reads it that way.)
+  `info` as the rest of the packet. MySQL's `net_send_ok` (`sql/protocol_classic.cc`) differs:
+  with `CLIENT_SESSION_TRACK` it writes `info` only if it is not empty or the session state
+  changed; without it, `info` as a length-encoded string, only when it is not empty. The crate
+  reads both forms.
 * EOF packet (<https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_eof_packet.html>),
   with `CLIENT_PROTOCOL_41`: header `0xFE`, `warnings` (2 bytes), `status_flags` (2 bytes).
 * ERR packet (<https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_err_packet.html>):
@@ -94,7 +95,9 @@ def colDefEnc (c : ColDef) : List U8 :=
 
 /-- **What `MySerialize for Column` writes, which is not the protocol layout**: `column_length`
     (4 bytes) comes *before* `character_set` (2 bytes), the reverse of `colDefEnc` and of what the
-    crate's own reader expects. Everything else is as in `colDefEnc`. -/
+    crate's own reader expects. Everything else is as in `colDefEnc`. The crate reads it back
+    **without an error but with wrong `character_set` and `column_length`**
+    (`colDefRead_colDefEncCrate`). -/
 def colDefEncCrate (c : ColDef) : List U8 :=
   lenencStr c.catalog ++ lenencStr c.schema ++ lenencStr c.table ++ lenencStr c.orgTable
     ++ lenencStr c.colName ++ lenencStr c.orgName
@@ -104,9 +107,9 @@ def colDefEncCrate (c : ColDef) : List U8 :=
 /-- The crate's reader of a column definition: the six strings by `lenencStrs`; then 13 bytes
     (`none`, nothing more consumed, if there are fewer), which are consumed whatever they hold.
     `none` if the first of them is not `0x0c` or the type byte is not a known type code. The flags
-    are not checked (every bit is a known flag). **Crate behaviour**: the filler bytes are skipped
-    without being checked; bytes after the 13 (such as MySQL's `default values` of `COM_FIELD_LIST`)
-    are left unread. -/
+    are not checked (every bit is a known flag). **Crate behaviour**: the catalog is not checked
+    to be `def`; the filler bytes are skipped without being checked; bytes after the 13 (such as
+    MySQL's `default values` of `COM_FIELD_LIST`) are left unread. -/
 def colDefRead (bs : List U8) : Option ColDef × List U8 :=
   match lenencStrs 6 bs with
   | (some [c, s, t, ot, n, on], rest) =>
@@ -164,8 +167,9 @@ def OkBody.toPkt (b : OkBody) : OkPkt :=
    if b.info = [] then none else some b.info,
    if b.sessionStateInfo = [] then none else some b.sessionStateInfo⟩
 
-/-- Reads a status flag word: `none` if it has a bit the crate does not know (bit 2, value 4:
-    **crate behaviour**, the protocol does not say what to do with it). -/
+/-- Reads a status flag word: `none` if it has a bit the crate does not know (bit 2, value 4, not
+    sent by current servers: **crate behaviour**, a robustness quirk rather than a protocol
+    violation). -/
 def statusRead (n : Nat) : Option Nat := if n &&& statusFlagsAll = n then some n else none
 
 /-- The crate's reader of `status_flags` then `warnings`: `none` with the input unchanged if there
@@ -270,15 +274,19 @@ def okPacketRead (k : OkKind) (caps : Nat) : List U8 → Option OkPkt × List U8
       | (some b, rest') => (some b.toPkt, rest')
       | (none, rest') => (none, rest')
 
-/-- An OK packet as MySQL sends it (`net_send_ok`) with header byte `header`, with
-    `CLIENT_PROTOCOL_41`: with `CLIENT_SESSION_TRACK` in `caps`, `info` always as a length-encoded
-    string and the session state if the status has `SERVER_SESSION_STATE_CHANGED`; without it,
-    `info` as a length-encoded string if it is not empty. -/
-def okPacketEnc (header caps : Nat) (b : OkBody) : List U8 :=
+/-- An OK packet with header byte `header`, with `CLIENT_PROTOCOL_41`. With
+    `CLIENT_SESSION_TRACK` in `caps`: `info` as a length-encoded string, then the session state if
+    the status has `SERVER_SESSION_STATE_CHANGED`; with `compact` (MySQL's `net_send_ok`) `info` is
+    left out when it is empty and the status lacks `SERVER_SESSION_STATE_CHANGED`, without
+    `compact` (the protocol page) it is always there. Without `CLIENT_SESSION_TRACK`: `info` as a
+    length-encoded string if it is not empty (as `net_send_ok`; the page's `string<EOF>` is not what
+    servers send nor what the crate reads). -/
+def okPacketEnc (header caps : Nat) (compact : Bool) (b : OkBody) : List U8 :=
   byte header :: lenencInt b.affectedRows ++ lenencInt b.lastInsertId ++ leBytes 2 b.status
     ++ leBytes 2 b.warnings
     ++ (if hasFlag caps CLIENT_SESSION_TRACK then
-          lenencStr b.info
+          (if compact ∧ b.info = [] ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED = false then []
+           else lenencStr b.info)
             ++ (if hasFlag b.status SERVER_SESSION_STATE_CHANGED then lenencStr b.sessionStateInfo else [])
         else if b.info = [] then [] else lenencStr b.info)
 

@@ -52,7 +52,10 @@ def ChunkState.of : proto.codec.ChunkDecoder → ChunkState
   | .Chunk seq needed => .chunk seq needed.val
 
 /-- A `ChunkDecoder` state that the decoder can be in: a pending chunk has a length between 1 and
-    `2^24 - 1` (the Rust type guarantees `needed ≠ 0`; the length comes from a 3-byte field). -/
+    `2^24 - 1`. `needed ≠ 0` is a type invariant (`needed` is a `NonZeroUsize`, whose field is
+    private); `needed < 2^24` holds for every state the decoder produces (the length comes from a
+    3-byte field, `chunkStep_valid`) but is an **assumption** on a state built by a caller, since
+    the fields of `ChunkDecoder::Chunk` are public. -/
 def ChunkState.Valid : ChunkState → Prop
   | .idle => True
   | .chunk _ needed => 0 < needed ∧ needed < 2 ^ 24
@@ -71,8 +74,9 @@ def chunkInfoSeq : proto.codec.ChunkInfo → U8
       consumed. (An empty chunk is never checked against `max`.)
     * Idle, a header of length `len > 0` otherwise: as the pending state `chunk seq len`.
     * Pending `chunk seq len`: if the header and the whole payload are there, both are consumed and
-      the payload appended to `dst`; the chunk is `Middle` if the new `dst.length` is a multiple
-      of `2^24 - 1` (a full chunk: more chunks follow) and `Last` otherwise. If not, more input is
+      the payload appended to `dst`; the chunk is `Middle` iff the new `dst.length` is a multiple
+      of `2^24 - 1` (the crate's test; this means "a full chunk, more follow" only if `dst` held
+      nothing but earlier chunks of the same packet) and `Last` otherwise. If not, more input is
       needed: nothing is consumed, and the state is `chunk seq len` (the header stays in `src`
       until the payload is complete). -/
 def chunkStep (st : ChunkState) (src dst : List U8) (max : Nat) :
@@ -122,8 +126,9 @@ def plainDecodeAux : Nat → U8 → ChunkState → List U8 → List U8 → Nat �
       consumed and appended to `dst`);
     * otherwise the expected sequence id becomes the chunk's plus one (mod 256).
     The result is the outcome, the new expected sequence id, the new reader state, input and
-    output. (Every chunk read after the first consumes at least 5 bytes, so `src.length + 1`
-    chunk reads always suffice: the bound is never reached.) -/
+    output. (A recursive call follows only a `Middle` chunk, which consumed `4 + len ≥ 5` bytes:
+    zero-length chunks are `Last`. So `src.length + 1` chunk reads always suffice and the bound is
+    never reached; see `plainDecodeAux_fuel`.) -/
 def plainDecode (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat) (comp : Option U8) :
     core.result.Result Bool proto.codec.error.PacketCodecError × U8 × ChunkState × List U8 × List U8 :=
   plainDecodeAux (src.length + 1) seq st src dst max comp

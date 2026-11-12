@@ -42,22 +42,22 @@ theorem packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapab
       ((okPart r).map (fun d => OkPkt.ofPacket d.1), rest.val) = okPacketRead .commonOk caps.val buf.val ⦄ := by
   sorry
 
-/-- Round trip: an OK packet as MySQL sends it (`okPacketEnc 0x00`) is read back by `OkPacketDeserializer<CommonOkPacket>` (as `OkBody.toPkt`), when its status has only known flags and it carries a session state only if both `CLIENT_SESSION_TRACK` and `SERVER_SESSION_STATE_CHANGED` are set. The packet is the whole buffer. -/
+/-- Round trip: an OK packet (`okPacketEnc 0x00`, in the protocol page's form or, `compact`, as MySQL's `net_send_ok` writes it) is read back by `OkPacketDeserializer<CommonOkPacket>` (as `OkBody.toPkt`), when its status has only known flags and it carries a session state only if both `CLIENT_SESSION_TRACK` and `SERVER_SESSION_STATE_CHANGED` are set. The packet is the whole buffer. -/
 theorem packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.roundtrip_commonOk (h64 : Target64) (caps : constants.CapabilityFlags) (b : OkBody) (hb : b.affectedRows < 2 ^ 64 ∧ b.lastInsertId < 2 ^ 64 ∧ b.status < 2 ^ 16 ∧
       statusRead b.status = some b.status ∧ b.warnings < 2 ^ 16)
     (hssi : (hasFlag caps.val CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
       b.sessionStateInfo = [])
-    (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0x00 caps.val b) :
+    (compact : Bool) (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0x00 caps.val compact b) :
     packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind caps buf ⦃ r rest =>
       (okPart r).map (fun d => OkPkt.ofPacket d.1) = some b.toPkt ∧ rest.val = [] ⦄ := by
   sorry
 
-/-- Round trip: an OK packet with header `0xFE` is read back by `OkPacketDeserializer<ResultSetTerminator>`, with affected rows and last insert id 0. -/
+/-- Round trip: an OK packet with header `0xFE` (either form) is read back by `OkPacketDeserializer<ResultSetTerminator>`, with affected rows and last insert id 0. -/
 theorem packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.roundtrip_resultSetTerminator (h64 : Target64) (caps : constants.CapabilityFlags) (b : OkBody) (hb : b.affectedRows < 2 ^ 64 ∧ b.lastInsertId < 2 ^ 64 ∧ b.status < 2 ^ 16 ∧
       statusRead b.status = some b.status ∧ b.warnings < 2 ^ 16)
     (hssi : (hasFlag caps.val CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
       b.sessionStateInfo = [])
-    (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0xFE caps.val b) :
+    (compact : Bool) (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0xFE caps.val compact b) :
     packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize packets.ResultSetTerminator.Insts.Mysql_commonPacketsOkPacketKind caps buf ⦃ r rest =>
       (okPart r).map (fun d => OkPkt.ofPacket d.1) =
         some { b with affectedRows := 0, lastInsertId := 0 }.toPkt ∧ rest.val = [] ⦄ := by

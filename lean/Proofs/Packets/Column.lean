@@ -26,7 +26,7 @@ theorem packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip (h6
       (okPart r).map ColDef.ofColumn = some (ColDef.ofColumn c) ∧ rest.val = tail ⦄ := by
   sorry
 
-/-- `MySerialize for Column`: appends `colDefEncCrate`, **which has `column_length` and `character_set` in the wrong order** (not `colDefEnc`, the protocol layout the reader expects). -/
+/-- `MySerialize for Column`: appends `colDefEncCrate`, **which has `column_length` and `character_set` in the wrong order** (not `colDefEnc`, the protocol layout the reader expects): the crate's own reader reads it back **with no error but a wrong `character_set` and `column_length`** (`Defs.colDefRead_colDefEncCrate`). -/
 theorem packets.Column.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.Column) (buf : alloc.vec.Vec U8)
     (h : buf.length + (colDefEncCrate (ColDef.ofColumn self)).length ≤ Usize.max) :
     packets.Column.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ colDefEncCrate (ColDef.ofColumn self) ⦄ := by

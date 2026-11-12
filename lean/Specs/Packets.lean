@@ -41,14 +41,19 @@ import Proofs.Packets.ComStmtExecuteRequest
     translated), the `*_str` accessors (UTF-8 conversion), `SessionStateInfo` and
     `OkPacket::session_state_info` (later stage), `Display` impls, the other packets of the file
     (later stages), the private helpers `non_empty`, `byte_and_bit`, `serialize_params` (covered
-    through their callers).
+    through their callers), `ComStmtExecuteRequestBuilder::NULL_BITMAP_OFFSET` (an unused
+    constant, not in the translation). `ColumnMeta` is crate-private; it is stated because
+    `Column` is built on it.
 
     **Behaviour to note (bugs first).**
     * **`ColumnMeta::catalog_ref` and `Column::catalog_ref` return the `schema` field.**
     * **`MySerialize for Column` writes `column_length` before `character_set`**, the reverse of
-      the protocol and of the crate's own reader: a serialized column does not read back
-      (`colDefEncCrate` vs `colDefEnc`).
-    * The OK/EOF readers assume `CLIENT_PROTOCOL_41`, reject a status with bit 2 (value 4) set,
+      the protocol and of the crate's own reader: a serialized column reads back silently with the
+      wrong `character_set` (the low 16 bits of the length) and `column_length`
+      (`colDefEncCrate` vs `colDefEnc`, `Defs.colDefRead_colDefEncCrate`).
+    * The column reader does not check that the catalog is `def`.
+    * The OK/EOF readers assume `CLIENT_PROTOCOL_41`, reject a status with bit 2 (value 4) set
+      (a robustness quirk: current servers do not send it),
       and leave bytes after the fields they read unconsumed; without `CLIENT_SESSION_TRACK` a
       non-empty `info` must be a length-encoded string (it is `string<EOF>` on the protocol page;
       MySQL does send it length-encoded). `ResultSetTerminator` discards affected rows and last
@@ -57,7 +62,11 @@ import Proofs.Packets.ComStmtExecuteRequest
     * The NULL bitmap of a `COM_STMT_EXECUTE` request is serialized truncated to 8192 bytes
       (`BareBytes<8192>`): with more than 65536 parameters the packet is malformed (MySQL allows at
       most 65535). `as_long_data` leaves the `Bytes` values out of the packet (they must be sent
-      with `COM_STMT_SEND_LONG_DATA`); their type and NULL bits are still sent.
+      with `COM_STMT_SEND_LONG_DATA`); their type and NULL bits are still sent. With no parameters
+      the builder's length is 11 for a 10-byte packet (only affects `as_long_data`, irrelevantly).
+    * `comStmtExecute` is the protocol's packet only when `CLIENT_QUERY_ATTRIBUTES` was not
+      negotiated (with it, the server expects a `parameter_count` field and the crate's packet is
+      misread); the crate does not look at the capabilities here.
     * `NullBitmap::is_null`/`set` panic (`assert!`) on a column index past the bitmap; `read`
       panics on a short input.
 -/
@@ -155,7 +164,7 @@ recall packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip (h64
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip`
 
-/-- `MySerialize for Column`: appends `colDefEncCrate`, **which has `column_length` and `character_set` in the wrong order** (not `colDefEnc`, the protocol layout the reader expects). -/
+/-- `MySerialize for Column`: appends `colDefEncCrate`, **which has `column_length` and `character_set` in the wrong order** (not `colDefEnc`, the protocol layout the reader expects): the crate's own reader reads it back **with no error but a wrong `character_set` and `column_length`** (`Defs.colDefRead_colDefEncCrate`). -/
 recall packets.Column.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.Column) (buf : alloc.vec.Vec U8)
     (h : buf.length + (colDefEncCrate (ColDef.ofColumn self)).length ≤ Usize.max) :
     packets.Column.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ colDefEncCrate (ColDef.ofColumn self) ⦄
@@ -376,23 +385,23 @@ recall packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabi
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize_commonOk`
 
-/-- Round trip: an OK packet as MySQL sends it (`okPacketEnc 0x00`) is read back by `OkPacketDeserializer<CommonOkPacket>` (as `OkBody.toPkt`), when its status has only known flags and it carries a session state only if both `CLIENT_SESSION_TRACK` and `SERVER_SESSION_STATE_CHANGED` are set. The packet is the whole buffer. -/
+/-- Round trip: an OK packet (`okPacketEnc 0x00`, in the protocol page's form or, `compact`, as MySQL's `net_send_ok` writes it) is read back by `OkPacketDeserializer<CommonOkPacket>` (as `OkBody.toPkt`), when its status has only known flags and it carries a session state only if both `CLIENT_SESSION_TRACK` and `SERVER_SESSION_STATE_CHANGED` are set. The packet is the whole buffer. -/
 recall packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.roundtrip_commonOk (h64 : Target64) (caps : constants.CapabilityFlags) (b : OkBody) (hb : b.affectedRows < 2 ^ 64 ∧ b.lastInsertId < 2 ^ 64 ∧ b.status < 2 ^ 16 ∧
       statusRead b.status = some b.status ∧ b.warnings < 2 ^ 16)
     (hssi : (hasFlag caps.val CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
       b.sessionStateInfo = [])
-    (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0x00 caps.val b) :
+    (compact : Bool) (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0x00 caps.val compact b) :
     packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind caps buf ⦃ r rest =>
       (okPart r).map (fun d => OkPkt.ofPacket d.1) = some b.toPkt ∧ rest.val = [] ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.roundtrip_commonOk`
 
-/-- Round trip: an OK packet with header `0xFE` is read back by `OkPacketDeserializer<ResultSetTerminator>`, with affected rows and last insert id 0. -/
+/-- Round trip: an OK packet with header `0xFE` (either form) is read back by `OkPacketDeserializer<ResultSetTerminator>`, with affected rows and last insert id 0. -/
 recall packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.roundtrip_resultSetTerminator (h64 : Target64) (caps : constants.CapabilityFlags) (b : OkBody) (hb : b.affectedRows < 2 ^ 64 ∧ b.lastInsertId < 2 ^ 64 ∧ b.status < 2 ^ 16 ∧
       statusRead b.status = some b.status ∧ b.warnings < 2 ^ 16)
     (hssi : (hasFlag caps.val CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
       b.sessionStateInfo = [])
-    (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0xFE caps.val b) :
+    (compact : Bool) (buf : io.ParseBuf) (h : buf.val = okPacketEnc 0xFE caps.val compact b) :
     packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize packets.ResultSetTerminator.Insts.Mysql_commonPacketsOkPacketKind caps buf ⦃ r rest =>
       (okPart r).map (fun d => OkPkt.ofPacket d.1) =
         some { b with affectedRows := 0, lastInsertId := 0 }.toPkt ∧ rest.val = [] ⦄

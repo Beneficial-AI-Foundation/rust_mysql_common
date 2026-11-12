@@ -98,4 +98,50 @@ def binRowRead (off : Nat) (cols : List (constants.ColumnType × Bool)) :
 def binRowEnc (off : Nat) (vs : List Val) : List U8 :=
   byte 0 :: nullBitmap off (vs.map isNullVal) ++ (vs.map binEnc).flatten
 
+/-! ## Type-directed binary encoding
+
+`binEnc` sends every integer as 8 bytes (the parameter encoding of `COM_STMT_EXECUTE`), so its
+round trip only covers `LONGLONG` columns. In a result-set row the server sends an integer in the
+width of its column type (protocol page, "Binary Protocol Value"): `binEncAt` is that encoding. -/
+
+open constants.ColumnType in
+/-- The byte width of the integer column types other than `LONGLONG`: `TINY` 1, `SHORT`/`YEAR` 2,
+    `LONG`/`INT24` 4 (`INT24` is sent in 4 bytes). -/
+def intWidth : constants.ColumnType → Option Nat
+  | MYSQL_TYPE_TINY => some 1
+  | MYSQL_TYPE_SHORT | MYSQL_TYPE_YEAR => some 2
+  | MYSQL_TYPE_LONG | MYSQL_TYPE_INT24 => some 4
+  | _ => none
+
+/-- The binary encoding of `v` in a column of type `ct`: an integer in the column's width (two's
+    complement for `Int`), anything else as `binEnc`. -/
+def binEncAt (ct : constants.ColumnType) (v : Val) : List U8 :=
+  match intWidth ct, v with
+  | some k, .int x => leBytesI k x
+  | some k, .uint x => leBytes k x
+  | _, v => binEnc v
+
+/-- When `binEncAt ct v` is read back at a column of type `ct` with `UNSIGNED_FLAG` = `unsigned`:
+    at a narrow integer type, an integer in the column's range (`[0, 2^(8k))` if unsigned,
+    `[-2^(8k-1), 2^(8k-1))` if signed); at any other type, `binCompatible`. -/
+def binFitsAt (ct : constants.ColumnType) (unsigned : Bool) (v : Val) : Prop :=
+  match intWidth ct with
+  | some k =>
+    (∃ x : Int, v = .int x ∧
+      (if unsigned then 0 ≤ x ∧ x < 2 ^ (8 * k) else -2 ^ (8 * k - 1) ≤ x ∧ x < 2 ^ (8 * k - 1))) ∨
+    (∃ x : Nat, v = .uint x ∧ x < (if unsigned then 2 ^ (8 * k) else 2 ^ (8 * k - 1)))
+  | none => binCompatible v ct
+
+/-- What a fitting value comes back as: at a narrow integer type every integer comes back as
+    `Int` (so a `UInt x` as `Int x`); at any other type, `binNorm`. -/
+def binNormAt (ct : constants.ColumnType) (unsigned : Bool) (v : Val) : Val :=
+  match intWidth ct, v with
+  | some _, .uint x => .int x
+  | some _, v => v
+  | none, v => binNorm unsigned v
+
+/-- A binary row in which each non-NULL value is encoded at its column's type (`binEncAt`). -/
+def binRowEncAt (off : Nat) (cts : List constants.ColumnType) (vs : List Val) : List U8 :=
+  byte 0 :: nullBitmap off (vs.map isNullVal) ++ (List.zipWith binEncAt cts vs).flatten
+
 end Defs
