@@ -110,7 +110,11 @@ theorem dateRead_dateProto (l : U8) (rest : List U8)
       match dateProto (l :: rest) with
       | some (v, r) => (some v, r)
       | none => (none, rest) := by
-  sorry
+  rcases hl with hl | hl | hl | hl
+  · simp [dateRead, dateProto, hl]
+  · rcases rest with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, r⟩⟩⟩⟩ <;> simp [dateRead, dateProto, hl, leNat]
+  · rcases rest with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, r⟩⟩⟩⟩⟩⟩⟩ <;> simp [dateRead, dateProto, hl, leNat]
+  · rcases rest with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, _ | ⟨a7, _ | ⟨a8, _ | ⟨a9, _ | ⟨a10, r⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩ <;> simp [dateRead, dateProto, hl, leNat]
 
 /-- The crate's lenient TIME reader agrees with the protocol's format on the lengths the protocol
     defines, when the sign byte (if there is one) is 0 or 1, the only values the protocol defines.
@@ -122,14 +126,81 @@ theorem timeRead_timeProto (l : U8) (rest : List U8) (hl : l.val = 0 ∨ l.val =
       match timeProto (l :: rest) with
       | some (v, r) => (some v, r)
       | none => (none, rest) := by
-  sorry
+  rcases hl with hl | hl | hl
+  · simp [timeRead, timeProto, hl]
+  · have hs := hsign (by omega)
+    rcases rest with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, _ | ⟨a7, r⟩⟩⟩⟩⟩⟩⟩⟩ <;> simp_all [timeRead, timeProto, leNat]
+  · have hs := hsign (by omega)
+    rcases rest with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, _ | ⟨a7, _ | ⟨a8, _ | ⟨a9, _ | ⟨a10, _ | ⟨a11, r⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩ <;> simp_all [timeRead, timeProto, leNat]
 
 /-- The binary decoder reads back every encoded value at a compatible column type, up to
     `binNorm`. -/
 theorem binRead_binEnc (v : mysql_common.value.Value) (ct : mysql_common.constants.ColumnType)
     (u : Bool) (t : List U8) (hc : binCompatible (Val.ofValue v) ct) :
     binRead ct u (binEnc (Val.ofValue v) ++ t) = (some (binNorm u (Val.ofValue v)), t) := by
-  sorry
+  cases v with
+  | NULL =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    subst hc
+    simp [binRead, binEnc, isLenencStrType, binNorm]
+  | Bytes b =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    have hb : b.val.length < 2 ^ 64 := by
+      have : b.val.length ≤ Usize.max := by scalar_tac
+      have : Usize.max < 2 ^ 64 := by
+        simp only [Usize.max, Usize.numBits]; cases System.Platform.numBits_eq <;> simp [*]
+      omega
+    simp [binRead, binEnc, hc, checkedLenencStr_lenencStr _ _ hb, binNorm]
+  | Int x =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    subst hc
+    have h0 : (0 : Int) ≤ x.val % 2 ^ 64 := Int.emod_nonneg _ (by norm_num)
+    have h1 : x.val % 2 ^ 64 < 2 ^ 64 := Int.emod_lt_of_pos _ (by norm_num)
+    have hn : (x.val % 2 ^ 64).toNat < 2 ^ (8 * 8) := by omega
+    have hb := x.hBounds
+    simp only [binRead, binEnc, isLenencStrType, leBytesI, PBUtil.readLE_leBytes 8 _ t hn]
+    cases u
+    · simp only [Bool.false_eq_true, not_false_eq_true, ↓reduceIte, binNorm]
+      have := IntAndMisc.toSigned_emod 64 (by norm_num) x.val (by scalar_tac) (by scalar_tac)
+      rw [this]
+    · simp only [binNorm, ↓reduceIte, not_true_eq_false]
+      by_cases hx : 0 ≤ x.val
+      · have he : x.val % 2 ^ 64 = x.val := Int.emod_eq_of_lt hx (by scalar_tac)
+        have : (x.val % 2 ^ 64).toNat < 2 ^ 63 := by rw [he]; scalar_tac
+        rw [he] at this
+        simp only [he, hx, ↓reduceIte, Bool.false_eq_true]
+        simp only [this, ↓reduceIte, Int.toNat_of_nonneg hx]
+      · have he : x.val % 2 ^ 64 = x.val + 2 ^ 64 := by
+          rw [← Int.add_mul_emod_self_left x.val (2 ^ 64) 1, Int.emod_eq_of_lt (by scalar_tac) (by scalar_tac)]; ring
+        have : ¬ (x.val % 2 ^ 64).toNat < 2 ^ 63 := by rw [he]; scalar_tac
+        rw [he] at this
+        simp only [he, hx, ↓reduceIte, Bool.false_eq_true]
+        simp only [this, ↓reduceIte]
+  | UInt x =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    subst hc
+    have hx : x.val < 2 ^ 64 := x.hBounds
+    simp [binRead, binEnc, isLenencStrType, PBUtil.readLE_leBytes 8 _ t hx, binNorm]
+    cases u <;> simp
+  | Float f =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    subst hc
+    have hx : f.bits.val < 2 ^ (8 * 4) := f.bits.hBounds
+    simp [binRead, binEnc, isLenencStrType, PBUtil.readLE_leBytes 4 _ t hx, binNorm]
+  | Double f =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    subst hc
+    have hx : f.bits.val < 2 ^ (8 * 8) := f.bits.hBounds
+    simp [binRead, binEnc, isLenencStrType, PBUtil.readLE_leBytes 8 _ t hx, binNorm]
+  | Date y mo d h mi sec us =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    trace_state
+    sorry
+  | Time n d h mi sec us =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    subst hc
+    trace_state
+    sorry
 
 /-- The text decoder reads a length-encoded string as `Bytes`. -/
 theorem textRead_lenencStr (s t : List U8) (hs : s.length < 2 ^ 64) :
