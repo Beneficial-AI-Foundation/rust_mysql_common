@@ -53,9 +53,8 @@ theorem value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValu
         simp [chronoDateTime, chronoDate, chronoTime, Trusted.NaiveDateTime.date_new,
           Trusted.NaiveDateTime.time_new, h1, h2, h3, hy, hmv, hdv, t1, t2, t3, t4, hhv, hmiv, hsv]
   | Bytes b =>
-    have ha' : ∀ c ∈ (alloc.vec.Vec.deref b).val, c.val < 128 := by
-      simpa [Val.ofValue, Val.bytesAscii] using ha
-    obtain ⟨o, ho, hmo⟩ := ConvDeps.spec_eq_ok (value.convert.parse_mysql_datetime_string_spec _ ha')
+    obtain ⟨o, ho, hmo⟩ := ConvDeps.spec_eq_ok
+      (value.convert.parse_mysql_datetime_string_spec _ (ConvDeps.bytesAscii_bytes ha))
     simp only [ConvDeps.vec_deref_val] at hmo
     simp only [value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from,
       ho, bind_ok]
@@ -102,21 +101,11 @@ theorem chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromVa
       | none => r = .Err v ⦄ := by
   apply WP.spec_mono (ConvDeps.from_value_opt_spec_of _ rfl (fun _ => rfl) _
     (value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v ha))
-  rintro r' ⟨r, ⟨h1, h2⟩, rfl⟩
-  refine ⟨fun h => ?_, ?_⟩
-  · cases r with
-    | Ok p => simp [okPart, ConvDeps.mapIr] at h
-    | Err e => rw [h1 rfl]; rfl
-  · split
-    · rename_i heq; rw [heq] at h2; obtain ⟨h2, h3⟩ := h2
-      refine ⟨?_, ?_⟩
-      · rw [← h2]; cases r with
-        | Ok p => exact ⟨fun _ => ⟨_, rfl⟩, fun _ => ⟨_, rfl⟩⟩
-        | Err e => exact ⟨fun ⟨_, hp⟩ => (by cases hp), fun ⟨_, hp⟩ => (by cases hp)⟩
-      · intro x hx
-        cases r with
-        | Ok p => obtain ⟨x0, w⟩ := p; cases hx; exact (h3 x0 w rfl).2
-        | Err e => cases hx
-    · rename_i heq; rw [heq] at h2; rw [h2]; rfl
+  rintro _ ⟨r, ⟨h1, h2⟩, rfl⟩
+  refine ⟨ConvDeps.mapIr_okPart h1, ?_⟩
+  revert h2
+  split <;> intro h2
+  · exact ⟨ConvDeps.mapIr_isOk h2.1, ConvDeps.mapIr_ok_of h2.2⟩
+  · exact ConvDeps.mapIr_err_of h2
 
 end mysql_common
