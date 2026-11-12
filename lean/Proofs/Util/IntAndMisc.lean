@@ -235,6 +235,18 @@ theorem rawflags_new_spec {T B : Type} (U : Type) (fl : bitflags.traits.Flags T 
   unfold misc.raw.flags.RawFlags.new
   exact (spec_ok _).2 rfl
 
+@[step]
+theorem rawconst_new_spec {T P : Type} (U : Type) (inst : misc.raw.int.IntRepr T P) (t : P) :
+    misc.raw._const.RawConst.new U inst t ⦃ r => r = (t, ()) ⦄ := by
+  unfold misc.raw._const.RawConst.new
+  exact (spec_ok _).2 rfl
+
+@[step]
+theorem const_new_spec {T : Type} (U : Type) (t : T) :
+    misc.raw._const.Const.new U t ⦃ r => r = (t, ()) ⦄ := by
+  unfold misc.raw._const.Const.new
+  exact (spec_ok _).2 rfl
+
 theorem rawint_new_bind {T P β : Type} (inst : misc.raw.int.IntRepr T P) (x : P)
     (f : misc.raw.int.RawInt T P → Result β) :
     Std.bind (misc.raw.int.RawInt.new inst x) f = f (x, ()) :=
