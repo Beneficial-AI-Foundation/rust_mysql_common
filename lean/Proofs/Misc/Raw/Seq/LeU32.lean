@@ -108,7 +108,7 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_sp
   apply spec_bind_ok
   apply spec_bind_ok
   step with serialize_loop_spec ser enc hser ⟨⟨seq, 0⟩, len⟩ buf1 (by
-    have : buf1.length = buf.length + 4 := by simp [hb1, PBUtil.length_leBytes]
+    have : buf1.length = buf.length + 4 := by simp [hb1]
     simp only [List.drop_zero]; omega) as ⟨ v, hv ⟩
   simp only [List.drop_zero] at hv
   rw [hv, hb1, hi2', hlen']

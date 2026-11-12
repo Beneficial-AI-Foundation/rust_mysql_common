@@ -30,7 +30,8 @@ theorem io.ParseBuf.parse_of_size_short {T Ctx : Type} (inst : proto.MyDeseriali
     io.ParseBuf.parse inst buf ctx ⦃ r rest => okPart r = none ∧ rest = buf ⦄ := by
   simp only [io.ParseBuf.parse, hs, io.ParseBuf.parse_unchecked]
   step*
-  all_goals (cases r <;> simp_all [okPart] <;> omega)
+  all_goals cases r <;> simp_all [okPart]
+  omega
 
 /-- `parse` of a type of fixed size `n` on a buffer of at least `n` bytes: `T::deserialize` runs on
     the first `n` bytes (so it cannot panic for lack of input), and exactly `n` bytes are consumed
@@ -75,7 +76,6 @@ theorem io.ParseBuf.checked_skip_spec (buf : io.ParseBuf) (cnt : Usize) :
       else b = false ∧ rest = buf ⦄ := by
   unfold io.ParseBuf.checked_skip
   step*
-  all_goals split_ifs <;> simp_all
 
 /-- `eat(n)`: splits off the first `n` bytes. Panics if `n > len` (documented; `eat_panics`). -/
 theorem io.ParseBuf.eat_spec (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ buf.length) :
@@ -1197,7 +1197,7 @@ theorem io.ParseBuf.checked_eat_lenenc_int_spec (buf : io.ParseBuf) :
   rcases h : buf.val with _ | ⟨b, rest⟩
   · simp_all [checkedLenencInt]
   · have hl : 1 ≤ buf.length := by simp [Slice.length, h]
-    simp only [hl, if_true, h] at o_post
+    simp only [hl, ↓reduceIte, h] at o_post
     obtain ⟨ho, hs⟩ := o_post
     cases o with
     | none => simp at ho
@@ -1217,15 +1217,21 @@ theorem io.ParseBuf.checked_eat_lenenc_int_spec (buf : io.ParseBuf) :
       · rw [ite_eq_right h250]
         split
         · step*
-          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [ite_eq_right (by omega)])
+          all_goals (subst_vars; split_ifs at *)
+          all_goals simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length]
+          all_goals rw [ite_eq_right (by omega)]
         · step*
-          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [ite_eq_right (by omega)])
+          all_goals (subst_vars; split_ifs at *)
+          all_goals simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length]
+          all_goals rw [ite_eq_right (by omega)]
         · step*
-          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [ite_eq_right (by omega)])
+          all_goals (subst_vars; split_ifs at *)
+          all_goals simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length]
+          all_goals rw [ite_eq_right (by omega)]
         · simp [checkedLenencInt, hs, val_mk]
         · simp [checkedLenencInt, hs, val_mk]
         · exfalso
-          simp only [UScalar.eq_equiv, val_mk, BitVec.toNat_ofNat] at *; norm_num at *
+          simp only [UScalar.eq_equiv, val_mk] at *; norm_num at *
           have := x.hBounds
           scalar_tac
 
@@ -1285,7 +1291,7 @@ theorem io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (
     rw [cast_usize_64 h64]
     obtain ⟨h1, h2⟩ := hpost
     simp only [Slice.length, h1, h2]
-    split_ifs at h with hle <;> first | omega | simp at h
+    split_ifs at h with hle; omega
 
 /-- `checked_eat_lenenc_str`: total; exactly `checkedLenencStr`: `None` after consuming the
     length's first byte if the length is truncated, `None` after consuming the whole length if the
@@ -1346,7 +1352,7 @@ theorem io.ParseBuf.eat_u8_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed
     io.ParseBuf.eat_u8_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
   unfold io.ParseBuf.eat_u8_str
   simp only [checkedLenPrefixed, readLE] at h ⊢
-  split_ifs at h ⊢ with h1 h2
+  split_ifs at h ⊢ with h1
   · step*
     all_goals (simp_all; try (split_ifs at h <;> simp_all))
   all_goals simp_all
@@ -1356,13 +1362,13 @@ theorem io.ParseBuf.eat_u8_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefix
     ¬ io.ParseBuf.eat_u8_str buf ⦃ _ => True ⦄ := by
   unfold io.ParseBuf.eat_u8_str
   simp only [checkedLenPrefixed, readLE] at h
-  split_ifs at h with h1 h2
+  split_ifs at h with h1
   · apply not_spec_bind (io.ParseBuf.eat_u8_spec buf h1)
     rintro ⟨x, self1⟩ ⟨hx, hs⟩
     simp only [lift, bind_ok]
     apply eat_fail
     simp_all [Slice.length]
-    split_ifs at h <;> simp_all
+    split_ifs at h; simp_all
   · exact not_spec_bind_left (io.ParseBuf.eat_u8_panics buf (by simp only [Slice.length]; omega))
 
 /-- `checked_eat_u8_str`: total; `checkedLenPrefixed 1` (a missing body gives `None` after consuming the length byte). -/
@@ -1378,7 +1384,7 @@ theorem io.ParseBuf.eat_u32_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixe
     io.ParseBuf.eat_u32_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenPrefixed 4 buf.val ⦄ := by
   unfold io.ParseBuf.eat_u32_str
   simp only [checkedLenPrefixed, readLE] at h ⊢
-  split_ifs at h ⊢ with h1 h2
+  split_ifs at h ⊢ with h1
   · step*
     all_goals (simp_all; try (split_ifs at h <;> simp_all))
   all_goals simp_all
@@ -1388,13 +1394,13 @@ theorem io.ParseBuf.eat_u32_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefi
     ¬ io.ParseBuf.eat_u32_str buf ⦃ _ => True ⦄ := by
   unfold io.ParseBuf.eat_u32_str
   simp only [checkedLenPrefixed, readLE] at h
-  split_ifs at h with h1 h2
+  split_ifs at h with h1
   · apply not_spec_bind (io.ParseBuf.eat_u32_le_spec buf h1)
     rintro ⟨x, self1⟩ ⟨hx, hs⟩
     simp only [lift, bind_ok]
     apply eat_fail
     simp_all [Slice.length]
-    split_ifs at h <;> simp_all
+    split_ifs at h; simp_all
   · exact not_spec_bind_left (io.ParseBuf.eat_u32_le_panics buf (by simp only [Slice.length]; omega))
 
 /-- `checked_eat_u32_str`: total; `checkedLenPrefixed 4` (a missing body gives `None` after consuming the 4 length bytes). -/

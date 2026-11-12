@@ -33,7 +33,7 @@ theorem misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_sp
 theorem misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 7) :
     ¬ misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize buf ⦃ _ => True ⦄ := by
   unfold misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize
-  exact IntAndMisc.not_spec_bind (io.ParseBuf.eat_i56_le_panics buf h)
+  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_i56_le_panics buf h)
 
 /-- `buf.parse::<RawInt<LeI56>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 7 bytes. -/
 theorem misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.parse_rawint_spec (buf : io.ParseBuf) :

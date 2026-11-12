@@ -32,7 +32,7 @@ theorem I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize_spec (buf : io.Pars
 theorem I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 1) :
     ¬ I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize buf ⦃ _ => True ⦄ := by
   unfold I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize
-  exact IntAndMisc.not_spec_bind (io.ParseBuf.eat_i8_panics buf h)
+  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_i8_panics buf h)
 
 /-- `buf.parse::<RawInt<i8>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 1 byte. -/
 theorem I8.Insts.Mysql_commonMiscRawIntIntReprI8.parse_rawint_spec (buf : io.ParseBuf) :

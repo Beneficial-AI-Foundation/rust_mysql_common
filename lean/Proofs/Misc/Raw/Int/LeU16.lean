@@ -32,7 +32,7 @@ theorem misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_sp
 theorem misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 2) :
     ¬ misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize buf ⦃ _ => True ⦄ := by
   unfold misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize
-  exact IntAndMisc.not_spec_bind (io.ParseBuf.eat_u16_le_panics buf h)
+  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u16_le_panics buf h)
 
 /-- `buf.parse::<RawInt<LeU16>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 2 bytes. -/
 theorem misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec (buf : io.ParseBuf) :
@@ -62,6 +62,6 @@ theorem misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.roundtrip (x :
   simp only [hl, ↓reduceIte, h, h1, h2] at hr
   refine ⟨?_, hr.2⟩
   rw [hr.1]; refine congrArg some ?_
-  rw [IntAndMisc.leNat_leBytes']; exact Nat.mod_eq_of_lt (by scalar_tac)
+  rw [PBUtil.leNat_leBytes]; exact Nat.mod_eq_of_lt (by scalar_tac)
 
 end mysql_common

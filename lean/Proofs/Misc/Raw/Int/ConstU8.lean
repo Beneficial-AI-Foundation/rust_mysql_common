@@ -47,7 +47,7 @@ theorem misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deseria
     (d : core.default.Default T) (buf : io.ParseBuf) (h : buf.length < 1) :
     ¬ misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf ⦃ _ => True ⦄ := by
   unfold misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
-  exact IntAndMisc.not_spec_bind (io.ParseBuf.eat_u8_panics buf h)
+  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u8_panics buf h)
 
 /-- `buf.parse::<ConstU8>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than 1 byte. -/
 theorem misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.parse_spec {T : Type} (N : U8) (e : core.error.Error T)

@@ -31,7 +31,7 @@ theorem io.BufMutExt.put_lenenc_int_spec (buf : alloc.vec.Vec U8) (x : U64)
     simp only [c1, h1, ↓reduceIte] at h ⊢
     by_cases h2 : x.val < 2 ^ 16
     · have c2 : x < 65536#u64 := by scalar_tac
-      simp only [c2, h2, ↓reduceIte, List.length_cons, IntAndMisc.length_leBytes'] at h ⊢
+      simp only [c2, h2, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
       step*
       · have : self1.val.length = buf.val.length + 1 := by simp [self1_post]
         scalar_tac
@@ -40,13 +40,13 @@ theorem io.BufMutExt.put_lenenc_int_spec (buf : alloc.vec.Vec U8) (x : U64)
       simp only [c2, h2, ↓reduceIte] at h ⊢
       by_cases h3 : x.val < 2 ^ 24
       · have c3 : x < 16777216#u64 := by scalar_tac
-        simp only [c3, h3, ↓reduceIte, List.length_cons, IntAndMisc.length_leBytes'] at h ⊢
+        simp only [c3, h3, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
         step*
         · have : self1.val.length = buf.val.length + 1 := by simp [self1_post]
           scalar_tac
         · rw [buf'_post, self1_post]; simp; rfl
       · have c3 : ¬ x < 16777216#u64 := by scalar_tac
-        simp only [c3, h3, ↓reduceIte, List.length_cons, IntAndMisc.length_leBytes'] at h ⊢
+        simp only [c3, h3, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
         step*
         · have : self1.val.length = buf.val.length + 1 := by simp [self1_post]
           scalar_tac

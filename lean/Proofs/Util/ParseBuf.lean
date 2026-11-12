@@ -134,8 +134,8 @@ theorem not_spec_bind {α β : Type} {m : Result α} {k : α → Result β} {P :
   simpa using hk v hv
 
 /-- A program fails if its first step fails. -/
-theorem not_spec_bind_left {α β : Type} {m : Result α} {k : α → Result β} (hm : ¬ m ⦃ _ => True ⦄) :
-    ¬ (Std.bind m k) ⦃ _ => True ⦄ := by
+theorem not_spec_bind_left {α β : Type} {m : Result α} {k : α → Result β} {P : β → Prop}
+    (hm : ¬ m ⦃ _ => True ⦄) : ¬ (Std.bind m k) ⦃ P ⦄ := by
   cases m <;> simp_all
 
 /-! ## Step lemmas for the building blocks -/
