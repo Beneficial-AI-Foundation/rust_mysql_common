@@ -33,6 +33,7 @@ import Proofs.Misc.Raw.Int.VarLen
     appends, what the (unchecked) `deserialize` reads, what the checked `parse::<RawInt<_>>` returns
     on any buffer, and the round trip `serialize` then `parse`. `IntRepr::Primitive` bounds are
     instances Aeneas passes along; they play no part in the statements.
+    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics, except `VarLen` `serialize_small_fails` (see its docstring).
 
     **Not covered.** `Debug` impls, derived impls (`Default`, `Clone`, `PartialEq`, `Ord`, `Hash`);
     `DerefMut for RawInt` (returns a mutable borrow; nothing to state beyond `Deref`).

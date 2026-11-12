@@ -24,6 +24,7 @@ import Proofs.Misc.Raw.Bytes.ConstBytes
     `T::MAX_LEN`; each `BytesRepr` impl has its `MAX_LEN`, `SIZE`, `serialize`, `deserialize` and, where
     it holds, the round trip `serialize` then `deserialize`. A `Cow` is read through `cowList`: the
     statements do not distinguish borrowed from owned.
+    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
 
     **Not covered.** `RawBytes::into_owned`, `RawBytes::as_str` (UTF-8 conversion), `From`,
     `PartialEq<[u8]>`, `Debug` (excluded from the translation in `Cargo.toml`, or not public API).
@@ -392,9 +393,13 @@ recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtri
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip`
 
-/-- **Bug (format mismatch).** For `128 ≤ len < 251`, `deserialize` does not read back what
-    `serialize` writes: it either fails or returns other bytes or leaves a different rest. -/
-recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip_fails (s tail : List U8) (hs : 128 ≤ s.length ∧ s.length < 251)
+/-- **Bug (format mismatch).** For every length `≥ 128`, `deserialize` does not read back what
+    `serialize` writes: it fails or leaves a different rest. (From 128 to 250 the single lenenc
+    byte has bit 7 set; from 251 on the lenenc header is `0xFC`/`0xFD`/`0xFE` plus 2/3/8 bytes, and
+    the JSONB reader never stops after exactly the header with the right value: for `0xFC`/`0xFD`
+    the equations have no solution, and the 9-byte `0xFE` header is longer than the 5 bytes the
+    JSONB reader accepts.) -/
+recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip_fails (s tail : List U8) (hs : 128 ≤ s.length ∧ s.length < 2 ^ 64)
     (buf : io.ParseBuf) (h : buf.val = lenencInt s.length ++ s ++ tail) :
     misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest => ((okPart r).map cowList, rest.val) ≠ (some s, tail) ⦄
 

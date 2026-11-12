@@ -15,6 +15,7 @@ import Proofs.Io.ParseBuf
     is the vector afterwards. Unchecked readers are stated under the length precondition that rules
     out their panic; every `checked_*` reader is stated for every input. A `Vec` is assumed able to grow
     (Aeneas models allocation as infallible, bounded only by `usize::MAX`).
+    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
 
     **Definitions used.** `Defs/Bytes.lean` (`leBytes`, `leBytesI`, `leNat`, `beNat`, `toSigned`,
     `byte`, `beforeZero`, `okPart`, `Target64`), `Defs/LenEnc.lean` (`lenencInt`, `lenencStr`,

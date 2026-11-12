@@ -16,7 +16,7 @@ import Proofs.Misc.Raw.F64
     **Definitions used.** `Defs/Bytes.lean` (`leNat`, `leBytes`, `okPart`).
 
     **Reading the statements.** The generic impls (`Either`) are stated as transfer lemmas: what the
-    component impls guarantee carries over.
+    component impls guarantee carries over. `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
 
     **Not covered.** Derived impls (`Debug`, `Clone`, `PartialEq`, ...).
 

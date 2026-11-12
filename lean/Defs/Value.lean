@@ -178,8 +178,8 @@ open constants.ColumnType in
     * Floats: the bit pattern.
     * Temporal types: `dateRead`, `timeRead`.
     * NULL: the null value, nothing consumed.
-    The last match arm (`_`, the five types with `binSupported ct = false`) gives an arbitrary
-    value: it is never used, since the decoder panics on those types (see
+    The last match arm (`_`, the five types with `binSupported ct = false`) returns `(none, bs)`;
+    it is unreachable as a description of the crate, which panics on those types (see
     `value.Value.deserialize_bin_unsupported`). -/
 def binRead (ct : constants.ColumnType) (unsigned : Bool) (bs : List U8) : Option Val × List U8 :=
   if isLenencStrType ct then
@@ -214,7 +214,7 @@ def binRead (ct : constants.ColumnType) (unsigned : Bool) (bs : List U8) : Optio
 These decoders transcribe the protocol page's field tables for the lengths it defines (DATE,
 DATETIME, TIMESTAMP: 0, 4, 7, 11; TIME: 0, 8, 12) and are `none` on every other length. They are
 independent of `dateRead`/`timeRead` above, which describe the crate's (more lenient) reader;
-`Defs.dateRead_dateProto` and `Defs.timeRead_timeProto` (in `Proofs/Defs/Lemmas.lean`) say the two
+`Defs.dateRead_dateProto` and `Defs.timeRead_timeProto` (`Specs/Defs.lean`) say the two
 agree on the protocol's lengths. -/
 
 /-- The protocol's binary DATE/DATETIME/TIMESTAMP: `length` (1 byte), then
@@ -240,9 +240,10 @@ def dateProto : List U8 → Option (Val × List U8)
       | _ => none
     else none
 
-/-- The protocol's binary TIME: `length` (1 byte), then `length = 8`: is_negative (1 byte, 1 for
-    negative), days (4 bytes LE), hour, minute, second; `length = 12`: also microsecond (4 bytes
-    LE); `length = 0`: all fields 0 (positive). -/
+/-- The protocol's binary TIME: `length` (1 byte), then `length = 8`: is_negative (1 byte: 1 for
+    negative, 0 for positive), days (4 bytes LE), hour, minute, second; `length = 12`: also
+    microsecond (4 bytes LE); `length = 0`: all fields 0 (positive). A sign byte other than 0 or 1
+    is not defined by the protocol: `none`. -/
 def timeProto : List U8 → Option (Val × List U8)
   | [] => none
   | l :: rest =>
@@ -250,13 +251,16 @@ def timeProto : List U8 → Option (Val × List U8)
     else if l.val = 8 then
       match rest with
       | n :: d0 :: d1 :: d2 :: d3 :: h :: mi :: s :: r =>
-        some (.time (n.val = 1) (leNat [d0, d1, d2, d3]) h.val mi.val s.val 0, r)
+        if n.val ≤ 1 then some (.time (n.val = 1) (leNat [d0, d1, d2, d3]) h.val mi.val s.val 0, r)
+        else none
       | _ => none
     else if l.val = 12 then
       match rest with
       | n :: d0 :: d1 :: d2 :: d3 :: h :: mi :: s :: u0 :: u1 :: u2 :: u3 :: r =>
-        some (.time (n.val = 1) (leNat [d0, d1, d2, d3]) h.val mi.val s.val
-          (leNat [u0, u1, u2, u3]), r)
+        if n.val ≤ 1 then
+          some (.time (n.val = 1) (leNat [d0, d1, d2, d3]) h.val mi.val s.val
+            (leNat [u0, u1, u2, u3]), r)
+        else none
       | _ => none
     else none
 

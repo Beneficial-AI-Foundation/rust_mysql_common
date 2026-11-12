@@ -7,5 +7,6 @@ import Specs.Misc.Raw.Seq
 import Specs.Misc.Raw.Flags
 import Specs.Misc.Raw.Const
 import Specs.Value
+import Specs.Defs
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/
