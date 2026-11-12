@@ -126,8 +126,8 @@ def plainDecodeAux : Nat → U8 → ChunkState → List U8 → List U8 → Nat �
       consumed and appended to `dst`);
     * otherwise the expected sequence id becomes the chunk's plus one (mod 256).
     The result is the outcome, the new expected sequence id, the new reader state, input and
-    output. (A recursive call follows only a `Middle` chunk, which consumed `4 + len ≥ 5` bytes:
-    zero-length chunks are `Last`. So `src.length + 1` chunk reads always suffice and the bound is
+    output. (A recursive call follows only a `Middle` chunk, which consumed at least 4 bytes
+    (`4 + len ≥ 5` from a valid state: zero-length chunks are `Last`). So `src.length + 1` chunk reads always suffice and the bound is
     never reached; see `plainDecodeAux_fuel`.) -/
 def plainDecode (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat) (comp : Option U8) :
     core.result.Result Bool proto.codec.error.PacketCodecError × U8 × ChunkState × List U8 × List U8 :=

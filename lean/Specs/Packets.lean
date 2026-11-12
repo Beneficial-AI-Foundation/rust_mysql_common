@@ -65,7 +65,7 @@ import Proofs.Packets.ComStmtExecuteRequest
       with `COM_STMT_SEND_LONG_DATA`); their type and NULL bits are still sent. With no parameters
       the builder's length is 11 for a 10-byte packet (only affects `as_long_data`, irrelevantly).
     * `comStmtExecute` is the protocol's packet only when `CLIENT_QUERY_ATTRIBUTES` was not
-      negotiated (with it, the server expects a `parameter_count` field and the crate's packet is
+      negotiated or there are no parameters (with it, the server expects a `parameter_count` field and the crate's packet is
       misread); the crate does not look at the capabilities here.
     * `NullBitmap::is_null`/`set` panic (`assert!`) on a column index past the bitmap; `read`
       panics on a short input.
