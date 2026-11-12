@@ -1,5 +1,7 @@
 import Defs
 import Proofs.Util.ParseBuf
+import Proofs.Io.ParseBuf
+import Proofs.Misc.Raw.ParseBuf
 
 /-! Helper lemmas for the proofs of `Proofs/Misc/Raw/Bytes/*` and `Proofs/Misc/Raw/Seq/*`. -/
 
@@ -34,6 +36,10 @@ theorem lt_two_pow_64_of_le_max {n : Nat} (h : n ≤ Usize.max) : n < 2 ^ 64 := 
     apply Nat.pow_le_pow_right (by omega)
     rcases System.Platform.numBits_eq with h | h <;> simp [h]
   omega
+
+theorem spec_bind_ok {α β : Type} {a : α} {k : α → Result β} {P : β → Prop} (h : k a ⦃ P ⦄) :
+    (Std.bind (ok a) k) ⦃ P ⦄ :=
+  WP.spec_bind ((WP.spec_ok _).mpr rfl) (fun x hx => hx ▸ h)
 
 /-! ## Small std/crate functions -/
 
@@ -252,5 +258,141 @@ theorem put_u64_le_spec (buf : alloc.vec.Vec U8) (x : U64) (h : buf.length + 8 �
   step*
   simp_all
   exact toLEBytes_u64 x
+
+/-! ## `parse_items` -/
+
+theorem parse_items_loop_unfold {T : Type} (de : proto.MyDeserialize T Unit)
+    (it : core.ops.range.Range Usize) (buf : io.ParseBuf) (seq : alloc.vec.Vec T) :
+    misc.raw.seq.parse_items_loop de it buf seq =
+      (do
+        let r ← misc.raw.seq.parse_items_loop.body de it buf seq
+        match r with
+        | .cont (a, b, c) => misc.raw.seq.parse_items_loop de a b c
+        | .done x => ok x) := by
+  conv_lhs => unfold misc.raw.seq.parse_items_loop; rw [loop]
+  congr 1
+  funext r
+  rcases r with ⟨a, b, c⟩ | x <;> rfl
+
+theorem parse_items_loop_roundtrip {T : Type} (de : proto.MyDeserialize T Unit) (enc : T → List U8)
+    (xs : List T)
+    (hde : ∀ x ∈ xs, ∀ (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
+      io.ParseBuf.parse de b () ⦃ r rest => okPart r = some x ∧ rest.val = tail ⦄)
+    (it : core.ops.range.Range Usize) (buf : io.ParseBuf) (seq : alloc.vec.Vec T) (tail : List U8)
+    (hlen : it.end.val = it.start.val + xs.length) (hcap : seq.length + xs.length ≤ Usize.max)
+    (hbuf : buf.val = xs.flatMap enc ++ tail) :
+    misc.raw.seq.parse_items_loop de it buf seq ⦃ r rest =>
+      (okPart r).map cowList = some (seq.val ++ xs) ∧ rest.val = tail ⦄ := by
+  induction xs generalizing it buf seq with
+  | nil =>
+    rw [parse_items_loop_unfold]
+    unfold misc.raw.seq.parse_items_loop.body
+    simp only [List.length_nil, Nat.add_zero] at hlen
+    step as ⟨ p, ho, he ⟩
+    obtain ⟨o, it1⟩ := p
+    simp only at ho he ⊢
+    rw [if_neg (by omega)] at ho
+    obtain ⟨ho1, ho2⟩ := ho
+    subst ho1
+    simp_all [okPart, cowList]
+  | cons x xs ih =>
+    rw [parse_items_loop_unfold]
+    unfold misc.raw.seq.parse_items_loop.body
+    simp only [List.length_cons] at hlen
+    step as ⟨ p, ho, he ⟩
+    obtain ⟨o, it1⟩ := p
+    simp only at ho he ⊢
+    rw [if_pos (by omega)] at ho
+    obtain ⟨ho1, ho2⟩ := ho
+    subst ho1
+    step with hde x (by simp) (xs.flatMap enc ++ tail) buf (by simp [hbuf]) as ⟨ p, hr1, hr2 ⟩
+    obtain ⟨r, buf1⟩ := p
+    simp only at hr1 hr2 ⊢
+    cases r with
+    | Err e => simp [okPart] at hr1
+    | Ok v =>
+      simp [okPart] at hr1
+      subst hr1
+      simp only [core.result.Result.Insts.CoreOpsTry.branch]
+      step with alloc.vec.Vec.push_spec seq v (by simp at hcap; scalar_tac) as ⟨ seq1, hseq1 ⟩
+      have := ih (fun y hy => hde y (by simp [hy])) it1 buf1 seq1 (by rw [he, ho2]; omega)
+        (by simp [hseq1] at *; scalar_tac) hr2
+      apply WP.spec_mono this
+      intro p hp
+      simpa [hseq1] using hp
+
+theorem parse_items_roundtrip {T : Type} (cl : core.clone.Clone T) (de : proto.MyDeserialize T Unit)
+    (enc : T → List U8) (xs : List T)
+    (hde : ∀ x ∈ xs, ∀ (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
+      io.ParseBuf.parse de b () ⦃ r rest => okPart r = some x ∧ rest.val = tail ⦄)
+    (len : Usize) (hlen : len.val = xs.length) (buf : io.ParseBuf) (tail : List U8)
+    (hbuf : buf.val = xs.flatMap enc ++ tail) :
+    misc.raw.seq.parse_items cl de len buf (alloc.vec.Vec.with_capacity T len) ⦃ r rest =>
+      (okPart r).map cowList = some xs ∧ rest.val = tail ⦄ := by
+  unfold misc.raw.seq.parse_items
+  step with parse_items_loop_roundtrip de enc xs hde { start := 0#usize, «end» := len } buf
+    (alloc.vec.Vec.with_capacity T len) tail (by simp [hlen])
+    (by simp [alloc.vec.Vec.with_capacity]; scalar_tac) hbuf as ⟨ r, rest, h1, h2 ⟩
+  simpa [alloc.vec.Vec.with_capacity] using And.intro h1 h2
+
+theorem parse_items_loop_no_panic {T : Type} (de : proto.MyDeserialize T Unit)
+    (hde : ∀ b : io.ParseBuf, io.ParseBuf.parse de b () ⦃ _ => True ⦄)
+    (it : core.ops.range.Range Usize) (buf : io.ParseBuf) (seq : alloc.vec.Vec T)
+    (hcap : seq.length + (it.end.val - it.start.val) ≤ Usize.max) :
+    misc.raw.seq.parse_items_loop de it buf seq ⦃ _ => True ⦄ := by
+  unfold misc.raw.seq.parse_items_loop
+  apply loop.spec_decr_nat (fun p => p.1.end.val - p.1.start.val)
+    (fun p => p.2.2.length + (p.1.end.val - p.1.start.val) ≤ Usize.max)
+  · rintro ⟨it, b, sq⟩ hinv
+    simp only at hinv
+    unfold misc.raw.seq.parse_items_loop.body
+    step as ⟨ o, it1, ho, he ⟩
+    split at ho
+    · obtain ⟨ho1, ho2⟩ := ho
+      subst ho1
+      simp only
+      have hp := hde b
+      obtain ⟨⟨r, b1⟩, hrv, -⟩ := PBUtil.spec_eq_ok hp
+      rw [hrv]; simp only [bind_ok]
+      cases r with
+      | Err e =>
+        simp [core.result.Result.Insts.CoreOpsTry.branch,
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+      | Ok v =>
+        simp only [core.result.Result.Insts.CoreOpsTry.branch]
+        step with alloc.vec.Vec.push_spec sq v (by scalar_tac) as ⟨ sq1, hsq1 ⟩
+        refine ⟨?_, ?_⟩
+        · simp [hsq1, he, ho2] at *; scalar_tac
+        · rw [he, ho2]; omega
+    · obtain ⟨ho1, ho2⟩ := ho
+      subst ho1
+      simp
+  · exact hcap
+
+theorem parse_items_no_panic {T : Type} (cl : core.clone.Clone T) (de : proto.MyDeserialize T Unit)
+    (hde : ∀ b : io.ParseBuf, io.ParseBuf.parse de b () ⦃ _ => True ⦄) (len : Usize) (buf : io.ParseBuf) :
+    misc.raw.seq.parse_items cl de len buf (alloc.vec.Vec.with_capacity T len) ⦃ _ => True ⦄ := by
+  unfold misc.raw.seq.parse_items
+  step with parse_items_loop_no_panic de hde { start := 0#usize, «end» := len } buf
+    (alloc.vec.Vec.with_capacity T len) (by simp [alloc.vec.Vec.with_capacity]; scalar_tac)
+
+theorem length_flatMap_const {T : Type} (enc : T → List U8) (xs : List T) (c : Nat)
+    (h : ∀ x ∈ xs, (enc x).length = c) : (xs.flatMap enc).length = c * xs.length := by
+  induction xs with
+  | nil => simp
+  | cons x xs ih =>
+    simp only [List.flatMap_cons, List.length_append, List.length_cons]
+    rw [h x (by simp), ih (fun y hy => h y (by simp [hy]))]
+    ring
+
+/-- Parsing a `ParseBuf` of `n` bytes (as in `SeqRepr::deserialize` for fixed-size items). -/
+theorem parse_parsebuf_spec (buf : io.ParseBuf) (n : Usize) :
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize buf n ⦃ r rest =>
+      if n.val ≤ buf.length then
+        (okPart r).map (·.val) = some (buf.val.take n.val) ∧ rest.val = buf.val.drop n.val
+      else okPart r = none ∧ rest = buf ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
+    simp [io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE])]
+  exact io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize_spec n buf
 
 end mysql_common
