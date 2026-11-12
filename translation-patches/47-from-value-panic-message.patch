@@ -3,6 +3,7 @@ Translation patch: `FromValue::from_value`
 Change: `panic!("Could not retrieve `{}`: {e}", type_name::<Self>())` becomes `panic!("Could not retrieve a value of the requested type")` (and the `type_name` import is dropped).
 Why: Formatting `{e}` uses thiserror's `Display for FromValueError`, hence `Debug for Value`, which reaches `str::pattern` (Aeneas: "Unimplemented"); formatting is out of scope.
 Behaviour: Identical except for the text of the panic message: it panics in exactly the same cases.
+Note (found in review): upstream, formatting `{e}` runs `Debug for Value`, which itself overflows (`d * 24`, src/value/mod.rs) for `Value::Time` with days >= 178956971, turning the panic into a double panic / process abort in debug builds; the patched copy panics normally there. Both are failures in the model.
 
 diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
 index 9d4c7d5..11997e0 100644

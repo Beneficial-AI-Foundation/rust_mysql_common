@@ -3,6 +3,7 @@ Translation patch: `value::json::serde_integration`: serde_json calls for `serde
 Change: `serde_json::from_slice::<Json>(bytes)` becomes `trusted::json_from_slice(bytes)` (an `Option`), and `serde_json::to_string(&x).unwrap().into()` becomes `trusted::string_into_bytes(trusted::json_to_string(&x).unwrap())`.
 Why: serde_json is not translated (see patch 40).
 Behaviour: Identical: only `Ok`/`Err` of `from_slice` was observed; `Option::unwrap` panics exactly where `Result::unwrap` did; `From<String> for Vec<u8>` is `into_bytes`.
+Panic message (found in review): `json_to_string(..).unwrap()` is an `Option::unwrap` where upstream used `Result::unwrap`: same panic condition, different message.
 
 diff --git a/src/value/json/serde_integration.rs b/src/value/json/serde_integration.rs
 index 46fda8b..ebda045 100644

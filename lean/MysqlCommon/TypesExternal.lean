@@ -59,6 +59,9 @@ structure bitflags.traits.Flag (B : Type _) where
 structure core.time.Duration where
   secs : Std.U64
   nanos : Std.U32
+  /-- std's invariant (`Duration` only exists with `nanos < 10^9`); without it Lean would admit
+      Durations Rust cannot build. -/
+  nanos_lt : nanos.val < 1000000000
 
 /-! ## Opaque types of the value-conversion dependencies
 

@@ -264,12 +264,16 @@ def value.convert.trusted.u128_to_string (x : Std.U128) : Result String := ok (t
     `checked_add(..).expect(..)`, keeps `nanos % 10^9`). -/
 def value.convert.trusted.duration_new (secs : Std.U64) (nanos : Std.U32) :
     Result core.time.Duration :=
-  if nanos.val < 1000000000 then ok ⟨secs, nanos⟩
+  if h : nanos.val < 1000000000 then ok ⟨secs, nanos, h⟩
   else
-    match UScalar.tryMkOpt .U64 (secs.val + nanos.val / 1000000000),
-          UScalar.tryMkOpt .U32 (nanos.val % 1000000000) with
-    | some s, some n => ok ⟨s, n⟩
-    | _, _ => fail .panic
+    match UScalar.tryMkOpt .U64 (secs.val + nanos.val / 1000000000) with
+    | some s =>
+      have hb : UScalar.inBounds .U32 (nanos.val % 1000000000) := by
+        simp only [UScalar.inBounds, UScalarTy.numBits]; omega
+      have hv : (UScalar.ofNatCore (ty := .U32) (nanos.val % 1000000000) hb).val < 1000000000 := by
+        rw [UScalar.ofNatCore_val_eq]; omega
+      ok ⟨s, UScalar.ofNatCore (nanos.val % 1000000000) hb, hv⟩
+    | none => fail .panic
 
 /-- `Duration::as_secs`: exact. -/
 def value.convert.trusted.duration_as_secs (x : core.time.Duration) : Result Std.U64 := ok x.secs
@@ -538,12 +542,13 @@ axiom Date.ofCalendarDate_some (y : Std.I32) (m : time.month.Month) (d : Std.U8)
     (x : time.date.Date) :
   Date.ofCalendarDate y m d = some x → Date.year x = y ∧ Date.month x = m ∧ Date.day x = d
 
-/-- `Time::from_hms_micro(h, m, s, us).ok()`. It computes `us * 1000` in `u32` unchecked, which
-    panics (debug builds) or wraps (release builds) for `us > 4_294_967`: only smaller `us` are
-    specified. -/
+/-- `Time::from_hms_micro(h, m, s, us).ok()`. time 0.3.55 checks `hour`, `minute`, `second`
+    and then `us * 1000` with `checked_mul` (`ensure_ranged!`, internal_macros.rs:152), so it never
+    panics: it is `Ok` iff `h < 24`, `m < 60`, `s < 60` and `us * 1000 < 10^9`, i.e. `us < 10^6`
+    (an overflowing multiply also gives `Err`). -/
 axiom timeFromHmsMicro :
   Std.U8 → Std.U8 → Std.U8 → Std.U32 → Result (Option time.time.Time)
-axiom timeFromHmsMicro_spec (h m s : Std.U8) (us : Std.U32) (hus : us.val ≤ 4294967) :
+axiom timeFromHmsMicro_spec (h m s : Std.U8) (us : Std.U32) :
   ∃ r, timeFromHmsMicro h m s us = ok r ∧
     (r.isSome ↔ (h.val < 24 ∧ m.val < 60 ∧ s.val < 60 ∧ us.val < 1000000)) ∧
     ∀ x, r = some x →
