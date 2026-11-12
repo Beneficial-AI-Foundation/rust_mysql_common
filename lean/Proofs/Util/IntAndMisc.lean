@@ -14,10 +14,7 @@ namespace IntAndMisc
 
 theorem spec_bind_inv {α β : Type} {m : Result α} {k : α → Result β} {P : Post β}
     (h : spec (Std.bind m k) P) : spec m (fun x => spec (k x) P) := by
-  cases m
-  · simp_all
-  · simp_all
-  · simp_all
+  cases m <;> simp_all
 
 theorem leBytes_bv' (k : Nat) : ∀ (w : Nat) (_ : w = 8 * k) (b : BitVec w),
     b.toLEBytes.map (@UScalar.mk UScalarTy.U8) = leBytes k b.toNat := by
@@ -112,7 +109,7 @@ theorem put_i8_spec (buf : alloc.vec.Vec U8) (x : I8) (h : buf.length + 1 ≤ Us
     alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_i8 buf x ⦃ b' => b'.val = buf.val ++ leBytesI 1 x.val ⦄ := by
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_i8
   step*
-  simp [b'_post, s_post, i_post, leBytesI, leBytes, IScalar.hcast, byte]
+  simp [*, leBytesI, leBytes, IScalar.hcast, byte]
   apply BitVec.eq_of_toNat_eq
   rw [ival_bv]; simp; omega
 
@@ -210,8 +207,7 @@ theorem put_uint_le_spec (buf : alloc.vec.Vec U8) (x : U64) (k : Usize) (hk : k.
     alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_uint_le buf x k ⦃ b' => b'.val = buf.val ++ leBytes k.val x.val ⦄ := by
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_uint_le
   step*
-  rw [b'_post, s_post]
-  simp [List.slice, slice_post, leBytes_bv 8 rfl, take_leBytes _ _ _ hk]
+  simp [*, List.slice, leBytes_bv 8 rfl, take_leBytes _ _ _ hk]
 
 @[step]
 theorem put_int_le_spec (buf : alloc.vec.Vec U8) (x : I64) (k : Usize) (hk : k.val ≤ 8)
@@ -219,8 +215,7 @@ theorem put_int_le_spec (buf : alloc.vec.Vec U8) (x : I64) (k : Usize) (hk : k.v
     alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_int_le buf x k ⦃ b' => b'.val = buf.val ++ leBytesI k.val x.val ⦄ := by
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_int_le
   step*
-  rw [b'_post, s_post, ← leBytes_int64 _ hk]
-  simp [List.slice, slice_post, leBytes_bv 8 rfl, take_leBytes _ _ _ hk, ival_bv]
+  simp [*, ← leBytes_int64 _ hk, List.slice, leBytes_bv 8 rfl, take_leBytes _ _ _ hk, ival_bv]
 
 /-! ## JSONB varlen -/
 
@@ -493,11 +488,6 @@ theorem const_new_spec {T : Type} (U : Type) (t : T) :
   unfold misc.raw._const.Const.new
   exact (spec_ok _).2 rfl
 
-theorem rawint_new_bind {T P β : Type} (inst : misc.raw.int.IntRepr T P) (x : P)
-    (f : misc.raw.int.RawInt T P → Result β) :
-    Std.bind (misc.raw.int.RawInt.new inst x) f = f (x, ()) :=
-  Std.bind_ok (α := misc.raw.int.RawInt T P) (x, ()) f
-
 theorem rawint_deserialize_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
     (buf : io.ParseBuf) (Q : Option P → io.ParseBuf → Prop)
     (h : inst.deserialize buf ⦃ r rest => Q (okPart r) rest ⦄) :
@@ -506,7 +496,7 @@ theorem rawint_deserialize_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
   step with h as ⟨ r, rest, hq ⟩
   cases r
   · step*
-    subst ri_post
+    subst_vars
     exact hq
   · step*
     simpa [okPart] using hq
