@@ -190,8 +190,8 @@ theorem skip_serialize {LEN : Usize} (self : misc.raw.Skip LEN) (buf : alloc.vec
 theorem and_two_pow (n k : Nat) : n &&& 2 ^ k = if n.testBit k then 2 ^ k else 0 := by
   apply Nat.eq_of_testBit_eq; intro j
   by_cases hj : k = j
-  · subst hj; split <;> simp_all [Nat.testBit_two_pow]
-  · split <;> simp [Nat.testBit_two_pow, hj]
+  · subst hj; split <;> simp_all
+  · split <;> simp [hj]
 
 theorem or_two_pow_testBit (n k j : Nat) : (n ||| 2 ^ k).testBit j = (n.testBit j || decide (k = j)) := by
   simp [Nat.testBit_two_pow]
@@ -224,5 +224,49 @@ theorem put_slice_ok (v : alloc.vec.Vec U8) (s : Slice U8) (h : v.length + s.len
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice alloc.vec.Vec.extend_from_slice
   simp only [h, _root_.dite_true]
   step*
+
+/-! ## Byte strings equal bit by bit -/
+
+theorem u8_eq_of_testBit (x y : U8) (h : ∀ k < 8, x.val.testBit k = y.val.testBit k) : x = y := by
+  rw [← byte_eq_self x, ← byte_eq_self y]
+  congr 1
+  apply Nat.eq_of_testBit_eq
+  intro k
+  by_cases hk : k < 8
+  · exact h k hk
+  · have hx8 : x.val < 2 ^ 8 := by have := x.hBounds; simpa using this
+    have hy8 : y.val < 2 ^ 8 := by have := y.hBounds; simpa using this
+    have h8 : 2 ^ 8 ≤ 2 ^ k := Nat.pow_le_pow_right (by decide) (by omega)
+    have hx : x.val < 2 ^ k := lt_of_lt_of_le hx8 h8
+    have hy : y.val < 2 ^ k := lt_of_lt_of_le hy8 h8
+    rw [Nat.testBit_lt_two_pow hx, Nat.testBit_lt_two_pow hy]
+
+theorem bytes_ext_bits (l1 l2 : List U8) (hl : l1.length = l2.length)
+    (h : ∀ pos, bitAt l1 pos = bitAt l2 pos) : l1 = l2 := by
+  apply List.ext_getElem hl
+  intro j h1 h2
+  apply u8_eq_of_testBit
+  intro k hk
+  have := h (8 * j + k)
+  rw [bitAt_of_lt _ _ (by omega), bitAt_of_lt _ _ (by omega)] at this
+  have e1 : (8 * j + k) / 8 = j := by omega
+  have e2 : (8 * j + k) % 8 = k := by omega
+  simp only [e1, e2] at this
+  exact this
+
+theorem getD_take_succ {α : Type} (l : List α) (k pos : Nat) (d : α) (hk : k < l.length) :
+    (l.take (k + 1)).getD pos d = if pos = k then l[k] else (l.take k).getD pos d := by
+  rcases lt_trichotomy pos k with h | h | h
+  · simp [List.getD_eq_getElem?_getD, h, show pos < k + 1 by omega, show pos ≠ k by omega]
+  · subst h; simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk]
+  · simp [List.getD_eq_getElem?_getD, show ¬ pos < k + 1 by omega, show pos ≠ k by omega,
+      show ¬ pos < k by omega]
+
+theorem lenencInt_ne_nil (n : Nat) : lenencInt n ≠ [] := by
+  unfold lenencInt; split_ifs <;> simp
+
+theorem binEnc_eq_nil_iff (v : Val) : binEnc v = [] ↔ isNullVal v = true := by
+  cases v <;> simp [binEnc, isNullVal, lenencStr, lenencInt_ne_nil, leBytesI, leBytes]
+  all_goals (split_ifs <;> simp)
 
 end mysql_common.PCSUtil
