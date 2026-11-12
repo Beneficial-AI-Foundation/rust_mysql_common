@@ -185,4 +185,35 @@ theorem skip_serialize {LEN : Usize} (self : misc.raw.Skip LEN) (buf : alloc.vec
     misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ List.replicate LEN.val (byte 0) ⦄ :=
   misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec self buf h
 
+/-! ## Bits -/
+
+theorem and_two_pow (n k : Nat) : n &&& 2 ^ k = if n.testBit k then 2 ^ k else 0 := by
+  apply Nat.eq_of_testBit_eq; intro j
+  by_cases hj : k = j
+  · subst hj; split <;> simp_all [Nat.testBit_two_pow]
+  · split <;> simp [Nat.testBit_two_pow, hj]
+
+theorem or_two_pow_testBit (n k j : Nat) : (n ||| 2 ^ k).testBit j = (n.testBit j || decide (k = j)) := by
+  simp [Nat.testBit_two_pow]
+
+theorem u8_not_testBit (y : U8) (j : Nat) (hj : j < 8) : (~~~y).val.testBit j = !(y.val.testBit j) := by
+  show (~~~y.bv).toNat.testBit j = !(y.bv.toNat.testBit j)
+  rw [BitVec.testBit_toNat, BitVec.testBit_toNat, BitVec.getLsbD_not]; simp [hj]
+
+theorem bitAt_set (l : List U8) (k : Nat) (y : U8) (pos : Nat) (hk : k < l.length) :
+    bitAt (l.set k y) pos = if pos / 8 = k then y.val.testBit (pos % 8) else bitAt l pos := by
+  unfold bitAt
+  split_ifs with h
+  · subst h; simp [List.getD_eq_getElem?_getD, hk]
+  · simp [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm h)]
+
+theorem bitAt_of_lt (l : List U8) (pos : Nat) (h : pos / 8 < l.length) :
+    bitAt l pos = (l[pos / 8]'h).val.testBit (pos % 8) := by
+  simp [bitAt, List.getD_eq_getElem?_getD, h]
+
+theorem pos_eq_iff (pos n : Nat) : pos = n ↔ (pos / 8 = n / 8 ∧ pos % 8 = n % 8) := by
+  constructor
+  · rintro rfl; exact ⟨rfl, rfl⟩
+  · rintro ⟨h1, h2⟩; omega
+
 end mysql_common.PCSUtil
