@@ -13,6 +13,7 @@ Behaviour: Identical for every instantiation the crate makes (`BytesMut`, and th
   - `(*dst).as_ref()` is the body of `AsRef for &mut T`.
   - The local `NonZeroUsize` has the semantics of `new`/`get`.
 The `VecBuf` methods have the semantics of the `BytesMut` ones on its bytes: `advance(cnt)` drops the first `cnt` bytes and panics if `cnt > len` (as `BytesMut` does, with another message), `put_slice` appends, and `reserve` only changes the capacity (a no-op in the model). The compressed codec is unchanged: it still uses `bytes` and `flate2` directly. The public signatures of these four functions, of `ChunkDecoder::Chunk::needed` and of `CompData` change to the crate-local traits and types. Callers outside the crate are not covered.
+Model limitation (found in review): `VecBuf::reserve` never fails, whereas `BytesMut::reserve` panics on capacity overflow (`len + additional` beyond `usize`/`isize::MAX`); this resource limit is unreachable in practice and is outside what the specs claim. `PlainPacketCodec::{decode, encode}` are private; the public signature changes are to `packet_to_chunks`, `ChunkDecoder::decode`, `ChunkDecoder::Chunk::needed` and `CompData`.
 
 diff --git a/src/proto/codec/buf_model.rs b/src/proto/codec/buf_model.rs
 new file mode 100644
