@@ -13,11 +13,11 @@ namespace Defs
 
 /-- Little-endian bytes read back as the number mod `2^(8k)`. -/
 theorem leNat_leBytes (k n : Nat) : leNat (leBytes k n) = n % 2 ^ (8 * k) := by
-  exact IntAndMisc.leNat_leBytes' k n
+  exact PBUtil.leNat_leBytes k n
 
 /-- `leBytes k n` has `k` bytes. -/
 theorem length_leBytes (k n : Nat) : (leBytes k n).length = k := by
-  exact IntAndMisc.length_leBytes' k n
+  exact PBUtil.length_leBytes k n
 
 /-- Two's complement read back: `toSigned` inverts `leBytesI` on the representable range. -/
 theorem toSigned_leNat_leBytesI (k : Nat) (x : Int) (hk : 0 < k)
@@ -216,7 +216,7 @@ theorem binRead_binEnc (v : mysql_common.value.Value) (ct : mysql_common.constan
     · simp [dateRead, leBytes, PBUtil.byte_val, h3, Nat.mod_eq_of_lt hmo, Nat.mod_eq_of_lt hd, Nat.mod_eq_of_lt hh,
         Nat.mod_eq_of_lt hmi, Nat.mod_eq_of_lt hs, hyy]
     · have hl4 : leNat [byte us.val, byte (us.val / 256), byte (us.val / 256 / 256), byte (us.val / 256 / 256 / 256)] = us.val := by
-        have := IntAndMisc.leNat_leBytes' 4 us.val
+        have := PBUtil.leNat_leBytes 4 us.val
         simp only [leBytes] at this; rw [this]; exact Nat.mod_eq_of_lt (by simpa using hus)
       simp [dateRead, leBytes, PBUtil.byte_val, Nat.mod_eq_of_lt hmo, Nat.mod_eq_of_lt hd, Nat.mod_eq_of_lt hh,
         Nat.mod_eq_of_lt hmi, Nat.mod_eq_of_lt hs, hyy, hl4]
@@ -234,7 +234,7 @@ theorem binRead_binEnc (v : mysql_common.value.Value) (ct : mysql_common.constan
       unfold binNorm; split <;> first | rfl | simp_all
     have h4 : ∀ x : Nat, x < 2 ^ 32 → leNat [byte x, byte (x / 256), byte (x / 256 / 256), byte (x / 256 / 256 / 256)] = x := by
       intro x hx
-      have := IntAndMisc.leNat_leBytes' 4 x
+      have := PBUtil.leNat_leBytes 4 x
       simp only [leBytes] at this; rw [this]; exact Nat.mod_eq_of_lt (by simpa using hx)
     have hr : binRead constants.ColumnType.MYSQL_TYPE_TIME u = timeRead := by
       funext bs; simp [binRead, isLenencStrType]

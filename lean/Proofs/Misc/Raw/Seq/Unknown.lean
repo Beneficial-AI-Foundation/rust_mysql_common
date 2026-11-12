@@ -24,9 +24,8 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
     simp only at hs hb1 hb2
     unfold misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize_loop.body
     simp only [core.slice.iter.IteratorSliceIter.next]
-    split
-    · rename_i hlt
-      have hlt' : jt.i < jt.slice.val.length := by have := hlt; scalar_tac
+    split_ifs with hlt
+    · have hlt' : jt.i < jt.slice.val.length := by have := hlt; scalar_tac
       have hd : jt.slice.val.drop jt.i = jt.slice.val[jt.i] :: jt.slice.val.drop (jt.i + 1) :=
         List.drop_eq_getElem_cons hlt'
       rw [hd] at hb1 hb2
@@ -38,9 +37,8 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
       · rw [hb, ← hb2]; simp
       · have : jt.slice.length = jt.slice.val.length := rfl
         omega
-    · rename_i hge
-      have hge' : jt.slice.val.length ≤ jt.i := by have := hge; scalar_tac
-      rw [← hb2, List.drop_of_length_le hge']
+    · have hlt' : jt.slice.val.length ≤ jt.i := by have := hlt; scalar_tac
+      rw [← hb2, List.drop_of_length_le hlt']
       simp
   · exact ⟨rfl, h, rfl⟩
 

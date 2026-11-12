@@ -38,7 +38,7 @@ theorem ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize_spec {LEN : Usiz
   unfold ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize
   simp only [core.array.Array.index, core.ops.index.IndexSlice, core.slice.index.Slice.index,
     core.slice.index.SliceIndexRangeFullSlice, core.slice.index.SliceIndexRangeFullSlice.index]
-  step with put_slice_spec buf self.to_slice (by simpa using h) as ⟨ v, hv ⟩
+  step with IntAndMisc.put_slice_spec buf self.to_slice (by simpa using h) as ⟨ v, hv ⟩
   simp [hv]
 
 end mysql_common

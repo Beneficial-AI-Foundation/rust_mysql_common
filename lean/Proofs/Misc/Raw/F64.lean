@@ -35,7 +35,7 @@ theorem F64.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : F64) (buf 
     F64.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ leBytes 8 self.bits.val ⦄ := by
   unfold F64.Insts.Mysql_commonProtoMySerialize.serialize alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_f64_le
   simp only [core.f64.F64.to_bits]
-  step with put_u64_le_spec buf self.bits h as ⟨ v, hv ⟩
+  step with IntAndMisc.put_u64_le_spec buf self.bits h as ⟨ v, hv ⟩
   exact hv
 
 end mysql_common

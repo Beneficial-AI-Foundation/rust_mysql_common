@@ -14,16 +14,7 @@ namespace IntAndMisc
 
 theorem spec_bind_inv {α β : Type} {m : Result α} {k : α → Result β} {P : Post β}
     (h : spec (Std.bind m k) P) : spec m (fun x => spec (k x) P) := by
-  cases m
-  · simp_all
-  · simp_all
-  · simp_all
-
-/-- A failing first step makes the whole computation fail. -/
-theorem not_spec_bind {α β : Type} {m : Result α} {k : α → Result β} {P : Post β}
-    (h : ¬ spec m (fun _ => True)) : ¬ spec (Std.bind m k) P := by
-  intro h'
-  exact h (spec_mono (spec_bind_inv h') (fun _ _ => trivial))
+  cases m <;> simp_all
 
 theorem leBytes_bv' (k : Nat) : ∀ (w : Nat) (_ : w = 8 * k) (b : BitVec w),
     b.toLEBytes.map (@UScalar.mk UScalarTy.U8) = leBytes k b.toNat := by
@@ -118,11 +109,13 @@ theorem put_i8_spec (buf : alloc.vec.Vec U8) (x : I8) (h : buf.length + 1 ≤ Us
     alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_i8 buf x ⦃ b' => b'.val = buf.val ++ leBytesI 1 x.val ⦄ := by
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_i8
   step*
-  simp [b'_post, s_post, i_post, leBytesI, leBytes, IScalar.hcast, byte]
+  simp [*, leBytesI, leBytes, IScalar.hcast, byte]
   apply BitVec.eq_of_toNat_eq
   rw [ival_bv]; simp; omega
 
 /-! ## Byte lists -/
+
+attribute [simp] PBUtil.length_leBytes
 
 theorem take_leBytes (k : Nat) : ∀ (m n : Nat), k ≤ m → (leBytes m n).take k = leBytes k n := by
   induction k with
@@ -132,23 +125,6 @@ theorem take_leBytes (k : Nat) : ∀ (m n : Nat), k ≤ m → (leBytes m n).take
     obtain ⟨m', rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
     simp [leBytes, ih m' (n / 256) (by omega)]
 
-
-theorem leNat_leBytes' (k : Nat) : ∀ n : Nat, leNat (leBytes k n) = n % 2 ^ (8 * k) := by
-  induction k with
-  | zero => intro n; simp [leBytes, leNat, Nat.mod_one]
-  | succ k ih =>
-    intro n
-    simp only [leBytes, leNat, ih, byte]
-    simp only [UScalar.val]
-    rw [show 8 * (k + 1) = 8 + 8 * k by ring, Nat.pow_add, Nat.mod_mul]
-    norm_num
-    ring_nf
-    simp [BitVec.toNat_ofNat]
-
-@[simp] theorem length_leBytes' (k n : Nat) : (leBytes k n).length = k := by
-  induction k generalizing n with
-  | zero => rfl
-  | succ k ih => simp [leBytes, ih]
 
 @[simp] theorem length_leBytesI (k : Nat) (x : Int) : (leBytesI k x).length = k := by
   simp [leBytesI]
@@ -166,29 +142,15 @@ theorem leBytes_mod (k : Nat) : ∀ n : Nat, leBytes k (n % 2 ^ (8 * k)) = leByt
       rw [show 8 * (k + 1) = 8 + 8 * k by ring, Nat.pow_add, Nat.mod_mul_right_mod]
     · rw [show 8 * (k + 1) = 8 + 8 * k by ring, Nat.pow_add, Nat.mod_mul_right_div_self, ih]
 
-theorem leNat_lt : ∀ bs : List U8, leNat bs < 2 ^ (8 * bs.length)
-  | [] => by simp [leNat]
-  | b :: bs => by
-    have := leNat_lt bs
-    have hb := b.hBounds
-    simp only [leNat, List.length_cons]
-    rw [show 8 * (bs.length + 1) = 8 + 8 * bs.length by ring, Nat.pow_add]
-    simp only [UScalarTy.numBits] at hb
-    nlinarith
-
 theorem leBytes_take_drop (k n : Nat) (tail : List U8) :
     (leBytes k n ++ tail).take k = leBytes k n ∧ (leBytes k n ++ tail).drop k = tail := by
   constructor
   · rw [List.take_append_of_le_length (by simp)]; simp
   · rw [List.drop_append_of_le_length (by simp)]; simp
 
-theorem leBytesI_take_drop (k : Nat) (x : Int) (tail : List U8) :
-    (leBytesI k x ++ tail).take k = leBytesI k x ∧ (leBytesI k x ++ tail).drop k = tail :=
-  leBytes_take_drop k _ tail
-
 theorem leNat_leBytesI (k : Nat) (x : Int) : leNat (leBytesI k x) = (x % (2 ^ (8 * k) : Int)).toNat := by
   unfold leBytesI
-  rw [leNat_leBytes']
+  rw [PBUtil.leNat_leBytes]
   apply Nat.mod_eq_of_lt
   have h1 : (0 : Int) < 2 ^ (8 * k) := by positivity
   have h2 := Int.emod_lt_of_pos x h1
@@ -241,8 +203,7 @@ theorem put_uint_le_spec (buf : alloc.vec.Vec U8) (x : U64) (k : Usize) (hk : k.
     alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_uint_le buf x k ⦃ b' => b'.val = buf.val ++ leBytes k.val x.val ⦄ := by
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_uint_le
   step*
-  rw [b'_post, s_post]
-  simp [List.slice, slice_post, leBytes_bv 8 rfl, take_leBytes _ _ _ hk]
+  simp [*, List.slice, leBytes_bv 8 rfl, take_leBytes _ _ _ hk]
 
 @[step]
 theorem put_int_le_spec (buf : alloc.vec.Vec U8) (x : I64) (k : Usize) (hk : k.val ≤ 8)
@@ -250,13 +211,9 @@ theorem put_int_le_spec (buf : alloc.vec.Vec U8) (x : I64) (k : Usize) (hk : k.v
     alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_int_le buf x k ⦃ b' => b'.val = buf.val ++ leBytesI k.val x.val ⦄ := by
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_int_le
   step*
-  rw [b'_post, s_post, ← leBytes_int64 _ hk]
-  simp [List.slice, slice_post, leBytes_bv 8 rfl, take_leBytes _ _ _ hk, ival_bv]
+  simp [*, ← leBytes_int64 _ hk, List.slice, leBytes_bv 8 rfl, take_leBytes _ _ _ hk, ival_bv]
 
 /-! ## JSONB varlen -/
-
-theorem byte_val' (n : Nat) : (byte n).val = n % 256 := by
-  simp [byte, UScalar.val]
 
 theorem jsonbVarLen_lt (n : Nat) (h : n < 128) : jsonbVarLen n = [byte n] := by
   rw [jsonbVarLen]; simp [h]
@@ -276,14 +233,14 @@ theorem jsonbVarLen_props (n : Nat) : ∀ (k : Nat) (t : List U8), (jsonbVarLen 
     by_cases h : n < 128
     · rw [jsonbVarLen_lt n h] at hk ⊢
       obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by simp at hk; omega⟩
-      simp [base128, byte_val', Nat.mod_eq_of_lt (by omega : n < 256), Nat.mod_eq_of_lt h,
+      simp [base128, PBUtil.byte_val, Nat.mod_eq_of_lt (by omega : n < 256), Nat.mod_eq_of_lt h,
         List.findIdx?_cons, h]
     · rw [jsonbVarLen_ge n (by omega)] at hk ⊢
       obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by simp at hk; omega⟩
       simp only [List.length_cons] at hk
       obtain ⟨h1, h2, h3⟩ := ih (n / 128) (by omega) k' t (by omega)
       have hb : (byte (n % 128 + 128)).val = n % 128 + 128 := by
-        rw [byte_val']; omega
+        rw [PBUtil.byte_val]; omega
       refine ⟨?_, ?_, by simp⟩
       · simp only [base128, hb, h1]; omega
       · simp only [List.cons_append, List.take_succ_cons, List.findIdx?_cons, hb, h2]
@@ -351,9 +308,7 @@ theorem jsonbVarLenRead_some (bs : List U8) (i : Nat) (hi : i < 5) (hall : ∀ c
     jsonbVarLenRead bs =
       (if base128 (bs.take i) + 128 ^ i * (c.val % 128) < 2 ^ 32
         then some (base128 (bs.take i) + 128 ^ i * (c.val % 128)) else none, rest) := by
-  have hil : i < bs.length := by
-    have : (bs.drop i).length > 0 := by rw [hd]; simp
-    simp at this; omega
+  obtain ⟨ht, hdr, hil⟩ := take_succ_of_drop bs i c rest hd
   have hlen : (bs.take i).length = i := by simp; omega
   have hbs : bs = bs.take i ++ c :: rest := by rw [← hd, List.take_append_drop]
   unfold jsonbVarLenRead
@@ -367,12 +322,6 @@ theorem jsonbVarLenRead_some (bs : List U8) (i : Nat) (hi : i < 5) (hall : ∀ c
     intro x hx; have := hall x hx; simp; omega
   rw [h5, List.findIdx?_append, hn, List.findIdx?_cons]
   simp only [hc, decide_true, Option.none_or, ↓reduceIte, Option.map_some, zero_add, hlen]
-  have ht : bs.take (i + 1) = bs.take i ++ [c] := by
-    conv_lhs => rw [hbs]
-    rw [List.take_append, hlen, List.take_of_length_le (by omega)]
-    simp
-  have hdr : bs.drop (i + 1) = rest := by
-    rw [← List.drop_drop, hd]; simp
   rw [ht, hdr, base128_append, hlen]
 
 theorem varlen_or (c len i : Nat) (hi : i < 5) (hlen : len < 128 ^ i) :
@@ -415,7 +364,7 @@ theorem varlen_tb (n k i : Nat) (hk1 : 1 ≤ k) (hi : i < k) (hi8 : i < 8) :
 theorem varlen_trailingOnes (n k : Nat) (hk1 : 1 ≤ k) (hk : k ≤ 8) :
     trailingOnes (byte (n * 2 ^ k + (2 ^ (k - 1) - 1))) = k - 1 := by
   unfold trailingOnes
-  rw [byte_val']
+  rw [PBUtil.byte_val]
   have h := fun i => varlen_tb n k i hk1
   generalize (n * 2 ^ k + (2 ^ (k - 1) - 1)) % 256 = m at h
   obtain rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl : k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 ∨ k = 5 ∨ k = 6 ∨ k = 7 ∨ k = 8 := by omega
@@ -437,7 +386,7 @@ theorem varlenUintSize_spec (n : Nat) :
   split_ifs <;> norm_num <;> omega
 
 theorem trailingOnes_255 : trailingOnes (byte 0xFF) = 8 := by
-  unfold trailingOnes; rw [byte_val']
+  unfold trailingOnes; rw [PBUtil.byte_val]
   simp [List.range, List.range.loop, List.takeWhile]
   decide
 
@@ -466,7 +415,7 @@ theorem varlenUintDecode_varlenUint' (n : Nat) (t : List U8) (hn : n < 2 ^ 64) :
         rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right _ hn7
       omega
     generalize hM : n * 2 ^ (k' + 1) + (2 ^ k' - 1) = M at *
-    have hlen := length_leBytes' (k' + 1) M
+    have hlen := PBUtil.length_leBytes (k' + 1) M
     obtain ⟨ht, hd⟩ := leBytes_take_drop (k' + 1) M t
     have hcons : leBytes (k' + 1) M ++ t = byte M :: (leBytes k' (M / 256) ++ t) := rfl
     rw [hcons] at ht hd
@@ -475,7 +424,7 @@ theorem varlenUintDecode_varlenUint' (n : Nat) (t : List U8) (hn : n < 2 ^ 64) :
     rw [← hcons]
     simp only [List.length_append, hlen, Nat.le_add_right, ↓reduceIte]
     rw [← hcons] at ht hd
-    rw [ht, hd, leNat_leBytes', Nat.mod_eq_of_lt hm, ← hM]
+    rw [ht, hd, PBUtil.leNat_leBytes, Nat.mod_eq_of_lt hm, ← hM]
     congr 2
     rw [Nat.add_div_of_dvd_right (Dvd.intro_left _ rfl), Nat.mul_div_cancel _ (by positivity),
       Nat.div_eq_of_lt e2]
@@ -527,11 +476,6 @@ theorem const_new_spec {T : Type} (U : Type) (t : T) :
   unfold misc.raw._const.Const.new
   exact (spec_ok _).2 rfl
 
-theorem rawint_new_bind {T P β : Type} (inst : misc.raw.int.IntRepr T P) (x : P)
-    (f : misc.raw.int.RawInt T P → Result β) :
-    Std.bind (misc.raw.int.RawInt.new inst x) f = f (x, ()) :=
-  Std.bind_ok (α := misc.raw.int.RawInt T P) (x, ()) f
-
 theorem rawint_deserialize_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
     (buf : io.ParseBuf) (Q : Option P → io.ParseBuf → Prop)
     (h : inst.deserialize buf ⦃ r rest => Q (okPart r) rest ⦄) :
@@ -540,7 +484,7 @@ theorem rawint_deserialize_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
   step with h as ⟨ r, rest, hq ⟩
   cases r
   · step*
-    subst ri_post
+    subst_vars
     exact hq
   · step*
     simpa [okPart] using hq
@@ -567,6 +511,44 @@ theorem parse_rawint {T P : Type} (inst : misc.raw.int.IntRepr T P) (n : Usize)
     apply spec_mono this
     rintro ⟨r, rest⟩ h
     simpa [hl] using h
+
+/-- `parse::<RawInt<T>>` for a fixed-size `T` (`SIZE = Some n`) whose `deserialize` reads a value
+determined by the first `n` bytes: the shape of every `parse_rawint_spec` in `Misc/Raw/Int`. -/
+theorem parse_rawint_take {T P β : Type} (inst : misc.raw.int.IntRepr T P) (n : Usize) (k : Nat)
+    (hs : inst.SIZE = ok (some n)) (hk : n.val = k) (g : P → β) (F : List U8 → β)
+    (hd : ∀ sub : io.ParseBuf, k ≤ sub.length → inst.deserialize sub ⦃ r rest =>
+      (okPart r).map g = some (F (sub.val.take k)) ∧ rest.val = sub.val.drop k ⦄)
+    (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple inst) buf () ⦃ r rest =>
+      if k ≤ buf.length then
+        (okPart r).map (fun x => g x.1) = some (F (buf.val.take k)) ∧ rest.val = buf.val.drop k
+      else okPart r = none ∧ rest = buf ⦄ := by
+  subst hk
+  have := parse_rawint inst n hs buf (fun o => o.map g = some (F (buf.val.take n.val))) (by
+    intro sub hsub hl
+    apply spec_mono (hd sub (by simp [Slice.length, hsub]; omega))
+    rintro ⟨r, rest⟩ ⟨h1, _⟩
+    simpa [hsub, List.take_take] using h1)
+  apply spec_mono this
+  rintro ⟨r, rest⟩ h1
+  simpa [Option.map_map] using h1
+
+/-- Round trip for a fixed-size `RawInt<T>` from its `parse_rawint_spec` (`parse_rawint_take`): on
+`enc ++ tail` with `enc` of exactly `n` bytes, `parse` returns `y = F enc` and leaves `tail`. -/
+theorem rawint_roundtrip {T P β : Type} (inst : misc.raw.int.IntRepr T P) (n : Nat) (g : P → β)
+    (F : List U8 → β) (buf : io.ParseBuf)
+    (hp : io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple inst) buf () ⦃ r rest =>
+      if n ≤ buf.length then
+        (okPart r).map (fun x => g x.1) = some (F (buf.val.take n)) ∧ rest.val = buf.val.drop n
+      else okPart r = none ∧ rest = buf ⦄)
+    (enc tail : List U8) (hlen : enc.length = n) (h : buf.val = enc ++ tail) (y : β) (hy : F enc = y) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple inst) buf () ⦃ r rest =>
+      (okPart r).map (fun x => g x.1) = some y ∧ rest.val = tail ⦄ := by
+  apply spec_mono hp
+  rintro ⟨r, rest⟩ hr
+  have hl : n ≤ buf.length := by simp [Slice.length, h, hlen]
+  subst hlen hy
+  simpa [hl, h] using hr
 
 /-- `parse::<T>` for a fixed-size `T` (`SIZE = Some n`). -/
 theorem parse_fixed {T Ctx : Type} (inst : proto.MyDeserialize T Ctx) (n : Usize)

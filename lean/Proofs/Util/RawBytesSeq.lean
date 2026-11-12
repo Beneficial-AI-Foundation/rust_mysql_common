@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.ParseBuf
+import Proofs.Util.IntAndMisc
 import Proofs.Io.ParseBuf
 import Proofs.Misc.Raw.ParseBuf
 
@@ -15,12 +16,8 @@ namespace mysql_common
 
 /-- A computation whose bind satisfies a spec satisfies `True`: used for the `_panics` lemmas. -/
 theorem spec_of_bind {α β : Type} (m : Result α) (k : α → Result β) (P : β → Prop)
-    (h : (Std.bind m k) ⦃ P ⦄) : m ⦃ fun _ => True ⦄ := by
-  revert h
-  refine Result.cases (motive := fun m => (Std.bind m k) ⦃ P ⦄ → m ⦃ fun _ => True ⦄) m ?_ ?_ ?_
-  · intro r _; simp
-  · intro i k' h; simp at h
-  · intro h; simp at h
+    (h : (Std.bind m k) ⦃ P ⦄) : m ⦃ fun _ => True ⦄ :=
+  WP.spec_mono (IntAndMisc.spec_bind_inv h) (fun _ _ => trivial)
 
 /-! ## `usize` bounds -/
 
@@ -55,25 +52,6 @@ theorem cow_deref_spec {T : Type} (cl : core.clone.Clone T) (c : alloc.borrow.Co
   cases c <;> simp [alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref,
     cowList, alloc.vec.Vec.Insts.CoreBorrowBorrowSlice.borrow, alloc.vec.Vec.deref]
 
-@[step]
-theorem min_usize_spec (a b : Usize) : core.cmp.min core.cmp.OrdUsize a b ⦃ c => c.val = min a.val b.val ⦄ := by
-  simp [core.cmp.impls.OrdUsize.min]
-  split <;> omega
-
-@[step]
-theorem put_slice_spec (buf : alloc.vec.Vec U8) (s : Slice U8) (h : buf.length + s.length ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice buf s ⦃ v => v.val = buf.val ++ s.val ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice alloc.vec.Vec.extend_from_slice
-  simp [h]
-  step as ⟨ s', hs' ⟩
-  all_goals simp_all
-
-@[step]
-theorem put_u8_spec (buf : alloc.vec.Vec U8) (x : U8) (h : buf.length + 1 ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 buf x ⦃ v => v.val = buf.val ++ [x] ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8
-  step*
-
 /-! ## `beforeZero` -/
 
 @[simp] theorem beforeZero_nil : beforeZero [] = [] := rfl
@@ -93,12 +71,8 @@ theorem take_beforeZero_length (l : List U8) : l.take (beforeZero l).length = be
   | nil => simp
   | cons b l ih => by_cases hb : b.val = 0 <;> simp [beforeZero_cons, hb, ih]
 
-theorem beforeZero_eq_self (l : List U8) (h : ¬ ∃ b ∈ l, b.val = 0) : beforeZero l = l := by
-  induction l with
-  | nil => simp
-  | cons b l ih =>
-    simp only [List.mem_cons, exists_eq_or_imp, not_or] at h
-    simp [beforeZero_cons, h.1, ih h.2]
+theorem beforeZero_eq_self (l : List U8) (h : ¬ ∃ b ∈ l, b.val = 0) : beforeZero l = l :=
+  PBUtil.beforeZero_of_all l (by simpa using h)
 
 theorem beforeZero_length_lt (l : List U8) (h : ∃ b ∈ l, b.val = 0) :
     (beforeZero l).length < l.length := by
@@ -126,54 +100,18 @@ theorem beforeZero_append_zero (s t : List U8) (hs : ∀ b ∈ s, b.val ≠ 0) :
 
 /-! ## `position_of_zero` -/
 
-theorem beforeZero_length_of (l : List U8) (i : Nat) (hi : i < l.length)
-    (h1 : ∀ b ∈ l.take i, b.val ≠ 0) (h2 : (l[i]'hi).val = 0) :
-    (beforeZero l).length = i := by
-  induction l generalizing i with
-  | nil => simp at hi
-  | cons b l ih =>
-    cases i with
-    | zero => simp_all [beforeZero]
-    | succ i =>
-      simp only [List.take_succ_cons, List.mem_cons, forall_eq_or_imp] at h1
-      have := ih i (by simp at hi; omega) h1.2 h2
-      simp_all [beforeZero]
-
-theorem position_of_zero_loop_spec (s : Slice U8) (i : Usize) (hi : i.val ≤ s.length)
-    (h : ∀ b ∈ s.val.take i.val, b.val ≠ 0) :
-    io.position_of_zero_loop s i ⦃ o =>
-      if ∃ b ∈ s.val, b.val = 0 then o.map (·.val) = some (beforeZero s.val).length else o = none ⦄ := by
-  unfold io.position_of_zero_loop
-  apply loop.spec_decr_nat (fun i => s.length - i.val)
-    (fun i => i.val ≤ s.length ∧ ∀ b ∈ s.val.take i.val, b.val ≠ 0)
-  · intro i ⟨hi, h⟩
-    unfold io.position_of_zero_loop.body
-    step*
-    · have hlt : i.val < s.val.length := by scalar_tac
-      have hz : (s.val[i.val]'hlt).val = 0 := by subst i2_post; simp_all
-      split
-      · simp [beforeZero_length_of s.val i.val hlt h hz]
-      · rename_i hc; exact absurd ⟨_, List.getElem_mem hlt, hz⟩ hc
-    · have hlt : i.val < s.val.length := by scalar_tac
-      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-      rw [i3_post, List.take_add_one, List.getElem?_eq_getElem hlt]
-      intro b hb
-      simp only [List.mem_append, Option.toList_some, List.mem_singleton] at hb
-      rcases hb with hb | hb
-      · exact h b hb
-      · subst hb; intro h0; apply ‹¬i2 = 0#u8›; subst i2_post; scalar_tac
-    · have hge : s.val.length ≤ i.val := by scalar_tac
-      rw [List.take_of_length_le hge] at h
-      split
-      · rename_i hc; obtain ⟨b, hb, hb0⟩ := hc; exact absurd hb0 (h b hb)
-      · trivial
-  · exact ⟨hi, h⟩
-
-@[step]
+/-- `position_of_zero` in terms of `beforeZero` (from `PBUtil.position_of_zero_ok`). -/
 theorem position_of_zero_spec (s : Slice U8) :
     io.position_of_zero s ⦃ o =>
-      if ∃ b ∈ s.val, b.val = 0 then o.map (·.val) = some (beforeZero s.val).length else o = none ⦄ :=
-  position_of_zero_loop_spec s 0#usize (by simp) (by simp)
+      if ∃ b ∈ s.val, b.val = 0 then o.map (·.val) = some (beforeZero s.val).length else o = none ⦄ := by
+  apply WP.spec_mono (PBUtil.position_of_zero_ok s)
+  rintro (_ | i) h
+  · simp [show ¬ ∃ b ∈ s.val, b.val = 0 by simpa using h]
+  · obtain ⟨hlt, hall, h0⟩ := h
+    have hlt' : i.val < s.val.length := hlt
+    have hz : ∃ b ∈ s.val, b.val = 0 :=
+      ⟨_, List.getElem_mem hlt', by simpa [List.getElem!_eq_getElem?_getD, hlt'] using h0⟩
+    simp [hz, PBUtil.beforeZero_of_zero s.val i.val hlt' hall h0, hlt'.le]
 
 /-! ## Array equality -/
 
@@ -204,10 +142,6 @@ theorem array_u8_eq_spec {N : Usize} (a0 a1 : Array U8 N) :
 theorem rawint_new_eq {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) :
     misc.raw.int.RawInt.new inst x = ok (x, ()) := rfl
 
-theorem rawint_serialize_eq {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) (u : core.marker.PhantomData T)
-    (buf : alloc.vec.Vec U8) :
-    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize inst (x, u) buf = inst.serialize x buf := rfl
-
 theorem rawint_parse_unchecked_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
     (buf : io.ParseBuf) (Q : Option P → io.ParseBuf → Prop)
     (h : inst.deserialize buf ⦃ r rest => Q (okPart r) rest ⦄) :
@@ -225,39 +159,6 @@ theorem rawint_parse_unchecked_spec {T P : Type} (inst : misc.raw.int.IntRepr T 
     apply (WP.spec_ok _).mpr
     simpa [okPart, hri] using hr
   | Err e => simpa [okPart] using hr
-
-/-! ## `put_u64_le` -/
-
-theorem leNat_inj : ∀ (l1 l2 : List U8), l1.length = l2.length → leNat l1 = leNat l2 → l1 = l2
-  | [], [], _, _ => rfl
-  | b1 :: l1, b2 :: l2, hl, he => by
-    simp only [List.length_cons, Nat.add_right_cancel_iff] at hl
-    simp only [leNat] at he
-    have h1 : b1.val < 256 := by scalar_tac
-    have h2 : b2.val < 256 := by scalar_tac
-    have hv : b1.val = b2.val := by omega
-    have hb : b1 = b2 := by scalar_tac
-    rw [hb, leNat_inj l1 l2 hl (by omega)]
-
-theorem toLEBytes_u64 (x : U64) :
-    x.bv.toLEBytes.map (@UScalar.mk UScalarTy.U8) = leBytes 8 x.val := by
-  apply leNat_inj
-  · simp [PBUtil.length_leBytes, BitVec.toLEBytes_length]
-  · rw [PBUtil.leNat_leBytes, ← PBUtil.fromLEBytes_toNat, List.map_map]
-    have : (U8.bv ∘ @UScalar.mk UScalarTy.U8) = id := by funext b; rfl
-    rw [this, List.map_id, BitVec.fromLEBytes_toLEBytes (by decide)]
-    simp only [BitVec.toNat_cast]
-    have := x.hBounds
-    rw [Nat.mod_eq_of_lt (by simpa using x.hBounds)]
-    rfl
-
-theorem put_u64_le_spec (buf : alloc.vec.Vec U8) (x : U64) (h : buf.length + 8 ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u64_le buf x ⦃ v => v.val = buf.val ++ leBytes 8 x.val ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u64_le
-  step as ⟨ a, ha ⟩
-  step*
-  simp_all
-  exact toLEBytes_u64 x
 
 /-! ## `parse_items` -/
 

@@ -26,23 +26,21 @@ theorem misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deseri
       ((okPart r).isSome ↔ leNat (buf.val.take 4) = N.val) ∧ rest.val = buf.val.drop 4 ⦄ := by
   unfold misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
   step with io.ParseBuf.eat_u32_le_spec as ⟨ i, rest, hi, hr ⟩
-  split
-  · rename_i heq
-    subst heq
+  split_ifs with heq
+  · subst heq
     simp [okPart, hi, hr]
-  · rename_i hne
-    step with hd as ⟨ t ⟩
+  · step with hd as ⟨ t ⟩
     step*
     refine ⟨?_, hr⟩
     simp only [okPart, Option.isSome_none, Bool.false_eq_true, false_iff]
-    intro h'; apply hne; apply UScalar.eq_of_val_eq; rw [hi, h']
+    intro h'; apply heq; apply UScalar.eq_of_val_eq; rw [hi, h']
 
 /-- `MyDeserialize for ConstU32` panics on fewer than 4 bytes. -/
 theorem misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T : Type} (N : U32) (e : core.error.Error T)
     (d : core.default.Default T) (buf : io.ParseBuf) (h : buf.length < 4) :
     ¬ misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf ⦃ _ => True ⦄ := by
   unfold misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
-  exact IntAndMisc.not_spec_bind (io.ParseBuf.eat_u32_le_panics buf h)
+  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u32_le_panics buf h)
 
 /-- `buf.parse::<ConstU32>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than 4 bytes. -/
 theorem misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.parse_spec {T : Type} (N : U32) (e : core.error.Error T)

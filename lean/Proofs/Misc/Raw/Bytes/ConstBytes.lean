@@ -63,9 +63,8 @@ theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.pa
       else okPart r = none ∧ rest = buf ⦄ := by
   have hs : (misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple d v).SIZE = ok (some LEN) := by
     simp only [misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq]
-  split
-  · rename_i hl
-    apply WP.spec_mono (io.ParseBuf.parse_of_size _ buf () LEN hs hl
+  split_ifs with hl
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size _ buf () LEN hs hl
       (fun o => (o.isSome ↔ buf.val.take LEN.val = a.val)) ?_)
     · rintro ⟨r, rest⟩ hr; exact hr
     · intro sub hsub
@@ -74,8 +73,7 @@ theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.pa
       rintro ⟨r, rest⟩ hr
       simp only [WP.uncurry'_pair] at hr ⊢
       rw [hr.1, hsub, List.take_take, Nat.min_self]
-  · rename_i hl
-    exact io.ParseBuf.parse_of_size_short _ buf () LEN hs (by omega)
+  · exact io.ParseBuf.parse_of_size_short _ buf () LEN hs (by omega)
 
 /-- `MySerialize for ConstBytes<T, LEN>`: appends `T::VALUE`. -/
 theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec {T E : Type} {LEN : Usize}
