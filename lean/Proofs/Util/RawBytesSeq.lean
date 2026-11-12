@@ -16,12 +16,8 @@ namespace mysql_common
 
 /-- A computation whose bind satisfies a spec satisfies `True`: used for the `_panics` lemmas. -/
 theorem spec_of_bind {α β : Type} (m : Result α) (k : α → Result β) (P : β → Prop)
-    (h : (Std.bind m k) ⦃ P ⦄) : m ⦃ fun _ => True ⦄ := by
-  revert h
-  refine Result.cases (motive := fun m => (Std.bind m k) ⦃ P ⦄ → m ⦃ fun _ => True ⦄) m ?_ ?_ ?_
-  · intro r _; simp
-  · intro i k' h; simp at h
-  · intro h; simp at h
+    (h : (Std.bind m k) ⦃ P ⦄) : m ⦃ fun _ => True ⦄ :=
+  WP.spec_mono (IntAndMisc.spec_bind_inv h) (fun _ _ => trivial)
 
 /-! ## `usize` bounds -/
 

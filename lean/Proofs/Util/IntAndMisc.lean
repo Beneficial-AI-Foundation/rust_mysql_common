@@ -312,9 +312,7 @@ theorem jsonbVarLenRead_some (bs : List U8) (i : Nat) (hi : i < 5) (hall : ∀ c
     jsonbVarLenRead bs =
       (if base128 (bs.take i) + 128 ^ i * (c.val % 128) < 2 ^ 32
         then some (base128 (bs.take i) + 128 ^ i * (c.val % 128)) else none, rest) := by
-  have hil : i < bs.length := by
-    have : (bs.drop i).length > 0 := by rw [hd]; simp
-    simp at this; omega
+  obtain ⟨ht, hdr, hil⟩ := take_succ_of_drop bs i c rest hd
   have hlen : (bs.take i).length = i := by simp; omega
   have hbs : bs = bs.take i ++ c :: rest := by rw [← hd, List.take_append_drop]
   unfold jsonbVarLenRead
@@ -328,12 +326,6 @@ theorem jsonbVarLenRead_some (bs : List U8) (i : Nat) (hi : i < 5) (hall : ∀ c
     intro x hx; have := hall x hx; simp; omega
   rw [h5, List.findIdx?_append, hn, List.findIdx?_cons]
   simp only [hc, decide_true, Option.none_or, ↓reduceIte, Option.map_some, zero_add, hlen]
-  have ht : bs.take (i + 1) = bs.take i ++ [c] := by
-    conv_lhs => rw [hbs]
-    rw [List.take_append, hlen, List.take_of_length_le (by omega)]
-    simp
-  have hdr : bs.drop (i + 1) = rest := by
-    rw [← List.drop_drop, hd]; simp
   rw [ht, hdr, base128_append, hlen]
 
 theorem varlen_or (c len i : Nat) (hi : i < 5) (hlen : len < 128 ^ i) :

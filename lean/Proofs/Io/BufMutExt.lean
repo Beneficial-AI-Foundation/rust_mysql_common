@@ -17,7 +17,6 @@ theorem io.BufMutExt.put_lenenc_int_spec (buf : alloc.vec.Vec U8) (x : U64)
     io.BufMutExt.put_lenenc_int.default (io.BufMutExt.Blanket alloc.vec.VecU8.Insts.Mysql_commonIoBufMut) buf x
       ⦃ buf' => buf'.val = buf.val ++ lenencInt x.val ⦄ := by
   unfold io.BufMutExt.put_lenenc_int.default
-
   simp only [lenencInt] at h ⊢
   by_cases h1 : x.val < 251
   · have c1 : x < 251#u64 := by scalar_tac
@@ -29,28 +28,26 @@ theorem io.BufMutExt.put_lenenc_int_spec (buf : alloc.vec.Vec U8) (x : U64)
     rw [this]
   · have c1 : ¬ x < 251#u64 := by scalar_tac
     simp only [c1, h1, ↓reduceIte] at h ⊢
+    -- the three multi-byte cases: a tag byte, then `put_uint_le`
     by_cases h2 : x.val < 2 ^ 16
-    · have c2 : x < 65536#u64 := by scalar_tac
+    case' pos =>
+      have c2 : x < 65536#u64 := by scalar_tac
       simp only [c2, h2, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
+    case' neg =>
+      have c2 : ¬ x < 65536#u64 := by scalar_tac
+      simp only [c2, h2, ↓reduceIte] at h ⊢
+      by_cases h3 : x.val < 2 ^ 24
+      case' pos =>
+        have c3 : x < 16777216#u64 := by scalar_tac
+        simp only [c3, h3, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
+      case' neg =>
+        have c3 : ¬ x < 16777216#u64 := by scalar_tac
+        simp only [c3, h3, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
+    all_goals
       step*
       · have : self1.val.length = buf.val.length + 1 := by simp [self1_post]
         scalar_tac
       · rw [buf'_post, self1_post]; simp; rfl
-    · have c2 : ¬ x < 65536#u64 := by scalar_tac
-      simp only [c2, h2, ↓reduceIte] at h ⊢
-      by_cases h3 : x.val < 2 ^ 24
-      · have c3 : x < 16777216#u64 := by scalar_tac
-        simp only [c3, h3, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
-        step*
-        · have : self1.val.length = buf.val.length + 1 := by simp [self1_post]
-          scalar_tac
-        · rw [buf'_post, self1_post]; simp; rfl
-      · have c3 : ¬ x < 16777216#u64 := by scalar_tac
-        simp only [c3, h3, ↓reduceIte, List.length_cons, PBUtil.length_leBytes] at h ⊢
-        step*
-        · have : self1.val.length = buf.val.length + 1 := by simp [self1_post]
-          scalar_tac
-        · rw [buf'_post, self1_post]; simp; rfl
 
 /-- `put_lenenc_str`: appends the length-encoded string `x` (its length as a length-encoded
     integer, then its bytes). -/
