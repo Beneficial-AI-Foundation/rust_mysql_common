@@ -1,6 +1,5 @@
 import Defs
 import Proofs.Io.ParseBuf
-import Proofs.Defs.Lemmas
 import Proofs.Io.BufMutExt
 import Proofs.Misc.LenencStrLen
 import Proofs.Misc.Raw.Bytes.LenEnc
@@ -858,6 +857,115 @@ theorem deserialize_bin_spec' (h64 : Target64) (ct : constants.ColumnType)
     simp only [binRead, hs, ite_true, ← ho]
     cases o <;> simp
 
+theorem leNat_leBytes' (k n : Nat) : leNat (leBytes k n) = n % 2 ^ (8 * k) := by
+  induction k generalizing n with
+  | zero => simp [leBytes, leNat, Nat.mod_one]
+  | succ k ih =>
+    simp only [leBytes, leNat, ih, byte_val_mod]
+    have h2 : 2 ^ (8 * (k+1)) = 256 * 2 ^ (8 * k) := by rw [Nat.mul_succ, Nat.pow_add]; omega
+    rw [h2, Nat.mod_mul]
+
+theorem readLE_leBytes (k n : Nat) (t : List U8) :
+    readLE k (leBytes k n ++ t) = some (n % 2 ^ (8 * k), t) := by
+  simp [readLE, length_leBytes', leNat_leBytes', List.take_append_of_le_length, List.drop_append_of_le_length]
+
+
+theorem binRead_int (x : Int) (hx : -2 ^ 63 ≤ x ∧ x < 2 ^ 63) (u : Bool) (t : List U8) :
+    binRead .MYSQL_TYPE_LONGLONG u (leBytesI 8 x ++ t) = (some (binNorm u (.int x)), t) := by
+  simp only [binRead, isLenencStrType, Bool.false_eq_true, ite_false, leBytesI, readLE_leBytes]
+  generalize hn : (x % (2 ^ (8 * 8) : Int)).toNat = n
+  have hn' : (n : Int) = x % 2 ^ 64 := by rw [← hn]; exact Int.toNat_of_nonneg (Int.emod_nonneg _ (by decide))
+  have hlt : n < 2 ^ 64 := by omega
+  rw [Nat.mod_eq_of_lt (by simpa using hlt)]
+  cases u <;> simp only [binNorm, toSigned, Bool.false_eq_true, ite_false, ite_true, not_false_eq_true, not_true_eq_false] <;>
+    split_ifs <;> simp <;> omega
+
+theorem binRead_uint (x : Nat) (hx : x < 2 ^ 64) (u : Bool) (t : List U8) :
+    binRead .MYSQL_TYPE_LONGLONG u (leBytes 8 x ++ t) = (some (binNorm u (.uint x)), t) := by
+  simp only [binRead, isLenencStrType, Bool.false_eq_true, ite_false, readLE_leBytes]
+  rw [Nat.mod_eq_of_lt (by simpa using hx)]
+  cases u <;> simp [binNorm]
+
+theorem dateRead_enc (y mo d h mi s us : Nat) (hy : y < 2 ^ 16) (hmo : mo < 256) (hd : d < 256)
+    (hh : h < 256) (hmi : mi < 256) (hs : s < 256) (hus : us < 2 ^ 32) (t : List U8) :
+    dateRead (binEnc (.date y mo d h mi s us) ++ t) = (some (.date y mo d h mi s us), t) := by
+  simp only [binEnc]
+  split_ifs with h0 h4 h7
+  · obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h0
+    simp [dateRead, byte_val_mod]
+  · obtain ⟨rfl, rfl, rfl, rfl⟩ := h4
+    simp [dateRead, byte_val_mod, leBytes]
+    rw [if_neg (by omega)]
+    simp only [Option.some.injEq, Prod.mk.injEq, Val.date.injEq, and_true]
+    omega
+  · subst h7
+    simp [dateRead, byte_val_mod, leBytes]
+    rw [if_neg (by omega)]
+    simp only [Option.some.injEq, Prod.mk.injEq, Val.date.injEq, and_true]
+    omega
+  · simp [dateRead, byte_val_mod, leBytes, leNat]
+    rw [if_neg (by omega)]
+    simp only [Option.some.injEq, Prod.mk.injEq, Val.date.injEq, and_true]
+    omega
+
+theorem binNorm_time (u neg : Bool) (d h m s us : Nat) :
+    binNorm u (.time neg d h m s us) =
+      if d = 0 ∧ h = 0 ∧ m = 0 ∧ s = 0 ∧ us = 0 then .time false 0 0 0 0 0 else .time neg d h m s us := by
+  rcases d with _|d <;> rcases h with _|h <;> rcases m with _|m <;> rcases s with _|s <;>
+    rcases us with _|us <;> simp [binNorm]
+
+theorem timeRead_enc (neg : Bool) (d h mi s us : Nat) (hd : d < 2 ^ 32)
+    (hh : h < 256) (hmi : mi < 256) (hs : s < 256) (hus : us < 2 ^ 32) (t : List U8) :
+    timeRead (binEnc (.time neg d h mi s us) ++ t) = (some (binNorm false (.time neg d h mi s us)), t) := by
+  rw [binNorm_time]
+  by_cases h0 : d = 0 ∧ h = 0 ∧ mi = 0 ∧ s = 0 ∧ us = 0
+  · obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h0
+    simp [binEnc, timeRead, byte_val_mod]
+  rw [if_neg h0]
+  by_cases h8 : us = 0
+  · subst h8
+    have h0' : ¬(d = 0 ∧ h = 0 ∧ mi = 0 ∧ s = 0) := by simpa using h0
+    cases neg <;> simp [binEnc, h0', timeRead, byte_val_mod, leBytes, leNat, List.cons_append] <;>
+      (rw [if_neg (by omega)]; simp only [Option.some.injEq, Prod.mk.injEq, Val.time.injEq, and_true]) <;>
+      (simp only [true_and]; omega)
+  · cases neg <;> simp [binEnc, h0, h8, timeRead, byte_val_mod, leBytes, leNat, List.cons_append] <;>
+      (rw [if_neg (by omega)]; simp only [Option.some.injEq, Prod.mk.injEq, Val.time.injEq, and_true]) <;>
+      (simp only [true_and]; omega)
+
+theorem binRead_binEnc' (v : value.Value) (ct : constants.ColumnType)
+    (u : Bool) (t : List U8) (hc : binCompatible (Val.ofValue v) ct)
+    (hnb : ∀ x, v ≠ .Bytes x) :
+    binRead ct u (binEnc (Val.ofValue v) ++ t) = (some (binNorm u (Val.ofValue v)), t) := by
+  cases v with
+  | NULL => simp only [Val.ofValue, binCompatible] at hc; subst hc; simp [binRead, isLenencStrType, binEnc, binNorm, Val.ofValue]
+  | Bytes x => exact absurd rfl (hnb x)
+  | Int x =>
+    simp only [Val.ofValue, binCompatible] at hc; subst hc
+    exact binRead_int _ (by scalar_tac) u t
+  | UInt x =>
+    simp only [Val.ofValue, binCompatible] at hc; subst hc
+    exact binRead_uint _ (by scalar_tac) u t
+  | Float x =>
+    simp only [Val.ofValue, binCompatible] at hc; subst hc
+    simp only [Val.ofValue, binRead, isLenencStrType, Bool.false_eq_true, ite_false, binEnc, readLE_leBytes, binNorm]
+    rw [Nat.mod_eq_of_lt (by have := x.bits.hBounds; simpa using this)]
+  | Double x =>
+    simp only [Val.ofValue, binCompatible] at hc; subst hc
+    simp only [Val.ofValue, binRead, isLenencStrType, Bool.false_eq_true, ite_false, binEnc, readLE_leBytes, binNorm]
+    rw [Nat.mod_eq_of_lt (by have := x.bits.hBounds; simpa using this)]
+  | Date y mo d h mi s us =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    have e := dateRead_enc y.val mo.val d.val h.val mi.val s.val us.val (by scalar_tac) (by scalar_tac)
+      (by scalar_tac) (by scalar_tac) (by scalar_tac) (by scalar_tac) (by scalar_tac) t
+    rcases hc with rfl | rfl | rfl | rfl <;> simpa [binRead, isLenencStrType, binNorm] using e
+  | Time neg d h mi s us =>
+    simp only [Val.ofValue, binCompatible] at hc ⊢
+    subst hc
+    have e := timeRead_enc neg d.val h.val mi.val s.val us.val (by scalar_tac) (by scalar_tac)
+      (by scalar_tac) (by scalar_tac) (by scalar_tac) t
+    simp only [binRead, isLenencStrType, Bool.false_eq_true, ite_false]
+    rw [e, binNorm_time, binNorm_time]
+
 theorem deserialize_bin_roundtrip' (v : value.Value) (ct : constants.ColumnType)
     (flags : constants.ColumnFlags) (hc : binCompatible (Val.ofValue v) ct)
     (tail : List U8) (buf : io.ParseBuf) (h : buf.val = binEnc (Val.ofValue v) ++ tail) :
@@ -879,7 +987,7 @@ theorem deserialize_bin_roundtrip' (v : value.Value) (ct : constants.ColumnType)
     apply WP.spec_mono (bin_nonstr_spec ct flags hs hsup buf)
     rintro ⟨r, rest⟩ hr
     simp only [WP.uncurry'_pair] at hr ⊢
-    rw [h, Defs.binRead_binEnc _ ct _ tail hc] at hr
+    rw [h, binRead_binEnc' _ ct _ tail hc (by intro x hx; cases hx)] at hr
     simp_all
 
 
