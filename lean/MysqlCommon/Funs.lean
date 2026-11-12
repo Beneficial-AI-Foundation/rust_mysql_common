@@ -20267,6 +20267,23 @@ def value.Value.Insts.CoreConvertFromValue : core.convert.From value.Value
   «from» := value.Value.Insts.CoreConvertFromValue.from
 }
 
+/-- [mysql_common::value::{impl mysql_common::value::SerializationSide for mysql_common::value::ServerSide}::BIT_OFFSET]
+    Source: 'src/value/mod.rs', lines 42:4-42:32
+    Visibility: public -/
+@[global_simps, irreducible]
+def value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET
+  : Std.Usize :=
+  2#usize
+
+/-- Trait implementation: [mysql_common::value::{impl mysql_common::value::SerializationSide for mysql_common::value::ServerSide}]
+    Source: 'src/value/mod.rs', lines 41:0-43:1 -/
+@[reducible]
+def value.ServerSide.Insts.Mysql_commonValueSerializationSide :
+  value.SerializationSide value.ServerSide := {
+  BIT_OFFSET := ok
+    value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET
+}
+
 /-- Trait implementation: [mysql_common::value::{impl mysql_common::proto::MySerialize for mysql_common::value::Value}]
     Source: 'src/value/mod.rs', lines 75:0-144:1 -/
 @[reducible]

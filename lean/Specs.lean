@@ -16,5 +16,10 @@ import Specs.Value.Convert.Decimal
 import Specs.Value.Convert.Bigdecimal
 import Specs.Value.Json.SerdeIntegration
 import Specs.Defs
+import Specs.DefsCF
+import Specs.Constants
+import Specs.Row
+import Specs.Packets
+import Specs.Proto.Codec
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/
