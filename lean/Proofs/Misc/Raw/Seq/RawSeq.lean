@@ -46,7 +46,17 @@ theorem misc.raw.seq.RawSeq.into_owned_spec {T U P : Type} (inst : misc.raw.int.
     (self : misc.raw.seq.RawSeq T U P) :
     misc.raw.seq.RawSeq.into_owned inst self ⦃ r =>
       cowList r.1 = cowList self.1 ∧ ∃ v, r.1 = alloc.borrow.Cow.Owned v ⦄ := by
-  sorry
+  unfold misc.raw.seq.RawSeq.into_owned misc.raw.cow_into_vec
+  obtain ⟨c, pd⟩ := self
+  cases c with
+  | Borrowed s =>
+    step with alloc.slice.Slice.to_vec_spec _ s (fun x _ => hcl x) as ⟨ v, hv ⟩
+    apply (WP.spec_ok _).mpr
+    exact ⟨by simp [cowList, hv]; rfl, _, rfl⟩
+  | Owned v =>
+    apply spec_bind_ok
+    apply (WP.spec_ok _).mpr
+    exact ⟨rfl, _, rfl⟩
 
 /-- `get(index)`: the item at `index` as a `RawConst`, `None` out of range. -/
 theorem misc.raw.seq.RawSeq.get_spec {T U P E : Type} (inst : misc.raw.int.IntRepr T P)

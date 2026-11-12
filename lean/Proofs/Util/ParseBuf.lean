@@ -219,7 +219,7 @@ theorem checkedLenencInt_lenencInt (n : Nat) (t : List U8) (hn : n < 2 ^ 64) :
   unfold lenencInt
   split_ifs with h1 h2 h3
   · simp [checkedLenencInt, lenencIntDecode, byte_val, Nat.mod_eq_of_lt (by omega : n < 256)]
-    rw [if_neg (by omega), if_pos h1]
+    rw [ite_eq_right (by omega), ite_eq_left h1]
   · simp [checkedLenencInt, lenencIntDecode, byte_val, readLE_leBytes 2 n t (by omega)]
   · simp [checkedLenencInt, lenencIntDecode, byte_val, readLE_leBytes 3 n t (by omega)]
   · simp [checkedLenencInt, lenencIntDecode, byte_val, readLE_leBytes 8 n t (by omega)]
@@ -244,7 +244,7 @@ theorem position_of_zero_ok (s : Slice U8) :
       rw [h0]; rfl
     · have hlt : i.val < s.length := by scalar_tac
       refine ⟨by omega, ?_, by omega⟩
-      rw [i3_post, List.take_succ, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
+      rw [i3_post, List.take_add_one, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
       intro b hb
       simp only [List.mem_append, Option.toList_some, List.mem_singleton] at hb
       rcases hb with hb | rfl
@@ -260,7 +260,7 @@ theorem beforeZero_of_all (l : List U8) (h : ∀ b ∈ l, b.val ≠ 0) : beforeZ
   induction l with
   | nil => rfl
   | cons b l ih =>
-    rw [List.takeWhile_cons, if_pos (by simpa using h b (by simp))]
+    rw [List.takeWhile_cons, ite_eq_left (by simpa using h b (by simp))]
     rw [ih (fun x hx => h x (by simp [hx]))]
 
 theorem beforeZero_of_zero (l : List U8) (i : Nat) (hi : i < l.length) (hall : ∀ b ∈ l.take i, b.val ≠ 0)
@@ -269,7 +269,7 @@ theorem beforeZero_of_zero (l : List U8) (i : Nat) (hi : i < l.length) (hall : �
   conv => lhs; rw [← List.take_append_drop i l]
   rw [List.takeWhile_append_of_pos (by simpa using hall)]
   rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some] at h0
-  rw [List.drop_eq_getElem_cons hi, List.takeWhile_cons, if_neg (by simp [h0])]
+  rw [List.drop_eq_getElem_cons hi, List.takeWhile_cons, ite_eq_right (by simp [h0])]
   simp
 
 /-! ## Tactics for the fixed-width readers -/

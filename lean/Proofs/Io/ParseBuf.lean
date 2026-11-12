@@ -1126,14 +1126,14 @@ theorem io.ParseBuf.eat_lenenc_int_spec (buf : io.ParseBuf) (h : (checkedLenencI
     subst hx
     rw [hb] at h
     have h0 : 0#u8 ≤ x := by scalar_tac
-    rw [if_pos h0]
+    rw [ite_eq_left h0]
     by_cases h250 : x ≤ 250#u8
-    · rw [if_pos h250]
+    · rw [ite_eq_left h250]
       step*
       have : x.val < 251 := by scalar_tac
       simp [checkedLenencInt, lenencIntDecode, x_post1, i_post, this,
         show ¬(x.val = 251 ∨ x.val = 255) by omega]
-    · rw [if_neg h250]
+    · rw [ite_eq_right h250]
       split
       all_goals simp [checkedLenencInt, lenencIntDecode, readLE, val_mk] at h
       · split_ifs at h with hlen
@@ -1170,11 +1170,11 @@ theorem io.ParseBuf.eat_lenenc_int_panics (buf : io.ParseBuf) (h : (checkedLenen
     rw [hb] at h
     have h0 : 0#u8 ≤ x := by scalar_tac
     change ¬ (if 0#u8 ≤ x then _ else _) ⦃ _ => True ⦄
-    rw [if_pos h0]
+    rw [ite_eq_left h0]
     by_cases h250 : x ≤ 250#u8
     · have : x.val < 251 := by scalar_tac
       simp [checkedLenencInt, lenencIntDecode, this, show ¬(x.val = 251 ∨ x.val = 255) by omega] at h
-    · rw [if_neg h250]
+    · rw [ite_eq_right h250]
       split
       all_goals simp [checkedLenencInt, lenencIntDecode, readLE, val_mk] at h
       · split_ifs at h with hlen
@@ -1208,20 +1208,20 @@ theorem io.ParseBuf.checked_eat_lenenc_int_spec (buf : io.ParseBuf) :
       simp only [List.drop_one, List.tail_cons] at hs
       have h0 : 0#u8 ≤ x := by scalar_tac
       dsimp only
-      rw [if_pos h0]
+      rw [ite_eq_left h0]
       by_cases h250 : x ≤ 250#u8
-      · rw [if_pos h250]
+      · rw [ite_eq_left h250]
         step*
         have : x.val < 251 := by scalar_tac
         simp [checkedLenencInt, lenencIntDecode, hs, i_post, this, show ¬(x.val = 251 ∨ x.val = 255) by omega]
-      · rw [if_neg h250]
+      · rw [ite_eq_right h250]
         split
         · step*
-          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [if_neg (by omega)])
+          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [ite_eq_right (by omega)])
         · step*
-          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [if_neg (by omega)])
+          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [ite_eq_right (by omega)])
         · step*
-          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [if_neg (by omega)])
+          all_goals (subst_vars; split_ifs at * <;> simp_all [checkedLenencInt, lenencIntDecode, readLE, val_mk, Slice.length] <;> rw [ite_eq_right (by omega)])
         · simp [checkedLenencInt, hs, val_mk]
         · simp [checkedLenencInt, hs, val_mk]
         · exfalso
