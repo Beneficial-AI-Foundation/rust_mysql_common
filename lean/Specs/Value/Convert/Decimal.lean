@@ -38,22 +38,22 @@ recall value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError.
         else .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.decimalFromI64, Trusted.decimalFromStr, Trusted.decimalFromU64, rust_decimal.decimal.Decimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from_eq
 /-- `From<ParseIr<Decimal>>` for `Decimal` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrDecimal.from_eq (x : rust_decimal.decimal.Decimal) (w : value.Value) :
     rust_decimal.decimal.Decimal.Insts.CoreConvertFromParseIrDecimal.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrDecimal.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrDecimal.from_eq`
-
+/-- [propext, Quot.sound, rust_decimal.decimal.Decimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrDecimal.from_eq
 /-- `From<Decimal> for Value`: `Bytes` of its text (`to_string`, opaque). -/
 recall value.Value.Insts.CoreConvertFromDecimal.from_spec (x : rust_decimal.decimal.Decimal) (h : (utf8 (Trusted.decimalToString x)).length ≤ Usize.max) :
     value.Value.Insts.CoreConvertFromDecimal.from x ⦃ w =>
       Val.ofValue w = .bytes (utf8 (Trusted.decimalToString x)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromDecimal.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.decimalToString, rust_decimal.decimal.Decimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromDecimal.from_spec
 /-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal.from_value_opt_eq (v : value.Value) :
     value.convert.from_value_opt rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal v = ok (match v with
@@ -67,6 +67,6 @@ recall rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParse
         else .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal.from_value_opt_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.decimalFromI64, Trusted.decimalFromStr, Trusted.decimalFromU64, rust_decimal.decimal.Decimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal.from_value_opt_eq
 end mysql_common

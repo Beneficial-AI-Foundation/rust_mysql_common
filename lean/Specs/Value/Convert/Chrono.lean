@@ -63,8 +63,8 @@ recall value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValue
         ∀ x w, r = .Ok (x, w) → w = v ∧ chronoDateTime x = (((y : ℤ), mo, d), (h, mi, s, us * 1000))
       | none => r = .Err v ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, Trusted.NaiveDateTime.date, Trusted.NaiveDateTime.date_new, Trusted.NaiveDateTime.new, Trusted.NaiveDateTime.time, Trusted.NaiveDateTime.time_new, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.ofHmsMicro, Trusted.NaiveTime.ofHmsMicro_isSome, Trusted.NaiveTime.ofHmsMicro_some, Trusted.NaiveTime.second, chrono.naive.date.NaiveDate, chrono.naive.datetime.NaiveDateTime, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
     value.convert.from_value_opt chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime v ⦃ r =>
@@ -76,8 +76,8 @@ recall chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromVal
         ∀ x, r = .Ok x → chronoDateTime x = (((y : ℤ), mo, d), (h, mi, s, us * 1000))
       | none => r = .Err v ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime.from_value_opt_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, Trusted.NaiveDateTime.date, Trusted.NaiveDateTime.date_new, Trusted.NaiveDateTime.new, Trusted.NaiveDateTime.time, Trusted.NaiveDateTime.time_new, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.ofHmsMicro, Trusted.NaiveTime.ofHmsMicro_isSome, Trusted.NaiveTime.ofHmsMicro_some, Trusted.NaiveTime.second, chrono.naive.date.NaiveDate, chrono.naive.datetime.NaiveDateTime, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime.from_value_opt_spec
 /-! ### `impl TryFrom<Value> for ParseIr<NaiveDate>` -/
 
 /-- `TryFrom<Value> for ParseIr<NaiveDate>`: as for `NaiveDateTime`, but only the date fields
@@ -91,8 +91,8 @@ recall value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueErro
         ∀ x w, r = .Ok (x, w) → w = v ∧ chronoDate x = ((y : ℤ), mo, d)
       | none => r = .Err v ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, chrono.naive.date.NaiveDate] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
     value.convert.from_value_opt chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate v ⦃ r =>
@@ -103,8 +103,8 @@ recall chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseI
         ∀ x, r = .Ok x → chronoDate x = ((y : ℤ), mo, d)
       | none => r = .Err v ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate.from_value_opt_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, chrono.naive.date.NaiveDate] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate.from_value_opt_spec
 /-! ### `impl TryFrom<Value> for ParseIr<NaiveTime>` -/
 
 /-- `TryFrom<Value> for ParseIr<NaiveTime>`: a non-negative (sign flag false) `TIME` with 0 days, or `Bytes` holding a
@@ -119,8 +119,8 @@ recall value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueErro
         ∀ x w, r = .Ok (x, w) → w = v ∧ chronoTime x = (h, m, s, us * 1000)
       | none => r = .Err v ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.ofHmsMicro, Trusted.NaiveTime.ofHmsMicro_isSome, Trusted.NaiveTime.ofHmsMicro_some, Trusted.NaiveTime.second, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) :
     value.convert.from_value_opt chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime v ⦃ r =>
@@ -131,8 +131,8 @@ recall chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseI
         ∀ x, r = .Ok x → chronoTime x = (h, m, s, us * 1000)
       | none => r = .Err v ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime.from_value_opt_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.ofHmsMicro, Trusted.NaiveTime.ofHmsMicro_isSome, Trusted.NaiveTime.ofHmsMicro_some, Trusted.NaiveTime.second, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime.from_value_opt_spec
 /-! ### `impl From<ParseIr<_>> for NaiveDateTime, NaiveDate, NaiveTime and for Value` -/
 
 /-- `From<ParseIr<NaiveDateTime>>` for `NaiveDateTime` is `commit`, for `Value` is `rollback`. -/
@@ -140,22 +140,22 @@ recall value.Value.Insts.CoreConvertFromParseIrNaiveDateTime.from_eq (x : chrono
     chrono.naive.datetime.NaiveDateTime.Insts.CoreConvertFromParseIrNaiveDateTime.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrNaiveDateTime.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrNaiveDateTime.from_eq`
-
+/-- [propext, Quot.sound, chrono.naive.datetime.NaiveDateTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrNaiveDateTime.from_eq
 /-- `From<ParseIr<NaiveDate>>` for `NaiveDate` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrNaiveDate.from_eq (x : chrono.naive.date.NaiveDate) (w : value.Value) :
     chrono.naive.date.NaiveDate.Insts.CoreConvertFromParseIrNaiveDate.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrNaiveDate.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrNaiveDate.from_eq`
-
+/-- [propext, Quot.sound, chrono.naive.date.NaiveDate] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrNaiveDate.from_eq
 /-- `From<ParseIr<NaiveTime>>` for `NaiveTime` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrNaiveTime.from_eq (x : chrono.naive.time.NaiveTime) (w : value.Value) :
     chrono.naive.time.NaiveTime.Insts.CoreConvertFromParseIrNaiveTime.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrNaiveTime.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrNaiveTime.from_eq`
-
+/-- [propext, Quot.sound, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrNaiveTime.from_eq
 /-! ### `impl From<NaiveDateTime> for Value` -/
 
 /-- `From<NaiveDateTime> for Value`: for a year in `[1000, 9999]`, the `Date` of its fields
@@ -167,14 +167,14 @@ recall value.Value.Insts.CoreConvertFromNaiveDateTime.from_spec (x : chrono.naiv
         | ((y, mo, d), (h, mi, s, ns)) =>
           .date y.toNat (mo % 256) (d % 256) (h % 256) (mi % 256) (s % 256) (ns / 1000) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDateTime.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.year, Trusted.NaiveDateTime.date, Trusted.NaiveDateTime.time, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.second, chrono.naive.date.NaiveDate, chrono.naive.datetime.NaiveDateTime, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDateTime.from_spec
 /-- **Panic.** `From<NaiveDateTime> for Value` panics for a year outside `[1000, 9999]`. -/
 recall value.Value.Insts.CoreConvertFromNaiveDateTime.from_panic (x : chrono.naive.datetime.NaiveDateTime) (hy : ¬ (1000 ≤ (chronoDateTime x).1.1 ∧ (chronoDateTime x).1.1 ≤ 9999)) :
     value.Value.Insts.CoreConvertFromNaiveDateTime.from x = fail .panic
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDateTime.from_panic`
-
+/-- [propext, choice, Quot.sound, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.year, Trusted.NaiveDateTime.date, Trusted.NaiveDateTime.time, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.second, chrono.naive.date.NaiveDate, chrono.naive.datetime.NaiveDateTime, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDateTime.from_panic
 /-- Round trip: a valid date-time with a year in `[1000, 9999]` reads back with the same fields,
     nanoseconds truncated to microseconds. -/
 recall value.Value.Insts.CoreConvertFromNaiveDateTime.roundtrip (x : chrono.naive.datetime.NaiveDateTime) (hy : 1000 ≤ (chronoDateTime x).1.1 ∧ (chronoDateTime x).1.1 ≤ 9999)
@@ -185,8 +185,8 @@ recall value.Value.Insts.CoreConvertFromNaiveDateTime.roundtrip (x : chrono.naiv
       ∃ x', r = .Ok x' ∧ chronoDateTime x' = match chronoDateTime x with
         | (dt, (h, mi, s, ns)) => (dt, (h, mi, s, ns / 1000 * 1000)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDateTime.roundtrip`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, Trusted.NaiveDateTime.date, Trusted.NaiveDateTime.date_new, Trusted.NaiveDateTime.new, Trusted.NaiveDateTime.time, Trusted.NaiveDateTime.time_new, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.ofHmsMicro, Trusted.NaiveTime.ofHmsMicro_isSome, Trusted.NaiveTime.ofHmsMicro_some, Trusted.NaiveTime.second, chrono.naive.date.NaiveDate, chrono.naive.datetime.NaiveDateTime, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDateTime.roundtrip
 /-! ### `impl From<NaiveDate> for Value` -/
 
 /-- `From<NaiveDate> for Value`: for a year in `[1000, 9999]`, the `Date` with zero time. -/
@@ -195,22 +195,22 @@ recall value.Value.Insts.CoreConvertFromNaiveDate.from_spec (x : chrono.naive.da
       Val.ofValue w = match chronoDate x with
         | (y, mo, d) => .date y.toNat (mo % 256) (d % 256) 0 0 0 0 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDate.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.year, chrono.naive.date.NaiveDate] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDate.from_spec
 /-- **Panic.** `From<NaiveDate> for Value` panics for a year outside `[1000, 9999]`. -/
 recall value.Value.Insts.CoreConvertFromNaiveDate.from_panic (x : chrono.naive.date.NaiveDate) (hy : ¬ (1000 ≤ (chronoDate x).1 ∧ (chronoDate x).1 ≤ 9999)) :
     value.Value.Insts.CoreConvertFromNaiveDate.from x = fail .panic
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDate.from_panic`
-
+/-- [propext, choice, Quot.sound, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.year, chrono.naive.date.NaiveDate] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDate.from_panic
 /-- Round trip: a valid date with a year in `[1000, 9999]` reads back with the same fields. -/
 recall value.Value.Insts.CoreConvertFromNaiveDate.roundtrip (x : chrono.naive.date.NaiveDate) (hy : 1000 ≤ (chronoDate x).1 ∧ (chronoDate x).1 ≤ 9999)
     (hv : match chronoDate x with | (y, mo, d) => Trusted.chronoYmdValid y mo d) :
     (do let w ← value.Value.Insts.CoreConvertFromNaiveDate.from x; value.convert.from_value_opt chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate w) ⦃ r =>
       ∃ x', r = .Ok x' ∧ chronoDate x' = chronoDate x ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDate.roundtrip`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, chrono.naive.date.NaiveDate] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveDate.roundtrip
 /-! ### `impl From<NaiveTime> for Value` -/
 
 /-- `From<NaiveTime> for Value`: the non-negative `TIME` with 0 days of its fields (taken mod 256 by
@@ -220,8 +220,8 @@ recall value.Value.Insts.CoreConvertFromNaiveTime.from_spec (x : chrono.naive.ti
       Val.ofValue w = match chronoTime x with
         | (h, m, s, ns) => .time false 0 (h % 256) (m % 256) (s % 256) (ns / 1000) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveTime.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.second, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveTime.from_spec
 /-- Round trip: a valid time reads back with the same fields, nanoseconds truncated to
     microseconds. -/
 recall value.Value.Insts.CoreConvertFromNaiveTime.roundtrip (x : chrono.naive.time.NaiveTime)
@@ -230,6 +230,6 @@ recall value.Value.Insts.CoreConvertFromNaiveTime.roundtrip (x : chrono.naive.ti
       ∃ x', r = .Ok x' ∧ chronoTime x' = match chronoTime x with
         | (h, m, s, ns) => (h, m, s, ns / 1000 * 1000) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveTime.roundtrip`
-
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.ofHmsMicro, Trusted.NaiveTime.ofHmsMicro_isSome, Trusted.NaiveTime.ofHmsMicro_some, Trusted.NaiveTime.second, chrono.naive.time.NaiveTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromNaiveTime.roundtrip
 end mysql_common

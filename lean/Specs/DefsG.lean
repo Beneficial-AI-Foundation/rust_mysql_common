@@ -21,6 +21,6 @@ namespace Defs
 recall isUtf8_iff_isValidUTF8 (bs : List U8) :
     IsUtf8 bs ↔ (Trusted.bytesOf bs).IsValidUTF8
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.isUtf8_iff_isValidUTF8`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.isUtf8_iff_isValidUTF8
 end Defs

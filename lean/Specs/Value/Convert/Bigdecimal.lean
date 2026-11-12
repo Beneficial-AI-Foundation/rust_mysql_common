@@ -43,22 +43,22 @@ recall value.convert.ParseIrBigDecimal.Insts.CoreConvertTryFromValueFromValueErr
         | none => .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrBigDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.bigdecimalFromI64, Trusted.bigdecimalFromU64, Trusted.bigdecimalParseBytes, Trusted.bigdecimalTryFromF32, Trusted.bigdecimalTryFromF64, bigdecimal.BigDecimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrBigDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from_eq
 /-- `From<ParseIr<BigDecimal>>` for `BigDecimal` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrBigDecimal.from_eq (x : bigdecimal.BigDecimal) (w : value.Value) :
     bigdecimal.BigDecimal.Insts.CoreConvertFromParseIrBigDecimal.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrBigDecimal.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrBigDecimal.from_eq`
-
+/-- [propext, Quot.sound, bigdecimal.BigDecimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrBigDecimal.from_eq
 /-- `From<BigDecimal> for Value`: `Bytes` of its text (`to_string`, opaque). -/
 recall value.Value.Insts.CoreConvertFromBigDecimal.from_spec (x : bigdecimal.BigDecimal) (h : (utf8 (Trusted.bigdecimalToString x)).length ≤ Usize.max) :
     value.Value.Insts.CoreConvertFromBigDecimal.from x ⦃ w =>
       Val.ofValue w = .bytes (utf8 (Trusted.bigdecimalToString x)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigDecimal.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.bigdecimalToString, bigdecimal.BigDecimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigDecimal.from_spec
 /-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal.from_value_opt_eq (v : value.Value) :
     value.convert.from_value_opt bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal v = ok (match v with
@@ -78,6 +78,6 @@ recall bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDe
         | none => .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal.from_value_opt_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.bigdecimalFromI64, Trusted.bigdecimalFromU64, Trusted.bigdecimalParseBytes, Trusted.bigdecimalTryFromF32, Trusted.bigdecimalTryFromF64, bigdecimal.BigDecimal] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal.from_value_opt_eq
 end mysql_common

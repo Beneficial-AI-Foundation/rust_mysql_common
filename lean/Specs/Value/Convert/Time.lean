@@ -72,8 +72,8 @@ recall value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValue
       ∀ x w, r = .Ok (x, w) → w = .Date y mo d h mi s us ∧
         timeDateTime x = (((y.val : ℤ), mo.val, d.val), (h.val, mi.val, s.val, us.val)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_date`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.timeFromHmsMicro_spec, Trusted.Date.day, Trusted.Date.month, Trusted.Date.ofCalendarDate, Trusted.Date.ofCalendarDate_isSome, Trusted.Date.ofCalendarDate_some, Trusted.Date.year, Trusted.PrimitiveDateTime.date, Trusted.PrimitiveDateTime.date_new, Trusted.PrimitiveDateTime.new, Trusted.PrimitiveDateTime.time, Trusted.PrimitiveDateTime.time_new, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_date
 /-- `TryFrom<Value> for ParseIr<PrimitiveDateTime>` on `Bytes`: not valid UTF-8 is an error;
     otherwise time's parser (opaque) with the format chosen by the length — more than 19 bytes:
     date-time with fraction; 19: date-time; 10 to 18: date only (which always fails, see
@@ -89,22 +89,22 @@ recall value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValue
         | .Err _ => .Err (.Bytes b)
       else .Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.Date.ofCalendarDate, Trusted.PrimitiveDateTime.new, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes
 /-- **Upstream bug.** `TryFrom<Value> for ParseIr<PrimitiveDateTime>` rejects every 10–18 byte
     `Bytes`: a text `DATE` (`"2024-01-31"`) cannot be read as a `PrimitiveDateTime`, because the
     date-only format never yields an hour. -/
 recall value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_date_text_rejected (b : alloc.vec.Vec U8) (hl : 10 ≤ b.val.length ∧ b.val.length ≤ 18) :
     value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = ok (.Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_date_text_rejected`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.Date.ofCalendarDate, Trusted.PrimitiveDateTime.new, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_date_text_rejected
 /-- `TryFrom<Value> for ParseIr<PrimitiveDateTime>`: any other value is an error. -/
 recall value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_other (v : value.Value) (hv : ∀ y mo d h mi s us, v ≠ .Date y mo d h mi s us) (hb : ∀ b, v ≠ .Bytes b) :
     value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_other`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.Date.ofCalendarDate, Trusted.PrimitiveDateTime.new, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_other
 /-- `from_value_opt`: as `try_from_date` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_date (y : U16) (mo d h mi s : U8) (us : U32) :
     value.convert.from_value_opt time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime (.Date y mo d h mi s us) ⦃ r =>
@@ -112,8 +112,8 @@ recall time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValu
       ((∃ p, r = .Ok p) ↔ timeDateValid y.val mo.val d.val ∧ timeTimeValid h.val mi.val s.val us.val) ∧
       ∀ x, r = .Ok x → timeDateTime x = (((y.val : ℤ), mo.val, d.val), (h.val, mi.val, s.val, us.val)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_date`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.timeFromHmsMicro_spec, Trusted.Date.day, Trusted.Date.month, Trusted.Date.ofCalendarDate, Trusted.Date.ofCalendarDate_isSome, Trusted.Date.ofCalendarDate_some, Trusted.Date.year, Trusted.PrimitiveDateTime.date, Trusted.PrimitiveDateTime.date_new, Trusted.PrimitiveDateTime.new, Trusted.PrimitiveDateTime.time, Trusted.PrimitiveDateTime.time_new, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_date
 /-- `from_value_opt`: as `try_from_bytes` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_bytes (b : alloc.vec.Vec U8) :
     value.convert.from_value_opt time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime (.Bytes b) = ok (
@@ -126,20 +126,20 @@ recall time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValu
         | .Err _ => .Err (.Bytes b)
       else .Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_bytes`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.Date.ofCalendarDate, Trusted.PrimitiveDateTime.new, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_bytes
 /-- `from_value_opt`: as `try_from_date_text_rejected` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_date_text_rejected (b : alloc.vec.Vec U8) (hl : 10 ≤ b.val.length ∧ b.val.length ≤ 18) :
     value.convert.from_value_opt time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime (.Bytes b) = ok (.Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_date_text_rejected`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.Date.ofCalendarDate, Trusted.PrimitiveDateTime.new, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_date_text_rejected
 /-- `from_value_opt`: as `try_from_other` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_other (v : value.Value) (hv : ∀ y mo d h mi s us, v ≠ .Date y mo d h mi s us) (hb : ∀ b, v ≠ .Bytes b) :
     value.convert.from_value_opt time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_other`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.Date.ofCalendarDate, Trusted.PrimitiveDateTime.new, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime.from_value_opt_other
 /-! ### `impl TryFrom<Value> for ParseIr<Date>` -/
 
 /-- `TryFrom<Value> for ParseIr<Date>` on a `Date`: total; only the date fields are read;
@@ -150,8 +150,8 @@ recall value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try
       ((∃ p, r = .Ok p) ↔ timeDateValid y.val mo.val d.val) ∧
       ∀ x w, r = .Ok (x, w) → w = .Date y mo d h mi s us ∧ timeDate x = ((y.val : ℤ), mo.val, d.val) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_date`
-
+/-- [propext, choice, Quot.sound, Trusted.dateParseDate, Trusted.Date.day, Trusted.Date.month, Trusted.Date.ofCalendarDate, Trusted.Date.ofCalendarDate_isSome, Trusted.Date.ofCalendarDate_some, Trusted.Date.year, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_date
 /-- `TryFrom<Value> for ParseIr<Date>` on `Bytes`: time's date parser (opaque) on valid UTF-8. -/
 recall value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes (b : alloc.vec.Vec U8) :
     value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = ok (
@@ -161,14 +161,14 @@ recall value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try
         | none => .Err (.Bytes b)
       else .Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes`
-
+/-- [propext, choice, Quot.sound, Trusted.dateParseDate, Trusted.Date.ofCalendarDate, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes
 /-- `TryFrom<Value> for ParseIr<Date>`: any other value is an error. -/
 recall value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_other (v : value.Value) (hv : ∀ y mo d h mi s us, v ≠ .Date y mo d h mi s us) (hb : ∀ b, v ≠ .Bytes b) :
     value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_other`
-
+/-- [propext, choice, Quot.sound, Trusted.dateParseDate, Trusted.Date.ofCalendarDate, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_other
 /-- `from_value_opt`: as `try_from_date` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_date (y : U16) (mo d h mi s : U8) (us : U32) :
     value.convert.from_value_opt time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate (.Date y mo d h mi s us) ⦃ r =>
@@ -176,8 +176,8 @@ recall time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_va
       ((∃ p, r = .Ok p) ↔ timeDateValid y.val mo.val d.val) ∧
       ∀ x, r = .Ok x → timeDate x = ((y.val : ℤ), mo.val, d.val) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_date`
-
+/-- [propext, choice, Quot.sound, Trusted.dateParseDate, Trusted.Date.day, Trusted.Date.month, Trusted.Date.ofCalendarDate, Trusted.Date.ofCalendarDate_isSome, Trusted.Date.ofCalendarDate_some, Trusted.Date.year, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_date
 /-- `from_value_opt`: as `try_from_bytes` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_bytes (b : alloc.vec.Vec U8) :
     value.convert.from_value_opt time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate (.Bytes b) = ok (
@@ -187,14 +187,14 @@ recall time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_va
         | none => .Err (.Bytes b)
       else .Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_bytes`
-
+/-- [propext, choice, Quot.sound, Trusted.dateParseDate, Trusted.Date.ofCalendarDate, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_bytes
 /-- `from_value_opt`: as `try_from_other` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_other (v : value.Value) (hv : ∀ y mo d h mi s us, v ≠ .Date y mo d h mi s us) (hb : ∀ b, v ≠ .Bytes b) :
     value.convert.from_value_opt time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_other`
-
+/-- [propext, choice, Quot.sound, Trusted.dateParseDate, Trusted.Date.ofCalendarDate, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_other
 /-! ### `impl TryFrom<Value> for ParseIr<Time>` -/
 
 /-- `TryFrom<Value> for ParseIr<Time>` on a non-negative (sign flag false) `TIME` with 0 days: total; converts exactly
@@ -205,8 +205,8 @@ recall value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try
       ((∃ p, r = .Ok p) ↔ timeTimeValid h.val m.val s.val us.val) ∧
       ∀ x w, r = .Ok (x, w) → w = .Time false 0#u32 h m s us ∧ timeTime x = (h.val, m.val, s.val, us.val) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_time`
-
+/-- [propext, choice, Quot.sound, Trusted.timeFromHmsMicro, Trusted.timeFromHmsMicro_spec, Trusted.timeParseTime, Trusted.timeParseTimeMicro, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_time
 /-- `TryFrom<Value> for ParseIr<Time>` on `Bytes`: not valid UTF-8 or fewer than 8 bytes is an
     error; 8 bytes: time's `hh:mm:ss` parser; more: the parser with a fraction (both opaque). -/
 recall value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes (b : alloc.vec.Vec U8) :
@@ -219,15 +219,15 @@ recall value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try
         | .Err _ => .Err (.Bytes b)
       else .Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes`
-
+/-- [propext, choice, Quot.sound, Trusted.timeFromHmsMicro, Trusted.timeParseTime, Trusted.timeParseTimeMicro, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_bytes
 /-- `TryFrom<Value> for ParseIr<Time>`: any other value (including a negative `TIME` or one with
     days) is an error. -/
 recall value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_other (v : value.Value) (hv : ∀ h m s us, v ≠ .Time false 0#u32 h m s us) (hb : ∀ b, v ≠ .Bytes b) :
     value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_other`
-
+/-- [propext, choice, Quot.sound, Trusted.timeFromHmsMicro, Trusted.timeParseTime, Trusted.timeParseTimeMicro, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from_other
 /-- `from_value_opt`: as `try_from_time` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_time (h m s : U8) (us : U32) :
     value.convert.from_value_opt time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime (.Time false 0#u32 h m s us) ⦃ r =>
@@ -235,8 +235,8 @@ recall time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_va
       ((∃ p, r = .Ok p) ↔ timeTimeValid h.val m.val s.val us.val) ∧
       ∀ x, r = .Ok x → timeTime x = (h.val, m.val, s.val, us.val) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_time`
-
+/-- [propext, choice, Quot.sound, Trusted.timeFromHmsMicro, Trusted.timeFromHmsMicro_spec, Trusted.timeParseTime, Trusted.timeParseTimeMicro, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_time
 /-- `from_value_opt`: as `try_from_bytes` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_bytes (b : alloc.vec.Vec U8) :
     value.convert.from_value_opt time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime (.Bytes b) = ok (
@@ -248,14 +248,14 @@ recall time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_va
         | .Err _ => .Err (.Bytes b)
       else .Err (.Bytes b))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_bytes`
-
+/-- [propext, choice, Quot.sound, Trusted.timeFromHmsMicro, Trusted.timeParseTime, Trusted.timeParseTimeMicro, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_bytes
 /-- `from_value_opt`: as `try_from_other` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_other (v : value.Value) (hv : ∀ h m s us, v ≠ .Time false 0#u32 h m s us) (hb : ∀ b, v ≠ .Bytes b) :
     value.convert.from_value_opt time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_other`
-
+/-- [propext, choice, Quot.sound, Trusted.timeFromHmsMicro, Trusted.timeParseTime, Trusted.timeParseTimeMicro, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_value_opt_other
 /-! ### `impl TryFrom<Value> for ParseIr<time::Duration>` -/
 
 /-- `TryFrom<Value> for ParseIr<time::Duration>` (partial, glue level: time's `Duration` arithmetic is
@@ -269,16 +269,16 @@ recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValu
     | .bytes b => (timeStringRead b).isSome → ∃ x, r = .Ok (x, v)
     | _ => r = .Err v
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- `TryFrom<Value> for ParseIr<time::Duration>` is an error (no opaque call) on `Bytes` (ASCII)
     that are not a text `TIME` literal and on every value other than `TIME` and `Bytes`. -/
 recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
     (hv : match Val.ofValue v with | .time .. => False | .bytes b => timeStringRead b = none | _ => True) :
     value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err`
-
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err
 /-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) (r : core.result.Result time.signed_duration.SignedDuration value.convert.FromValueError)
     (h : value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v = ok r) :
@@ -287,15 +287,15 @@ recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromVal
     | .bytes b => (timeStringRead b).isSome → ∃ x, r = .Ok x
     | _ => r = .Err v
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec
 /-- `from_value_opt`: as `try_from_err` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
     (hv : match Val.ofValue v with | .time .. => False | .bytes b => timeStringRead b = none | _ => True) :
     value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v = ok (.Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err`
-
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err
 /-! ### `impl From<ParseIr<_>> for PrimitiveDateTime, Date, Time, time::Duration and for Value` -/
 
 /-- `From<ParseIr<PrimitiveDateTime>>` for `PrimitiveDateTime` is `commit`, for `Value` is
@@ -304,29 +304,29 @@ recall value.Value.Insts.CoreConvertFromParseIrPlainDateTime.from_eq (x : time.p
     time.plain_date_time.PlainDateTime.Insts.CoreConvertFromParseIrPlainDateTime.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrPlainDateTime.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrPlainDateTime.from_eq`
-
+/-- [propext, Quot.sound, time.plain_date_time.PlainDateTime] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrPlainDateTime.from_eq
 /-- `From<ParseIr<Date>>` for `Date` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrDate.from_eq (x : time.date.Date) (w : value.Value) :
     time.date.Date.Insts.CoreConvertFromParseIrDate.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrDate.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrDate.from_eq`
-
+/-- [propext, Quot.sound, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrDate.from_eq
 /-- `From<ParseIr<Time>>` for `Time` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrTime.from_eq (x : time.time.Time) (w : value.Value) :
     time.time.Time.Insts.CoreConvertFromParseIrTime.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrTime.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrTime.from_eq`
-
+/-- [propext, Quot.sound, time.time.Time] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrTime.from_eq
 /-- `From<ParseIr<time::Duration>>` for `time::Duration` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrSignedDuration.from_eq (x : time.signed_duration.SignedDuration) (w : value.Value) :
     time.signed_duration.SignedDuration.Insts.CoreConvertFromParseIrSignedDuration.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrSignedDuration.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrSignedDuration.from_eq`
-
+/-- [propext, Quot.sound, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrSignedDuration.from_eq
 /-! ### `impl From<PrimitiveDateTime> for Value` -/
 
 /-- `From<PrimitiveDateTime> for Value`: total; the `Date` of its fields (the year `as u16`, so
@@ -336,8 +336,8 @@ recall value.Value.Insts.CoreConvertFromPlainDateTime.from_spec (x : time.plain_
       Val.ofValue w = match timeDateTime x with
         | ((y, mo, d), (h, mi, s, us)) => .date (y % 2 ^ 16).toNat mo d h mi s us ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromPlainDateTime.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.Date.day, Trusted.Date.month, Trusted.Date.year, Trusted.PrimitiveDateTime.date, Trusted.PrimitiveDateTime.time, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromPlainDateTime.from_spec
 /-- Round trip: a valid date-time with a year in `[0, 9999]` reads back with the same fields. -/
 recall value.Value.Insts.CoreConvertFromPlainDateTime.roundtrip (x : time.plain_date_time.PlainDateTime)
     (hv : match timeDateTime x with
@@ -345,8 +345,8 @@ recall value.Value.Insts.CoreConvertFromPlainDateTime.roundtrip (x : time.plain_
     (do let w ← value.Value.Insts.CoreConvertFromPlainDateTime.from x; value.convert.from_value_opt time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime w) ⦃ r =>
       ∃ x', r = .Ok x' ∧ timeDateTime x' = timeDateTime x ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromPlainDateTime.roundtrip`
-
+/-- [propext, choice, Quot.sound, Trusted.pdtParseDateErr, Trusted.pdtParseDateTime, Trusted.pdtParseDateTimeMicro, Trusted.timeFromHmsMicro, Trusted.timeFromHmsMicro_spec, Trusted.Date.day, Trusted.Date.month, Trusted.Date.ofCalendarDate, Trusted.Date.ofCalendarDate_isSome, Trusted.Date.ofCalendarDate_some, Trusted.Date.year, Trusted.PrimitiveDateTime.date, Trusted.PrimitiveDateTime.date_new, Trusted.PrimitiveDateTime.new, Trusted.PrimitiveDateTime.time, Trusted.PrimitiveDateTime.time_new, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.date.Date, time.plain_date_time.PlainDateTime, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromPlainDateTime.roundtrip
 /-! ### `impl From<Date> for Value` -/
 
 /-- `From<Date> for Value`: total; the `Date` with zero time (the year taken mod `2^16`). -/
@@ -354,15 +354,15 @@ recall value.Value.Insts.CoreConvertFromDate.from_spec (x : time.date.Date) :
     value.Value.Insts.CoreConvertFromDate.from x ⦃ w =>
       Val.ofValue w = match timeDate x with | (y, mo, d) => .date (y % 2 ^ 16).toNat mo d 0 0 0 0 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromDate.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.Date.day, Trusted.Date.month, Trusted.Date.year, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromDate.from_spec
 /-- Round trip: a valid date with a year in `[0, 9999]` reads back with the same fields. -/
 recall value.Value.Insts.CoreConvertFromDate.roundtrip (x : time.date.Date) (hv : match timeDate x with | (y, mo, d) => 0 ≤ y ∧ timeDateValid y mo d) :
     (do let w ← value.Value.Insts.CoreConvertFromDate.from x; value.convert.from_value_opt time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate w) ⦃ r =>
       ∃ x', r = .Ok x' ∧ timeDate x' = timeDate x ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromDate.roundtrip`
-
+/-- [propext, choice, Quot.sound, Trusted.dateParseDate, Trusted.Date.day, Trusted.Date.month, Trusted.Date.ofCalendarDate, Trusted.Date.ofCalendarDate_isSome, Trusted.Date.ofCalendarDate_some, Trusted.Date.year, time.date.Date] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromDate.roundtrip
 /-! ### `impl From<Time> for Value` -/
 
 /-- `From<Time> for Value`: total; the non-negative `TIME` with 0 days of its fields. -/
@@ -370,15 +370,15 @@ recall value.Value.Insts.CoreConvertFromTime.from_spec (x : time.time.Time) :
     value.Value.Insts.CoreConvertFromTime.from x ⦃ w =>
       Val.ofValue w = match timeTime x with | (h, m, s, us) => .time false 0 h m s us ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromTime.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.time.Time] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromTime.from_spec
 /-- Round trip: a valid time reads back with the same fields. -/
 recall value.Value.Insts.CoreConvertFromTime.roundtrip (x : time.time.Time) (hv : match timeTime x with | (h, m, s, us) => timeTimeValid h m s us) :
     (do let w ← value.Value.Insts.CoreConvertFromTime.from x; value.convert.from_value_opt time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime w) ⦃ r =>
       ∃ x', r = .Ok x' ∧ timeTime x' = timeTime x ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromTime.roundtrip`
-
+/-- [propext, choice, Quot.sound, Trusted.timeFromHmsMicro, Trusted.timeFromHmsMicro_spec, Trusted.timeParseTime, Trusted.timeParseTimeMicro, Trusted.Time.hour, Trusted.Time.microsecond, Trusted.Time.minute, Trusted.Time.second, time.time.Time, time.error.component_range.ComponentRange] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromTime.roundtrip
 /-! ### `impl From<time::Duration> for Value` -/
 
 /-- `From<time::Duration> for Value` (partial, glue level: time's `Duration` arithmetic is opaque
@@ -386,6 +386,6 @@ recall value.Value.Insts.CoreConvertFromTime.roundtrip (x : time.time.Time) (hv 
 recall value.Value.Insts.CoreConvertFromSignedDuration.from_sign (x : time.signed_duration.SignedDuration) (w : value.Value) (h : value.Value.Insts.CoreConvertFromSignedDuration.from x = ok w) :
     ∃ d hh m s us, w = .Time (Trusted.durationLtZero x) d hh m s us
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromSignedDuration.from_sign`
-
+/-- [propext, choice, Quot.sound, Trusted.durationDays, Trusted.durationHours, Trusted.durationLtZero, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.durationSub, Trusted.durationWholeDays, Trusted.durationWholeHours, Trusted.durationWholeMicroseconds, Trusted.durationWholeMinutes, Trusted.durationWholeSeconds, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromSignedDuration.from_sign
 end mysql_common

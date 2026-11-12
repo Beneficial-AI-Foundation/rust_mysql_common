@@ -53,59 +53,59 @@ recall row.new_row_raw_spec (values : alloc.vec.Vec (Option value.Value)) (colum
     (h : values.length = columns.length) :
     row.new_row_raw values columns ⦃ r => r.values = values ∧ r.columns = columns ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.new_row_raw_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.new_row_raw_spec
 /-- `new_row_raw` panics (`assert!`) when the numbers of cells and columns differ. -/
 recall row.new_row_raw_panics (values : alloc.vec.Vec (Option value.Value)) (columns : alloc.sync.Arc (Slice packets.Column))
     (h : values.length ≠ columns.length) :
     ¬ row.new_row_raw values columns ⦃ _ => True ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.new_row_raw_panics`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.new_row_raw_panics
 /-- `len`: the number of cells. -/
 recall row.Row.len_spec (self : row.Row) :
     row.Row.len self ⦃ n => n.val = self.values.length ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.len_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.len_spec
 /-- `is_empty`: no cells. -/
 recall row.Row.is_empty_spec (self : row.Row) :
     row.Row.is_empty self ⦃ b => (b ↔ self.values.val = []) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.is_empty_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.is_empty_spec
 /-- `columns_ref`: the columns. -/
 recall row.Row.columns_ref_eq (self : row.Row) :
     row.Row.columns_ref self = ok self.columns
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.columns_ref_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.columns_ref_eq
 /-- `columns`: (another `Arc` to) the columns. -/
 recall row.Row.impl.columns_eq (self : row.Row) :
     row.Row.impl.columns self = ok self.columns
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.impl.columns_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.impl.columns_eq
 /-- `unwrap_raw`: the cells. -/
 recall row.Row.unwrap_raw_eq (self : row.Row) :
     row.Row.unwrap_raw self = ok self.values
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.unwrap_raw_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.unwrap_raw_eq
 /-! ### `struct RowDeserializer and its impls` -/
 
 /-- `into_inner`: the row. -/
 recall row.RowDeserializer.into_inner_eq {S P : Type} (self : row.RowDeserializer S P) :
     row.RowDeserializer.into_inner self = ok self.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializer.into_inner_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializer.into_inner_eq
 /-- `MyDeserialize for RowDeserializer<T, Text>`: `SIZE` is `None`. -/
 recall row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE_eq (T : Type) :
     row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE T = none
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE_eq
 /-- `MyDeserialize for RowDeserializer<T, Text>`: total; one text value per column (`textRowRead`), all present (`Some`), with the given columns. -/
 recall row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec (h64 : Target64) (T : Type) (columns : alloc.sync.Arc (Slice packets.Column))
     (buf : io.ParseBuf) :
@@ -114,8 +114,8 @@ recall row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceCo
       rest.val = (textRowRead columns.length buf.val).2 ∧
       ∀ d, okPart r = some d → d.1.columns = columns ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec
 /-- Round trip: a text row of `NULL`s and byte strings (one per column) is read back. -/
 recall row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip (h64 : Target64) (T : Type) (columns : alloc.sync.Arc (Slice packets.Column)) (vs : List Val)
     (hv : ∀ v ∈ vs, isTextVal v = true) (hn : vs.length = columns.length) (tail : List U8)
@@ -123,14 +123,14 @@ recall row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceCo
     row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize T columns buf ⦃ r rest =>
       (okPart r).map (fun d => rowVals d.1) = some (vs.map some) ∧ rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip
 /-- `MyDeserialize for RowDeserializer<S, Binary>`: `SIZE` is `None`. -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE_eq {S : Type} (inst : value.SerializationSide S) :
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE inst = none
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE_eq
 /-- `MyDeserialize for RowDeserializer<S, Binary>`: when every column whose type the binary value decoder does not support is marked NULL in the row's bitmap, total; `binRowRead` with `S`'s bit offset (header byte, NULL bitmap, then the non-NULL values), all present (`Some`), with the given columns. (The bound on the number of columns keeps `bitmap_len` from overflowing.) -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
@@ -143,8 +143,8 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
       rest.val = (binRowRead off.val (columns.val.map colInfo) buf.val).2 ∧
       ∀ d, okPart r = some d → d.1.columns = columns ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec
 /-- **Crash path.** `MyDeserialize for RowDeserializer<S, Binary>` panics when it reaches a non-NULL value of a column of unsupported type; e.g. when the first column has such a type and is not marked NULL. -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_unsupported {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
@@ -155,8 +155,8 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
     (hnn : bitmapBit off.val ((buf.val.drop 1).take (nullBitmapLen off.val columns.length)) 0 = false) :
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize inst columns buf = fail .panic
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_unsupported`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_unsupported
 /-- Round trip (parameter encoding: every integer in 8 bytes, so integers only at `LONGLONG`; see `roundtrip_at` for the server's format): a binary row (`binRowEnc`: header, NULL bitmap, values) of `Value`s that are `NULL` or fit their column's type (`binCompatible`) is read back, up to the value decoder's normalisation `binNorm` (integers reinterpreted by the column's `UNSIGNED_FLAG`, negative zero times made positive). -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
@@ -168,14 +168,14 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
         some ((vs.zip columns.val).map (fun p => some (binNorm (isUnsigned p.2.flags.1) (Val.ofValue p.1)))) ∧
       rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip
 /-- `ServerSide::BIT_OFFSET` is 2 (from `src/value/mod.rs`; the offset of binary result-set rows). -/
 recall value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val :
     value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET.val = 2
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val
 /-- `MyDeserialize for RowDeserializer<ServerSide, Binary>` (how clients read binary result-set rows): `deserialize_spec` at bit offset 2. -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec_server (h64 : Target64) (columns : alloc.sync.Arc (Slice packets.Column))
     (hlen : columns.length + 9 ≤ Usize.max) (buf : io.ParseBuf)
@@ -187,8 +187,8 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
       rest.val = (binRowRead 2 (columns.val.map colInfo) buf.val).2 ∧
       ∀ d, okPart r = some d → d.1.columns = columns ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec_server`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec_server
 /-- Round trip at the columns' types: a binary row as the server sends it (`binRowEncAt`: each non-NULL value in its column's format, integers in the column's width) of `Value`s that are `NULL` or fit their column (`binFitsAt`: in range for a narrow integer type, else `binCompatible`) is read back, up to `binNormAt`. -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
@@ -203,8 +203,8 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
           some (binNormAt p.2.column_type.1 (isUnsigned p.2.flags.1) (Val.ofValue p.1)))) ∧
       rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at
 /-- `roundtrip_at` at `ServerSide` (bit offset 2). -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at_server (h64 : Target64) (columns : alloc.sync.Arc (Slice packets.Column))
     (hlen : columns.length + 9 ≤ Usize.max) (vs : List value.Value) (hn : vs.length = columns.length)
@@ -218,6 +218,6 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
           some (binNormAt p.2.column_type.1 (isUnsigned p.2.flags.1) (Val.ofValue p.1)))) ∧
       rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at_server`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at_server
 end mysql_common

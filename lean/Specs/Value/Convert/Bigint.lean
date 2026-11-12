@@ -39,15 +39,15 @@ recall value.convert.ParseIrBigInt.Insts.CoreConvertTryFromValueFromValueError.t
         | none => .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrBigInt.Insts.CoreConvertTryFromValueFromValueError.try_from_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.bigintFromI64, Trusted.bigintFromU64, Trusted.bigintParseBytes, num_bigint_1.bigint.BigInt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrBigInt.Insts.CoreConvertTryFromValueFromValueError.try_from_eq
 /-- `From<ParseIr<BigInt>>` for `BigInt` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrBigInt.from_eq (x : num_bigint_1.bigint.BigInt) (w : value.Value) :
     num_bigint_1.bigint.BigInt.Insts.CoreConvertFromParseIrBigInt.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrBigInt.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrBigInt.from_eq`
-
+/-- [propext, Quot.sound, num_bigint_1.bigint.BigInt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrBigInt.from_eq
 /-- `From<BigInt> for Value`: `Int` if it fits in an `i64`, else `UInt` if it fits in a `u64`, else
     `Bytes` of its decimal text (all three tests opaque). -/
 recall value.Value.Insts.CoreConvertFromBigInt.from_spec (x : num_bigint_1.bigint.BigInt) (h : Trusted.bigintToI64 x = none → Trusted.bigintToU64 x = none →
@@ -58,8 +58,8 @@ recall value.Value.Insts.CoreConvertFromBigInt.from_spec (x : num_bigint_1.bigin
         | none, some u => .uint u.val
         | none, none => .bytes (utf8 (Trusted.bigintToString x)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigInt.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.bigintToI64, Trusted.bigintToString, Trusted.bigintToU64, num_bigint_1.bigint.BigInt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigInt.from_spec
 /-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt.from_value_opt_eq (v : value.Value) :
     value.convert.from_value_opt num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt v = ok (match v with
@@ -71,8 +71,8 @@ recall num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIr
         | none => .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt.from_value_opt_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.bigintFromI64, Trusted.bigintFromU64, Trusted.bigintParseBytes, num_bigint_1.bigint.BigInt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt.from_value_opt_eq
 /-! ### `impl FromValue for BigUint, impl From<BigUint> for Value` -/
 
 /-- `TryFrom<Value> for ParseIr<BigUint>`: `Int` (if non-negative, per the opaque `from_i64`) and
@@ -90,15 +90,15 @@ recall value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError.
         | none => .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError.try_from_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.biguintFromI64, Trusted.biguintFromU64, Trusted.biguintParseBytes, num_bigint_1.biguint.BigUint] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError.try_from_eq
 /-- `From<ParseIr<BigUint>>` for `BigUint` is `commit`, for `Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrBigUint.from_eq (x : num_bigint_1.biguint.BigUint) (w : value.Value) :
     num_bigint_1.biguint.BigUint.Insts.CoreConvertFromParseIrBigUint.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrBigUint.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrBigUint.from_eq`
-
+/-- [propext, Quot.sound, num_bigint_1.biguint.BigUint] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrBigUint.from_eq
 /-- `From<BigUint> for Value`: `UInt` if it fits in a `u64`, else `Bytes` of its decimal text. -/
 recall value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.biguint.BigUint) (h : Trusted.biguintToU64 x = none → (utf8 (Trusted.biguintToString x)).length ≤ Usize.max) :
     value.Value.Insts.CoreConvertFromBigUint.from x ⦃ w =>
@@ -106,8 +106,8 @@ recall value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.bigu
         | some u => .uint u.val
         | none => .bytes (utf8 (Trusted.biguintToString x)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigUint.from_spec`
-
+/-- [propext, choice, Quot.sound, Trusted.biguintToString, Trusted.biguintToU64, num_bigint_1.biguint.BigUint] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromBigUint.from_spec
 /-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 recall num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint.from_value_opt_eq (v : value.Value) :
     value.convert.from_value_opt num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint v = ok (match v with
@@ -122,6 +122,6 @@ recall num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParse
         | none => .Err v
       | _ => .Err v)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint.from_value_opt_eq`
-
+/-- [propext, choice, Quot.sound, Trusted.biguintFromI64, Trusted.biguintFromU64, Trusted.biguintParseBytes, num_bigint_1.biguint.BigUint] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint.from_value_opt_eq
 end mysql_common

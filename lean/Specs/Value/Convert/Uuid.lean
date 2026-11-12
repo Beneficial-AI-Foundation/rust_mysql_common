@@ -29,14 +29,14 @@ namespace mysql_common
 recall value.Value.Insts.CoreConvertFromUuid.from_spec (x : uuid.Uuid) :
     value.Value.Insts.CoreConvertFromUuid.from x ⦃ w => Val.ofValue w = .bytes (Array.val x) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromUuid.from_spec`
-
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromUuid.from_spec
 /-- Round trip: `from_value_opt::<Uuid>(Value::from(x)) = Ok(x)`. -/
 recall value.Value.Insts.CoreConvertFromUuid.roundtrip (x : uuid.Uuid) :
     (do let w ← value.Value.Insts.CoreConvertFromUuid.from x; value.convert.from_value_opt uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid w) ⦃ r => r = .Ok x ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromUuid.roundtrip`
-
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromUuid.roundtrip
 /-! ### `impl TryFrom<Value> for ParseIr<Uuid>, fn uuid_from_slice` -/
 
 /-- `uuid_from_slice` (`Uuid::from_slice(b).ok()`): total; the uuid with these bytes exactly
@@ -44,8 +44,8 @@ recall value.Value.Insts.CoreConvertFromUuid.roundtrip (x : uuid.Uuid) :
 recall value.convert.uuid.uuid_from_slice_spec (b : Slice U8) :
     value.convert.uuid.uuid_from_slice b ⦃ r => ∀ u : uuid.Uuid, r = some u ↔ Array.val u = b.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.uuid.uuid_from_slice_spec`
-
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.uuid.uuid_from_slice_spec
 /-- `TryFrom<Value> for ParseIr<Uuid>`: total; succeeds exactly on `Bytes` of length 16, keeping
     the original value for `rollback`. -/
 recall value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) :
@@ -53,20 +53,20 @@ recall value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try
       (∀ u w, r = .Ok (u, w) ↔ w = v ∧ Val.ofValue v = .bytes (Array.val u)) ∧
       (okPart r = none → r = .Err v) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try_from_spec`
-
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- `from_value_opt::<Uuid>`: as `try_from`, committed. -/
 recall uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid.from_value_opt_spec (v : value.Value) :
     value.convert.from_value_opt uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid v ⦃ r =>
       (∀ u, r = .Ok u ↔ Val.ofValue v = .bytes (Array.val u)) ∧ (okPart r = none → r = .Err v) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid.from_value_opt_spec`
-
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid.from_value_opt_spec
 /-- `From<ParseIr<Uuid>> for Uuid` is `commit`, `From<ParseIr<Uuid>> for Value` is `rollback`. -/
 recall value.Value.Insts.CoreConvertFromParseIrUuid.from_eq (x : uuid.Uuid) (w : value.Value) :
     uuid.Uuid.Insts.CoreConvertFromParseIrUuid.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrUuid.from (x, w) = ok w
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrUuid.from_eq`
-
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrUuid.from_eq
 end mysql_common

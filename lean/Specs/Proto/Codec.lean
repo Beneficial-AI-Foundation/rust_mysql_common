@@ -57,16 +57,16 @@ recall proto.codec.packet_to_chunks_spec (seq : U8) (packet dst : proto.codec.bu
       seq'.val = (seq.val + frameCount packet.length) % 256 ∧ packet'.val = [] ∧
       dst'.val = dst.val ++ frame seq.val packet.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.packet_to_chunks_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.packet_to_chunks_spec
 /-! ### `enum ChunkInfo and its impls` -/
 
 /-- `seq_id`: the sequence id of either variant. -/
 recall proto.codec.ChunkInfo.seq_id_eq (ci : proto.codec.ChunkInfo) :
     proto.codec.ChunkInfo.seq_id ci = ok (chunkInfoSeq ci)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.ChunkInfo.seq_id_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.ChunkInfo.seq_id_eq
 /-! ### `enum ChunkDecoder and its impls` -/
 
 /-- `decode(src, dst, max_allowed_packet)`: total; exactly one step of `chunkStep` (needs more input, a chunk read, or `PacketTooLarge`), with the new state, input and output; the new state is again valid, so the next call's `hv` holds. -/
@@ -76,16 +76,16 @@ recall proto.codec.ChunkDecoder.decode_spec (self : proto.codec.ChunkDecoder) (h
       (r, ChunkState.of cd, src'.val, dst'.val) = chunkStep (ChunkState.of self) src.val dst.val max.val ∧
       (ChunkState.of cd).Valid ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.ChunkDecoder.decode_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.ChunkDecoder.decode_spec
 /-! ### `struct PlainPacketCodec and its impls` -/
 
 /-- `reset_seq_id`: the sequence id becomes 0. -/
 recall proto.codec.PlainPacketCodec.reset_seq_id_eq (self : proto.codec.PlainPacketCodec) :
     proto.codec.PlainPacketCodec.reset_seq_id self = ok { self with seq_id := 0#u8 }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.reset_seq_id_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.reset_seq_id_eq
 /-- `encode(packet, dst, max_allowed_packet)`: `PacketTooLarge`, nothing changed, if the packet is longer than `max_allowed_packet`; otherwise appends its chunks from the codec's sequence id (`frame`), consumes the packet, and advances the sequence id by the number of chunks. -/
 recall proto.codec.PlainPacketCodec.encode_spec (self : proto.codec.PlainPacketCodec) (packet dst : proto.codec.buf_model.VecBuf) (max : Usize)
     (h : max.val < packet.length ∨ dst.length + (frame self.seq_id.val packet.val).length ≤ Usize.max) :
@@ -96,8 +96,8 @@ recall proto.codec.PlainPacketCodec.encode_spec (self : proto.codec.PlainPacketC
         r = .Ok () ∧ codec = { self with seq_id := byte (self.seq_id.val + frameCount packet.length) } ∧
         packet'.val = [] ∧ dst'.val = dst.val ++ frame self.seq_id.val packet.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.encode_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.encode_spec
 /-- `decode(src, dst, max_allowed_packet, comp_seq_id)`: total; exactly `plainDecode` (chunks read with `chunkStep` until the last chunk of a packet, `Ok(true)`, or more input is needed, `Ok(false)`, or an error: `PacketTooLarge`, or `PacketsOutOfSync` for a chunk whose sequence id is neither the expected one nor `comp_seq_id`); the new state is again valid. -/
 recall proto.codec.PlainPacketCodec.decode_spec (self : proto.codec.PlainPacketCodec) (hv : (ChunkState.of self.chunk_decoder).Valid)
     (src dst : proto.codec.buf_model.VecBuf) (max : Usize) (comp : Option U8)
@@ -107,8 +107,8 @@ recall proto.codec.PlainPacketCodec.decode_spec (self : proto.codec.PlainPacketC
         plainDecode self.seq_id (ChunkState.of self.chunk_decoder) src.val dst.val max.val comp ∧
       (ChunkState.of codec.chunk_decoder).Valid ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_spec
 /-- Headline round trip: an idle codec decodes the chunks of a payload (`frame`, as `encode` writes them) starting at its sequence id into an empty `dst`: the whole payload, `Ok(true)`, the input after the chunks left, the sequence id advanced by the number of chunks, the decoder idle again. -/
 recall proto.codec.PlainPacketCodec.decode_frame (self : proto.codec.PlainPacketCodec) (hidle : self.chunk_decoder = .Idle) (p tail : List U8)
     (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val = frame self.seq_id.val p ++ tail) (hdst : dst.val = [])
@@ -117,8 +117,8 @@ recall proto.codec.PlainPacketCodec.decode_frame (self : proto.codec.PlainPacket
       r = .Ok true ∧ codec.seq_id = byte (self.seq_id.val + frameCount p.length) ∧
       codec.chunk_decoder = .Idle ∧ src'.val = tail ∧ dst'.val = p ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_frame`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_frame
 /-- Incremental decoding: on a strict prefix of the chunks of a payload, an idle codec reports that more input is needed (`Ok(false)`), never an error; the state it leaves is `plainDecode`'s (see `decode_resume` for continuing). -/
 recall proto.codec.PlainPacketCodec.decode_prefix (self : proto.codec.PlainPacketCodec) (hidle : self.chunk_decoder = .Idle) (p : List U8) (k : Nat)
     (hk : k < (frame self.seq_id.val p).length) (src dst : proto.codec.buf_model.VecBuf)
@@ -129,8 +129,8 @@ recall proto.codec.PlainPacketCodec.decode_prefix (self : proto.codec.PlainPacke
       (r, codec.seq_id, ChunkState.of codec.chunk_decoder, src'.val, dst'.val) =
         plainDecode self.seq_id ChunkState.idle ((frame self.seq_id.val p).take k) [] max.val comp ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_prefix`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_prefix
 /-- Resumption: after decoding a strict prefix of the chunks of a payload (`Ok(false)`), calling `decode` again with the returned codec and output, on what the first call left of the input followed by the rest of the chunks (and anything after), completes the packet: `Ok(true)`, the whole payload, the sequence id advanced by the number of chunks, the decoder idle, the input after the chunks left. -/
 recall proto.codec.PlainPacketCodec.decode_resume (self : proto.codec.PlainPacketCodec) (hidle : self.chunk_decoder = .Idle) (p tail : List U8) (k : Nat)
     (hk : k < (frame self.seq_id.val p).length) (src dst : proto.codec.buf_model.VecBuf)
@@ -144,8 +144,8 @@ recall proto.codec.PlainPacketCodec.decode_resume (self : proto.codec.PlainPacke
           r = .Ok true ∧ codec.seq_id = byte (self.seq_id.val + frameCount p.length) ∧
           codec.chunk_decoder = .Idle ∧ src'.val = tail ∧ dst'.val = p ⦄) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_resume`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_resume
 /-- Out of sync: an idle codec given (outside compressed mode) the chunks of a payload whose sequence id `s` is not the expected one fails with `PacketsOutOfSync`, and its expected sequence id is unchanged. -/
 recall proto.codec.PlainPacketCodec.decode_out_of_sync (self : proto.codec.PlainPacketCodec) (hidle : self.chunk_decoder = .Idle) (s : U8) (hs : s ≠ self.seq_id)
     (p tail : List U8) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val = frame s.val p ++ tail) (hdst : dst.val = [])
@@ -153,6 +153,6 @@ recall proto.codec.PlainPacketCodec.decode_out_of_sync (self : proto.codec.Plain
     proto.codec.PlainPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max none ⦃ r codec _ _ =>
       r = .Err .PacketsOutOfSync ∧ codec.seq_id = self.seq_id ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_out_of_sync`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_out_of_sync
 end mysql_common
