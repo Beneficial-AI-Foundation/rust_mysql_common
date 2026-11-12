@@ -216,4 +216,13 @@ theorem pos_eq_iff (pos n : Nat) : pos = n ↔ (pos / 8 = n / 8 ∧ pos % 8 = n 
   · rintro rfl; exact ⟨rfl, rfl⟩
   · rintro ⟨h1, h2⟩; omega
 
+/-! ## `put_slice` -/
+
+@[step]
+theorem put_slice_ok (v : alloc.vec.Vec U8) (s : Slice U8) (h : v.length + s.length ≤ Usize.max) :
+    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice v s ⦃ v' => v'.val = v.val ++ s.val ⦄ := by
+  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice alloc.vec.Vec.extend_from_slice
+  simp only [h, _root_.dite_true]
+  step*
+
 end mysql_common.PCSUtil
