@@ -223,6 +223,23 @@ theorem rawint_new_spec {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) :
   unfold misc.raw.int.RawInt.new
   exact (spec_ok _).2 rfl
 
+@[step]
+theorem rawint_deref_spec {T P : Type} (inst : misc.raw.int.IntRepr T P) (self : misc.raw.int.RawInt T P) :
+    misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref inst self ⦃ r => r = self.1 ⦄ := by
+  unfold misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
+  exact (spec_ok _).2 rfl
+
+@[step]
+theorem rawflags_new_spec {T B : Type} (U : Type) (fl : bitflags.traits.Flags T B) (value : B) :
+    misc.raw.flags.RawFlags.new U fl value ⦃ r => r = (value, ()) ⦄ := by
+  unfold misc.raw.flags.RawFlags.new
+  exact (spec_ok _).2 rfl
+
+theorem rawint_new_bind {T P β : Type} (inst : misc.raw.int.IntRepr T P) (x : P)
+    (f : misc.raw.int.RawInt T P → Result β) :
+    Std.bind (misc.raw.int.RawInt.new inst x) f = f (x, ()) :=
+  Std.bind_ok (α := misc.raw.int.RawInt T P) (x, ()) f
+
 theorem rawint_deserialize_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
     (buf : io.ParseBuf) (Q : Option P → io.ParseBuf → Prop)
     (h : inst.deserialize buf ⦃ r rest => Q (okPart r) rest ⦄) :
