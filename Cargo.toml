@@ -123,3 +123,12 @@ features = [
     "binlog",
     "frunk",
 ]
+
+# Charon settings for the Aeneas/Lean verification (see VERIFICATION.md and scripts/).
+[package.metadata.charon]
+start_from = [
+  "mysql_common::io",
+  "mysql_common::misc",
+]
+exclude = []
+opaque = []

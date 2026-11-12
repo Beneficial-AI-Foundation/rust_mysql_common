@@ -1,0 +1,28 @@
+name = "mysql_common_verif"
+defaultTargets = ["MysqlCommon", "Defs", "Specs", "Proofs"]
+
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas.git"
+subDir = "backends/lean"
+rev = "nightly-2026.11.11-0d21a9e"
+
+# The Aeneas translation (generated Funs.lean/Types.lean) and the hand-written externals.
+[[lean_lib]]
+name = "MysqlCommon"
+srcDir = "lean"
+
+# Definitions needed to state the specs.
+[[lean_lib]]
+name = "Defs"
+srcDir = "lean"
+
+# One spec file per Rust file: the public statements and the axioms they rest on.
+[[lean_lib]]
+name = "Specs"
+srcDir = "lean"
+
+# The proofs, one file per Rust item.
+[[lean_lib]]
+name = "Proofs"
+srcDir = "lean"
