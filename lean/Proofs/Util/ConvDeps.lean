@@ -38,4 +38,74 @@ theorem str_from_utf8_eq (b : Slice U8) :
 @[simp] theorem vec_deref_val {T : Type} (v : alloc.vec.Vec T) : (alloc.vec.Vec.deref v).val = v.val := by
   simp [alloc.vec.Vec.deref]
 
+/-! ## Casts -/
+
+theorem u16_hcast_i32_val (y : U16) : (UScalar.hcast .I32 y).val = y.val := by
+  rw [UScalar.hcast_val_eq]
+  have := y.hBounds
+  apply Int.bmod_eq_of_le <;> simp at * <;> omega
+
+theorem u32_hcast_i32_val (y : U32) (h : y.val < 2 ^ 31) : (UScalar.hcast .I32 y).val = y.val := by
+  rw [UScalar.hcast_val_eq]
+  apply Int.bmod_eq_of_le <;> simp at * <;> omega
+
+theorem u8_into_u32_val (x : U8) : ∃ y, core.convert.IntoFrom.into core.convert.FromU32U8 x = ok y ∧ y.val = x.val := by
+  simp [core.convert.IntoFrom.into, core.convert.FromU32U8]
+
+/-- Binds that return: the first computation returned. -/
+theorem bind_eq_ok_inv {α β : Type} {m : Result α} {k : α → Result β} {w : β}
+    (h : (m >>= k) = ok w) : ∃ a, m = ok a ∧ k a = ok w := by
+  cases m <;> simp_all
+
+/-! ## `time::Month` -/
+
+theorem month_from_u8_spec (mo : U8) : ∃ o, value.convert.trusted.time_month_from_u8 mo = ok o ∧
+    (o.isSome ↔ 1 ≤ mo.val ∧ mo.val ≤ 12) ∧ ∀ m, o = some m → Trusted.monthNumber m = mo.val := by
+  unfold value.convert.trusted.time_month_from_u8
+  refine ⟨_, rfl, ?_⟩
+  split <;> simp_all [Trusted.monthNumber] <;> omega
+
+theorem month_to_u8_val (m : time.month.Month) : ∃ u, value.convert.trusted.time_month_to_u8 m = ok u ∧
+    u.val = Trusted.monthNumber m := by
+  cases m <;> simp [value.convert.trusted.time_month_to_u8, Trusted.monthNumber]
+
+theorem month_from_u8_monthNumber (m : time.month.Month) (u : U8) (hu : u.val = Trusted.monthNumber m) :
+    value.convert.trusted.time_month_from_u8 u = ok (some m) := by
+  unfold value.convert.trusted.time_month_from_u8
+  rw [hu]; cases m <;> rfl
+
+/-! ## `from_value_opt` from `try_from` -/
+
+/-- The committed result of a `try_from` producing a `ParseIr`. -/
+def mapIr {T E : Type} : core.result.Result (value.convert.ParseIr T) E → core.result.Result T E
+  | .Ok p => .Ok p.1
+  | .Err e => .Err e
+
+@[simp] theorem mapIr_ok {T E : Type} (x : T) (w : value.Value) :
+    (mapIr (.Ok ((x, w) : value.convert.ParseIr T)) : core.result.Result T E) = .Ok x := rfl
+@[simp] theorem mapIr_err {T E : Type} (e : E) :
+    (mapIr (T := T) (.Err e) : core.result.Result T E) = .Err e := rfl
+
+theorem spec_eq_ok {α : Type} {m : Result α} {P : α → Prop} (h : m ⦃ P ⦄) : ∃ v, m = ok v ∧ P v := by
+  cases m <;> simp_all
+
+theorem from_value_opt_eq_of {T : Type} (inst : value.convert.FromValue T (value.convert.ParseIr T))
+    (hd : inst.from_value_opt = value.convert.FromValue.from_value_opt.default inst)
+    (hinto : ∀ p, inst.coreconvertIntoInst.into p = ok p.1) (v : value.Value) {r}
+    (h : inst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from v = ok r) :
+    value.convert.from_value_opt inst v = ok (mapIr r) := by
+  simp only [value.convert.from_value_opt, hd, value.convert.FromValue.from_value_opt.default, h]
+  cases r with
+  | Ok p => simp [hinto, mapIr]
+  | Err e => simp [mapIr]
+
+theorem from_value_opt_spec_of {T : Type} (inst : value.convert.FromValue T (value.convert.ParseIr T))
+    (hd : inst.from_value_opt = value.convert.FromValue.from_value_opt.default inst)
+    (hinto : ∀ p, inst.coreconvertIntoInst.into p = ok p.1) (v : value.Value) {P : _ → Prop}
+    (h : inst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from v ⦃ P ⦄) :
+    value.convert.from_value_opt inst v ⦃ r' => ∃ r, P r ∧ r' = mapIr r ⦄ := by
+  obtain ⟨r, hr, hp⟩ := spec_eq_ok h
+  rw [from_value_opt_eq_of inst hd hinto v hr, WP.spec_ok]
+  exact ⟨r, hp, rfl⟩
+
 end mysql_common.ConvDeps
