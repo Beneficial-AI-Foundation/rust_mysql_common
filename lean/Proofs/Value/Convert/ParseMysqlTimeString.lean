@@ -774,15 +774,14 @@ private theorem core_spec (bs1 : Slice U8) (neg : Bool) (ha : ∀ c ∈ bs1.val,
     simp [value.convert.trusted.time_re_hhh_mm_ss, Trusted.isMatch_ascii _ _ ha]
   have e4 : value.convert.trusted.time_re_hhh_mm_ss_ms bs1 = ok (Trusted.Regex.asciiMatch .timeHhhMmSsMs bs1.val) := by
     simp [value.convert.trusted.time_re_hhh_mm_ss_ms, Trusted.isMatch_ascii _ _ ha]
-  simp only [e1, e2, e3, e4, bind_ok, bind_tc_ok]
-  have hl : (Slice.len bs1).val = bs1.val.length := by simp [Slice.len_val, Slice.length]
+  simp only [e1, e2, e3, e4, bind_ok]
+  have hl : (Slice.len bs1).val = bs1.val.length := by simp
   split_ifs
-  all_goals first
+  all_goals try first
     | exact leaf_hh bs1 neg ‹_›
     | exact leaf_hhh bs1 neg ‹_›
     | exact leaf_hh_ms bs1 neg ‹_›
     | exact leaf_hhh_ms bs1 neg ‹_›
-    | skip
   all_goals
     simp only [WP.spec_ok, Option.map_none]
     symm; by_contra hne
@@ -835,13 +834,13 @@ theorem value.convert.parse_mysql_time_string_spec (b : Slice U8) (ha : ∀ c �
       · intro x hx; rw [bytes1_post, hb] at hx; exact ha x (by simp [hb]; right; simpa using hx)
     · rename_i hc
       have hcs := core_spec b (decide (i1 = 45#u8)) ha
-      simp only [bind_ok, bind_tc_ok]
+      simp only [bind_ok]
       refine WP.spec_mono hcs ?_
       intro r hr
       change Option.map tview r = _
       rw [hr, hb, timeStringRead_cons]
       have : ¬ c.val = 45 := by
         intro e; apply hc; rw [hi1]; exact UScalar.eq_of_val_eq (by simpa using e)
-      simp [this, hc, hb]
+      simp [this, hc]
 
 end mysql_common

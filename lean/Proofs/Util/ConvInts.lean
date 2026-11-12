@@ -16,19 +16,6 @@ theorem byte_eq_iff (c : U8) (n : Nat) (hn : n < 256) : c = byte n ↔ c.val = n
     simp only [BitVec.toNat_ofNat]; omega
   rw [this]
 
-/-- `bind` of a `ParseIrOpt`-valued `try_from` with the `commit` conversion. -/
-theorem bind_commit {T : Type} (r : core.result.Result (value.convert.ParseIrOpt T) value.convert.FromValueError) :
-    (match r with
-      | core.result.Result.Ok x => do
-        let t ← value.convert.ParseIrOpt.commit x
-        ok (core.result.Result.Ok t)
-      | core.result.Result.Err e => ok (core.result.Result.Err e)) =
-    ok (match r with
-      | .Ok (.Ready t) => .Ok t
-      | .Ok (.Parsed t _) => .Ok t
-      | .Err e => .Err e) := by
-  rcases r with (_ | _) | _ <;> simp [value.convert.ParseIrOpt.commit]
-
 theorem bmod_self (x : Int) (m : Nat) (h1 : -(m : Int) ≤ 2 * x) (h2 : 2 * x < m) : x.bmod m = x := by
   rw [Int.bmod]
   by_cases hx : 0 ≤ x
@@ -210,14 +197,21 @@ theorem decimalBytes_length (n : Int) (hn : n.natAbs < 2 ^ 128) : (decimalBytes 
 theorem usize_max_ge : 2 ^ 32 - 1 ≤ Usize.max := by
   rcases platform_bounds with ⟨_, _, _, h⟩ | ⟨_, _, _, h⟩ <;> omega
 
-/-- `i128::to_string` then `String::into_bytes`: the decimal text. -/
-theorem string_into_bytes_toString (n : Int) (hn : n.natAbs < 2 ^ 128) :
-    value.convert.trusted.string_into_bytes (toString n) ⦃ v => v.val = decimalBytes n ⦄ := by
+/-- `i128::to_string`: the decimal text. -/
+theorem i128_to_string_spec (x : Std.I128) :
+    value.convert.trusted.i128_to_string x ⦃ s => Trusted.u8sOf s.toUTF8 = decimalBytes x.val ⦄ := by
+  simp only [value.convert.trusted.i128_to_string, WP.spec_ok]; exact u8sOf_toString _
+
+/-- `u128::to_string`: the decimal text. -/
+theorem u128_to_string_spec (x : Std.U128) :
+    value.convert.trusted.u128_to_string x ⦃ s => Trusted.u8sOf s.toUTF8 = decimalBytes (x.val : ℤ) ⦄ := by
+  simp only [value.convert.trusted.u128_to_string, WP.spec_ok]; exact u8sOf_toString (x.val : ℤ)
+
+/-- `String::into_bytes`: the UTF-8 bytes, when they fit in memory. -/
+theorem string_into_bytes_spec (s : String) (h : (Trusted.u8sOf s.toUTF8).length ≤ Usize.max) :
+    value.convert.trusted.string_into_bytes s ⦃ v => v.val = Trusted.u8sOf s.toUTF8 ⦄ := by
   unfold value.convert.trusted.string_into_bytes
-  rw [u8sOf_toString]
-  have := decimalBytes_length n hn
-  have := usize_max_ge
-  rw [dite_eq_left_of_eq_true (eq_true (by omega)), WP.spec_ok, alloc.vec.Vec.from_val]
+  rw [dite_eq_left_of_eq_true (eq_true h), WP.spec_ok, alloc.vec.Vec.from_val]
 
 /-! ## The generic integer conversion -/
 
@@ -369,224 +363,167 @@ macro "int_close" : tactic => `(tactic| (
 
 namespace mysql_common.ConvInts
 
-/-! ## `From<T> for Value` of the integer types -/
+/-! ## `From<T> for Value` of the integer types
+
+Each `from` casts to `i64`/`u64` (or, for 128 bits, compares against the 64-bit bounds and falls
+back to the decimal text). The proofs `step*` through the body and then rewrite with the value of
+the cast (`cast_I64_val`, `cast_U64_val`, `hcast_U64_val`) and the branch of `intVal`
+(`intVal_int`, `intVal_uint`, `intVal_nat`, `intVal_bytes`); the side conditions are bounds that
+`scalar_tac` proves. -/
+
+/-- The 64-bit bounds of `isize` (on both platform widths). -/
+theorem isize_bounds (x : Isize) : -2 ^ 63 ≤ x.val ∧ x.val < 2 ^ 63 := by
+  have := x.hBounds
+  rcases System.Platform.numBits_eq with h | h <;>
+    simp only [IScalarTy.Isize_numBits_eq, h] at this <;> omega
+
+/-- The 64-bit bound of `usize` (on both platform widths). -/
+theorem usize_lt (x : Usize) : x.val < 2 ^ 64 := by
+  have := x.hBounds
+  rcases System.Platform.numBits_eq with h | h <;>
+    simp only [UScalarTy.Usize_numBits_eq, h] at this <;> omega
+
+/-- A signed value in the range of `i64` keeps its value under the cast to `i64`. -/
+theorem cast_I64_val {ty : IScalarTy} (x : IScalar ty) (h1 : -2 ^ 63 ≤ x.val) (h2 : x.val < 2 ^ 63) :
+    (IScalar.cast .I64 x).val = x.val := by
+  have hb := x.hBounds
+  have hn : 0 < ty.numBits := by cases ty <;> simp [IScalarTy.numBits]
+  have h2n : (2 : Int) ^ ty.numBits = 2 * 2 ^ (ty.numBits - 1) := by
+    rw [← pow_succ']; congr 1; omega
+  rw [IScalar.cast_val_eq, IScalarTy.I64_numBits_eq, Nat.min_def]
+  apply bmod_self <;> split_ifs <;> push_cast <;> omega
+
+/-- An unsigned value in the range of `u64` keeps its value under the cast to `u64`. -/
+theorem cast_U64_val {ty : UScalarTy} (x : UScalar ty) (h : x.val < 2 ^ 64) :
+    (UScalar.cast .U64 x).val = x.val := by
+  rw [UScalar.cast_val_eq, UScalarTy.U64_numBits_eq]; exact Nat.mod_eq_of_lt h
+
+/-- A signed value in the range of `u64` keeps its value under the cast to `u64`. -/
+theorem hcast_U64_val {ty : IScalarTy} (x : IScalar ty) (h1 : 0 ≤ x.val) (h2 : x.val < 2 ^ 64) :
+    (IScalar.hcast .U64 x).val = x.val.toNat := by
+  rw [IScalar.hcast_val_eq, UScalarTy.U64_numBits_eq, Int.emod_eq_of_lt h1 (by simpa using h2)]
+
+/-- The 64-bit bounds as the 128-bit constants the `i128`/`u128` conversions compare with. -/
+theorem i64_min_val : (IScalar.cast .I128 core.num.I64.MIN).val = -2 ^ 63 := by
+  simp [core.num.I64.MIN, I64.rMin, IScalar.cast_val_eq]
+theorem i64_max_val : (IScalar.cast .I128 core.num.I64.MAX).val = 2 ^ 63 - 1 := by
+  simp [core.num.I64.MAX, I64.rMax, IScalar.cast_val_eq]
+theorem u64_max_hval : (UScalar.hcast .I128 core.num.U64.MAX).val = 2 ^ 64 - 1 := by
+  simp [core.num.U64.MAX, U64.rMax, UScalar.hcast_val_eq]
+theorem u64_max_val : (UScalar.cast .U128 core.num.U64.MAX).val = 2 ^ 64 - 1 := by
+  simp [core.num.U64.MAX, U64.rMax, UScalar.cast_val_eq]
+
+theorem intVal_int (n : Int) (h1 : -2 ^ 63 ≤ n) (h2 : n < 2 ^ 63) : intVal true n = .int n := by
+  unfold intVal; split_ifs <;> simp_all
+
+theorem intVal_uint (s : Bool) (n : Int) (h0 : 0 ≤ n) (h : n < 2 ^ 64) (hs : s = true → 2 ^ 63 ≤ n) :
+    intVal s n = .uint n.toNat := by
+  unfold intVal; split_ifs <;> simp_all; omega
+
+theorem intVal_nat (n : Nat) (h : n < 2 ^ 64) : intVal false n = .uint n := by
+  rw [intVal_uint _ _ (by omega) (by omega) (by simp), Int.toNat_natCast]
+
+theorem intVal_bytes (s : Bool) (n : Int) (h1 : s = true → n < -2 ^ 63 ∨ 2 ^ 63 ≤ n)
+    (h2 : n < 0 ∨ 2 ^ 64 ≤ n) : intVal s n = .bytes (decimalBytes n) := by
+  unfold intVal; split_ifs <;> simp_all <;> omega
 
 theorem fromI8_spec (x : Std.I8) :
     value.Value.Insts.CoreConvertFromI8.from x ⦃ w => Val.ofValue w = intVal true x.val ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromI8.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_I64_val x (by scalar_tac) (by scalar_tac), intVal_int _ (by scalar_tac) (by scalar_tac)]
 
 theorem fromU8_spec (x : Std.U8) :
     value.Value.Insts.CoreConvertFromU8.from x ⦃ w => Val.ofValue w = intVal false (x.val : ℤ) ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromU8.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_U64_val x (by scalar_tac), intVal_nat _ (by scalar_tac)]
 
 theorem fromI16_spec (x : Std.I16) :
     value.Value.Insts.CoreConvertFromI16.from x ⦃ w => Val.ofValue w = intVal true x.val ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromI16.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_I64_val x (by scalar_tac) (by scalar_tac), intVal_int _ (by scalar_tac) (by scalar_tac)]
 
 theorem fromU16_spec (x : Std.U16) :
     value.Value.Insts.CoreConvertFromU16.from x ⦃ w => Val.ofValue w = intVal false (x.val : ℤ) ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromU16.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_U64_val x (by scalar_tac), intVal_nat _ (by scalar_tac)]
 
 theorem fromI32_spec (x : Std.I32) :
     value.Value.Insts.CoreConvertFromI32.from x ⦃ w => Val.ofValue w = intVal true x.val ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromI32.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_I64_val x (by scalar_tac) (by scalar_tac), intVal_int _ (by scalar_tac) (by scalar_tac)]
 
 theorem fromU32_spec (x : Std.U32) :
     value.Value.Insts.CoreConvertFromU32.from x ⦃ w => Val.ofValue w = intVal false (x.val : ℤ) ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromU32.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_U64_val x (by scalar_tac), intVal_nat _ (by scalar_tac)]
 
 theorem fromI64_spec (x : Std.I64) :
     value.Value.Insts.CoreConvertFromI64.from x ⦃ w => Val.ofValue w = intVal true x.val ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromI64.from]
-  have hb := x.hBounds
   step*
-  subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, intVal_int _ (by scalar_tac) (by scalar_tac)]
 
 theorem fromU64_spec (x : Std.U64) :
     value.Value.Insts.CoreConvertFromU64.from x ⦃ w => Val.ofValue w = intVal false (x.val : ℤ) ⦄ := by
   simp only [value.Value.Insts.CoreConvertFromU64.from]
-  have hb := x.hBounds
   step*
-  subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, intVal_nat _ (by scalar_tac)]
 
 theorem fromIsize_spec (x : Std.Isize) :
     value.Value.Insts.CoreConvertFromIsize.from x ⦃ w => Val.ofValue w = intVal true x.val ⦄ := by
+  have := isize_bounds x
   simp only [value.Value.Insts.CoreConvertFromIsize.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_I64_val x (by scalar_tac) (by scalar_tac), intVal_int _ (by scalar_tac) (by scalar_tac)]
 
 theorem fromUsize_spec (x : Std.Usize) :
     value.Value.Insts.CoreConvertFromUsize.from x ⦃ w => Val.ofValue w = intVal false (x.val : ℤ) ⦄ := by
+  have := usize_lt x
   simp only [value.Value.Insts.CoreConvertFromUsize.from]
-  have hb := x.hBounds
   step*
   subst_vars
-  simp only [Val.ofValue, intVal]
-  split_ifs
-  all_goals (try simp only [Val.int.injEq, Val.uint.injEq])
-  all_goals first
-    | scalar_tac
-    | (simp (disch := scalar_tac) only [IScalar.cast_val_eq, UScalar.cast_val_eq, Nat.min_def, bmod_self]; scalar_tac)
-    | (rcases platform_bounds with ⟨hp, h1, h2, h3⟩ | ⟨hp, h1, h2, h3⟩ <;>
-        simp only [IScalar.cast_val_eq, UScalar.cast_val_eq, IScalarTy.Isize_numBits_eq,
-          UScalarTy.Usize_numBits_eq, hp] at * <;> norm_num at * <;>
-        (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  rw [Val.ofValue, cast_U64_val x (by scalar_tac), intVal_nat _ (by scalar_tac)]
 
+attribute [local step] i128_to_string_spec u128_to_string_spec string_into_bytes_spec
+
+/-- The four branches that remain after `step*`: `Int`, `UInt`, and the decimal text twice
+    (above `u64::MAX`, below `i64::MIN`); the other two branches are contradictory. -/
 theorem fromI128_spec (x : Std.I128) :
     value.Value.Insts.CoreConvertFromI128.from x ⦃ w => Val.ofValue w = intVal true x.val ⦄ := by
-  have hb := x.hBounds
-  have hs : (do
-      let s ← value.convert.trusted.i128_to_string x
-      let v ← value.convert.trusted.string_into_bytes s
-      ok (value.Value.Bytes v)) ⦃ w => Val.ofValue w = .bytes (decimalBytes x.val) ⦄ := by
-    simp only [value.convert.trusted.i128_to_string, bind_ok]
-    have := string_into_bytes_toString x.val (by scalar_tac)
-    obtain ⟨v, hv, hv'⟩ := spec_eq_ok this
-    rw [hv, bind_ok, WP.spec_ok, Val.ofValue, hv']
+  have := decimalBytes_length x.val (by scalar_tac)
+  have := usize_max_ge
+  have := i64_min_val; have := i64_max_val; have := u64_max_hval
   simp only [value.Value.Insts.CoreConvertFromI128.from]
   step*
   all_goals subst_vars
-  all_goals first
-    | (refine WP.spec_mono hs ?_
-       intro w hw; rw [hw]; unfold intVal
-       split_ifs <;> simp_all [IScalar.le_equiv, UScalar.le_equiv, IScalar.lt_equiv, I64.rMin, I64.rMax, U64.rMax] <;>
-         scalar_tac)
-    | (simp only [Val.ofValue, intVal]
-       split_ifs <;> (try simp only [Val.int.injEq, Val.uint.injEq]) <;>
-       simp_all [IScalar.le_equiv, UScalar.le_equiv, IScalar.lt_equiv, I64.rMin, I64.rMax, U64.rMax] <;>
-       (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  · rw [Val.ofValue, cast_I64_val x (by scalar_tac) (by scalar_tac), intVal_int _ (by scalar_tac) (by scalar_tac)]
+  · rw [Val.ofValue, hcast_U64_val x (by scalar_tac) (by scalar_tac),
+      intVal_uint _ _ (by scalar_tac) (by scalar_tac) (by scalar_tac)]
+  · rw [Val.ofValue, intVal_bytes _ _ (by scalar_tac) (by scalar_tac)]; simp_all
+  · rw [Val.ofValue, intVal_bytes _ _ (by scalar_tac) (by scalar_tac)]; simp_all
 
 theorem fromU128_spec (x : Std.U128) :
     value.Value.Insts.CoreConvertFromU128.from x ⦃ w => Val.ofValue w = intVal false (x.val : ℤ) ⦄ := by
-  have hb := x.hBounds
-  have hs : (do
-      let s ← value.convert.trusted.u128_to_string x
-      let v ← value.convert.trusted.string_into_bytes s
-      ok (value.Value.Bytes v)) ⦃ w => Val.ofValue w = .bytes (decimalBytes (x.val : ℤ)) ⦄ := by
-    simp only [value.convert.trusted.u128_to_string, bind_ok]
-    have := string_into_bytes_toString (x.val : ℤ) (by scalar_tac)
-    obtain ⟨v, hv, hv'⟩ := spec_eq_ok this
-    rw [show toString x.val = toString (x.val : ℤ) from rfl, hv, bind_ok, WP.spec_ok, Val.ofValue, hv']
+  have := decimalBytes_length x.val (by scalar_tac)
+  have := usize_max_ge
+  have := u64_max_val
   simp only [value.Value.Insts.CoreConvertFromU128.from]
   step*
   all_goals subst_vars
-  all_goals first
-    | (refine WP.spec_mono hs ?_
-       intro w hw; rw [hw]; unfold intVal
-       split_ifs <;> simp_all [IScalar.le_equiv, UScalar.le_equiv, IScalar.lt_equiv, I64.rMin, I64.rMax, U64.rMax] <;>
-         scalar_tac)
-    | (simp only [Val.ofValue, intVal]
-       split_ifs <;> (try simp only [Val.int.injEq, Val.uint.injEq]) <;>
-       simp_all [IScalar.le_equiv, UScalar.le_equiv, IScalar.lt_equiv, I64.rMin, I64.rMax, U64.rMax] <;>
-       (try simp (disch := scalar_tac) only [bmod_self] at *) <;> scalar_tac)
+  · rw [Val.ofValue, cast_U64_val x (by scalar_tac), intVal_nat _ (by scalar_tac)]
+  · rw [Val.ofValue, intVal_bytes _ _ (by simp) (by scalar_tac)]; simp_all
 
 end mysql_common.ConvInts

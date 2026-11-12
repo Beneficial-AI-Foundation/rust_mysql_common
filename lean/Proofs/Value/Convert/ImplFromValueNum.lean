@@ -23,9 +23,9 @@ theorem value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError.t
       rw [ConvInts.btoiSigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_i8, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -92,9 +92,9 @@ theorem value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError.t
       rw [ConvInts.btoiUnsigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_u8, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -161,9 +161,9 @@ theorem value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError.
       rw [ConvInts.btoiSigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_i16, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -230,9 +230,9 @@ theorem value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError.
       rw [ConvInts.btoiUnsigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_u16, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -299,9 +299,9 @@ theorem value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError.
       rw [ConvInts.btoiSigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_i32, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -368,9 +368,9 @@ theorem value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError.
       rw [ConvInts.btoiUnsigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_u32, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -437,9 +437,9 @@ theorem value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError.
       rw [ConvInts.btoiSigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_i64, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -506,9 +506,9 @@ theorem value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError.
       rw [ConvInts.btoiUnsigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_u64, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -575,9 +575,9 @@ theorem value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueErro
       rw [ConvInts.btoiSigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val, IScalar.min_ISize_eq, IScalar.max_ISize_eq])
     simp only [value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_isize, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -644,9 +644,9 @@ theorem value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueErro
       rw [ConvInts.btoiUnsigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val, UScalar.max_USize_eq])
     simp only [value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_usize, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -713,9 +713,9 @@ theorem value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError
       rw [ConvInts.btoiSigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_i128, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*
@@ -782,9 +782,9 @@ theorem value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError
       rw [ConvInts.btoiUnsigned_map]
       simp [alloc.vec.Vec.deref, alloc.vec.Vec.val])
     simp only [value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError.try_from, value.convert.trusted.btoi_u128, bind_ok]
-    split
-    · rename_i heq; rw [WP.spec_ok]; exact hb.1 heq
-    · rename_i x heq; rw [WP.spec_ok]; exact hb.2 x heq
+    split <;> rw [WP.spec_ok]
+    · exact hb.1 ‹_›
+    · exact hb.2 _ ‹_›
   | Int x =>
     simp only [value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError.try_from]
     step*

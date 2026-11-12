@@ -159,7 +159,7 @@ private theorem dsr_ymd (t : List U8) (hR : Trusted.Regex.asciiMatch .datetimeYm
       datetimeStringRead t = some (digitsVal [a0, a1, a2, a3], digitsVal [a5, a6], digitsVal [a8, a9], 0, 0, 0, 0) := by
   match t with
   | [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9] =>
-    simp only [Trusted.Regex.asciiMatch, Trusted.ymd, Trusted.ymdHms, List.cons_append, List.nil_append, Trusted.matchSeq, Trusted.digit, Trusted.lit, Trusted.byteIn, Bool.and_eq_true, decide_eq_true_eq, Bool.and_true] at hR
+    simp only [Trusted.Regex.asciiMatch, Trusted.ymd, Trusted.matchSeq, Trusted.digit, Trusted.lit, Bool.and_eq_true, decide_eq_true_eq, Bool.and_true] at hR
     refine ⟨a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, rfl, ?_, ?_⟩
     · simp_all [isDigit, Trusted.isAsciiDigit]
     · simp_all [datetimeStringRead, allDigits, isDigit, Trusted.isAsciiDigit]
@@ -174,7 +174,7 @@ private theorem dsr_ymdhms (t : List U8) (hR : Trusted.Regex.asciiMatch .datetim
         digitsVal [a11, a12], digitsVal [a14, a15], digitsVal [a17, a18], 0) := by
   match t with
   | [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18] =>
-    simp only [Trusted.Regex.asciiMatch, Trusted.ymd, Trusted.ymdHms, List.cons_append, List.nil_append, Trusted.matchSeq, Trusted.digit, Trusted.lit, Trusted.byteIn, Bool.and_eq_true, decide_eq_true_eq, Bool.and_true] at hR
+    simp only [Trusted.Regex.asciiMatch, Trusted.ymd, Trusted.ymdHms, List.cons_append, List.nil_append, Trusted.matchSeq, Trusted.digit, Trusted.lit, Bool.and_eq_true, decide_eq_true_eq, Bool.and_true] at hR
     refine ⟨a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, rfl, ?_, ?_⟩
     · simp_all [isDigit, Trusted.isAsciiDigit]
     · simp_all [datetimeStringRead, allDigits, isDigit, Trusted.isAsciiDigit, fracRead]
@@ -209,7 +209,7 @@ private theorem dsr_ns (t : List U8) (hR : Trusted.Regex.asciiMatch .datetimeYmd
       List.drop_zero, Bool.and_eq_true] at hR
     obtain ⟨hR, hF⟩ := hR
     obtain ⟨a19, ds, rfl, h19, hd1, hd2, hd3⟩ := dmatchFrac rest hF
-    simp only [Trusted.Regex.asciiMatch, Trusted.ymd, Trusted.ymdHms, List.cons_append, List.nil_append, Trusted.matchSeq, Trusted.digit, Trusted.lit, Trusted.byteIn, Bool.and_eq_true, decide_eq_true_eq, Bool.and_true] at hR
+    simp only [Trusted.ymd, Trusted.ymdHms, List.cons_append, List.nil_append, Trusted.matchSeq, Trusted.digit, Trusted.lit, Bool.and_eq_true, decide_eq_true_eq, Bool.and_true] at hR
     refine ⟨a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, ds, rfl, ?_, ⟨hd1, hd2, hd3⟩, ?_⟩
     · simp_all [isDigit, Trusted.isAsciiDigit]
     · have hf := dfracRead_dot a19 ds h19 hd1 hd2 hd3
@@ -404,7 +404,7 @@ private theorem dsr_some (t : List U8) (h : datetimeStringRead t ≠ none) :
               simp [Trusted.Regex.asciiMatch, Trusted.ymd, Trusted.ymdHms, Trusted.matchSeq,
                 Trusted.digit, Trusted.isAsciiDigit, Trusted.lit, Trusted.matchFrac]
               and_intros
-              all_goals first | omega | exact hd
+              all_goals omega
             · simp at h
         · simp at h
       | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _] | [_, _, _, _, _, _]
@@ -428,16 +428,15 @@ theorem value.convert.parse_mysql_datetime_string_spec (b : Slice U8) (ha : ∀ 
     simp [value.convert.trusted.datetime_re_ymd_hms, Trusted.isMatch_ascii _ _ ha]
   have e3 : value.convert.trusted.datetime_re_ymd_hms_ns b = ok (Trusted.Regex.asciiMatch .datetimeYmdHmsNs b.val) := by
     simp [value.convert.trusted.datetime_re_ymd_hms_ns, Trusted.isMatch_ascii _ _ ha]
-  have hl : (Slice.len b).val = b.val.length := by simp [Slice.len_val, Slice.length]
+  have hl : (Slice.len b).val = b.val.length := by simp
   unfold value.convert.parse_mysql_datetime_string
   dsimp only
-  simp only [e1, e2, e3, bind_ok, bind_tc_ok]
+  simp only [e1, e2, e3, bind_ok]
   split_ifs
-  all_goals first
-    | (have hlf := leaf_ymd b ‹_›; exact WP.spec_mono hlf (fun r h => h))
-    | (have hlf := leaf_ymdhms b ‹_›; exact WP.spec_mono hlf (fun r h => h))
-    | (have hlf := leaf_ns b ‹_›; exact WP.spec_mono hlf (fun r h => h))
-    | skip
+  all_goals try first
+    | (have hlf := leaf_ymd b ‹_›; exact WP.spec_mono hlf (fun _ h => h))
+    | (have hlf := leaf_ymdhms b ‹_›; exact WP.spec_mono hlf (fun _ h => h))
+    | (have hlf := leaf_ns b ‹_›; exact WP.spec_mono hlf (fun _ h => h))
   all_goals
     simp only [WP.spec_ok, Option.map_none]
     symm; by_contra hne
