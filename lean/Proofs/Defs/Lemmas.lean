@@ -99,7 +99,9 @@ theorem jsonbVarLenRead_lenencInt_misread (n : Nat) (b : U8) (t : List U8)
   rw [this]
   simp only [List.singleton_append, List.take_succ_cons, List.take_zero, base128, hbn, pow_one]
   have hv : n % 128 + 128 * 0 + 128 * (b.val % 128) = n - 128 + 128 * b.val := by omega
-  rw [hv, if_pos (by omega)]
+  rw [hv]
+  have hlt : n - 128 + 128 * b.val < 2 ^ 32 := by omega
+  simp only [hlt, ↓reduceIte]
 
 /-- The crate's lenient DATE/DATETIME/TIMESTAMP reader agrees with the protocol's format on the
     lengths the protocol defines (on a truncated input both fail; the crate's reader then has
@@ -245,7 +247,7 @@ theorem binRead_binEnc (v : mysql_common.value.Value) (ct : mysql_common.constan
       · have h1' : ¬(d.val = 0 ∧ h.val = 0 ∧ mi.val = 0 ∧ sec.val = 0) := fun hc => h1 ⟨hc.1, hc.2.1, hc.2.2.1, hc.2.2.2, h2⟩
         cases n <;> simp [binEnc, h1', h2, timeRead, leBytes, PBUtil.byte_val, Nat.mod_eq_of_lt hh, Nat.mod_eq_of_lt hmi,
           Nat.mod_eq_of_lt hs, h4 _ hd]
-      · cases n <;> simp [binEnc, h1, h2, timeRead, leBytes, PBUtil.byte_val, Nat.mod_eq_of_lt hh, Nat.mod_eq_of_lt hmi,
+      · cases n <;> simp [binEnc, h2, timeRead, leBytes, PBUtil.byte_val, Nat.mod_eq_of_lt hh, Nat.mod_eq_of_lt hmi,
           Nat.mod_eq_of_lt hs, h4 _ hd, h4 _ hus]
 
 /-- The text decoder reads a length-encoded string as `Bytes`. -/

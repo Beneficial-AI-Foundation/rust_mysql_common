@@ -24,12 +24,13 @@ private theorem deser_body (bs : List U8) (it : core.ops.range.Range Usize) (b :
   unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_loop.body
   step as ⟨ o, iter1, ho, hend1 ⟩
   by_cases hs : it.start.val < 5
-  · rw [if_pos (by omega)] at ho
+  · have hc : it.start.val < it.end.val := by omega
+    simp only [hc, ↓reduceIte] at ho
     obtain ⟨rfl, hst⟩ := ho
     simp only
     step with U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec as ⟨ r, buf1, hr ⟩
     by_cases hbl : 1 ≤ b.length
-    · rw [if_pos hbl] at hr
+    · simp only [hbl, ↓reduceIte] at hr
       obtain ⟨hr1, hr2⟩ := hr
       obtain ⟨c, rest, hcb⟩ : ∃ c rest, b.val = c :: rest := by
         cases h : b.val with
@@ -99,7 +100,7 @@ private theorem deser_body (bs : List U8) (it : core.ops.range.Range Usize) (b :
             · omega
           · rw [hst, ht, IntAndMisc.base128_append, hlen1, hl]
             simp; left; omega
-    · rw [if_neg hbl] at hr
+    · simp only [hbl, ↓reduceIte] at hr
       obtain ⟨hr1, rfl⟩ := hr
       cases r with
       | Ok v => simp [okPart] at hr1
@@ -114,7 +115,8 @@ private theorem deser_body (bs : List U8) (it : core.ops.range.Range Usize) (b :
         rw [IntAndMisc.jsonbVarLenRead_none bs it.start.val hall (by
           rw [List.take_of_length_le (by omega), List.take_of_length_le (by omega)])]
         simp [okPart, hnil, List.drop_eq_nil_of_le (by omega : bs.length ≤ 5)]
-  · rw [if_neg (by omega)] at ho
+  · have hc : ¬ it.start.val < it.end.val := by omega
+    simp only [hc, ↓reduceIte] at ho
     obtain ⟨rfl, hst⟩ := ho
     step*
     have h5' : it.start.val = 5 := by omega
@@ -128,7 +130,8 @@ private theorem put_u8_full (b : alloc.vec.Vec U8) (x : U8) (hb : ¬ b.length + 
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice
     alloc.vec.Vec.extend_from_slice
   simp only [lift, Std.bind_ok]
-  rw [dif_neg (by simpa using hb)]
+  have hb' : ¬ (b.length + (Array.to_slice (Array.make 1#usize [x] (by simp))).length ≤ Usize.max) := by simpa using hb
+  simp only [hb', ↓reduceDIte]
   simp
 
 private theorem body_small_full (v : U32) (hv : v.val < 128) (b : alloc.vec.Vec U8)

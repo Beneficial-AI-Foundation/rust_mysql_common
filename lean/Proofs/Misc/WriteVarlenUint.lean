@@ -44,15 +44,14 @@ theorem misc.write_varlen_uint_spec (buf : alloc.vec.Vec U8) (v : U64) (h : buf.
       have hi1 : i1.val = 2 ^ (k.val - 1) := by
         rw [i1_post, i_post, Nat.one_shiftLeft, hsz]
         try exact Nat.mod_eq_of_lt (lt_of_lt_of_le (Nat.pow_lt_pow_right (by norm_num) (by omega)) (le_refl _))
-    · rw [hi1]; simpa using hp1
+    · rw [hi1]; simp
     · have hsh : shifted.val = v.val * 2 ^ k.val := by
         rw [shifted_post, Nat.shiftLeft_eq, hsz]
         try exact Nat.mod_eq_of_lt (lt_of_lt_of_le hsmall hpow8)
-      have htr : trailer.val = 2 ^ (k.val - 1) - 1 := by rw [trailer_post, hi1]; try rfl
+      have htr : trailer.val = 2 ^ (k.val - 1) - 1 := by rw [trailer_post, hi1]
       have henc : encoded.val = v.val * 2 ^ k.val + (2 ^ (k.val - 1) - 1) := by
         rw [encoded_post, UScalar.val_or, hsh, htr, ← Nat.shiftLeft_eq,
           ← Nat.shiftLeft_add_eq_or_of_lt (by omega)]
-        try ring
       apply spec_mono (IntAndMisc.put_slice_spec buf s (by rw [s_post1]; scalar_tac))
       intro b hb
       have hk9' : varlenUintSize v.val ≠ 9 := by rw [← hk]; omega

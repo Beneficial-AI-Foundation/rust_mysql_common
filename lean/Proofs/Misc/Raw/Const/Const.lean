@@ -47,8 +47,7 @@ theorem misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple.deseri
       subst cf_post
       simp only [core.ops.control_flow.ControlFlow.Continue.injEq] at *
       subst_vars
-    · step*
-      exact ⟨some _, hq, r1_post⟩
+    · exact ⟨some _, hq, r1_post⟩
     · exact ⟨some _, hq, by simpa [okPart] using r1_post⟩
   · step*
     exact ⟨none, by simpa [okPart] using hq, by simp_all [okPart]⟩

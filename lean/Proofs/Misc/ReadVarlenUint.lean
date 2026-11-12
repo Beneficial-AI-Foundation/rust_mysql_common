@@ -110,7 +110,6 @@ theorem misc.read_varlen_uint_spec (buf : io.ParseBuf) :
           rw [this, le_val_post, PBUtil.fromLEBytes_cast_toNat, s_post2, s2_post, s1_post]
           simp only [List.slice, List.drop_zero, Nat.sub_zero]
           exact PBUtil.padded_take_le 8 buf.val num_bytes.val (by omega)
-        step*
         rw [hk] at hlev i1_post s3_post
         rw [hcr] at hlev s3_post
         simp [okPart, hkl, i1_post, hlev, s3_post, Nat.shiftRight_eq_div_pow]

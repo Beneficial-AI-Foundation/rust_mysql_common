@@ -26,11 +26,11 @@ theorem SharedDeSliceU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize_
     step*
     split at ho
     · simp at ho
-    · simpa [okPart, *] using ho
+    · simp [okPart, *]
   | some v =>
     simp only [spec_ok, uncurry'_pair]
     split at ho
-    · simpa [okPart, *] using ho
+    · simp [okPart, *]
     · simp at ho
 
 end mysql_common
