@@ -1,4 +1,6 @@
 import Defs
+import Proofs.Util.RawBytesSeq
+import Proofs.Io.ParseBuf
 
 /-! Statements for `impl MySerialize for [u8]` (spec file: `Specs/Misc/Raw.lean`). Proofs: TODO. -/
 
@@ -13,6 +15,7 @@ theorem SliceU8.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : Slice 
     (buf : alloc.vec.Vec U8) (h : buf.length + self.length ≤ Usize.max) :
     SliceU8.Insts.Mysql_commonProtoMySerialize.serialize self buf
       ⦃ buf' => buf'.val = buf.val ++ self.val ⦄ := by
-  sorry
+  unfold SliceU8.Insts.Mysql_commonProtoMySerialize.serialize
+  exact put_slice_spec buf self h
 
 end mysql_common
