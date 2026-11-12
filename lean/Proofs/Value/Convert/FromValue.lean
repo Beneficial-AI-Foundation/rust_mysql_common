@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `trait FromValue` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `trait FromValue` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 

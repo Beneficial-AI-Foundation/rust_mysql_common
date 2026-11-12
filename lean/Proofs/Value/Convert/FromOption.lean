@@ -1,7 +1,7 @@
 import Defs
 import Proofs.Value.Convert.OptionIr2
 
-/-! Statements for `impl From<Option<T>> for Value` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `impl From<Option<T>> for Value` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 
