@@ -1,6 +1,7 @@
 import Defs
+import Proofs.Util.ConvDeps
 
-/-! Statements for `impl FromValue for BigUint, impl From<BigUint> for Value` (spec file: `Specs/Value/Convert/Bigint.lean`). Proofs: TODO. -/
+/-! Statements for `impl FromValue for BigUint, impl From<BigUint> for Value` (spec file: `Specs/Value/Convert/Bigint.lean`). -/
 
 set_option autoImplicit false
 
@@ -22,13 +23,15 @@ theorem value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError
         | some x => .Ok (x, v)
         | none => .Err v
       | _ => .Err v) := by
-  sorry
+  cases v <;> simp [value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError.try_from,
+    value.convert.trusted.biguint_from_i64, value.convert.trusted.biguint_from_u64,
+    value.convert.trusted.biguint_parse_bytes] <;> split <;> simp_all
 
 /-- `From<ParseIr<BigUint>>` for `BigUint` is `commit`, for `Value` is `rollback`. -/
 theorem value.Value.Insts.CoreConvertFromParseIrBigUint.from_eq (x : num_bigint_1.biguint.BigUint) (w : value.Value) :
     num_bigint_1.biguint.BigUint.Insts.CoreConvertFromParseIrBigUint.from (x, w) = ok x ∧
     value.Value.Insts.CoreConvertFromParseIrBigUint.from (x, w) = ok w := by
-  sorry
+  exact ⟨rfl, rfl⟩
 
 /-- `From<BigUint> for Value`: `UInt` if it fits in a `u64`, else `Bytes` of its decimal text. -/
 theorem value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.biguint.BigUint) (h : Trusted.biguintToU64 x = none → (utf8 (Trusted.biguintToString x)).length ≤ Usize.max) :
@@ -36,7 +39,12 @@ theorem value.Value.Insts.CoreConvertFromBigUint.from_spec (x : num_bigint_1.big
       Val.ofValue w = match Trusted.biguintToU64 x with
         | some u => .uint u.val
         | none => .bytes (utf8 (Trusted.biguintToString x)) ⦄ := by
-  sorry
+  simp only [value.Value.Insts.CoreConvertFromBigUint.from, value.convert.trusted.biguint_to_u64,
+    value.convert.trusted.biguint_to_string]
+  rcases hu : Trusted.biguintToU64 x with _ | u
+  · obtain ⟨b, hb, hv⟩ := ConvDeps.string_into_bytes_val _ (h hu)
+    simp [hb, Val.ofValue, hv]
+  · simp [Val.ofValue]
 
 /-- `from_value_opt`: as `try_from_eq` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 theorem num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint.from_value_opt_eq (v : value.Value) :
@@ -51,6 +59,11 @@ theorem num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValuePars
         | some x => .Ok x
         | none => .Err v
       | _ => .Err v) := by
-  sorry
+  simp only [value.convert.from_value_opt,
+    value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError.try_from_eq]
+  cases v <;> simp [num_bigint_1.biguint.BigUint.Insts.CoreConvertFromParseIrBigUint.from,
+    value.convert.ParseIr.commit, core.convert.IntoFrom.into]
+  case Int x => cases Trusted.biguintFromI64 x <;> simp
+  case Bytes b => cases Trusted.biguintParseBytes (alloc.vec.Vec.deref b) <;> simp
 
 end mysql_common
