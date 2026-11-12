@@ -96,9 +96,8 @@ theorem misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTu
   have hs : (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple L)).SIZE = ok (some L) := by
     simp only [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
       misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq]
-  split
-  · rename_i hl
-    apply WP.spec_mono (io.ParseBuf.parse_of_size _ buf () L hs hl
+  split_ifs with hl
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size _ buf () L hs hl
       (fun o => o.map (fun rb => cowList rb.1) = some (buf.val.take L.val)) ?_)
     · rintro ⟨r, rest⟩ hr; exact hr
     · intro sub hsub
@@ -109,8 +108,7 @@ theorem misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTu
       rintro ⟨r, rest⟩ hr
       simp only [WP.uncurry'_pair] at hr ⊢
       rw [hr.1, hsub]; simp
-  · rename_i hl
-    exact io.ParseBuf.parse_of_size_short _ buf () L hs (by omega)
+  · exact io.ParseBuf.parse_of_size_short _ buf () L hs (by omega)
 
 /-- Round trip through `parse::<RawBytes<FixedLengthText<LEN>>>`: what `serialize` writes comes back padded/truncated to exactly `LEN` bytes (so it is the original text iff the text has `LEN` bytes). -/
 theorem misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip (L : Usize) (text tail : List U8) (buf : io.ParseBuf)

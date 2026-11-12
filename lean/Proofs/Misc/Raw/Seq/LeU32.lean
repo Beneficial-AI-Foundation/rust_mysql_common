@@ -27,18 +27,15 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
     simp only at hb1 hb2
     unfold misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop.body
     simp only [core.iter.adapters.take.IteratorTake.next]
-    split
-    · rename_i hn
-      rw [hn] at hb2
+    split_ifs with hn
+    · rw [hn] at hb2
       apply spec_bind_ok
       apply (WP.spec_ok _).mpr
       rw [← hb2]; simp
-    · rename_i hn
-      step as ⟨ n', hn' ⟩
+    · step as ⟨ n', hn' ⟩
       simp only [core.slice.iter.IteratorSliceIter.next]
-      split
-      · rename_i hlt
-        have hlt' : jt.iter.i < jt.iter.slice.val.length := by have := hlt; scalar_tac
+      split_ifs with hlt
+      · have hlt' : jt.iter.i < jt.iter.slice.val.length := by have := hlt; scalar_tac
         have hd : (jt.iter.slice.val.drop jt.iter.i).take jt.n.val =
             jt.iter.slice.val[jt.iter.i] :: (jt.iter.slice.val.drop (jt.iter.i + 1)).take n'.val := by
           rw [List.drop_eq_getElem_cons hlt', hn']
@@ -54,12 +51,11 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
           omega
         · rw [hb, ← hb2]; simp
         · omega
-      · rename_i hge
-        have hge' : jt.iter.slice.val.length ≤ jt.iter.i := by have := hge; scalar_tac
+      · have hlt' : jt.iter.slice.val.length ≤ jt.iter.i := by have := hlt; scalar_tac
         apply spec_bind_ok
         apply spec_bind_ok
         apply (WP.spec_ok _).mpr
-        rw [← hb2, List.drop_of_length_le hge']
+        rw [← hb2, List.drop_of_length_le hlt']
         simp
   · exact ⟨h, rfl⟩
 
@@ -108,7 +104,7 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_sp
   apply spec_bind_ok
   apply spec_bind_ok
   step with serialize_loop_spec ser enc hser ⟨⟨seq, 0⟩, len⟩ buf1 (by
-    have : buf1.length = buf.length + 4 := by simp [hb1, PBUtil.length_leBytes]
+    have : buf1.length = buf.length + 4 := by simp [hb1]
     simp only [List.drop_zero]; omega) as ⟨ v, hv ⟩
   simp only [List.drop_zero] at hv
   rw [hv, hb1, hi2', hlen']

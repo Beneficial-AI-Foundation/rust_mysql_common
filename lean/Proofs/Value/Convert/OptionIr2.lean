@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `enum OptionIr2 and impl FromValue for Option<T>` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `enum OptionIr2 and impl FromValue for Option<T>` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 

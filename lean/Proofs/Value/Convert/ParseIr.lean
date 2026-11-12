@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `struct ParseIr` (spec file: `Specs/Value/Convert.lean`). Proofs: TODO. -/
+/-! Statements for `struct ParseIr` (spec file: `Specs/Value/Convert.lean`). -/
 
 set_option autoImplicit false
 

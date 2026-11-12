@@ -33,7 +33,7 @@ theorem misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_sp
 theorem misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 3) :
     ¬ misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize buf ⦃ _ => True ⦄ := by
   unfold misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize
-  exact IntAndMisc.not_spec_bind (io.ParseBuf.eat_i24_le_panics buf h)
+  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_i24_le_panics buf h)
 
 /-- `buf.parse::<RawInt<LeI24>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 3 bytes. -/
 theorem misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.parse_rawint_spec (buf : io.ParseBuf) :
@@ -41,28 +41,16 @@ theorem misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.parse_rawint_s
       if 3 ≤ buf.length then
         (okPart r).map (·.1.val) = some (((leNat (buf.val.take 3) : Nat) : Int)) ∧ rest.val = buf.val.drop 3
       else okPart r = none ∧ rest = buf ⦄ := by
-  have := IntAndMisc.parse_rawint misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32 3#usize (by simp [misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.SIZE_eq]) buf
-    (fun o => o.map (·.val) = some (((leNat (buf.val.take 3) : Nat) : Int))) (by
-      intro sub hsub hl
-      apply spec_mono (misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_spec sub (by simp [Slice.length, hsub] at *; omega))
-      rintro ⟨r, rest⟩ ⟨h1, _⟩
-      simpa [hsub, List.take_take] using h1)
-  apply spec_mono this
-  rintro ⟨r, rest⟩ h1
-  simpa [Option.map_map] using h1
+  exact IntAndMisc.parse_rawint_take misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32 3#usize 3 (by simp [misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.SIZE_eq]) rfl (·.val) (fun l => ((leNat l : Nat) : Int))
+    (fun sub h => misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_spec sub h) buf
 
 /-- Round trip: `parse::<RawInt<LeI24>>` reads back what `RawInt::<LeI24>::serialize` writes. **Not a round trip for negative values**: the reader (`eat_i24_le`) zero-extends, so `-1` comes back as `16777215` (and any `x` comes back as `x mod 2^24`, in `[0, 2^24)`). -/
 theorem misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.roundtrip (x : I32) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytesI 3 x.val ++ tail) :
     io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32) buf () ⦃ r rest =>
       (okPart r).map (·.1.val) = some (x.val % 2 ^ 24) ∧ rest.val = tail ⦄ := by
-  apply spec_mono (misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.parse_rawint_spec buf)
-  rintro ⟨r, rest⟩ hr
-  have hl : 3 ≤ buf.length := by simp [Slice.length, h]
-  obtain ⟨h1, h2⟩ := IntAndMisc.leBytesI_take_drop 3 x.val tail
-  simp only [hl, ↓reduceIte, h, h1, h2] at hr
-  refine ⟨?_, hr.2⟩
-  rw [hr.1]; refine congrArg some ?_
-  rw [IntAndMisc.leNat_leBytesI, Int.toNat_of_nonneg (Int.emod_nonneg _ (by positivity))]
+  exact IntAndMisc.rawint_roundtrip misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32 3 (·.val) (fun l => ((leNat l : Nat) : Int)) buf (misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.parse_rawint_spec buf) _ tail
+    (IntAndMisc.length_leBytesI 3 _) h _ (by
+      rw [IntAndMisc.leNat_leBytesI, Int.toNat_of_nonneg (Int.emod_nonneg _ (by positivity))])
 
 end mysql_common

@@ -16,17 +16,15 @@ theorem misc.write_varlen_uint_spec (buf : alloc.vec.Vec U8) (v : U64) (h : buf.
   step with misc.varlen_uint_size_spec as ⟨ k, hk ⟩
   obtain ⟨h1, h9, hlt, hge⟩ := IntAndMisc.varlenUintSize_spec v.val
   rw [← hk] at h1 h9 hlt hge
-  split
-  · rename_i hk9
-    step*
+  split_ifs with hk9
+  · step*
     apply spec_mono (IntAndMisc.put_slice_spec buf1 s (by simp [buf1_post, s_post]; scalar_tac))
     intro b hb
     have hk9' : varlenUintSize v.val = 9 := by rw [← hk, hk9]; rfl
     rw [hb, buf1_post, s_post]
     simp [varlenUint, hk9', a_post, IntAndMisc.leBytes_bv 8 rfl]
     rfl
-  · rename_i hk9
-    have hk8 : k.val ≤ 8 := by
+  · have hk8 : k.val ≤ 8 := by
       have : k.val ≠ 9 := fun h' => hk9 (UScalar.eq_of_val_eq (by rw [h']; rfl))
       omega
     have hv7 := hlt hk8

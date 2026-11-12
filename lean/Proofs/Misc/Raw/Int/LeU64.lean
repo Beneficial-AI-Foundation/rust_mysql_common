@@ -32,7 +32,7 @@ theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_sp
 theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
     ¬ misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ _ => True ⦄ := by
   unfold misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize
-  exact IntAndMisc.not_spec_bind (io.ParseBuf.eat_u64_le_panics buf h)
+  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u64_le_panics buf h)
 
 /-- `buf.parse::<RawInt<LeU64>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 8 bytes. -/
 theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec (buf : io.ParseBuf) :
@@ -40,28 +40,16 @@ theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_s
       if 8 ≤ buf.length then
         (okPart r).map (·.1.val) = some (leNat (buf.val.take 8)) ∧ rest.val = buf.val.drop 8
       else okPart r = none ∧ rest = buf ⦄ := by
-  have := IntAndMisc.parse_rawint misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 8#usize (by simp [misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.SIZE_eq]) buf
-    (fun o => o.map (·.val) = some (leNat (buf.val.take 8))) (by
-      intro sub hsub hl
-      apply spec_mono (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec sub (by simp [Slice.length, hsub] at *; omega))
-      rintro ⟨r, rest⟩ ⟨h1, _⟩
-      simpa [hsub, List.take_take] using h1)
-  apply spec_mono this
-  rintro ⟨r, rest⟩ h1
-  simpa [Option.map_map] using h1
+  exact IntAndMisc.parse_rawint_take misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 8#usize 8 (by simp [misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.SIZE_eq]) rfl (·.val) (leNat)
+    (fun sub h => misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec sub h) buf
 
 /-- Round trip: `parse::<RawInt<LeU64>>` reads back what `RawInt::<LeU64>::serialize` writes. -/
 theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.roundtrip (x : U64) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytes 8 x.val ++ tail) :
     io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r rest =>
       (okPart r).map (·.1.val) = some (x.val) ∧ rest.val = tail ⦄ := by
-  apply spec_mono (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf)
-  rintro ⟨r, rest⟩ hr
-  have hl : 8 ≤ buf.length := by simp [Slice.length, h]
-  obtain ⟨h1, h2⟩ := IntAndMisc.leBytes_take_drop 8 x.val tail
-  simp only [hl, ↓reduceIte, h, h1, h2] at hr
-  refine ⟨?_, hr.2⟩
-  rw [hr.1]; refine congrArg some ?_
-  rw [IntAndMisc.leNat_leBytes']; exact Nat.mod_eq_of_lt (by scalar_tac)
+  exact IntAndMisc.rawint_roundtrip misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 8 (·.val) (leNat) buf (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf) _ tail
+    (PBUtil.length_leBytes 8 _) h _ (by
+      rw [PBUtil.leNat_leBytes]; exact Nat.mod_eq_of_lt (by scalar_tac))
 
 end mysql_common

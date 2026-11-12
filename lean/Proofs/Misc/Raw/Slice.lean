@@ -16,6 +16,6 @@ theorem SliceU8.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : Slice 
     SliceU8.Insts.Mysql_commonProtoMySerialize.serialize self buf
       ⦃ buf' => buf'.val = buf.val ++ self.val ⦄ := by
   unfold SliceU8.Insts.Mysql_commonProtoMySerialize.serialize
-  exact put_slice_spec buf self h
+  exact IntAndMisc.put_slice_spec buf self h
 
 end mysql_common

@@ -147,7 +147,7 @@ private theorem body_small_full (v : U32) (hv : v.val < 128) (b : alloc.vec.Vec 
     apply UScalar.eq_of_val_eq; rw [h1.1]; simp [Nat.shiftRight_eq_div_pow]; omega
   subst h0
   simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte] at hs
-  exact IntAndMisc.not_spec_bind (put_u8_full b _ hb) hs
+  exact PBUtil.not_spec_bind_left (put_u8_full b _ hb) hs
 
 private theorem body_small (v : U32) (hv : v.val < 128) (b : alloc.vec.Vec U8)
     (hb : b.length + 1 ≤ Usize.max) :
@@ -177,7 +177,7 @@ private theorem loop_small_fails : ∀ (n : Nat) (v : U32) (b : alloc.vec.Vec U8
       have := ih (Usize.max - b'.length) (by omega) 0#u32 b' (by decide) rfl
       unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop at this
       simpa using this
-    · exact IntAndMisc.not_spec_bind (body_small_full v hv b hb)
+    · exact PBUtil.not_spec_bind_left (body_small_full v hv b hb)
 
 
 /-- `VarLen::SIZE` is `None`. -/
@@ -251,7 +251,7 @@ theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_lar
     step*
     rw [buf'_post]; congr 2
     apply UScalar.eq_of_val_eq
-    rw [byte1_post, IntAndMisc.byte_val', UScalar.val_or, hby]
+    rw [byte1_post, PBUtil.byte_val, UScalar.val_or, hby]
     have hlt : x.val % 128 < 2 ^ 7 := by omega
     have := Nat.shiftLeft_add_eq_or_of_lt (a := 1) hlt
     simp only [Nat.one_shiftLeft] at this
@@ -266,6 +266,6 @@ theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_lar
 theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_small_fails (x : U32) (buf : alloc.vec.Vec U8) (hx : x.val < 128) :
     ¬ misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize x buf ⦃ _ => True ⦄ := by
   unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize
-  exact IntAndMisc.not_spec_bind (loop_small_fails _ x buf hx rfl)
+  exact PBUtil.not_spec_bind_left (loop_small_fails _ x buf hx rfl)
 
 end mysql_common

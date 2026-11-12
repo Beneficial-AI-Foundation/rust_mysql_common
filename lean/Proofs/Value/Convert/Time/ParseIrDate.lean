@@ -17,7 +17,7 @@ theorem value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.tr
       ((∃ p, r = .Ok p) ↔ timeDateValid y.val mo.val d.val) ∧
       ∀ x w, r = .Ok (x, w) → w = .Date y mo d h mi s us ∧ timeDate x = ((y.val : ℤ), mo.val, d.val) ⦄ := by
   obtain ⟨o, ho, hiff, hm⟩ := ConvDeps.month_from_u8_spec mo
-  simp only [value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from, ho, bind_tc_ok]
+  simp only [value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from, ho]
   cases o with
   | none =>
     simp [okPart, timeDateValid] at hiff ⊢
@@ -26,7 +26,7 @@ theorem value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.tr
     have hmn := hm m rfl
     have hy := ConvDeps.u16_hcast_i32_val y
     have hc := Trusted.Date.ofCalendarDate_isSome (UScalar.hcast .I32 y) m d
-    simp only [lift, bind_tc_ok, value.convert.trusted.time_date_from_calendar_date]
+    simp only [lift, value.convert.trusted.time_date_from_calendar_date]
     rcases hx : Trusted.Date.ofCalendarDate (UScalar.hcast .I32 y) m d with _ | x
     · simp only [hx, Option.isSome_none, Bool.false_eq_true, false_iff, hy, hmn] at hc
       simp only [bind_ok, hx, WP.spec_ok, timeDateValid]
@@ -73,20 +73,8 @@ theorem time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_v
       ∀ x, r = .Ok x → timeDate x = ((y.val : ℤ), mo.val, d.val) ⦄ := by
   apply WP.spec_mono (ConvDeps.from_value_opt_spec_of _ rfl (fun _ => rfl) _
     (value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from_date y mo d h mi s us))
-  rintro r' ⟨r, ⟨h1, h2, h3⟩, rfl⟩
-  cases r with
-  | Ok p =>
-    obtain ⟨x, w⟩ := p
-    refine ⟨by simp [okPart], ?_, ?_⟩
-    · simp only [ConvDeps.mapIr_ok]; exact ⟨fun _ => h2.1 ⟨_, rfl⟩, fun _ => ⟨_, rfl⟩⟩
-    · intro x' hx; cases hx; exact (h3 x w rfl).2
-  | Err e =>
-    have := h1 (by simp [okPart]); cases this
-    refine ⟨fun _ => rfl, ?_, ?_⟩
-    · simp only [ConvDeps.mapIr_err]; constructor
-      · rintro ⟨_, hp⟩; cases hp
-      · intro hv; obtain ⟨_, hp⟩ := h2.2 hv; cases hp
-    · intro x hx; cases hx
+  rintro _ ⟨r, ⟨h1, h2, h3⟩, rfl⟩
+  exact ⟨ConvDeps.mapIr_okPart h1, ConvDeps.mapIr_isOk h2, ConvDeps.mapIr_ok_of h3⟩
 
 /-- `from_value_opt`: as `try_from_bytes` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 theorem time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate.from_value_opt_bytes (b : alloc.vec.Vec U8) :
