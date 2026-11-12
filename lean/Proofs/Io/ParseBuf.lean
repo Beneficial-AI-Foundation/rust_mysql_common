@@ -50,9 +50,14 @@ theorem io.ParseBuf.len_spec (buf : io.ParseBuf) :
     io.ParseBuf.len buf ⦃ n => n.val = buf.length ⦄ := by
   sorry
 
-/-- `skip(cnt)`: drops the first `cnt` bytes. Panics if `cnt > len`. -/
+/-- `skip(cnt)`: drops the first `cnt` bytes. Panics if `cnt > len` (`skip_panics`). -/
 theorem io.ParseBuf.skip_spec (buf : io.ParseBuf) (cnt : Usize) (h : cnt.val ≤ buf.length) :
     io.ParseBuf.skip buf cnt ⦃ rest => rest.val = buf.val.drop cnt.val ⦄ := by
+  sorry
+
+/-- `skip(cnt)` panics if `cnt > len`. -/
+theorem io.ParseBuf.skip_panics (buf : io.ParseBuf) (cnt : Usize) (h : buf.length < cnt.val) :
+    ¬ io.ParseBuf.skip buf cnt ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_skip(cnt)`: total; `true` and drops `cnt` bytes if there are that many, else `false` and the buffer is unchanged. -/
@@ -62,14 +67,24 @@ theorem io.ParseBuf.checked_skip_spec (buf : io.ParseBuf) (cnt : Usize) :
       else b = false ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat(n)`: splits off the first `n` bytes. Panics if `n > len` (documented). -/
+/-- `eat(n)`: splits off the first `n` bytes. Panics if `n > len` (documented; `eat_panics`). -/
 theorem io.ParseBuf.eat_spec (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ buf.length) :
     io.ParseBuf.eat buf n ⦃ s rest => s.val = buf.val.take n.val ∧ rest.val = buf.val.drop n.val ⦄ := by
+  sorry
+
+/-- `eat(n)` panics if `n > len` (documented). -/
+theorem io.ParseBuf.eat_panics (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
+    ¬ io.ParseBuf.eat buf n ⦃ _ => True ⦄ := by
   sorry
 
 /-- `eat_buf(n)`: as `eat`, returning a `ParseBuf`. -/
 theorem io.ParseBuf.eat_buf_spec (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ buf.length) :
     io.ParseBuf.eat_buf buf n ⦃ s rest => s.val = buf.val.take n.val ∧ rest.val = buf.val.drop n.val ⦄ := by
+  sorry
+
+/-- `eat_buf(n)` panics if `n > len`. -/
+theorem io.ParseBuf.eat_buf_panics (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
+    ¬ io.ParseBuf.eat_buf buf n ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat(n)`: total; `eat(n)` if there are `n` bytes, else `None` and the buffer is unchanged. -/
@@ -93,36 +108,51 @@ theorem io.ParseBuf.eat_all_spec (buf : io.ParseBuf) :
     io.ParseBuf.eat_all buf ⦃ s rest => s.val = buf.val ∧ rest.val = [] ⦄ := by
   sorry
 
-/-- `eat_u8`: consumes 1 bytes from the head of the buffer and returns the 1-byte little-endian unsigned integer. Panics on fewer than 1 bytes. -/
+/-- `eat_u8`: consumes 1 byte from the head of the buffer and returns the 1-byte little-endian unsigned integer. Panics on fewer (`eat_u8_panics`). -/
 theorem io.ParseBuf.eat_u8_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
     io.ParseBuf.eat_u8 buf ⦃ x rest =>
       x.val = leNat (buf.val.take 1) ∧ rest.val = buf.val.drop 1 ⦄ := by
   sorry
 
-/-- `checked_eat_u8`: total; with at least 1 bytes, the 1-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
+/-- `eat_u8` panics on a buffer of fewer than 1 byte. -/
+theorem io.ParseBuf.eat_u8_panics (buf : io.ParseBuf) (h : buf.length < 1) :
+    ¬ io.ParseBuf.eat_u8 buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_u8`: total; with at least 1 byte, the 1-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
 theorem io.ParseBuf.checked_eat_u8_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_u8 buf ⦃ o rest =>
       if 1 ≤ buf.length then o.map (·.val) = some (leNat (buf.val.take 1)) ∧ rest.val = buf.val.drop 1
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i8`: consumes 1 bytes from the head of the buffer and returns the 1-byte little-endian two's-complement integer. Panics on fewer than 1 bytes. -/
+/-- `eat_i8`: consumes 1 byte from the head of the buffer and returns the 1-byte little-endian two's-complement integer. Panics on fewer (`eat_i8_panics`). -/
 theorem io.ParseBuf.eat_i8_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
     io.ParseBuf.eat_i8 buf ⦃ x rest =>
       x.val = toSigned 8 (leNat (buf.val.take 1)) ∧ rest.val = buf.val.drop 1 ⦄ := by
   sorry
 
-/-- `checked_eat_i8`: total; with at least 1 bytes, the 1-byte little-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
+/-- `eat_i8` panics on a buffer of fewer than 1 byte. -/
+theorem io.ParseBuf.eat_i8_panics (buf : io.ParseBuf) (h : buf.length < 1) :
+    ¬ io.ParseBuf.eat_i8 buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i8`: total; with at least 1 byte, the 1-byte little-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
 theorem io.ParseBuf.checked_eat_i8_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i8 buf ⦃ o rest =>
       if 1 ≤ buf.length then o.map (·.val) = some (toSigned 8 (leNat (buf.val.take 1))) ∧ rest.val = buf.val.drop 1
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u16_le`: consumes 2 bytes from the head of the buffer and returns the 2-byte little-endian unsigned integer. Panics on fewer than 2 bytes. -/
+/-- `eat_u16_le`: consumes 2 bytes from the head of the buffer and returns the 2-byte little-endian unsigned integer. Panics on fewer (`eat_u16_le_panics`). -/
 theorem io.ParseBuf.eat_u16_le_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
     io.ParseBuf.eat_u16_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 2) ∧ rest.val = buf.val.drop 2 ⦄ := by
+  sorry
+
+/-- `eat_u16_le` panics on a buffer of fewer than 2 bytes. -/
+theorem io.ParseBuf.eat_u16_le_panics (buf : io.ParseBuf) (h : buf.length < 2) :
+    ¬ io.ParseBuf.eat_u16_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u16_le`: total; with at least 2 bytes, the 2-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -132,10 +162,15 @@ theorem io.ParseBuf.checked_eat_u16_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i16_le`: consumes 2 bytes from the head of the buffer and returns the 2-byte little-endian two's-complement integer. Panics on fewer than 2 bytes. -/
+/-- `eat_i16_le`: consumes 2 bytes from the head of the buffer and returns the 2-byte little-endian two's-complement integer. Panics on fewer (`eat_i16_le_panics`). -/
 theorem io.ParseBuf.eat_i16_le_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
     io.ParseBuf.eat_i16_le buf ⦃ x rest =>
       x.val = toSigned 16 (leNat (buf.val.take 2)) ∧ rest.val = buf.val.drop 2 ⦄ := by
+  sorry
+
+/-- `eat_i16_le` panics on a buffer of fewer than 2 bytes. -/
+theorem io.ParseBuf.eat_i16_le_panics (buf : io.ParseBuf) (h : buf.length < 2) :
+    ¬ io.ParseBuf.eat_i16_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i16_le`: total; with at least 2 bytes, the 2-byte little-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -145,10 +180,15 @@ theorem io.ParseBuf.checked_eat_i16_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u16_be`: consumes 2 bytes from the head of the buffer and returns the 2-byte big-endian unsigned integer. Panics on fewer than 2 bytes. -/
+/-- `eat_u16_be`: consumes 2 bytes from the head of the buffer and returns the 2-byte big-endian unsigned integer. Panics on fewer (`eat_u16_be_panics`). -/
 theorem io.ParseBuf.eat_u16_be_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
     io.ParseBuf.eat_u16_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 2) ∧ rest.val = buf.val.drop 2 ⦄ := by
+  sorry
+
+/-- `eat_u16_be` panics on a buffer of fewer than 2 bytes. -/
+theorem io.ParseBuf.eat_u16_be_panics (buf : io.ParseBuf) (h : buf.length < 2) :
+    ¬ io.ParseBuf.eat_u16_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u16_be`: total; with at least 2 bytes, the 2-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -158,10 +198,15 @@ theorem io.ParseBuf.checked_eat_u16_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i16_be`: consumes 2 bytes from the head of the buffer and returns the 2-byte big-endian two's-complement integer. Panics on fewer than 2 bytes. -/
+/-- `eat_i16_be`: consumes 2 bytes from the head of the buffer and returns the 2-byte big-endian two's-complement integer. Panics on fewer (`eat_i16_be_panics`). -/
 theorem io.ParseBuf.eat_i16_be_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
     io.ParseBuf.eat_i16_be buf ⦃ x rest =>
       x.val = toSigned 16 (beNat (buf.val.take 2)) ∧ rest.val = buf.val.drop 2 ⦄ := by
+  sorry
+
+/-- `eat_i16_be` panics on a buffer of fewer than 2 bytes. -/
+theorem io.ParseBuf.eat_i16_be_panics (buf : io.ParseBuf) (h : buf.length < 2) :
+    ¬ io.ParseBuf.eat_i16_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i16_be`: total; with at least 2 bytes, the 2-byte big-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -171,10 +216,15 @@ theorem io.ParseBuf.checked_eat_i16_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u24_le`: consumes 3 bytes from the head of the buffer and returns the 3-byte little-endian unsigned integer. Panics on fewer than 3 bytes. -/
+/-- `eat_u24_le`: consumes 3 bytes from the head of the buffer and returns the 3-byte little-endian unsigned integer. Panics on fewer (`eat_u24_le_panics`). -/
 theorem io.ParseBuf.eat_u24_le_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
     io.ParseBuf.eat_u24_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 3) ∧ rest.val = buf.val.drop 3 ⦄ := by
+  sorry
+
+/-- `eat_u24_le` panics on a buffer of fewer than 3 bytes. -/
+theorem io.ParseBuf.eat_u24_le_panics (buf : io.ParseBuf) (h : buf.length < 3) :
+    ¬ io.ParseBuf.eat_u24_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u24_le`: total; with at least 3 bytes, the 3-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -184,23 +234,33 @@ theorem io.ParseBuf.checked_eat_u24_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i24_le`: consumes 3 bytes from the head of the buffer and returns the 3-byte little-endian integer, zero-extended. Panics on fewer than 3 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. So `put_i24_le` then this reader does not round-trip negative values. -/
+/-- `eat_i24_le`: consumes 3 bytes from the head of the buffer and returns the 3-byte little-endian integer, zero-extended. Panics on fewer (`eat_i24_le_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 3 bytes `FF` give `2^24 - 1`, not `-1`. So `put_i24_le` then this reader does not round-trip negative values. -/
 theorem io.ParseBuf.eat_i24_le_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
     io.ParseBuf.eat_i24_le buf ⦃ x rest =>
       x.val = ((leNat (buf.val.take 3) : Nat) : Int) ∧ rest.val = buf.val.drop 3 ⦄ := by
   sorry
 
-/-- `checked_eat_i24_le`: total; with at least 3 bytes, the 3-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. So `put_i24_le` then this reader does not round-trip negative values. -/
+/-- `eat_i24_le` panics on a buffer of fewer than 3 bytes. -/
+theorem io.ParseBuf.eat_i24_le_panics (buf : io.ParseBuf) (h : buf.length < 3) :
+    ¬ io.ParseBuf.eat_i24_le buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i24_le`: total; with at least 3 bytes, the 3-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 3 bytes `FF` give `2^24 - 1`, not `-1`. So `put_i24_le` then this reader does not round-trip negative values. -/
 theorem io.ParseBuf.checked_eat_i24_le_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i24_le buf ⦃ o rest =>
       if 3 ≤ buf.length then o.map (·.val) = some (((leNat (buf.val.take 3) : Nat) : Int)) ∧ rest.val = buf.val.drop 3
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u24_be`: consumes 3 bytes from the head of the buffer and returns the 3-byte big-endian unsigned integer. Panics on fewer than 3 bytes. -/
+/-- `eat_u24_be`: consumes 3 bytes from the head of the buffer and returns the 3-byte big-endian unsigned integer. Panics on fewer (`eat_u24_be_panics`). -/
 theorem io.ParseBuf.eat_u24_be_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
     io.ParseBuf.eat_u24_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 3) ∧ rest.val = buf.val.drop 3 ⦄ := by
+  sorry
+
+/-- `eat_u24_be` panics on a buffer of fewer than 3 bytes. -/
+theorem io.ParseBuf.eat_u24_be_panics (buf : io.ParseBuf) (h : buf.length < 3) :
+    ¬ io.ParseBuf.eat_u24_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u24_be`: total; with at least 3 bytes, the 3-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -210,23 +270,33 @@ theorem io.ParseBuf.checked_eat_u24_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i24_be`: consumes 3 bytes from the head of the buffer and returns the 3-byte big-endian integer, zero-extended. Panics on fewer than 3 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i24_be`: consumes 3 bytes from the head of the buffer and returns the 3-byte big-endian integer, zero-extended. Panics on fewer (`eat_i24_be_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 3 bytes `FF` give `2^24 - 1`, not `-1`. -/
 theorem io.ParseBuf.eat_i24_be_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
     io.ParseBuf.eat_i24_be buf ⦃ x rest =>
       x.val = ((beNat (buf.val.take 3) : Nat) : Int) ∧ rest.val = buf.val.drop 3 ⦄ := by
   sorry
 
-/-- `checked_eat_i24_be`: total; with at least 3 bytes, the 3-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i24_be` panics on a buffer of fewer than 3 bytes. -/
+theorem io.ParseBuf.eat_i24_be_panics (buf : io.ParseBuf) (h : buf.length < 3) :
+    ¬ io.ParseBuf.eat_i24_be buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i24_be`: total; with at least 3 bytes, the 3-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 3 bytes `FF` give `2^24 - 1`, not `-1`. -/
 theorem io.ParseBuf.checked_eat_i24_be_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i24_be buf ⦃ o rest =>
       if 3 ≤ buf.length then o.map (·.val) = some (((beNat (buf.val.take 3) : Nat) : Int)) ∧ rest.val = buf.val.drop 3
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u32_le`: consumes 4 bytes from the head of the buffer and returns the 4-byte little-endian unsigned integer. Panics on fewer than 4 bytes. -/
+/-- `eat_u32_le`: consumes 4 bytes from the head of the buffer and returns the 4-byte little-endian unsigned integer. Panics on fewer (`eat_u32_le_panics`). -/
 theorem io.ParseBuf.eat_u32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_u32_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 4) ∧ rest.val = buf.val.drop 4 ⦄ := by
+  sorry
+
+/-- `eat_u32_le` panics on a buffer of fewer than 4 bytes. -/
+theorem io.ParseBuf.eat_u32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
+    ¬ io.ParseBuf.eat_u32_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u32_le`: total; with at least 4 bytes, the 4-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -236,10 +306,15 @@ theorem io.ParseBuf.checked_eat_u32_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i32_le`: consumes 4 bytes from the head of the buffer and returns the 4-byte little-endian two's-complement integer. Panics on fewer than 4 bytes. -/
+/-- `eat_i32_le`: consumes 4 bytes from the head of the buffer and returns the 4-byte little-endian two's-complement integer. Panics on fewer (`eat_i32_le_panics`). -/
 theorem io.ParseBuf.eat_i32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_i32_le buf ⦃ x rest =>
       x.val = toSigned 32 (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4 ⦄ := by
+  sorry
+
+/-- `eat_i32_le` panics on a buffer of fewer than 4 bytes. -/
+theorem io.ParseBuf.eat_i32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
+    ¬ io.ParseBuf.eat_i32_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i32_le`: total; with at least 4 bytes, the 4-byte little-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -249,10 +324,15 @@ theorem io.ParseBuf.checked_eat_i32_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u32_be`: consumes 4 bytes from the head of the buffer and returns the 4-byte big-endian unsigned integer. Panics on fewer than 4 bytes. -/
+/-- `eat_u32_be`: consumes 4 bytes from the head of the buffer and returns the 4-byte big-endian unsigned integer. Panics on fewer (`eat_u32_be_panics`). -/
 theorem io.ParseBuf.eat_u32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_u32_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 4) ∧ rest.val = buf.val.drop 4 ⦄ := by
+  sorry
+
+/-- `eat_u32_be` panics on a buffer of fewer than 4 bytes. -/
+theorem io.ParseBuf.eat_u32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
+    ¬ io.ParseBuf.eat_u32_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u32_be`: total; with at least 4 bytes, the 4-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -262,10 +342,15 @@ theorem io.ParseBuf.checked_eat_u32_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i32_be`: consumes 4 bytes from the head of the buffer and returns the 4-byte big-endian two's-complement integer. Panics on fewer than 4 bytes. -/
+/-- `eat_i32_be`: consumes 4 bytes from the head of the buffer and returns the 4-byte big-endian two's-complement integer. Panics on fewer (`eat_i32_be_panics`). -/
 theorem io.ParseBuf.eat_i32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_i32_be buf ⦃ x rest =>
       x.val = toSigned 32 (beNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4 ⦄ := by
+  sorry
+
+/-- `eat_i32_be` panics on a buffer of fewer than 4 bytes. -/
+theorem io.ParseBuf.eat_i32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
+    ¬ io.ParseBuf.eat_i32_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i32_be`: total; with at least 4 bytes, the 4-byte big-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -275,10 +360,15 @@ theorem io.ParseBuf.checked_eat_i32_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u40_le`: consumes 5 bytes from the head of the buffer and returns the 5-byte little-endian unsigned integer. Panics on fewer than 5 bytes. -/
+/-- `eat_u40_le`: consumes 5 bytes from the head of the buffer and returns the 5-byte little-endian unsigned integer. Panics on fewer (`eat_u40_le_panics`). -/
 theorem io.ParseBuf.eat_u40_le_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
     io.ParseBuf.eat_u40_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 5) ∧ rest.val = buf.val.drop 5 ⦄ := by
+  sorry
+
+/-- `eat_u40_le` panics on a buffer of fewer than 5 bytes. -/
+theorem io.ParseBuf.eat_u40_le_panics (buf : io.ParseBuf) (h : buf.length < 5) :
+    ¬ io.ParseBuf.eat_u40_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u40_le`: total; with at least 5 bytes, the 5-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -288,23 +378,33 @@ theorem io.ParseBuf.checked_eat_u40_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i40_le`: consumes 5 bytes from the head of the buffer and returns the 5-byte little-endian integer, zero-extended. Panics on fewer than 5 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i40_le`: consumes 5 bytes from the head of the buffer and returns the 5-byte little-endian integer, zero-extended. Panics on fewer (`eat_i40_le_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 5 bytes `FF` give `2^40 - 1`, not `-1`. -/
 theorem io.ParseBuf.eat_i40_le_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
     io.ParseBuf.eat_i40_le buf ⦃ x rest =>
       x.val = ((leNat (buf.val.take 5) : Nat) : Int) ∧ rest.val = buf.val.drop 5 ⦄ := by
   sorry
 
-/-- `checked_eat_i40_le`: total; with at least 5 bytes, the 5-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i40_le` panics on a buffer of fewer than 5 bytes. -/
+theorem io.ParseBuf.eat_i40_le_panics (buf : io.ParseBuf) (h : buf.length < 5) :
+    ¬ io.ParseBuf.eat_i40_le buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i40_le`: total; with at least 5 bytes, the 5-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 5 bytes `FF` give `2^40 - 1`, not `-1`. -/
 theorem io.ParseBuf.checked_eat_i40_le_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i40_le buf ⦃ o rest =>
       if 5 ≤ buf.length then o.map (·.val) = some (((leNat (buf.val.take 5) : Nat) : Int)) ∧ rest.val = buf.val.drop 5
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u40_be`: consumes 5 bytes from the head of the buffer and returns the 5-byte big-endian unsigned integer. Panics on fewer than 5 bytes. -/
+/-- `eat_u40_be`: consumes 5 bytes from the head of the buffer and returns the 5-byte big-endian unsigned integer. Panics on fewer (`eat_u40_be_panics`). -/
 theorem io.ParseBuf.eat_u40_be_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
     io.ParseBuf.eat_u40_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 5) ∧ rest.val = buf.val.drop 5 ⦄ := by
+  sorry
+
+/-- `eat_u40_be` panics on a buffer of fewer than 5 bytes. -/
+theorem io.ParseBuf.eat_u40_be_panics (buf : io.ParseBuf) (h : buf.length < 5) :
+    ¬ io.ParseBuf.eat_u40_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u40_be`: total; with at least 5 bytes, the 5-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -314,23 +414,33 @@ theorem io.ParseBuf.checked_eat_u40_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i40_be`: consumes 5 bytes from the head of the buffer and returns the 5-byte big-endian integer, zero-extended. Panics on fewer than 5 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i40_be`: consumes 5 bytes from the head of the buffer and returns the 5-byte big-endian integer, zero-extended. Panics on fewer (`eat_i40_be_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 5 bytes `FF` give `2^40 - 1`, not `-1`. -/
 theorem io.ParseBuf.eat_i40_be_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
     io.ParseBuf.eat_i40_be buf ⦃ x rest =>
       x.val = ((beNat (buf.val.take 5) : Nat) : Int) ∧ rest.val = buf.val.drop 5 ⦄ := by
   sorry
 
-/-- `checked_eat_i40_be`: total; with at least 5 bytes, the 5-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i40_be` panics on a buffer of fewer than 5 bytes. -/
+theorem io.ParseBuf.eat_i40_be_panics (buf : io.ParseBuf) (h : buf.length < 5) :
+    ¬ io.ParseBuf.eat_i40_be buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i40_be`: total; with at least 5 bytes, the 5-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 5 bytes `FF` give `2^40 - 1`, not `-1`. -/
 theorem io.ParseBuf.checked_eat_i40_be_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i40_be buf ⦃ o rest =>
       if 5 ≤ buf.length then o.map (·.val) = some (((beNat (buf.val.take 5) : Nat) : Int)) ∧ rest.val = buf.val.drop 5
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u48_le`: consumes 6 bytes from the head of the buffer and returns the 6-byte little-endian unsigned integer. Panics on fewer than 6 bytes. -/
+/-- `eat_u48_le`: consumes 6 bytes from the head of the buffer and returns the 6-byte little-endian unsigned integer. Panics on fewer (`eat_u48_le_panics`). -/
 theorem io.ParseBuf.eat_u48_le_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
     io.ParseBuf.eat_u48_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 6) ∧ rest.val = buf.val.drop 6 ⦄ := by
+  sorry
+
+/-- `eat_u48_le` panics on a buffer of fewer than 6 bytes. -/
+theorem io.ParseBuf.eat_u48_le_panics (buf : io.ParseBuf) (h : buf.length < 6) :
+    ¬ io.ParseBuf.eat_u48_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u48_le`: total; with at least 6 bytes, the 6-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -340,23 +450,33 @@ theorem io.ParseBuf.checked_eat_u48_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i48_le`: consumes 6 bytes from the head of the buffer and returns the 6-byte little-endian integer, zero-extended. Panics on fewer than 6 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i48_le`: consumes 6 bytes from the head of the buffer and returns the 6-byte little-endian integer, zero-extended. Panics on fewer (`eat_i48_le_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 6 bytes `FF` give `2^48 - 1`, not `-1`. -/
 theorem io.ParseBuf.eat_i48_le_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
     io.ParseBuf.eat_i48_le buf ⦃ x rest =>
       x.val = ((leNat (buf.val.take 6) : Nat) : Int) ∧ rest.val = buf.val.drop 6 ⦄ := by
   sorry
 
-/-- `checked_eat_i48_le`: total; with at least 6 bytes, the 6-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i48_le` panics on a buffer of fewer than 6 bytes. -/
+theorem io.ParseBuf.eat_i48_le_panics (buf : io.ParseBuf) (h : buf.length < 6) :
+    ¬ io.ParseBuf.eat_i48_le buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i48_le`: total; with at least 6 bytes, the 6-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 6 bytes `FF` give `2^48 - 1`, not `-1`. -/
 theorem io.ParseBuf.checked_eat_i48_le_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i48_le buf ⦃ o rest =>
       if 6 ≤ buf.length then o.map (·.val) = some (((leNat (buf.val.take 6) : Nat) : Int)) ∧ rest.val = buf.val.drop 6
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u48_be`: consumes 6 bytes from the head of the buffer and returns the 6-byte big-endian unsigned integer. Panics on fewer than 6 bytes. -/
+/-- `eat_u48_be`: consumes 6 bytes from the head of the buffer and returns the 6-byte big-endian unsigned integer. Panics on fewer (`eat_u48_be_panics`). -/
 theorem io.ParseBuf.eat_u48_be_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
     io.ParseBuf.eat_u48_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 6) ∧ rest.val = buf.val.drop 6 ⦄ := by
+  sorry
+
+/-- `eat_u48_be` panics on a buffer of fewer than 6 bytes. -/
+theorem io.ParseBuf.eat_u48_be_panics (buf : io.ParseBuf) (h : buf.length < 6) :
+    ¬ io.ParseBuf.eat_u48_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u48_be`: total; with at least 6 bytes, the 6-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -366,23 +486,33 @@ theorem io.ParseBuf.checked_eat_u48_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i48_be`: consumes 6 bytes from the head of the buffer and returns the 6-byte big-endian integer, zero-extended. Panics on fewer than 6 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i48_be`: consumes 6 bytes from the head of the buffer and returns the 6-byte big-endian integer, zero-extended. Panics on fewer (`eat_i48_be_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 6 bytes `FF` give `2^48 - 1`, not `-1`. -/
 theorem io.ParseBuf.eat_i48_be_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
     io.ParseBuf.eat_i48_be buf ⦃ x rest =>
       x.val = ((beNat (buf.val.take 6) : Nat) : Int) ∧ rest.val = buf.val.drop 6 ⦄ := by
   sorry
 
-/-- `checked_eat_i48_be`: total; with at least 6 bytes, the 6-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i48_be` panics on a buffer of fewer than 6 bytes. -/
+theorem io.ParseBuf.eat_i48_be_panics (buf : io.ParseBuf) (h : buf.length < 6) :
+    ¬ io.ParseBuf.eat_i48_be buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i48_be`: total; with at least 6 bytes, the 6-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 6 bytes `FF` give `2^48 - 1`, not `-1`. -/
 theorem io.ParseBuf.checked_eat_i48_be_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i48_be buf ⦃ o rest =>
       if 6 ≤ buf.length then o.map (·.val) = some (((beNat (buf.val.take 6) : Nat) : Int)) ∧ rest.val = buf.val.drop 6
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u56_le`: consumes 7 bytes from the head of the buffer and returns the 7-byte little-endian unsigned integer. Panics on fewer than 7 bytes. -/
+/-- `eat_u56_le`: consumes 7 bytes from the head of the buffer and returns the 7-byte little-endian unsigned integer. Panics on fewer (`eat_u56_le_panics`). -/
 theorem io.ParseBuf.eat_u56_le_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
     io.ParseBuf.eat_u56_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 7) ∧ rest.val = buf.val.drop 7 ⦄ := by
+  sorry
+
+/-- `eat_u56_le` panics on a buffer of fewer than 7 bytes. -/
+theorem io.ParseBuf.eat_u56_le_panics (buf : io.ParseBuf) (h : buf.length < 7) :
+    ¬ io.ParseBuf.eat_u56_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u56_le`: total; with at least 7 bytes, the 7-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -392,23 +522,33 @@ theorem io.ParseBuf.checked_eat_u56_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i56_le`: consumes 7 bytes from the head of the buffer and returns the 7-byte little-endian integer, zero-extended. Panics on fewer than 7 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. So `put_i56_le` then this reader does not round-trip negative values. -/
+/-- `eat_i56_le`: consumes 7 bytes from the head of the buffer and returns the 7-byte little-endian integer, zero-extended. Panics on fewer (`eat_i56_le_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 7 bytes `FF` give `2^56 - 1`, not `-1`. So `put_i56_le` then this reader does not round-trip negative values. -/
 theorem io.ParseBuf.eat_i56_le_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
     io.ParseBuf.eat_i56_le buf ⦃ x rest =>
       x.val = ((leNat (buf.val.take 7) : Nat) : Int) ∧ rest.val = buf.val.drop 7 ⦄ := by
   sorry
 
-/-- `checked_eat_i56_le`: total; with at least 7 bytes, the 7-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. So `put_i56_le` then this reader does not round-trip negative values. -/
+/-- `eat_i56_le` panics on a buffer of fewer than 7 bytes. -/
+theorem io.ParseBuf.eat_i56_le_panics (buf : io.ParseBuf) (h : buf.length < 7) :
+    ¬ io.ParseBuf.eat_i56_le buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i56_le`: total; with at least 7 bytes, the 7-byte little-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 7 bytes `FF` give `2^56 - 1`, not `-1`. So `put_i56_le` then this reader does not round-trip negative values. -/
 theorem io.ParseBuf.checked_eat_i56_le_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i56_le buf ⦃ o rest =>
       if 7 ≤ buf.length then o.map (·.val) = some (((leNat (buf.val.take 7) : Nat) : Int)) ∧ rest.val = buf.val.drop 7
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u56_be`: consumes 7 bytes from the head of the buffer and returns the 7-byte big-endian unsigned integer. Panics on fewer than 7 bytes. -/
+/-- `eat_u56_be`: consumes 7 bytes from the head of the buffer and returns the 7-byte big-endian unsigned integer. Panics on fewer (`eat_u56_be_panics`). -/
 theorem io.ParseBuf.eat_u56_be_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
     io.ParseBuf.eat_u56_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 7) ∧ rest.val = buf.val.drop 7 ⦄ := by
+  sorry
+
+/-- `eat_u56_be` panics on a buffer of fewer than 7 bytes. -/
+theorem io.ParseBuf.eat_u56_be_panics (buf : io.ParseBuf) (h : buf.length < 7) :
+    ¬ io.ParseBuf.eat_u56_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u56_be`: total; with at least 7 bytes, the 7-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -418,23 +558,33 @@ theorem io.ParseBuf.checked_eat_u56_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i56_be`: consumes 7 bytes from the head of the buffer and returns the 7-byte big-endian integer, zero-extended. Panics on fewer than 7 bytes. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i56_be`: consumes 7 bytes from the head of the buffer and returns the 7-byte big-endian integer, zero-extended. Panics on fewer (`eat_i56_be_panics`). **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 7 bytes `FF` give `2^56 - 1`, not `-1`. -/
 theorem io.ParseBuf.eat_i56_be_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
     io.ParseBuf.eat_i56_be buf ⦃ x rest =>
       x.val = ((beNat (buf.val.take 7) : Nat) : Int) ∧ rest.val = buf.val.drop 7 ⦄ := by
   sorry
 
-/-- `checked_eat_i56_be`: total; with at least 7 bytes, the 7-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. bytes `FF FF FF` give `16777215`, not `-1`. -/
+/-- `eat_i56_be` panics on a buffer of fewer than 7 bytes. -/
+theorem io.ParseBuf.eat_i56_be_panics (buf : io.ParseBuf) (h : buf.length < 7) :
+    ¬ io.ParseBuf.eat_i56_be buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `checked_eat_i56_be`: total; with at least 7 bytes, the 7-byte big-endian integer, zero-extended, consumed; else `None`, buffer unchanged. **No sign extension** (the original macro and the patched copy agree): the result is never negative, e.g. 7 bytes `FF` give `2^56 - 1`, not `-1`. -/
 theorem io.ParseBuf.checked_eat_i56_be_spec (buf : io.ParseBuf) :
     io.ParseBuf.checked_eat_i56_be buf ⦃ o rest =>
       if 7 ≤ buf.length then o.map (·.val) = some (((beNat (buf.val.take 7) : Nat) : Int)) ∧ rest.val = buf.val.drop 7
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u64_le`: consumes 8 bytes from the head of the buffer and returns the 8-byte little-endian unsigned integer. Panics on fewer than 8 bytes. -/
+/-- `eat_u64_le`: consumes 8 bytes from the head of the buffer and returns the 8-byte little-endian unsigned integer. Panics on fewer (`eat_u64_le_panics`). -/
 theorem io.ParseBuf.eat_u64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_u64_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 8) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  sorry
+
+/-- `eat_u64_le` panics on a buffer of fewer than 8 bytes. -/
+theorem io.ParseBuf.eat_u64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ io.ParseBuf.eat_u64_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u64_le`: total; with at least 8 bytes, the 8-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -444,10 +594,15 @@ theorem io.ParseBuf.checked_eat_u64_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i64_le`: consumes 8 bytes from the head of the buffer and returns the 8-byte little-endian two's-complement integer. Panics on fewer than 8 bytes. -/
+/-- `eat_i64_le`: consumes 8 bytes from the head of the buffer and returns the 8-byte little-endian two's-complement integer. Panics on fewer (`eat_i64_le_panics`). -/
 theorem io.ParseBuf.eat_i64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_i64_le buf ⦃ x rest =>
       x.val = toSigned 64 (leNat (buf.val.take 8)) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  sorry
+
+/-- `eat_i64_le` panics on a buffer of fewer than 8 bytes. -/
+theorem io.ParseBuf.eat_i64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ io.ParseBuf.eat_i64_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i64_le`: total; with at least 8 bytes, the 8-byte little-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -457,10 +612,15 @@ theorem io.ParseBuf.checked_eat_i64_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u64_be`: consumes 8 bytes from the head of the buffer and returns the 8-byte big-endian unsigned integer. Panics on fewer than 8 bytes. -/
+/-- `eat_u64_be`: consumes 8 bytes from the head of the buffer and returns the 8-byte big-endian unsigned integer. Panics on fewer (`eat_u64_be_panics`). -/
 theorem io.ParseBuf.eat_u64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_u64_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 8) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  sorry
+
+/-- `eat_u64_be` panics on a buffer of fewer than 8 bytes. -/
+theorem io.ParseBuf.eat_u64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ io.ParseBuf.eat_u64_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u64_be`: total; with at least 8 bytes, the 8-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -470,10 +630,15 @@ theorem io.ParseBuf.checked_eat_u64_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i64_be`: consumes 8 bytes from the head of the buffer and returns the 8-byte big-endian two's-complement integer. Panics on fewer than 8 bytes. -/
+/-- `eat_i64_be`: consumes 8 bytes from the head of the buffer and returns the 8-byte big-endian two's-complement integer. Panics on fewer (`eat_i64_be_panics`). -/
 theorem io.ParseBuf.eat_i64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_i64_be buf ⦃ x rest =>
       x.val = toSigned 64 (beNat (buf.val.take 8)) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  sorry
+
+/-- `eat_i64_be` panics on a buffer of fewer than 8 bytes. -/
+theorem io.ParseBuf.eat_i64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ io.ParseBuf.eat_i64_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i64_be`: total; with at least 8 bytes, the 8-byte big-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -483,10 +648,15 @@ theorem io.ParseBuf.checked_eat_i64_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u128_le`: consumes 16 bytes from the head of the buffer and returns the 16-byte little-endian unsigned integer. Panics on fewer than 16 bytes. -/
+/-- `eat_u128_le`: consumes 16 bytes from the head of the buffer and returns the 16-byte little-endian unsigned integer. Panics on fewer (`eat_u128_le_panics`). -/
 theorem io.ParseBuf.eat_u128_le_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) :
     io.ParseBuf.eat_u128_le buf ⦃ x rest =>
       x.val = leNat (buf.val.take 16) ∧ rest.val = buf.val.drop 16 ⦄ := by
+  sorry
+
+/-- `eat_u128_le` panics on a buffer of fewer than 16 bytes. -/
+theorem io.ParseBuf.eat_u128_le_panics (buf : io.ParseBuf) (h : buf.length < 16) :
+    ¬ io.ParseBuf.eat_u128_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u128_le`: total; with at least 16 bytes, the 16-byte little-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -496,10 +666,15 @@ theorem io.ParseBuf.checked_eat_u128_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i128_le`: consumes 16 bytes from the head of the buffer and returns the 16-byte little-endian two's-complement integer. Panics on fewer than 16 bytes. -/
+/-- `eat_i128_le`: consumes 16 bytes from the head of the buffer and returns the 16-byte little-endian two's-complement integer. Panics on fewer (`eat_i128_le_panics`). -/
 theorem io.ParseBuf.eat_i128_le_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) :
     io.ParseBuf.eat_i128_le buf ⦃ x rest =>
       x.val = toSigned 128 (leNat (buf.val.take 16)) ∧ rest.val = buf.val.drop 16 ⦄ := by
+  sorry
+
+/-- `eat_i128_le` panics on a buffer of fewer than 16 bytes. -/
+theorem io.ParseBuf.eat_i128_le_panics (buf : io.ParseBuf) (h : buf.length < 16) :
+    ¬ io.ParseBuf.eat_i128_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i128_le`: total; with at least 16 bytes, the 16-byte little-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -509,10 +684,15 @@ theorem io.ParseBuf.checked_eat_i128_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_u128_be`: consumes 16 bytes from the head of the buffer and returns the 16-byte big-endian unsigned integer. Panics on fewer than 16 bytes. -/
+/-- `eat_u128_be`: consumes 16 bytes from the head of the buffer and returns the 16-byte big-endian unsigned integer. Panics on fewer (`eat_u128_be_panics`). -/
 theorem io.ParseBuf.eat_u128_be_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) :
     io.ParseBuf.eat_u128_be buf ⦃ x rest =>
       x.val = beNat (buf.val.take 16) ∧ rest.val = buf.val.drop 16 ⦄ := by
+  sorry
+
+/-- `eat_u128_be` panics on a buffer of fewer than 16 bytes. -/
+theorem io.ParseBuf.eat_u128_be_panics (buf : io.ParseBuf) (h : buf.length < 16) :
+    ¬ io.ParseBuf.eat_u128_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u128_be`: total; with at least 16 bytes, the 16-byte big-endian unsigned integer, consumed; else `None`, buffer unchanged. -/
@@ -522,10 +702,15 @@ theorem io.ParseBuf.checked_eat_u128_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_i128_be`: consumes 16 bytes from the head of the buffer and returns the 16-byte big-endian two's-complement integer. Panics on fewer than 16 bytes. -/
+/-- `eat_i128_be`: consumes 16 bytes from the head of the buffer and returns the 16-byte big-endian two's-complement integer. Panics on fewer (`eat_i128_be_panics`). -/
 theorem io.ParseBuf.eat_i128_be_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) :
     io.ParseBuf.eat_i128_be buf ⦃ x rest =>
       x.val = toSigned 128 (beNat (buf.val.take 16)) ∧ rest.val = buf.val.drop 16 ⦄ := by
+  sorry
+
+/-- `eat_i128_be` panics on a buffer of fewer than 16 bytes. -/
+theorem io.ParseBuf.eat_i128_be_panics (buf : io.ParseBuf) (h : buf.length < 16) :
+    ¬ io.ParseBuf.eat_i128_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_i128_be`: total; with at least 16 bytes, the 16-byte big-endian two's-complement integer, consumed; else `None`, buffer unchanged. -/
@@ -535,10 +720,15 @@ theorem io.ParseBuf.checked_eat_i128_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_f32_le`: consumes 4 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 4-byte little-endian integer. Panics on fewer than 4 bytes. -/
+/-- `eat_f32_le`: consumes 4 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 4-byte little-endian integer. Panics on fewer (`eat_f32_le_panics`). -/
 theorem io.ParseBuf.eat_f32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_f32_le buf ⦃ x rest =>
       x.bits.val = leNat (buf.val.take 4) ∧ rest.val = buf.val.drop 4 ⦄ := by
+  sorry
+
+/-- `eat_f32_le` panics on a buffer of fewer than 4 bytes. -/
+theorem io.ParseBuf.eat_f32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
+    ¬ io.ParseBuf.eat_f32_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_f32_le`: total; with at least 4 bytes, the float whose IEEE-754 bit pattern is the 4-byte little-endian integer, consumed; else `None`, buffer unchanged. -/
@@ -548,10 +738,15 @@ theorem io.ParseBuf.checked_eat_f32_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_f32_be`: consumes 4 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 4-byte big-endian integer. Panics on fewer than 4 bytes. -/
+/-- `eat_f32_be`: consumes 4 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 4-byte big-endian integer. Panics on fewer (`eat_f32_be_panics`). -/
 theorem io.ParseBuf.eat_f32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
     io.ParseBuf.eat_f32_be buf ⦃ x rest =>
       x.bits.val = beNat (buf.val.take 4) ∧ rest.val = buf.val.drop 4 ⦄ := by
+  sorry
+
+/-- `eat_f32_be` panics on a buffer of fewer than 4 bytes. -/
+theorem io.ParseBuf.eat_f32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
+    ¬ io.ParseBuf.eat_f32_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_f32_be`: total; with at least 4 bytes, the float whose IEEE-754 bit pattern is the 4-byte big-endian integer, consumed; else `None`, buffer unchanged. -/
@@ -561,10 +756,15 @@ theorem io.ParseBuf.checked_eat_f32_be_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_f64_le`: consumes 8 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 8-byte little-endian integer. Panics on fewer than 8 bytes. -/
+/-- `eat_f64_le`: consumes 8 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 8-byte little-endian integer. Panics on fewer (`eat_f64_le_panics`). -/
 theorem io.ParseBuf.eat_f64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_f64_le buf ⦃ x rest =>
       x.bits.val = leNat (buf.val.take 8) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  sorry
+
+/-- `eat_f64_le` panics on a buffer of fewer than 8 bytes. -/
+theorem io.ParseBuf.eat_f64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ io.ParseBuf.eat_f64_le buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_f64_le`: total; with at least 8 bytes, the float whose IEEE-754 bit pattern is the 8-byte little-endian integer, consumed; else `None`, buffer unchanged. -/
@@ -574,10 +774,15 @@ theorem io.ParseBuf.checked_eat_f64_le_spec (buf : io.ParseBuf) :
       else o = none ∧ rest = buf ⦄ := by
   sorry
 
-/-- `eat_f64_be`: consumes 8 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 8-byte big-endian integer. Panics on fewer than 8 bytes. -/
+/-- `eat_f64_be`: consumes 8 bytes from the head of the buffer and returns the float whose IEEE-754 bit pattern is the 8-byte big-endian integer. Panics on fewer (`eat_f64_be_panics`). -/
 theorem io.ParseBuf.eat_f64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     io.ParseBuf.eat_f64_be buf ⦃ x rest =>
       x.bits.val = beNat (buf.val.take 8) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  sorry
+
+/-- `eat_f64_be` panics on a buffer of fewer than 8 bytes. -/
+theorem io.ParseBuf.eat_f64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ io.ParseBuf.eat_f64_be buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_f64_be`: total; with at least 8 bytes, the float whose IEEE-754 bit pattern is the 8-byte big-endian integer, consumed; else `None`, buffer unchanged. -/
@@ -589,9 +794,15 @@ theorem io.ParseBuf.checked_eat_f64_be_spec (buf : io.ParseBuf) :
 
 /-- `eat_lenenc_int`: the length-encoded integer at the head of the buffer, as
     `checkedLenencInt` describes it (protocol decoding, plus the documented quirk that `0xFB` and
-    `0xFF` give `0`). Panics exactly when `checked_eat_lenenc_int` would return `None`. -/
+    `0xFF` give `0`). Panics exactly when `checked_eat_lenenc_int` would return `None` (this and
+    `eat_lenenc_int_panics`). -/
 theorem io.ParseBuf.eat_lenenc_int_spec (buf : io.ParseBuf) (h : (checkedLenencInt buf.val).1.isSome) :
     io.ParseBuf.eat_lenenc_int buf ⦃ n rest => (some n.val, rest.val) = checkedLenencInt buf.val ⦄ := by
+  sorry
+
+/-- `eat_lenenc_int` panics when `checked_eat_lenenc_int` would return `None` (empty or truncated input). -/
+theorem io.ParseBuf.eat_lenenc_int_panics (buf : io.ParseBuf) (h : (checkedLenencInt buf.val).1 = none) :
+    ¬ io.ParseBuf.eat_lenenc_int buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_lenenc_int`: total; exactly `checkedLenencInt`. In particular a truncated
@@ -608,11 +819,18 @@ theorem io.ParseBuf.checked_eat_lenenc_int_roundtrip (n : U64) (tail : List U8) 
   sorry
 
 /-- `eat_lenenc_str`: the length-encoded string at the head of the buffer (`checkedLenencStr`).
-    Panics exactly when `checked_eat_lenenc_str` would return `None`. (Its doc says a malformed
+    Panics exactly when `checked_eat_lenenc_str` would return `None` (this and
+    `eat_lenenc_str_panics`). (Its doc says a malformed
     length starting with `0xFF` gives an empty slice: that is the `0xFF`-is-`0` quirk, which applies
     to `0xFB` too.) -/
 theorem io.ParseBuf.eat_lenenc_str_spec (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1.isSome) :
     io.ParseBuf.eat_lenenc_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenencStr buf.val ⦄ := by
+  sorry
+
+/-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`. (Needs the 64-bit
+    target: on a 32-bit `usize` a length `≥ 2^32` is truncated by `len as usize` and may fit.) -/
+theorem io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1 = none) :
+    ¬ io.ParseBuf.eat_lenenc_str buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_lenenc_str`: total; exactly `checkedLenencStr`: `None` after consuming the
@@ -629,9 +847,14 @@ theorem io.ParseBuf.checked_eat_lenenc_str_roundtrip (s : List U8) (tail : List 
     io.ParseBuf.checked_eat_lenenc_str buf ⦃ o rest => o.map (·.val) = some s ∧ rest.val = tail ⦄ := by
   sorry
 
-/-- `eat_u8_str`: a string with a `u8` length prefix. Panics exactly when `checked_eat_u8_str` returns `None`. -/
+/-- `eat_u8_str`: a string with a `u8` length prefix. Panics exactly when `checked_eat_u8_str` returns `None` (this and `eat_u8_str_panics`). -/
 theorem io.ParseBuf.eat_u8_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed 1 buf.val).1.isSome) :
     io.ParseBuf.eat_u8_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
+  sorry
+
+/-- `eat_u8_str` panics when `checked_eat_u8_str` returns `None`. -/
+theorem io.ParseBuf.eat_u8_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 1 buf.val).1 = none) :
+    ¬ io.ParseBuf.eat_u8_str buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u8_str`: total; `checkedLenPrefixed 1` (a missing body gives `None` after consuming the length byte). -/
@@ -640,9 +863,14 @@ theorem io.ParseBuf.checked_eat_u8_str_spec (buf : io.ParseBuf) :
       (o.map (·.val), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
   sorry
 
-/-- `eat_u32_str`: a string with a little-endian `u32` length prefix. Panics exactly when `checked_eat_u32_str` returns `None`. -/
+/-- `eat_u32_str`: a string with a little-endian `u32` length prefix. Panics exactly when `checked_eat_u32_str` returns `None` (this and `eat_u32_str_panics`). -/
 theorem io.ParseBuf.eat_u32_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed 4 buf.val).1.isSome) :
     io.ParseBuf.eat_u32_str buf ⦃ s rest => (some s.val, rest.val) = checkedLenPrefixed 4 buf.val ⦄ := by
+  sorry
+
+/-- `eat_u32_str` panics when `checked_eat_u32_str` returns `None`. -/
+theorem io.ParseBuf.eat_u32_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 4 buf.val).1 = none) :
+    ¬ io.ParseBuf.eat_u32_str buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `checked_eat_u32_str`: total; `checkedLenPrefixed 4` (a missing body gives `None` after consuming the 4 length bytes). -/

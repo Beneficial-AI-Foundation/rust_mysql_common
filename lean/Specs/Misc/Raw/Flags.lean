@@ -10,7 +10,9 @@ import Proofs.Misc.Raw.Flags.RawFlags
 
     **Not covered.** `MyDeserialize::SIZE` for `RawFlags` is `Some(size_of::<T::Bits>())`, which the
     translation leaves to the uninterpreted `core.mem.size_of` (an axiom of `FunsExternal.lean`):
-    nothing is stated about it, so nothing here depends on its value. `Debug`.
+    nothing is stated about it, so nothing here depends on its value, and `parse::<RawFlags<..>>`
+    (which branches on `SIZE`) is not specified. `RawFlags` is only used by the binlog code (out of
+    scope), so no translation patch is made to remove `size_of`. `Debug`.
 
     **Behaviour to note.** Deserialization keeps unknown bits (documented); `get` truncates them.
 -/

@@ -35,9 +35,9 @@ recall misc.lenenc_int_len_spec (x : U64) :
 
 /-! ### `fn lenenc_str_len` -/
 
-/-- `lenenc_str_len(s)`: the length of the length-encoded string `s`. Precondition: the `u64`
-    sum does not overflow (true of every real slice, whose length is at most `isize::MAX`). -/
-recall misc.lenenc_str_len_spec (s : Slice U8) (h : s.length + 9 < 2 ^ 64) :
+/-- `lenenc_str_len(s)`: the length of the length-encoded string `s`. Precondition: that length
+    fits in a `u64` (true of every real slice, whose length is at most `isize::MAX`). -/
+recall misc.lenenc_str_len_spec (s : Slice U8) (h : (lenencStr s.val).length < 2 ^ 64) :
     misc.lenenc_str_len s ⦃ n => n.val = (lenencStr s.val).length ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.lenenc_str_len_spec`

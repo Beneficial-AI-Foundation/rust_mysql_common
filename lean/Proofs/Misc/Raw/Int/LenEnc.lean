@@ -15,7 +15,7 @@ theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.SIZE_eq :
 
 /-- `LenEnc::serialize`: appends the length-encoded integer. -/
 theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec (x : U64) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 9 ≤ Usize.max) :
+    (h : buf.length + (lenencInt x.val).length ≤ Usize.max) :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.serialize x buf ⦃ buf' => buf'.val = buf.val ++ lenencInt x.val ⦄ := by
   sorry
 
@@ -23,6 +23,12 @@ theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spe
 theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec (buf : io.ParseBuf) :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ r rest =>
       ((okPart r).map (·.val), rest.val) = checkedLenencInt buf.val ⦄ := by
+  sorry
+
+/-- `buf.parse::<RawInt<LenEnc>>(())`: total; `checkedLenencInt` (`SIZE` is `None`, so this is `deserialize`). -/
+theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r rest =>
+      ((okPart r).map (·.1.val), rest.val) = checkedLenencInt buf.val ⦄ := by
   sorry
 
 /-- Round trip: `parse::<RawInt<LenEnc>>` reads back what `RawInt::<LenEnc>::serialize` writes, for every `u64`. -/

@@ -13,10 +13,15 @@ theorem F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq :
     F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = some 8#usize := by
   sorry
 
-/-- `MyDeserialize for f64`: the double whose bit pattern is the next 8 bytes, little-endian. Unchecked: panics on a shorter buffer; `parse` checks. -/
+/-- `MyDeserialize for f64`: the double whose bit pattern is the next 8 bytes, little-endian. Unchecked: panics on a shorter buffer (`deserialize_panics`); `parse` checks. -/
 theorem F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (okPart r).map (·.bits.val) = some (leNat (buf.val.take 8)) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  sorry
+
+/-- `MyDeserialize for f64` panics on fewer than 8 bytes. -/
+theorem F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `MySerialize for f64`: appends the bit pattern, little-endian. -/

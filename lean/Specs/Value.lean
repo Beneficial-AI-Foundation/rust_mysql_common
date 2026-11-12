@@ -10,6 +10,11 @@ import Proofs.Value.ValueDeserializer
     **Configuration.** As in `Specs/Io.lean`. The decoders' exact characterisations take `Target64`
     (lengths are `u64` cast to `usize`).
 
+    **Allocation caveat.** Decoding a byte string copies it (`.to_vec()`, `into_owned`), and
+    `serialize` grows the output `Vec`. Aeneas models allocation as infallible (bounded only by
+    `usize::MAX`); real Rust aborts on OOM. So "does not panic" means "does not panic, assuming
+    allocation succeeds". The length of a decoded string is bounded by the input buffer.
+
     **Definitions used.** `Defs/Value.lean` (`Val`, `Val.ofValue`, `binEnc`, `binRead`, `dateRead`,
     `timeRead`, `binSupported`, `isLenencStrType`, `isUnsigned`, `binCompatible`, `binNorm`,
     `textRead`), `Defs/LenEnc.lean`, `Defs/Bytes.lean`. Floats are compared by bit pattern only.
@@ -21,9 +26,11 @@ import Proofs.Value.ValueDeserializer
     **Behaviour to note.**
     * `deserialize_bin` panics (`unimplemented!`) on the column types `TIMESTAMP2`, `DATETIME2`,
       `TIME2`, `TYPED_ARRAY`, `UNKNOWN`: a column definition from the server can crash the client.
-    * Binary decoding normalises: an 8-byte integer is reinterpreted by the column's signedness, an
-      unsigned value `≤ i64::MAX` comes back as `Int`; a negative zero `Time` comes back positive
-      (`binNorm`).
+    * Binary decoding normalises (`binNorm`): an 8-byte integer is reinterpreted by the column's
+      signedness. At an unsigned column, a value `≤ i64::MAX` comes back as `Int` (also an `Int x`
+      with `x < 0` comes back as `UInt (x + 2^64)`); at a signed column, a `UInt x` with
+      `x > i64::MAX` comes back as the negative `Int (x - 2^64)`. A negative zero `Time` comes back
+      positive.
     * The decoders accept input the protocol does not define: lenenc lengths starting `0xFB`/`0xFF`
       give an empty string (in a text row, `0xFF` -- an ERR packet header -- becomes an empty value);
       DATE/TIME lengths other than 0/4/7/11 and 0/8/12 are read leniently (`dateRead`, `timeRead`);
@@ -49,7 +56,7 @@ recall value.Value.Insts.Mysql_commonProtoMySerialize.serialize_spec (v : value.
 /-- `bin_len`: the length of the binary encoding, exactly what `serialize` appends. Precondition:
     the `u64` length computation does not overflow (true of every real `Vec`). -/
 recall value.Value.bin_len_spec (v : value.Value)
-    (h : ∀ b : alloc.vec.Vec U8, v = value.Value.Bytes b → b.length + 9 < 2 ^ 64) :
+    (h : (binEnc (Val.ofValue v)).length < 2 ^ 64) :
     value.Value.bin_len v ⦃ n => n.val = (binEnc (Val.ofValue v)).length ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.bin_len_spec`
@@ -70,6 +77,14 @@ recall value.Value.deserialize_text_roundtrip (s tail : List U8) (buf : io.Parse
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.deserialize_text_roundtrip`
 
+/-- `deserialize_text` reads `0xFB` as `NULL`, consuming just that byte. -/
+recall value.Value.deserialize_text_null (tail : List U8) (buf : io.ParseBuf)
+    (h : buf.val = byte 0xFB :: tail) :
+    value.Value.deserialize_text buf ⦃ r rest =>
+      (okPart r).map Val.ofValue = some .null ∧ rest.val = tail ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.deserialize_text_null`
+
 /-- `deserialize_bin`: for a supported column type, total; `binRead` for that type and the
     column's `UNSIGNED_FLAG` (see `Defs/Value.lean` for the formats and for how input the protocol
     does not define is read). -/
@@ -81,10 +96,12 @@ recall value.Value.deserialize_bin_spec (h64 : Target64) (ct : constants.ColumnT
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.deserialize_bin_spec`
 
 /-- **Crash path.** `deserialize_bin` panics (`unimplemented!("Unsupported column type")`) on
-    the five unsupported column types, whatever the buffer. -/
+    the five unsupported column types, whatever the buffer. (The panic message's `fmt::Arguments`
+    are built by Aeneas library functions that are defined and never fail, so this is an
+    equation.) -/
 recall value.Value.deserialize_bin_unsupported (ct : constants.ColumnType)
     (flags : constants.ColumnFlags) (hct : binSupported ct = false) (buf : io.ParseBuf) :
-    ¬ value.Value.deserialize_bin (ct, flags) buf ⦃ _ => True ⦄
+    value.Value.deserialize_bin (ct, flags) buf = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.deserialize_bin_unsupported`
 
@@ -133,7 +150,25 @@ recall value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePai
 /-- **Crash path.** `MyDeserialize for ValueDeserializer<BinValue>` panics on the unsupported column types. -/
 recall value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize_unsupported (ct : constants.ColumnType)
     (flags : constants.ColumnFlags) (hct : binSupported ct = false) (buf : io.ParseBuf) :
-    ¬ value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize (ct, flags) buf ⦃ _ => True ⦄
+    value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize (ct, flags) buf = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize_unsupported`
+
+/-- `MyDeserialize for ValueDeserializer<TextValue>` reads a length-encoded string back as `Bytes`, and `0xFB` as `NULL`. -/
+recall value.ValueDeserializerTextValue.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip (v : Val) (tail : List U8) (buf : io.ParseBuf)
+    (hv : (∃ s, v = .bytes s ∧ buf.val = lenencStr s ++ tail) ∨ (v = .null ∧ buf.val = byte 0xFB :: tail)) :
+    value.ValueDeserializerTextValue.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
+      (okPart r).map (fun d => Val.ofValue d.1) = some v ∧ rest.val = tail ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.ValueDeserializerTextValue.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip`
+
+/-- `MyDeserialize for ValueDeserializer<BinValue>`: the round trip of `deserialize_bin`. -/
+recall value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.roundtrip (v : value.Value) (ct : constants.ColumnType)
+    (flags : constants.ColumnFlags) (hc : binCompatible (Val.ofValue v) ct)
+    (tail : List U8) (buf : io.ParseBuf) (h : buf.val = binEnc (Val.ofValue v) ++ tail) :
+    value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize (ct, flags) buf ⦃ r rest =>
+      (okPart r).map (fun d => Val.ofValue d.1) = some (binNorm (isUnsigned flags) (Val.ofValue v)) ∧
+      rest.val = tail ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.roundtrip`
 end mysql_common

@@ -66,12 +66,18 @@ recall ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq (LEN : Usi
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq`
 
-/-- `MyDeserialize for [u8; LEN]`: the next `LEN` bytes. Unchecked: panics on a shorter buffer; `parse` checks. -/
+/-- `MyDeserialize for [u8; LEN]`: the next `LEN` bytes. Unchecked: panics on a shorter buffer (`deserialize_panics`); `parse` checks. -/
 recall ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (LEN : Usize) (buf : io.ParseBuf) (h : LEN.val ≤ buf.length) :
     ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ r rest =>
       (okPart r).map (·.val) = some (buf.val.take LEN.val) ∧ rest.val = buf.val.drop LEN.val ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec`
+
+/-- `MyDeserialize for [u8; LEN]` panics on fewer than `LEN` bytes. -/
+recall ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (LEN : Usize) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
+    ¬ ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ _ => True ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics`
 
 /-- `MySerialize for [u8; LEN]`: appends the bytes. -/
 recall ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize_spec {LEN : Usize} (self : Array U8 LEN) (buf : alloc.vec.Vec U8)
@@ -88,12 +94,18 @@ recall misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq (LEN : 
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq`
 
-/-- `MyDeserialize for Skip<LEN>`: skips `LEN` bytes. Unchecked: panics on a shorter buffer; `parse` checks. -/
+/-- `MyDeserialize for Skip<LEN>`: skips `LEN` bytes. Unchecked: panics on a shorter buffer (`deserialize_panics`); `parse` checks. -/
 recall misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (LEN : Usize) (buf : io.ParseBuf) (h : LEN.val ≤ buf.length) :
     misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ r rest =>
       (okPart r).isSome ∧ rest.val = buf.val.drop LEN.val ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec`
+
+/-- `MyDeserialize for Skip<LEN>` panics on fewer than `LEN` bytes. -/
+recall misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (LEN : Usize) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
+    ¬ misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ _ => True ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics`
 
 /-- `MySerialize for Skip<LEN>`: appends `LEN` zero bytes. -/
 recall misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec {LEN : Usize} (self : misc.raw.Skip LEN) (buf : alloc.vec.Vec U8)
@@ -129,7 +141,7 @@ recall misc.raw.Either.unwrap_left_left {T U : Type} (x : T) :
 
 /-- `unwrap_left` on `Right(_)` panics (by design). -/
 recall misc.raw.Either.unwrap_left_right {T U : Type} (y : U) :
-    ¬ misc.raw.Either.unwrap_left (misc.raw.Either.Right y : misc.raw.Either T U) ⦃ _ => True ⦄
+    misc.raw.Either.unwrap_left (misc.raw.Either.Right y : misc.raw.Either T U) = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.Either.unwrap_left_right`
 
@@ -141,7 +153,7 @@ recall misc.raw.Either.unwrap_right_right {T U : Type} (y : U) :
 
 /-- `unwrap_right` on `Left(_)` panics (by design). -/
 recall misc.raw.Either.unwrap_right_left {T U : Type} (x : T) :
-    ¬ misc.raw.Either.unwrap_right (misc.raw.Either.Left x : misc.raw.Either T U) ⦃ _ => True ⦄
+    misc.raw.Either.unwrap_right (misc.raw.Either.Left x : misc.raw.Either T U) = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.Either.unwrap_right_left`
 
@@ -191,12 +203,18 @@ recall F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq :
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq`
 
-/-- `MyDeserialize for f64`: the double whose bit pattern is the next 8 bytes, little-endian. Unchecked: panics on a shorter buffer; `parse` checks. -/
+/-- `MyDeserialize for f64`: the double whose bit pattern is the next 8 bytes, little-endian. Unchecked: panics on a shorter buffer (`deserialize_panics`); `parse` checks. -/
 recall F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
     F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (okPart r).map (·.bits.val) = some (leNat (buf.val.take 8)) ∧ rest.val = buf.val.drop 8 ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec`
+
+/-- `MyDeserialize for f64` panics on fewer than 8 bytes. -/
+recall F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    ¬ F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ _ => True ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics`
 
 /-- `MySerialize for f64`: appends the bit pattern, little-endian. -/
 recall F64.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : F64) (buf : alloc.vec.Vec U8) (h : buf.length + 8 ≤ Usize.max) :

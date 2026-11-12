@@ -13,10 +13,15 @@ theorem ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq (LEN : Us
     ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE LEN = some LEN := by
   sorry
 
-/-- `MyDeserialize for [u8; LEN]`: the next `LEN` bytes. Unchecked: panics on a shorter buffer; `parse` checks. -/
+/-- `MyDeserialize for [u8; LEN]`: the next `LEN` bytes. Unchecked: panics on a shorter buffer (`deserialize_panics`); `parse` checks. -/
 theorem ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (LEN : Usize) (buf : io.ParseBuf) (h : LEN.val ≤ buf.length) :
     ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ r rest =>
       (okPart r).map (·.val) = some (buf.val.take LEN.val) ∧ rest.val = buf.val.drop LEN.val ⦄ := by
+  sorry
+
+/-- `MyDeserialize for [u8; LEN]` panics on fewer than `LEN` bytes. -/
+theorem ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (LEN : Usize) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
+    ¬ ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `MySerialize for [u8; LEN]`: appends the bytes. -/

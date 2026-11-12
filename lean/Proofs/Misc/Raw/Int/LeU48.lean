@@ -19,10 +19,15 @@ theorem misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec
     misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.serialize x buf ⦃ buf' => buf'.val = buf.val ++ leBytes 6 x.val ⦄ := by
   sorry
 
-/-- `LeU48::deserialize`: reads 6 bytes. It does not check the length (documented: "`IntRepr::deserialize` won't check buffer length"), so it panics on a shorter buffer; `parse` (below) checks. -/
+/-- `LeU48::deserialize`: reads 6 bytes. It does not check the length (documented: "`IntRepr::deserialize` won't check buffer length"), so it panics on a shorter buffer (`deserialize_panics`); `parse` (below) checks. -/
 theorem misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
     misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ r rest =>
       (okPart r).map (·.val) = some (leNat (buf.val.take 6)) ∧ rest.val = buf.val.drop 6 ⦄ := by
+  sorry
+
+/-- `LeU48::deserialize` panics on fewer than 6 bytes. -/
+theorem misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 6) :
+    ¬ misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ _ => True ⦄ := by
   sorry
 
 /-- `buf.parse::<RawInt<LeU48>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 6 bytes. -/

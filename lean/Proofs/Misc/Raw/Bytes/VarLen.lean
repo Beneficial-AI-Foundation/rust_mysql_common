@@ -20,10 +20,13 @@ theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq
 
 /-- `VarLen::serialize`: **Bug (format mismatch).** Appends the length as a *length-encoded integer*
     (`put_lenenc_int`), not as a JSONB varlen integer, which is what `deserialize` reads. The two
-    agree only for lengths below 128; for `128 ≤ len < 251` the lenenc byte `len` has bit 7 set
-    and is read as an unfinished varlen. No `u32::MAX` truncation either. -/
+    agree only for lengths below 128. From 128 on the first length byte has bit 7 set, so
+    `deserialize` takes the following byte(s) as part of the length and can silently read a wrong
+    length: e.g. a 200-byte string starting with `'a'` is read as having length 12488
+    (`Defs.jsonbVarLenRead_lenencInt_misread`); see `roundtrip_fails`. No `u32::MAX` truncation
+    either. -/
 theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 9 + text.length ≤ Usize.max) :
+    (h : buf.length + (lenencInt text.length).length + text.length ≤ Usize.max) :
     misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ lenencInt text.length ++ text.val ⦄ := by
   sorry
 
@@ -37,6 +40,13 @@ theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deseria
 theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip (s : List U8) (hs : s.length < 128) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = lenencInt s.length ++ s ++ tail) :
     misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest => (okPart r).map cowList = some s ∧ rest.val = tail ⦄ := by
+  sorry
+
+/-- **Bug (format mismatch).** For `128 ≤ len < 251`, `deserialize` does not read back what
+    `serialize` writes: it either fails or returns other bytes or leaves a different rest. -/
+theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip_fails (s tail : List U8) (hs : 128 ≤ s.length ∧ s.length < 251)
+    (buf : io.ParseBuf) (h : buf.val = lenencInt s.length ++ s ++ tail) :
+    misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest => ((okPart r).map cowList, rest.val) ≠ (some s, tail) ⦄ := by
   sorry
 
 end mysql_common

@@ -15,7 +15,7 @@ theorem misc.raw.Either.unwrap_left_left {T U : Type} (x : T) :
 
 /-- `unwrap_left` on `Right(_)` panics (by design). -/
 theorem misc.raw.Either.unwrap_left_right {T U : Type} (y : U) :
-    ¬ misc.raw.Either.unwrap_left (misc.raw.Either.Right y : misc.raw.Either T U) ⦃ _ => True ⦄ := by
+    misc.raw.Either.unwrap_left (misc.raw.Either.Right y : misc.raw.Either T U) = fail .panic := by
   sorry
 
 /-- `unwrap_right` on `Right(y)` is `y`. -/
@@ -25,7 +25,7 @@ theorem misc.raw.Either.unwrap_right_right {T U : Type} (y : U) :
 
 /-- `unwrap_right` on `Left(_)` panics (by design). -/
 theorem misc.raw.Either.unwrap_right_left {T U : Type} (x : T) :
-    ¬ misc.raw.Either.unwrap_right (misc.raw.Either.Left x : misc.raw.Either T U) ⦃ _ => True ⦄ := by
+    misc.raw.Either.unwrap_right (misc.raw.Either.Left x : misc.raw.Either T U) = fail .panic := by
   sorry
 
 /-- `MyDeserialize for Either`: `SIZE` is `None`. -/

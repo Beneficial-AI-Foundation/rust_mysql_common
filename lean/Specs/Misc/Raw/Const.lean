@@ -44,7 +44,8 @@ recall misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq`
 
 /-- `MyDeserialize for Const<T, U>`: `U::deserialize` of the raw value, then `T::try_from`; a
-    failed conversion is an `InvalidData` error (documented). Stated given what `U::deserialize`
+    failed conversion is an error (its kind is not stated: `io::Error` is opaque; documented as
+    `InvalidData`). Stated given what `U::deserialize`
     guarantees (`Q`) and what `T::try_from` guarantees (`R`). -/
 recall misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec {T U P E : Type} (inst : misc.raw.int.IntRepr U P)
     (tf : core.convert.TryFrom T P E) (err : core.error.Error E) (buf : io.ParseBuf)

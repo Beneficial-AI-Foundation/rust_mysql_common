@@ -32,10 +32,10 @@ theorem misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize_
     every `enc x` has that size and `SIZE * len` does not overflow (it is computed unchecked). -/
 theorem misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize_roundtrip {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (xs : List T) (enc : T → List U8)
-    (hde : ∀ (x : T) (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
+    (hde : ∀ x ∈ xs, ∀ (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
       io.ParseBuf.parse de b () ⦃ r rest => okPart r = some x ∧ rest.val = tail ⦄)
     (o : Option Usize) (hsz : de.SIZE = ok o)
-    (hfix : ∀ c, o = some c → (∀ x, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
+    (hfix : ∀ c, o = some c → (∀ x ∈ xs, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
     (len : Usize) (hlen : len.val = xs.length) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = xs.flatMap enc ++ tail) :
     misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize cl de len buf ⦃ r rest => (okPart r).map cowList = some xs ∧ rest.val = tail ⦄ := by
@@ -43,8 +43,8 @@ theorem misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserializ
 
 /-- `Unknown::deserialize(len)` does not panic if the item parser does not, provided
     `SIZE * len` does not overflow for a fixed-size item. **Caveats.** (1) `Vec::with_capacity(len)`
-    is modelled as free: real Rust aborts or panics when `len * size_of::<T>()` cannot be
-    allocated. (2) The product `SIZE * len` is a plain `usize` multiplication: it panics on overflow
+    is modelled as free: real Rust panics (capacity overflow) when `len * size_of::<T>()` exceeds
+    `isize::MAX`, and aborts the process when the allocation fails (OOM). (2) The product `SIZE * len` is a plain `usize` multiplication: it panics on overflow
     in a debug build (as in the Lean model) and wraps in a release build. -/
 theorem misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize_no_panic {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (hde : ∀ b : io.ParseBuf, io.ParseBuf.parse de b () ⦃ _ => True ⦄)

@@ -112,7 +112,7 @@ recall misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq 
 
 /-- `LenEnc::serialize`: appends the length-encoded string. -/
 recall misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 9 + text.length ≤ Usize.max) :
+    (h : buf.length + (lenencStr text.val).length ≤ Usize.max) :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ lenencStr text.val ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec`
@@ -147,7 +147,7 @@ recall misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_
 
 /-- `U8Bytes::serialize`: appends a `u8` length and the bytes, truncated to 255 bytes (documented). -/
 recall misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 1 + text.length ≤ Usize.max) :
+    (h : buf.length + 1 + min text.length 255 ≤ Usize.max) :
     misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ byte (min text.length 255) :: text.val.take 255 ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec`
@@ -182,7 +182,7 @@ recall misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE
 
 /-- `U32Bytes::serialize`: appends a little-endian `u32` length and the bytes, truncated to `u32::MAX` bytes (documented). -/
 recall misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 4 + text.length ≤ Usize.max) :
+    (h : buf.length + 4 + min text.length (2 ^ 32 - 1) ≤ Usize.max) :
     misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ leBytes 4 (min text.length (2 ^ 32 - 1)) ++ text.val.take (2 ^ 32 - 1) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec`
@@ -222,7 +222,7 @@ recall misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.ser
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec`
 
-/-- `NullBytes::deserialize`: total; the bytes before the first `0`, consuming the `0`; an `InvalidData` error with the buffer unchanged if there is no `0` (documented). -/
+/-- `NullBytes::deserialize`: total; the bytes before the first `0`, consuming the `0`; an error (its kind is not stated: `io::Error` is opaque; documented as `InvalidData`) with the buffer unchanged if there is no `0`. -/
 recall misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec (buf : io.ParseBuf) :
     misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest =>
       if ∃ b ∈ buf.val, b.val = 0 then
@@ -318,12 +318,38 @@ recall misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTup
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec`
 
-/-- `FixedLengthText<LEN>::deserialize`: the next `LEN` bytes, padding included. Unchecked (`SIZE` is `Some(LEN)`, so it uses `eat`): panics on a shorter buffer; `parse` checks. -/
+/-- `FixedLengthText<LEN>::deserialize`: the next `LEN` bytes, padding included. Unchecked (`SIZE` is `Some(LEN)`, so it uses `eat`): panics on a shorter buffer (`deserialize_panics`); `parse` checks (`parse_rawbytes_spec`). -/
 recall misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec (L : Usize) (buf : io.ParseBuf) (h : L.val ≤ buf.length) :
     misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize L () buf ⦃ r rest =>
       (okPart r).map cowList = some (buf.val.take L.val) ∧ rest.val = buf.val.drop L.val ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec`
+
+/-- `FixedLengthText<LEN>::deserialize` panics on fewer than `LEN` bytes. -/
+recall misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_panics (L : Usize) (buf : io.ParseBuf) (h : buf.length < L.val) :
+    ¬ misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize L () buf ⦃ _ => True ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_panics`
+
+/-- `buf.parse::<RawBytes<FixedLengthText<LEN>>>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than `LEN` bytes. -/
+recall misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.parse_rawbytes_spec (L : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple L)) buf () ⦃ r rest =>
+      if L.val ≤ buf.length then
+        (okPart r).map (fun rb => cowList rb.1) = some (buf.val.take L.val) ∧
+        rest.val = buf.val.drop L.val
+      else okPart r = none ∧ rest = buf ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.parse_rawbytes_spec`
+
+/-- Round trip through `parse::<RawBytes<FixedLengthText<LEN>>>`: what `serialize` writes comes back padded/truncated to exactly `LEN` bytes (so it is the original text iff the text has `LEN` bytes). -/
+recall misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip (L : Usize) (text tail : List U8) (buf : io.ParseBuf)
+    (h : buf.val = text.take L.val ++ List.replicate (L.val - min L.val text.length) (byte 0) ++ tail) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple L)) buf () ⦃ r rest =>
+      (okPart r).map (fun rb => cowList rb.1) =
+        some (text.take L.val ++ List.replicate (L.val - min L.val text.length) (byte 0)) ∧
+      rest.val = tail ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip`
 
 /-! ### `impl BytesRepr for VarLen` -/
 
@@ -341,10 +367,13 @@ recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq 
 
 /-- `VarLen::serialize`: **Bug (format mismatch).** Appends the length as a *length-encoded integer*
     (`put_lenenc_int`), not as a JSONB varlen integer, which is what `deserialize` reads. The two
-    agree only for lengths below 128; for `128 ≤ len < 251` the lenenc byte `len` has bit 7 set
-    and is read as an unfinished varlen. No `u32::MAX` truncation either. -/
+    agree only for lengths below 128. From 128 on the first length byte has bit 7 set, so
+    `deserialize` takes the following byte(s) as part of the length and can silently read a wrong
+    length: e.g. a 200-byte string starting with `'a'` is read as having length 12488
+    (`Defs.jsonbVarLenRead_lenencInt_misread`); see `roundtrip_fails`. No `u32::MAX` truncation
+    either. -/
 recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 9 + text.length ≤ Usize.max) :
+    (h : buf.length + (lenencInt text.length).length + text.length ≤ Usize.max) :
     misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ lenencInt text.length ++ text.val ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec`
@@ -363,6 +392,14 @@ recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtri
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip`
 
+/-- **Bug (format mismatch).** For `128 ≤ len < 251`, `deserialize` does not read back what
+    `serialize` writes: it either fails or returns other bytes or leaves a different rest. -/
+recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip_fails (s tail : List U8) (hs : 128 ≤ s.length ∧ s.length < 251)
+    (buf : io.ParseBuf) (h : buf.val = lenencInt s.length ++ s ++ tail) :
+    misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest => ((okPart r).map cowList, rest.val) ≠ (some s, tail) ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.VarLen.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip_fails`
+
 /-! ### `struct ConstBytes and its impls` -/
 
 /-- `MyDeserialize for ConstBytes<T, LEN>`: `SIZE` is `Some(LEN)`. -/
@@ -373,8 +410,9 @@ recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZ
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq`
 
 /-- `MyDeserialize for ConstBytes<T, LEN>`: reads `LEN` bytes (unchecked: panics on a shorter
-    buffer; `parse` checks); `Ok` iff they are `T::VALUE`, else an `InvalidData` error; consumed
-    either way. (`T::VALUE` and `T::Error::default()` must not panic.) -/
+    buffer, `deserialize_panics`; `parse` checks); `Ok` iff they are `T::VALUE`, else an error
+    (its kind is not stated: `io::Error` is opaque; the code uses `InvalidData`); consumed either
+    way. (`T::VALUE` and `T::Error::default()` must not panic.) -/
 recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec {T E : Type} {LEN : Usize} (d : core.default.Default T)
     (v : misc.raw.bytes.ConstBytesValue T E LEN) (a : Array U8 LEN) (hv : v.VALUE = ok a)
     (hd : v.coredefaultDefaultInst.default ⦃ _ => True ⦄)
@@ -383,6 +421,24 @@ recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.des
       ((okPart r).isSome ↔ buf.val.take LEN.val = a.val) ∧ rest.val = buf.val.drop LEN.val ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec`
+
+/-- `MyDeserialize for ConstBytes<T, LEN>` panics on fewer than `LEN` bytes. -/
+recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T E : Type} {LEN : Usize} (d : core.default.Default T)
+    (v : misc.raw.bytes.ConstBytesValue T E LEN) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
+    ¬ misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize d v () buf ⦃ _ => True ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics`
+
+/-- `buf.parse::<ConstBytes<T, LEN>>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than `LEN` bytes. -/
+recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.parse_spec {T E : Type} {LEN : Usize} (d : core.default.Default T)
+    (v : misc.raw.bytes.ConstBytesValue T E LEN) (a : Array U8 LEN) (hv : v.VALUE = ok a)
+    (hd : v.coredefaultDefaultInst.default ⦃ _ => True ⦄) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple d v) buf () ⦃ r rest =>
+      if LEN.val ≤ buf.length then
+        ((okPart r).isSome ↔ buf.val.take LEN.val = a.val) ∧ rest.val = buf.val.drop LEN.val
+      else okPart r = none ∧ rest = buf ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.parse_spec`
 
 /-- `MySerialize for ConstBytes<T, LEN>`: appends `T::VALUE`. -/
 recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec {T E : Type} {LEN : Usize}

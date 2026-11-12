@@ -20,7 +20,7 @@ theorem misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE
 
 /-- `U8Bytes::serialize`: appends a `u8` length and the bytes, truncated to 255 bytes (documented). -/
 theorem misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 1 + text.length ≤ Usize.max) :
+    (h : buf.length + 1 + min text.length 255 ≤ Usize.max) :
     misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ byte (min text.length 255) :: text.val.take 255 ⦄ := by
   sorry
 

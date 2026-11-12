@@ -20,7 +20,7 @@ theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq
 
 /-- `LenEnc::serialize`: appends the length-encoded string. -/
 theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 9 + text.length ≤ Usize.max) :
+    (h : buf.length + (lenencStr text.val).length ≤ Usize.max) :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ lenencStr text.val ⦄ := by
   sorry
 

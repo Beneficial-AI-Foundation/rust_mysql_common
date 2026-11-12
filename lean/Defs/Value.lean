@@ -15,7 +15,7 @@ Binary protocol (per column type):
 
 | column type                                             | bytes                                  |
 |---------------------------------------------------------|----------------------------------------|
-| STRING, VARCHAR, VAR_STRING, ENUM, SET, LONG_BLOB, MEDIUM_BLOB, BLOB, TINY_BLOB, GEOMETRY, BIT, DECIMAL, NEWDECIMAL, JSON, VECTOR | length-encoded string |
+| STRING, VARCHAR, VAR_STRING, ENUM, SET, LONG_BLOB, MEDIUM_BLOB, BLOB, TINY_BLOB, GEOMETRY, BIT, DECIMAL, NEWDECIMAL, JSON, VECTOR (*) | length-encoded string |
 | LONGLONG                                                | 8-byte integer                         |
 | LONG, INT24                                             | 4-byte integer                         |
 | SHORT, YEAR                                             | 2-byte integer                         |
@@ -28,6 +28,9 @@ Binary protocol (per column type):
 
 All integers are little-endian; integer columns are signed or unsigned by the column's
 `UNSIGNED_FLAG`.
+
+(*) VECTOR is not on the protocol page: it is a MySQL 9 type, which the crate (like the server)
+sends and reads as a length-encoded string.
 -/
 
 set_option autoImplicit false
@@ -175,7 +178,9 @@ open constants.ColumnType in
     * Floats: the bit pattern.
     * Temporal types: `dateRead`, `timeRead`.
     * NULL: the null value, nothing consumed.
-    Unsupported types (`binSupported`) are not described: the decoder panics on them. -/
+    The last match arm (`_`, the five types with `binSupported ct = false`) gives an arbitrary
+    value: it is never used, since the decoder panics on those types (see
+    `value.Value.deserialize_bin_unsupported`). -/
 def binRead (ct : constants.ColumnType) (unsigned : Bool) (bs : List U8) : Option Val × List U8 :=
   if isLenencStrType ct then
     match checkedLenencStr bs with
@@ -203,6 +208,57 @@ def binRead (ct : constants.ColumnType) (unsigned : Bool) (bs : List U8) : Optio
   | MYSQL_TYPE_TIME => timeRead bs
   | MYSQL_TYPE_NULL => (some .null, bs)
   | _ => (none, bs)
+
+/-! ## The protocol's temporal formats, field by field
+
+These decoders transcribe the protocol page's field tables for the lengths it defines (DATE,
+DATETIME, TIMESTAMP: 0, 4, 7, 11; TIME: 0, 8, 12) and are `none` on every other length. They are
+independent of `dateRead`/`timeRead` above, which describe the crate's (more lenient) reader;
+`Defs.dateRead_dateProto` and `Defs.timeRead_timeProto` (in `Proofs/Defs/Lemmas.lean`) say the two
+agree on the protocol's lengths. -/
+
+/-- The protocol's binary DATE/DATETIME/TIMESTAMP: `length` (1 byte), then
+    `length = 4`: year (2 bytes LE), month, day; `length = 7`: also hour, minute, second;
+    `length = 11`: also microsecond (4 bytes LE); `length = 0`: all fields 0. -/
+def dateProto : List U8 → Option (Val × List U8)
+  | [] => none
+  | l :: rest =>
+    if l.val = 0 then some (.date 0 0 0 0 0 0 0, rest)
+    else if l.val = 4 then
+      match rest with
+      | y0 :: y1 :: mo :: d :: r => some (.date (leNat [y0, y1]) mo.val d.val 0 0 0 0, r)
+      | _ => none
+    else if l.val = 7 then
+      match rest with
+      | y0 :: y1 :: mo :: d :: h :: mi :: s :: r =>
+        some (.date (leNat [y0, y1]) mo.val d.val h.val mi.val s.val 0, r)
+      | _ => none
+    else if l.val = 11 then
+      match rest with
+      | y0 :: y1 :: mo :: d :: h :: mi :: s :: u0 :: u1 :: u2 :: u3 :: r =>
+        some (.date (leNat [y0, y1]) mo.val d.val h.val mi.val s.val (leNat [u0, u1, u2, u3]), r)
+      | _ => none
+    else none
+
+/-- The protocol's binary TIME: `length` (1 byte), then `length = 8`: is_negative (1 byte, 1 for
+    negative), days (4 bytes LE), hour, minute, second; `length = 12`: also microsecond (4 bytes
+    LE); `length = 0`: all fields 0 (positive). -/
+def timeProto : List U8 → Option (Val × List U8)
+  | [] => none
+  | l :: rest =>
+    if l.val = 0 then some (.time false 0 0 0 0 0, rest)
+    else if l.val = 8 then
+      match rest with
+      | n :: d0 :: d1 :: d2 :: d3 :: h :: mi :: s :: r =>
+        some (.time (n.val = 1) (leNat [d0, d1, d2, d3]) h.val mi.val s.val 0, r)
+      | _ => none
+    else if l.val = 12 then
+      match rest with
+      | n :: d0 :: d1 :: d2 :: d3 :: h :: mi :: s :: u0 :: u1 :: u2 :: u3 :: r =>
+        some (.time (n.val = 1) (leNat [d0, d1, d2, d3]) h.val mi.val s.val
+          (leNat [u0, u1, u2, u3]), r)
+      | _ => none
+    else none
 
 /-! ## Round trip: which column types fit a value, and what comes back -/
 

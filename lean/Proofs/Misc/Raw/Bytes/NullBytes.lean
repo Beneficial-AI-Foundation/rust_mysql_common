@@ -24,7 +24,7 @@ theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.se
     misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ beforeZero text.val ++ [byte 0] ⦄ := by
   sorry
 
-/-- `NullBytes::deserialize`: total; the bytes before the first `0`, consuming the `0`; an `InvalidData` error with the buffer unchanged if there is no `0` (documented). -/
+/-- `NullBytes::deserialize`: total; the bytes before the first `0`, consuming the `0`; an error (its kind is not stated: `io::Error` is opaque; documented as `InvalidData`) with the buffer unchanged if there is no `0`. -/
 theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec (buf : io.ParseBuf) :
     misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest =>
       if ∃ b ∈ buf.val, b.val = 0 then

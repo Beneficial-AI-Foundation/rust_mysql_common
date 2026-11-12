@@ -15,7 +15,8 @@ import Proofs.Misc.Raw.Seq.RawSeq
 
     **Reading the statements.** The item type is generic: the `SeqRepr` statements take what the item
     serializer appends (`enc`) and that the item parser reads it back as hypotheses, and conclude the
-    round trip for the sequence; a separate statement gives absence of panics from absence of panics
+    round trip for the sequence (the hypotheses only concern the items of the sequence, so lossy item
+    types such as `RawInt<LeU24>` qualify for sequences of in-range items); a separate statement gives absence of panics from absence of panics
     of the item parser.
 
     **Not covered.** `Seq::empty`, `is_empty`, `len`, `push`, `into_owned`, `Default` (not in the
@@ -102,10 +103,10 @@ recall misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize_s
     every `enc x` has that size and `SIZE * len` does not overflow (it is computed unchecked). -/
 recall misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize_roundtrip {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (xs : List T) (enc : T → List U8)
-    (hde : ∀ (x : T) (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
+    (hde : ∀ x ∈ xs, ∀ (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
       io.ParseBuf.parse de b () ⦃ r rest => okPart r = some x ∧ rest.val = tail ⦄)
     (o : Option Usize) (hsz : de.SIZE = ok o)
-    (hfix : ∀ c, o = some c → (∀ x, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
+    (hfix : ∀ c, o = some c → (∀ x ∈ xs, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
     (len : Usize) (hlen : len.val = xs.length) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = xs.flatMap enc ++ tail) :
     misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize cl de len buf ⦃ r rest => (okPart r).map cowList = some xs ∧ rest.val = tail ⦄
@@ -114,8 +115,8 @@ recall misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize
 
 /-- `Unknown::deserialize(len)` does not panic if the item parser does not, provided
     `SIZE * len` does not overflow for a fixed-size item. **Caveats.** (1) `Vec::with_capacity(len)`
-    is modelled as free: real Rust aborts or panics when `len * size_of::<T>()` cannot be
-    allocated. (2) The product `SIZE * len` is a plain `usize` multiplication: it panics on overflow
+    is modelled as free: real Rust panics (capacity overflow) when `len * size_of::<T>()` exceeds
+    `isize::MAX`, and aborts the process when the allocation fails (OOM). (2) The product `SIZE * len` is a plain `usize` multiplication: it panics on overflow
     in a debug build (as in the Lean model) and wraps in a release build. -/
 recall misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize_no_panic {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (hde : ∀ b : io.ParseBuf, io.ParseBuf.parse de b () ⦃ _ => True ⦄)
@@ -153,11 +154,11 @@ recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_spe
 /-- `LeU64::deserialize`: reads back a 8-byte count followed by that many serialized items (hypotheses as for `Unknown`). -/
 recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_roundtrip {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (xs : List T) (enc : T → List U8)
-    (hde : ∀ (x : T) (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
+    (hde : ∀ x ∈ xs, ∀ (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
       io.ParseBuf.parse de b () ⦃ r rest => okPart r = some x ∧ rest.val = tail ⦄)
     (o : Option Usize) (hsz : de.SIZE = ok o)
-    (hfix : ∀ c, o = some c → (∀ x, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
-    (hlen : xs.length ≤ (2 ^ 64 - 1)) (tail : List U8) (buf : io.ParseBuf)
+    (hfix : ∀ c, o = some c → (∀ x ∈ xs, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
+    (hlen : xs.length ≤ Usize.max) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytes 8 xs.length ++ xs.flatMap enc ++ tail) :
     misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize cl de () buf ⦃ r rest => (okPart r).map cowList = some xs ∧ rest.val = tail ⦄
 
@@ -168,11 +169,13 @@ recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_r
     **Crash path.** The count comes from the wire, up to `u64::MAX`. For a fixed-size item the
     unchecked product `SIZE * count` overflows for a large count (a panic in a debug build, a
     wrap-around in release); and before that, `Vec::with_capacity(count)` (modelled as free) asks
-    for `count * size_of::<T>()` bytes, which aborts the process for a large count. Both are
-    reachable from a malicious server. -/
+    for `count * size_of::<T>()` bytes: Rust panics (capacity overflow) if that exceeds
+    `isize::MAX` and aborts the process if the allocation fails (OOM). Both are reachable from a
+    malicious server. (On a 32-bit `usize` the count is truncated by `as usize`; `hov` bounds the
+    untruncated count, so no `Target64` is needed.) -/
 recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_no_panic {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (hde : ∀ b : io.ParseBuf, io.ParseBuf.parse de b () ⦃ _ => True ⦄)
-    (o : Option Usize) (hsz : de.SIZE = ok o) (h64 : Target64) (buf : io.ParseBuf)
+    (o : Option Usize) (hsz : de.SIZE = ok o) (buf : io.ParseBuf)
     (hov : ∀ c, o = some c → c.val * leNat (buf.val.take 8) ≤ Usize.max) :
     misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize cl de () buf ⦃ _ => True ⦄
 
@@ -206,10 +209,10 @@ recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_spe
 /-- `LeU32::deserialize`: reads back a 4-byte count followed by that many serialized items (hypotheses as for `Unknown`). -/
 recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_roundtrip {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (xs : List T) (enc : T → List U8)
-    (hde : ∀ (x : T) (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
+    (hde : ∀ x ∈ xs, ∀ (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
       io.ParseBuf.parse de b () ⦃ r rest => okPart r = some x ∧ rest.val = tail ⦄)
     (o : Option Usize) (hsz : de.SIZE = ok o)
-    (hfix : ∀ c, o = some c → (∀ x, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
+    (hfix : ∀ c, o = some c → (∀ x ∈ xs, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
     (hlen : xs.length ≤ (2 ^ 32 - 1)) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytes 4 xs.length ++ xs.flatMap enc ++ tail) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize cl de () buf ⦃ r rest => (okPart r).map cowList = some xs ∧ rest.val = tail ⦄
@@ -221,11 +224,13 @@ recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_r
     **Crash path.** The count comes from the wire, up to `u32::MAX`. For a fixed-size item the
     unchecked product `SIZE * count` overflows for a large count (a panic in a debug build, a
     wrap-around in release); and before that, `Vec::with_capacity(count)` (modelled as free) asks
-    for `count * size_of::<T>()` bytes, which aborts the process for a large count. Both are
-    reachable from a malicious server. -/
+    for `count * size_of::<T>()` bytes: Rust panics (capacity overflow) if that exceeds
+    `isize::MAX` and aborts the process if the allocation fails (OOM). Both are reachable from a
+    malicious server. (On a 32-bit `usize` the count is truncated by `as usize`; `hov` bounds the
+    untruncated count, so no `Target64` is needed.) -/
 recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_no_panic {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (hde : ∀ b : io.ParseBuf, io.ParseBuf.parse de b () ⦃ _ => True ⦄)
-    (o : Option Usize) (hsz : de.SIZE = ok o) (h64 : Target64) (buf : io.ParseBuf)
+    (o : Option Usize) (hsz : de.SIZE = ok o) (buf : io.ParseBuf)
     (hov : ∀ c, o = some c → c.val * leNat (buf.val.take 4) ≤ Usize.max) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize cl de () buf ⦃ _ => True ⦄
 

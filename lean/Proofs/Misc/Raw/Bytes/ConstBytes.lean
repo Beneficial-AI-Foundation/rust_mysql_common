@@ -15,14 +15,31 @@ theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.SI
   sorry
 
 /-- `MyDeserialize for ConstBytes<T, LEN>`: reads `LEN` bytes (unchecked: panics on a shorter
-    buffer; `parse` checks); `Ok` iff they are `T::VALUE`, else an `InvalidData` error; consumed
-    either way. (`T::VALUE` and `T::Error::default()` must not panic.) -/
+    buffer, `deserialize_panics`; `parse` checks); `Ok` iff they are `T::VALUE`, else an error
+    (its kind is not stated: `io::Error` is opaque; the code uses `InvalidData`); consumed either
+    way. (`T::VALUE` and `T::Error::default()` must not panic.) -/
 theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec {T E : Type} {LEN : Usize} (d : core.default.Default T)
     (v : misc.raw.bytes.ConstBytesValue T E LEN) (a : Array U8 LEN) (hv : v.VALUE = ok a)
     (hd : v.coredefaultDefaultInst.default ⦃ _ => True ⦄)
     (buf : io.ParseBuf) (h : LEN.val ≤ buf.length) :
     misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize d v () buf ⦃ r rest =>
       ((okPart r).isSome ↔ buf.val.take LEN.val = a.val) ∧ rest.val = buf.val.drop LEN.val ⦄ := by
+  sorry
+
+/-- `MyDeserialize for ConstBytes<T, LEN>` panics on fewer than `LEN` bytes. -/
+theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T E : Type} {LEN : Usize} (d : core.default.Default T)
+    (v : misc.raw.bytes.ConstBytesValue T E LEN) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
+    ¬ misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize d v () buf ⦃ _ => True ⦄ := by
+  sorry
+
+/-- `buf.parse::<ConstBytes<T, LEN>>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than `LEN` bytes. -/
+theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.parse_spec {T E : Type} {LEN : Usize} (d : core.default.Default T)
+    (v : misc.raw.bytes.ConstBytesValue T E LEN) (a : Array U8 LEN) (hv : v.VALUE = ok a)
+    (hd : v.coredefaultDefaultInst.default ⦃ _ => True ⦄) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple d v) buf () ⦃ r rest =>
+      if LEN.val ≤ buf.length then
+        ((okPart r).isSome ↔ buf.val.take LEN.val = a.val) ∧ rest.val = buf.val.drop LEN.val
+      else okPart r = none ∧ rest = buf ⦄ := by
   sorry
 
 /-- `MySerialize for ConstBytes<T, LEN>`: appends `T::VALUE`. -/

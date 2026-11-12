@@ -20,7 +20,7 @@ theorem misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZ
 
 /-- `U32Bytes::serialize`: appends a little-endian `u32` length and the bytes, truncated to `u32::MAX` bytes (documented). -/
 theorem misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 4 + text.length ≤ Usize.max) :
+    (h : buf.length + 4 + min text.length (2 ^ 32 - 1) ≤ Usize.max) :
     misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ leBytes 4 (min text.length (2 ^ 32 - 1)) ++ text.val.take (2 ^ 32 - 1) ⦄ := by
   sorry
 

@@ -31,10 +31,10 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_sp
 /-- `LeU32::deserialize`: reads back a 4-byte count followed by that many serialized items (hypotheses as for `Unknown`). -/
 theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_roundtrip {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (xs : List T) (enc : T → List U8)
-    (hde : ∀ (x : T) (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
+    (hde : ∀ x ∈ xs, ∀ (tail : List U8) (b : io.ParseBuf), b.val = enc x ++ tail →
       io.ParseBuf.parse de b () ⦃ r rest => okPart r = some x ∧ rest.val = tail ⦄)
     (o : Option Usize) (hsz : de.SIZE = ok o)
-    (hfix : ∀ c, o = some c → (∀ x, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
+    (hfix : ∀ c, o = some c → (∀ x ∈ xs, (enc x).length = c.val) ∧ c.val * xs.length ≤ Usize.max)
     (hlen : xs.length ≤ (2 ^ 32 - 1)) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytes 4 xs.length ++ xs.flatMap enc ++ tail) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize cl de () buf ⦃ r rest => (okPart r).map cowList = some xs ∧ rest.val = tail ⦄ := by
@@ -45,11 +45,13 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_
     **Crash path.** The count comes from the wire, up to `u32::MAX`. For a fixed-size item the
     unchecked product `SIZE * count` overflows for a large count (a panic in a debug build, a
     wrap-around in release); and before that, `Vec::with_capacity(count)` (modelled as free) asks
-    for `count * size_of::<T>()` bytes, which aborts the process for a large count. Both are
-    reachable from a malicious server. -/
+    for `count * size_of::<T>()` bytes: Rust panics (capacity overflow) if that exceeds
+    `isize::MAX` and aborts the process if the allocation fails (OOM). Both are reachable from a
+    malicious server. (On a 32-bit `usize` the count is truncated by `as usize`; `hov` bounds the
+    untruncated count, so no `Target64` is needed.) -/
 theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize_no_panic {T : Type} (cl : core.clone.Clone T)
     (de : proto.MyDeserialize T Unit) (hde : ∀ b : io.ParseBuf, io.ParseBuf.parse de b () ⦃ _ => True ⦄)
-    (o : Option Usize) (hsz : de.SIZE = ok o) (h64 : Target64) (buf : io.ParseBuf)
+    (o : Option Usize) (hsz : de.SIZE = ok o) (buf : io.ParseBuf)
     (hov : ∀ c, o = some c → c.val * leNat (buf.val.take 4) ≤ Usize.max) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.deserialize cl de () buf ⦃ _ => True ⦄ := by
   sorry
