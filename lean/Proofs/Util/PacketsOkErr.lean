@@ -224,4 +224,199 @@ theorem rawbytes_is_empty_full {T Ctx : Type} (inst : misc.raw.bytes.BytesRepr T
   unfold packets.non_empty
   step* <;> simp_all
 
+/-! ## Pure lemmas about the OK/EOF readers and encoders -/
+
+theorem slice_len_lt (s : Slice U8) : s.val.length < 2 ^ 64 := by
+  have h1 : s.val.length ≤ Usize.max := by scalar_tac
+  have h2 : Usize.max < 2 ^ 64 := by
+    rw [Usize.max_def, Usize.numBits_def, UScalarTy.Usize_numBits_eq]
+    cases System.Platform.numBits_eq <;> simp_all
+  omega
+
+
+theorem checkedLenencStr_lenencStr (s t : List U8) (hs : s.length < 2 ^ 64) :
+    checkedLenencStr (lenencStr s ++ t) = (some s, t) := by
+  unfold checkedLenencStr lenencStr
+  rw [List.append_assoc, checkedLenencInt_lenencInt _ _ hs]
+  simp
+
+theorem lenencInt_ne_nil (n : Nat) : lenencInt n ≠ [] := by
+  unfold lenencInt; split_ifs <;> simp
+
+theorem lenencInt_head_pos (n : Nat) (hn : 0 < n) : ∃ x t, lenencInt n = x :: t ∧ 0 < x.val := by
+  unfold lenencInt
+  split_ifs with h1 h2 h3
+  · refine ⟨_, _, rfl, ?_⟩; rw [byte_val]; omega
+  · refine ⟨_, _, rfl, ?_⟩; rw [byte_val]; omega
+  · refine ⟨_, _, rfl, ?_⟩; rw [byte_val]; omega
+  · refine ⟨_, _, rfl, ?_⟩; rw [byte_val]; omega
+
+theorem leNat_take_leBytes (k n : Nat) (t : List U8) (hn : n < 2 ^ (8 * k)) :
+    leNat ((leBytes k n ++ t).take k) = n := by
+  rw [List.take_append_of_le_length (by rw [length_leBytes]), List.take_of_length_le (by rw [length_leBytes]),
+    leNat_leBytes, Nat.mod_eq_of_lt hn]
+
+theorem okStatusRead_enc (s w : Nat) (t : List U8) (hs : s < 2 ^ 16) (hw : w < 2 ^ 16)
+    (hsk : statusRead s = some s) :
+    okStatusRead (leBytes 2 s ++ leBytes 2 w ++ t) = (some (s, w), t) := by
+  unfold okStatusRead
+  have l1 := length_leBytes 2 s
+  have l2 := length_leBytes 2 w
+  rw [if_neg (by simp [l1, l2]; omega)]
+  rw [List.append_assoc, leNat_take_leBytes 2 s _ hs]
+  rw [List.drop_append_of_le_length (by omega), List.drop_of_length_le (by omega), List.nil_append,
+    leNat_take_leBytes 2 w _ hw, hsk]
+  rw [← List.append_assoc, List.drop_left' (by simp [l1, l2])]
+  simp
+
+theorem checkedLenencStr_lenencStr' (s : List U8) (hs : s.length < 2 ^ 64) :
+    checkedLenencStr (lenencStr s) = (some s, []) := by
+  have := checkedLenencStr_lenencStr s [] hs
+  simpa using this
+
+theorem lenencStr_ne_nil (s : List U8) : lenencStr s ≠ [] := by
+  unfold lenencStr; simp [lenencInt_ne_nil]
+
+/-- The tail of `okPacketEnc` (after the warnings). -/
+def okTailEnc (caps : Nat) (compact : Bool) (b : OkBody) : List U8 :=
+  if hasFlag caps CLIENT_SESSION_TRACK then
+    (if compact ∧ b.info = [] ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED = false then []
+     else lenencStr b.info)
+      ++ (if hasFlag b.status SERVER_SESSION_STATE_CHANGED then lenencStr b.sessionStateInfo else [])
+  else if b.info = [] then [] else lenencStr b.info
+
+theorem okPacketEnc_eq (header caps : Nat) (compact : Bool) (b : OkBody) :
+    okPacketEnc header caps compact b =
+      byte header :: (lenencInt b.affectedRows ++ (lenencInt b.lastInsertId ++
+        (leBytes 2 b.status ++ leBytes 2 b.warnings ++ okTailEnc caps compact b))) := by
+  simp [okPacketEnc, okTailEnc]
+
+theorem okTailRead_enc (caps : Nat) (compact : Bool) (b : OkBody)
+    (hi : b.info.length < 2 ^ 64) (hs : b.sessionStateInfo.length < 2 ^ 64)
+    (hssi : (hasFlag caps CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
+      b.sessionStateInfo = []) :
+    okTailRead caps b.status (okTailEnc caps compact b) = (some (b.info, b.sessionStateInfo), []) := by
+  unfold okTailEnc
+  cases hc : hasFlag caps CLIENT_SESSION_TRACK <;> cases hsf : hasFlag b.status SERVER_SESSION_STATE_CHANGED <;>
+    simp only [hc, hsf, and_true, and_false, true_and, false_and, or_false, false_or, Bool.false_eq_true,
+      Bool.true_eq_false, ite_true, ite_false, List.append_nil] at hssi ⊢
+  · -- no session track, no state change
+    by_cases hinf : b.info = []
+    · simp [hinf, okTailRead, hssi]
+    · simp only [hinf, ite_false]
+      obtain ⟨x, t, hxt, hx⟩ := lenencInt_head_pos b.info.length (List.length_pos_iff.mpr hinf)
+      have hl : lenencStr b.info = x :: (t ++ b.info) := by simp [lenencStr, hxt]
+      unfold okTailRead
+      rw [if_neg (by simp [hc])]
+      rw [hl]; simp only [hx, ite_true]; rw [← hl, checkedLenencStr_lenencStr' _ hi, hssi]
+  · by_cases hinf : b.info = []
+    · simp [hinf, okTailRead, hssi]
+    · simp only [hinf, ite_false]
+      obtain ⟨x, t, hxt, hx⟩ := lenencInt_head_pos b.info.length (List.length_pos_iff.mpr hinf)
+      have hl : lenencStr b.info = x :: (t ++ b.info) := by simp [lenencStr, hxt]
+      unfold okTailRead
+      rw [if_neg (by simp [hc])]
+      rw [hl]; simp only [hx, ite_true]; rw [← hl, checkedLenencStr_lenencStr' _ hi, hssi]
+  · split_ifs with hcomp
+    · obtain ⟨hcomp, hinf⟩ := hcomp
+      simp [hinf, okTailRead, hssi]
+    · unfold okTailRead
+      rw [if_pos ⟨by simp [hc], by simp [lenencStr_ne_nil]⟩]
+      rw [checkedLenencStr_lenencStr' _ hi]
+      simp [hsf, hssi]
+  · unfold okTailRead
+    rw [if_pos ⟨by simp [hc], by simp [lenencStr_ne_nil]⟩]
+    rw [checkedLenencStr_lenencStr _ _ hi]
+    simp only [hsf, ite_true]
+    rw [checkedLenencStr_lenencStr' _ hs]
+
+theorem okBodyRead_enc (caps : Nat) (compact : Bool) (b : OkBody)
+    (hb : b.affectedRows < 2 ^ 64 ∧ b.lastInsertId < 2 ^ 64 ∧ b.status < 2 ^ 16 ∧
+      statusRead b.status = some b.status ∧ b.warnings < 2 ^ 16)
+    (hi : b.info.length < 2 ^ 64) (hs : b.sessionStateInfo.length < 2 ^ 64)
+    (hssi : (hasFlag caps CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
+      b.sessionStateInfo = []) :
+    okBodyRead caps (lenencInt b.affectedRows ++ (lenencInt b.lastInsertId ++
+        (leBytes 2 b.status ++ leBytes 2 b.warnings ++ okTailEnc caps compact b))) = (some b, []) := by
+  obtain ⟨h1, h2, h3, h4, h5⟩ := hb
+  unfold okBodyRead
+  rw [checkedLenencInt_lenencInt _ _ h1]
+  simp only
+  rw [checkedLenencInt_lenencInt _ _ h2]
+  simp only
+  rw [okStatusRead_enc _ _ _ h3 h5 h4]
+  simp only
+  rw [okTailRead_enc _ _ _ hi hs hssi]
+
+theorem info_length_le (caps : Nat) (compact : Bool) (b : OkBody) :
+    b.info.length ≤ (okTailEnc caps compact b).length := by
+  unfold okTailEnc lenencStr
+  split_ifs <;> simp_all <;> omega
+
+theorem ssi_length_le (caps : Nat) (compact : Bool) (b : OkBody)
+    (hssi : (hasFlag caps CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
+      b.sessionStateInfo = []) :
+    b.sessionStateInfo.length ≤ (okTailEnc caps compact b).length := by
+  rcases hssi with ⟨hc, hs⟩ | h
+  · unfold okTailEnc lenencStr
+    simp [hc, hs]; omega
+  · simp [h]
+
+theorem okPacketRead_commonOk (caps : Nat) (compact : Bool) (b : OkBody)
+    (hb : b.affectedRows < 2 ^ 64 ∧ b.lastInsertId < 2 ^ 64 ∧ b.status < 2 ^ 16 ∧
+      statusRead b.status = some b.status ∧ b.warnings < 2 ^ 16)
+    (hssi : (hasFlag caps CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
+      b.sessionStateInfo = [])
+    (hlen : (okPacketEnc 0x00 caps compact b).length < 2 ^ 64) :
+    okPacketRead .commonOk caps (okPacketEnc 0x00 caps compact b) = (some b.toPkt, []) := by
+  have hl := hlen
+  rw [okPacketEnc_eq] at hl ⊢
+  simp only [List.length_cons, List.length_append] at hl
+  have hi := info_length_le caps compact b
+  have hs := ssi_length_le caps compact b hssi
+  unfold okPacketRead
+  simp only [byte_val, OkKind.header, OkKind.bodyRead]
+  rw [okBodyRead_enc caps compact b hb (by omega) (by omega) hssi]
+  simp
+
+theorem okPacketRead_rs (caps : Nat) (compact : Bool) (b : OkBody)
+    (hb : b.affectedRows < 2 ^ 64 ∧ b.lastInsertId < 2 ^ 64 ∧ b.status < 2 ^ 16 ∧
+      statusRead b.status = some b.status ∧ b.warnings < 2 ^ 16)
+    (hssi : (hasFlag caps CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
+      b.sessionStateInfo = [])
+    (hlen : (okPacketEnc 0xFE caps compact b).length < 2 ^ 64) :
+    okPacketRead .resultSetTerminator caps (okPacketEnc 0xFE caps compact b) =
+      (some { b with affectedRows := 0, lastInsertId := 0 }.toPkt, []) := by
+  have hl := hlen
+  rw [okPacketEnc_eq] at hl ⊢
+  simp only [List.length_cons, List.length_append] at hl
+  have hi := info_length_le caps compact b
+  have hs := ssi_length_le caps compact b hssi
+  unfold okPacketRead
+  simp only [byte_val, OkKind.header, OkKind.bodyRead, rsTerminatorBodyRead]
+  rw [okBodyRead_enc caps compact b hb (by omega) (by omega) hssi]
+  simp
+
+theorem eofBodyRead_enc (w s : Nat) (hw : w < 2 ^ 16) (hs : s < 2 ^ 16) (hsk : statusRead s = some s)
+    (tail : List U8) :
+    eofBodyRead (leBytes 2 w ++ leBytes 2 s ++ tail) = (some ⟨0, 0, s, w, [], []⟩, tail) := by
+  unfold eofBodyRead
+  have l1 := length_leBytes 2 s
+  have l2 := length_leBytes 2 w
+  rw [if_neg (by simp [l1, l2]; omega)]
+  rw [List.append_assoc, leNat_take_leBytes 2 w _ hw]
+  rw [List.drop_append_of_le_length (by omega), List.drop_of_length_le (by omega), List.nil_append,
+    leNat_take_leBytes 2 s _ hs, hsk]
+  rw [← List.append_assoc, List.drop_left' (by simp [l1, l2])]
+  simp
+
+theorem okPacketRead_eof (k : OkKind) (hk : k = .oldEof ∨ k = .networkStreamTerminator) (caps : Nat)
+    (w s : Nat) (hw : w < 2 ^ 16) (hs : s < 2 ^ 16) (hsk : statusRead s = some s) (tail : List U8) :
+    okPacketRead k caps (eofPacketEnc w s ++ tail) = (some ⟨0, none, s, w, none, none⟩, tail) := by
+  unfold eofPacketEnc
+  rcases hk with rfl | rfl <;>
+  · simp only [List.cons_append, okPacketRead, byte_val, OkKind.header, OkKind.bodyRead]
+    rw [eofBodyRead_enc w s hw hs hsk]
+    simp [OkBody.toPkt]
+
 end mysql_common.PKUtil
