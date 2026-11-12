@@ -300,4 +300,28 @@ theorem parse_micros_spec (s : Slice U8) (h1 : s.val ≠ []) (h2 : s.val.all isD
   simp only [UScalar.ofNatCore_val_eq, Nat.sub_zero] at *
   omega
 
+/-! ## `parse_mysql_time_string`: the fraction closure and the field-reading blocks -/
+
+/-- The microseconds of the fraction digits `ds` (`.ds`). -/
+def fracVal (ds : List U8) : Nat := digitsVal ds * 10 ^ (6 - ds.length)
+
+@[step]
+theorem time_micros_map_spec (M : Option (core.ops.range.RangeFrom Usize)) (b : Slice U8)
+    (h : ∀ st : core.ops.range.RangeFrom Usize, M = some st → st.start.val ≤ b.length ∧
+      b.val.drop st.start.val ≠ [] ∧ (b.val.drop st.start.val).all isDigit ∧
+      (b.val.drop st.start.val).length ≤ 6) :
+    core.option.Option.map
+      value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+      M b ⦃ o => o.map (·.val) = M.map (fun st => fracVal (b.val.drop st.start.val)) ⦄ := by
+  cases M with
+  | none => simp
+  | some st =>
+    obtain ⟨h1, h2, h3, h4⟩ := h st rfl
+    simp only [core.option.Option.map,
+      value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once]
+    apply WP.spec_bind (Pₘ := fun v : U32 => v.val = fracVal (b.val.drop st.start.val))
+    · step*
+      simp_all [fracVal]
+    · intro v hv; simp [hv]
+
 end mysql_common.CBTUtil
