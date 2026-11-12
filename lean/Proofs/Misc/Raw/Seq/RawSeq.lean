@@ -37,8 +37,12 @@ theorem misc.raw.seq.RawSeq.is_empty_spec {T U P : Type} (inst : misc.raw.int.In
   step as ⟨ s, hs ⟩
   simp [core.slice.Slice.is_empty, Slice.length, hs]
 
-/-- `into_owned`: the same items, owned. -/
+/-- `into_owned`: the same items, owned. Assumes the primitive's `Clone` is the identity
+    (`hcl`): a borrowed sequence is copied element by element with `Clone::clone`, which Rust does
+    not force to agree with `Copy` (it does for every primitive integer type the crate uses).
+    Added after proof found the unconditional statement false for an arbitrary `Clone` instance. -/
 theorem misc.raw.seq.RawSeq.into_owned_spec {T U P : Type} (inst : misc.raw.int.IntRepr T P)
+    (hcl : ∀ x, inst.coremarkerCopyInst.cloneInst.clone x = ok x)
     (self : misc.raw.seq.RawSeq T U P) :
     misc.raw.seq.RawSeq.into_owned inst self ⦃ r =>
       cowList r.1 = cowList self.1 ∧ ∃ v, r.1 = alloc.borrow.Cow.Owned v ⦄ := by
