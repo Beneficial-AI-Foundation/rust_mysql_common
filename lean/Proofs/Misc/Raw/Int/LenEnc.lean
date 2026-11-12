@@ -1,4 +1,5 @@
 import Proofs.Util.IntAndMisc
+import Proofs.Io.BufMutExt
 
 /-! Statements for `impl IntRepr for LenEnc` (spec file: `Specs/Misc/Raw/Int.lean`). -/
 

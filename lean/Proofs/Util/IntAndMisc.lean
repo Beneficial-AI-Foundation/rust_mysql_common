@@ -1,6 +1,5 @@
 import Defs
 import Proofs.Io.ParseBuf
-import Proofs.Io.BufMutExt
 
 /-! Helper lemmas for the `IntAndMisc` proofs. -/
 
@@ -124,6 +123,15 @@ theorem put_i8_spec (buf : alloc.vec.Vec U8) (x : I8) (h : buf.length + 1 ≤ Us
 
 /-! ## Byte lists -/
 
+theorem take_leBytes (k : Nat) : ∀ (m n : Nat), k ≤ m → (leBytes m n).take k = leBytes k n := by
+  induction k with
+  | zero => intro m n _; simp [leBytes]
+  | succ k ih =>
+    intro m n hm
+    obtain ⟨m', rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
+    simp [leBytes, ih m' (n / 256) (by omega)]
+
+
 theorem leNat_leBytes' (k : Nat) : ∀ n : Nat, leNat (leBytes k n) = n % 2 ^ (8 * k) := by
   induction k with
   | zero => intro n; simp [leBytes, leNat, Nat.mod_one]
@@ -215,6 +223,35 @@ theorem toSigned_emod (w : Nat) (hw : 0 < w) (x : Int) (h1 : -2 ^ (w - 1) ≤ x)
   · have : ¬ (n : Int) < M := fun h => hh (hcn.2 h)
     split at key <;> omega
 
+theorem toNat_emod_emod (x : Int) (k : Nat) (hk : k ≤ 8) :
+    (x % (2 ^ 64 : Int)).toNat % 2 ^ (8 * k) = (x % (2 ^ (8 * k) : Int)).toNat := by
+  have hd : ((2 : Int) ^ (8 * k)) ∣ 2 ^ 64 := pow_dvd_pow 2 (by omega)
+  rw [← Int.emod_emod_of_dvd x hd]
+  rw [Int.toNat_emod (Int.emod_nonneg _ (by positivity)) (by positivity)]
+  congr 1
+
+theorem leBytes_int64 (k : Nat) (hk : k ≤ 8) (x : Int) :
+    leBytes k (x % (2 ^ 64 : Int)).toNat = leBytesI k x := by
+  rw [leBytesI, ← leBytes_mod k, toNat_emod_emod x k hk]
+
+@[step]
+theorem put_uint_le_spec (buf : alloc.vec.Vec U8) (x : U64) (k : Usize) (hk : k.val ≤ 8)
+    (h : buf.length + k.val ≤ Usize.max) :
+    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_uint_le buf x k ⦃ b' => b'.val = buf.val ++ leBytes k.val x.val ⦄ := by
+  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_uint_le
+  step*
+  rw [b'_post, s_post]
+  simp [List.slice, slice_post, leBytes_bv 8 rfl, take_leBytes _ _ _ hk]
+
+@[step]
+theorem put_int_le_spec (buf : alloc.vec.Vec U8) (x : I64) (k : Usize) (hk : k.val ≤ 8)
+    (h : buf.length + k.val ≤ Usize.max) :
+    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_int_le buf x k ⦃ b' => b'.val = buf.val ++ leBytesI k.val x.val ⦄ := by
+  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_int_le
+  step*
+  rw [b'_post, s_post, ← leBytes_int64 _ hk]
+  simp [List.slice, slice_post, leBytes_bv 8 rfl, take_leBytes _ _ _ hk, ival_bv]
+
 /-! ## `RawInt` -/
 
 @[step]
@@ -305,6 +342,19 @@ theorem parse_fixed {T Ctx : Type} (inst : proto.MyDeserialize T Ctx) (n : Usize
     apply spec_mono this
     rintro ⟨r, rest⟩ h
     simpa [hl] using h
+
+@[step]
+theorem min_usize_spec (x y : Usize) :
+    core.cmp.min core.cmp.OrdUsize x y ⦃ r => r.val = min x.val y.val ⦄ := by
+  simp [core.cmp.min]
+
+theorem usize_pow_ge : 2 ^ 32 ≤ 2 ^ UScalarTy.Usize.numBits := by
+  apply Nat.pow_le_pow_right (by norm_num)
+  simp only [UScalarTy.numBits]; cases System.Platform.numBits_eq <;> simp [*]
+
+theorem cast_usize_small {ty : UScalarTy} (x : UScalar ty) (h : x.val < 2 ^ 32) :
+    (UScalar.cast .Usize x).val = x.val := by
+  rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (lt_of_lt_of_le h usize_pow_ge)
 
 /-! ## Errors -/
 
