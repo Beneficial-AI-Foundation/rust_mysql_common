@@ -195,4 +195,109 @@ theorem timeStringRead_us_lt {bs : List U8} {n : Bool} {h m s us : Nat}
     · cases hr
   · cases hr
 
+/-! ## `btou` -/
+
+theorem isAsciiDigit_eq : Trusted.isAsciiDigit = isDigit := rfl
+
+theorem decimalDigits_eq (l : List U8) (h1 : l ≠ []) (h2 : l.all isDigit) :
+    Trusted.decimalDigits? l = some (digitsVal l) := by
+  simp [Trusted.decimalDigits?, isAsciiDigit_eq, h2, h1, digitsVal]
+
+theorem btou_spec' (ty : UScalarTy) (s : Slice U8) (h1 : s.val ≠ []) (h2 : s.val.all isDigit)
+    (hb : digitsVal s.val < 2 ^ ty.numBits) :
+    ∃ x, Trusted.btou ty s = some x ∧ x.val = digitsVal s.val := by
+  simp only [Trusted.btou, decimalDigits_eq _ h1 h2, Option.bind_some]
+  have := UScalar.tryMkOpt_eq ty (digitsVal s.val)
+  cases hc : UScalar.tryMkOpt ty (digitsVal s.val) with
+  | none => rw [hc] at this; exfalso; apply this; simpa [UScalar.inBounds] using hb
+  | some x => rw [hc] at this; exact ⟨x, rfl, this.1⟩
+
+@[step]
+theorem btou_u32_spec (s : Slice U8) (h1 : s.val ≠ []) (h2 : s.val.all isDigit)
+    (h3 : s.val.length ≤ 9) :
+    value.convert.trusted.btou_u32 s ⦃ o => ∃ x, o = some x ∧ x.val = digitsVal s.val ⦄ := by
+  have hb : digitsVal s.val < 2 ^ UScalarTy.U32.numBits := by
+    have := digitsVal_lt s.val h2
+    have : 10 ^ s.val.length ≤ 10 ^ 9 := Nat.pow_le_pow_right (by norm_num) h3
+    simp [UScalarTy.numBits]; omega
+  obtain ⟨x, hx, hv⟩ := btou_spec' .U32 s h1 h2 hb
+  simp [value.convert.trusted.btou_u32, hx, hv]
+
+@[step]
+theorem btou_u8_spec (s : Slice U8) (h1 : s.val ≠ []) (h2 : s.val.all isDigit)
+    (h3 : s.val.length ≤ 2) :
+    value.convert.trusted.btou_u8 s ⦃ o => ∃ x, o = some x ∧ x.val = digitsVal s.val ⦄ := by
+  have hb : digitsVal s.val < 2 ^ UScalarTy.U8.numBits := by
+    have := digitsVal_lt s.val h2
+    have : 10 ^ s.val.length ≤ 10 ^ 2 := Nat.pow_le_pow_right (by norm_num) h3
+    simp [UScalarTy.numBits]; omega
+  obtain ⟨x, hx, hv⟩ := btou_spec' .U8 s h1 h2 hb
+  simp [value.convert.trusted.btou_u8, hx, hv]
+
+/-! ## `parse_micros` -/
+
+@[step]
+theorem parse_micros_loop0_spec (s : Slice U8) (p : Usize) (hp : p.val ≤ s.length) :
+    value.convert.parse_micros_loop0 s p ⦃ q => q.val ≤ s.length ⦄ := by
+  unfold value.convert.parse_micros_loop0
+  apply loop.spec_decr_nat (fun p : Usize => s.length - p.val) (fun p : Usize => p.val ≤ s.length)
+  · intro p hp
+    unfold value.convert.parse_micros_loop0.body
+    step*
+  · exact hp
+
+@[step]
+theorem parse_micros_loop1_spec (it : core.ops.range.Range Usize) (m : U32)
+    (hle : it.start.val ≤ it.end.val) (hb : m.val * 10 ^ (it.end.val - it.start.val) < 2 ^ 32) :
+    value.convert.parse_micros_loop1 it m ⦃ r => r.val = m.val * 10 ^ (it.end.val - it.start.val) ⦄ := by
+  unfold value.convert.parse_micros_loop1
+  apply loop.spec_decr_nat (fun x : core.ops.range.Range Usize × U32 => x.1.end.val - x.1.start.val)
+    (fun x => x.1.start.val ≤ x.1.end.val ∧ x.1.end = it.end ∧
+      x.2.val * 10 ^ (x.1.end.val - x.1.start.val) = m.val * 10 ^ (it.end.val - it.start.val))
+  · rintro ⟨it', m'⟩ ⟨h1, h2, h3⟩
+    unfold value.convert.parse_micros_loop1.body
+    simp only at h1 h2 h3
+    step*
+    · split at o_post
+      · simp_all
+      · have hk : it'.end.val - it'.start.val = 0 := by omega
+        rw [hk] at h3; simpa using h3
+    · split at o_post
+      · have hk : 1 ≤ it'.end.val - it'.start.val := by omega
+        have : 10 ≤ 10 ^ (it'.end.val - it'.start.val) := by
+          calc 10 = 10 ^ 1 := by norm_num
+            _ ≤ _ := Nat.pow_le_pow_right (by norm_num) hk
+        have : m'.val * 10 ≤ m'.val * 10 ^ (it'.end.val - it'.start.val) := Nat.mul_le_mul_left _ this
+        have hlt2 : m'.val * 10 ^ (it'.end.val - it'.start.val) < 2 ^ 32 := h3 ▸ hb
+        have e10 : (10#u32).val = 10 := rfl
+        rw [e10]
+        scalar_tac
+      · simp_all
+    · split at o_post
+      · obtain ⟨_, hs⟩ := o_post
+        have hk : it'.end.val - it'.start.val = (iter1.end.val - iter1.start.val) + 1 := by
+          rw [o_post1]; omega
+        refine ⟨by rw [o_post1]; omega, by rw [o_post1, h2], ?_, by rw [o_post1]; omega⟩
+        rw [← h3, hk, micros1_post, pow_succ]; ring
+      · simp_all
+  · exact ⟨hle, rfl, rfl⟩
+
+@[step]
+theorem parse_micros_spec (s : Slice U8) (h1 : s.val ≠ []) (h2 : s.val.all isDigit)
+    (h3 : s.val.length ≤ 6) :
+    value.convert.parse_micros s ⦃ r => r.val = digitsVal s.val * 10 ^ (6 - s.val.length) ⦄ := by
+  unfold value.convert.parse_micros
+  have hd := digitsVal_lt s.val h2
+  step*
+  have hm : micros.val = digitsVal s.val := by
+    simp_all
+  have hl : s.len.val = s.val.length := by simp [Slice.len]
+  have hi3 : i3.val = 6 - s.val.length := by
+    rw [i3_post, i_post, i2_post, hl]; simp [Slice.length] at pad_zero_cnt_post; omega
+  simp only [hi3, hm]
+  have : 10 ^ s.val.length * 10 ^ (6 - s.val.length) = 10 ^ 6 := by rw [← pow_add]; congr 1; omega
+  have := Nat.mul_lt_mul_of_pos_right hd (show 0 < 10 ^ (6 - s.val.length) by positivity)
+  simp only [UScalar.ofNatCore_val_eq, Nat.sub_zero] at *
+  omega
+
 end mysql_common.CBTUtil
