@@ -165,4 +165,63 @@ theorem status_contains_spec (s other : constants.StatusFlags) :
 @[simp] theorem SERVER_SESSION_STATE_CHANGED_val : constants.StatusFlags.SERVER_SESSION_STATE_CHANGED.val = SERVER_SESSION_STATE_CHANGED := by
   simp [constants.StatusFlags.SERVER_SESSION_STATE_CHANGED, SERVER_SESSION_STATE_CHANGED]
 
+/-! ## `RawBytes` with `MAX_LEN = usize::MAX` -/
+
+theorem cowList_length_le (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
+    (cowList c).length ≤ Usize.max := by
+  cases c <;> simp [cowList]
+
+theorem rawbytes_as_bytes_full {T Ctx : Type} (inst : misc.raw.bytes.BytesRepr T Ctx)
+    (m : Usize) (hm : inst.MAX_LEN = ok m) (hmv : m.val = Usize.max) (self : misc.raw.bytes.RawBytes T Ctx) :
+    misc.raw.bytes.RawBytes.as_bytes inst self ⦃ s => s.val = cowList self.1 ⦄ := by
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec inst m hm self)
+  intro s hs
+  rw [hs, List.take_of_length_le]
+  rw [hmv]; exact cowList_length_le _
+
+theorem rawbytes_is_empty_full {T Ctx : Type} (inst : misc.raw.bytes.BytesRepr T Ctx)
+    (m : Usize) (hm : inst.MAX_LEN = ok m) (hmv : m.val = Usize.max) (self : misc.raw.bytes.RawBytes T Ctx) :
+    misc.raw.bytes.RawBytes.is_empty inst self ⦃ b => (b ↔ cowList self.1 = []) ⦄ := by
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.is_empty_spec inst m hm self)
+  intro b hb
+  rw [hb]
+  have : 0 < Usize.max := by scalar_tac
+  constructor
+  · intro h; rw [← List.length_eq_zero_iff]; omega
+  · intro h; simp [h]
+
+@[step] theorem lenenc_as_bytes_spec (self : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) :
+    misc.raw.bytes.RawBytes.as_bytes misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+      ⦃ s => s.val = cowList self.1 ⦄ :=
+  rawbytes_as_bytes_full _ _ rfl misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec self
+
+@[step] theorem eof_as_bytes_spec (self : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) :
+    misc.raw.bytes.RawBytes.as_bytes misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+      ⦃ s => s.val = cowList self.1 ⦄ :=
+  rawbytes_as_bytes_full _ _ rfl misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec self
+
+@[step] theorem lenenc_is_empty_spec (self : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) :
+    misc.raw.bytes.RawBytes.is_empty misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+      ⦃ b => (b ↔ cowList self.1 = []) ⦄ :=
+  rawbytes_is_empty_full _ _ rfl misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec self
+
+@[step] theorem rawbytes_into_owned_spec {T Ctx : Type} (inst : misc.raw.bytes.BytesRepr T Ctx)
+    (self : misc.raw.bytes.RawBytes T Ctx) :
+    misc.raw.bytes.RawBytes.into_owned inst self ⦃ r => cowList r.1 = cowList self.1 ⦄ := by
+  obtain ⟨c, _⟩ := self
+  unfold misc.raw.bytes.RawBytes.into_owned misc.raw.cow_into_vec
+  cases c with
+  | Borrowed s =>
+    step*
+    subst s_post
+    exact (WP.spec_ok _).mpr (by simp [cowList]; try rfl)
+  | Owned v =>
+    step*
+
+@[step] theorem non_empty_spec (self : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) :
+    packets.non_empty misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+      ⦃ o => o.map (fun rb => cowList rb.1) = if cowList self.1 = [] then none else some (cowList self.1) ⦄ := by
+  unfold packets.non_empty
+  step* <;> simp_all
+
 end mysql_common.PKUtil
