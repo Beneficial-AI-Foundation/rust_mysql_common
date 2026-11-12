@@ -40,28 +40,16 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_s
       if 4 ≤ buf.length then
         (okPart r).map (·.1.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4
       else okPart r = none ∧ rest = buf ⦄ := by
-  have := IntAndMisc.parse_rawint misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 4#usize (by simp [misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.SIZE_eq]) buf
-    (fun o => o.map (·.val) = some (leNat (buf.val.take 4))) (by
-      intro sub hsub hl
-      apply spec_mono (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec sub (by simp [Slice.length, hsub] at *; omega))
-      rintro ⟨r, rest⟩ ⟨h1, _⟩
-      simpa [hsub, List.take_take] using h1)
-  apply spec_mono this
-  rintro ⟨r, rest⟩ h1
-  simpa [Option.map_map] using h1
+  exact IntAndMisc.parse_rawint_take misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 4#usize 4 (by simp [misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.SIZE_eq]) rfl (·.val) (leNat)
+    (fun sub h => misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec sub h) buf
 
 /-- Round trip: `parse::<RawInt<LeU32>>` reads back what `RawInt::<LeU32>::serialize` writes. -/
 theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.roundtrip (x : U32) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytes 4 x.val ++ tail) :
     io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
       (okPart r).map (·.1.val) = some (x.val) ∧ rest.val = tail ⦄ := by
-  apply spec_mono (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf)
-  rintro ⟨r, rest⟩ hr
-  have hl : 4 ≤ buf.length := by simp [Slice.length, h]
-  obtain ⟨h1, h2⟩ := IntAndMisc.leBytes_take_drop 4 x.val tail
-  simp only [hl, ↓reduceIte, h, h1, h2] at hr
-  refine ⟨?_, hr.2⟩
-  rw [hr.1]; refine congrArg some ?_
-  rw [PBUtil.leNat_leBytes]; exact Nat.mod_eq_of_lt (by scalar_tac)
+  exact IntAndMisc.rawint_roundtrip misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 4 (·.val) (leNat) buf (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf) _ tail
+    (PBUtil.length_leBytes 4 _) h _ (by
+      rw [PBUtil.leNat_leBytes]; exact Nat.mod_eq_of_lt (by scalar_tac))
 
 end mysql_common

@@ -40,29 +40,17 @@ theorem misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.parse_rawint_s
       if 8 ≤ buf.length then
         (okPart r).map (·.1.val) = some (toSigned 64 (leNat (buf.val.take 8))) ∧ rest.val = buf.val.drop 8
       else okPart r = none ∧ rest = buf ⦄ := by
-  have := IntAndMisc.parse_rawint misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64 8#usize (by simp [misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.SIZE_eq]) buf
-    (fun o => o.map (·.val) = some (toSigned 64 (leNat (buf.val.take 8)))) (by
-      intro sub hsub hl
-      apply spec_mono (misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_spec sub (by simp [Slice.length, hsub] at *; omega))
-      rintro ⟨r, rest⟩ ⟨h1, _⟩
-      simpa [hsub, List.take_take] using h1)
-  apply spec_mono this
-  rintro ⟨r, rest⟩ h1
-  simpa [Option.map_map] using h1
+  exact IntAndMisc.parse_rawint_take misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64 8#usize 8 (by simp [misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.SIZE_eq]) rfl (·.val) (fun l => toSigned 64 (leNat l))
+    (fun sub h => misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_spec sub h) buf
 
 /-- Round trip: `parse::<RawInt<LeI64>>` reads back what `RawInt::<LeI64>::serialize` writes. -/
 theorem misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.roundtrip (x : I64) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytesI 8 x.val ++ tail) :
     io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64) buf () ⦃ r rest =>
       (okPart r).map (·.1.val) = some (x.val) ∧ rest.val = tail ⦄ := by
-  apply spec_mono (misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.parse_rawint_spec buf)
-  rintro ⟨r, rest⟩ hr
-  have hl : 8 ≤ buf.length := by simp [Slice.length, h]
-  obtain ⟨h1, h2⟩ := IntAndMisc.leBytesI_take_drop 8 x.val tail
-  simp only [hl, ↓reduceIte, h, h1, h2] at hr
-  refine ⟨?_, hr.2⟩
-  rw [hr.1]; refine congrArg some ?_
-  rw [IntAndMisc.leNat_leBytesI, show 8 * 8 = 64 from rfl]
-  exact IntAndMisc.toSigned_emod 64 (by norm_num) _ (by scalar_tac) (by scalar_tac)
+  exact IntAndMisc.rawint_roundtrip misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64 8 (·.val) (fun l => toSigned 64 (leNat l)) buf (misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.parse_rawint_spec buf) _ tail
+    (IntAndMisc.length_leBytesI 8 _) h _ (by
+      rw [IntAndMisc.leNat_leBytesI, show 8 * 8 = 64 from rfl]
+      exact IntAndMisc.toSigned_emod 64 (by norm_num) _ (by scalar_tac) (by scalar_tac))
 
 end mysql_common

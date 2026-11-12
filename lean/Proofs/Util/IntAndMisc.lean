@@ -534,6 +534,44 @@ theorem parse_rawint {T P : Type} (inst : misc.raw.int.IntRepr T P) (n : Usize)
     rintro ⟨r, rest⟩ h
     simpa [hl] using h
 
+/-- `parse::<RawInt<T>>` for a fixed-size `T` (`SIZE = Some n`) whose `deserialize` reads a value
+determined by the first `n` bytes: the shape of every `parse_rawint_spec` in `Misc/Raw/Int`. -/
+theorem parse_rawint_take {T P β : Type} (inst : misc.raw.int.IntRepr T P) (n : Usize) (k : Nat)
+    (hs : inst.SIZE = ok (some n)) (hk : n.val = k) (g : P → β) (F : List U8 → β)
+    (hd : ∀ sub : io.ParseBuf, k ≤ sub.length → inst.deserialize sub ⦃ r rest =>
+      (okPart r).map g = some (F (sub.val.take k)) ∧ rest.val = sub.val.drop k ⦄)
+    (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple inst) buf () ⦃ r rest =>
+      if k ≤ buf.length then
+        (okPart r).map (fun x => g x.1) = some (F (buf.val.take k)) ∧ rest.val = buf.val.drop k
+      else okPart r = none ∧ rest = buf ⦄ := by
+  subst hk
+  have := parse_rawint inst n hs buf (fun o => o.map g = some (F (buf.val.take n.val))) (by
+    intro sub hsub hl
+    apply spec_mono (hd sub (by simp [Slice.length, hsub]; omega))
+    rintro ⟨r, rest⟩ ⟨h1, _⟩
+    simpa [hsub, List.take_take] using h1)
+  apply spec_mono this
+  rintro ⟨r, rest⟩ h1
+  simpa [Option.map_map] using h1
+
+/-- Round trip for a fixed-size `RawInt<T>` from its `parse_rawint_spec` (`parse_rawint_take`): on
+`enc ++ tail` with `enc` of exactly `n` bytes, `parse` returns `y = F enc` and leaves `tail`. -/
+theorem rawint_roundtrip {T P β : Type} (inst : misc.raw.int.IntRepr T P) (n : Nat) (g : P → β)
+    (F : List U8 → β) (buf : io.ParseBuf)
+    (hp : io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple inst) buf () ⦃ r rest =>
+      if n ≤ buf.length then
+        (okPart r).map (fun x => g x.1) = some (F (buf.val.take n)) ∧ rest.val = buf.val.drop n
+      else okPart r = none ∧ rest = buf ⦄)
+    (enc tail : List U8) (hlen : enc.length = n) (h : buf.val = enc ++ tail) (y : β) (hy : F enc = y) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple inst) buf () ⦃ r rest =>
+      (okPart r).map (fun x => g x.1) = some y ∧ rest.val = tail ⦄ := by
+  apply spec_mono hp
+  rintro ⟨r, rest⟩ hr
+  have hl : n ≤ buf.length := by simp [Slice.length, h, hlen]
+  subst hlen hy
+  simpa [hl, h] using hr
+
 /-- `parse::<T>` for a fixed-size `T` (`SIZE = Some n`). -/
 theorem parse_fixed {T Ctx : Type} (inst : proto.MyDeserialize T Ctx) (n : Usize)
     (hs : inst.SIZE = ok (some n)) (buf : io.ParseBuf) (ctx : Ctx) (Q : Option T → Prop)
