@@ -5,7 +5,6 @@ import Proofs.Misc.LenencStrLen
 import Proofs.Misc.Raw.Bytes.LenEnc
 import Proofs.Misc.Raw.Bytes.RawBytes
 set_option autoImplicit false
-set_option linter.auxLemma false
 open Aeneas Aeneas.Std Result mysql_common Defs
 /-! Helper lemmas for the proofs of the `Value` group (`Proofs/Value/*.lean`). -/
 
@@ -13,129 +12,33 @@ namespace mysql_common.ValueUtil
 
 open mysql_common
 
-theorem leBytes_mod (k n : Nat) : leBytes k (n % 2 ^ (8 * k)) = leBytes k n := by
-  induction k generalizing n with
-  | zero => rfl
-  | succ k ih =>
-    have h2 : 2 ^ (8 * (k+1)) = 256 * 2 ^ (8 * k) := by rw [Nat.mul_succ, Nat.pow_add]; omega
-    simp only [leBytes]
-    congr 1
-    · simp only [byte]; congr 1
-      apply BitVec.eq_of_toNat_eq
-      simp only [BitVec.toNat_ofNat]
-      rw [h2, Nat.mod_mul_right_mod]
-    · rw [h2, Nat.mod_mul_right_div_self, ih]
+/-! The `put_*` writers come from `Proofs/Util/IntAndMisc.lean` (`IntAndMisc.put_u8_spec`, …,
+all `@[step]`), as do `length_leBytes'` and `leNat_leBytes'`. -/
 
-theorem toLEBytes_leBytes : ∀ (w : Nat) (b : BitVec w), w % 8 = 0 →
-    (b.toLEBytes.map (@UScalar.mk UScalarTy.U8)) = leBytes (w / 8) b.toNat
-  | 0, b, _ => by simp [BitVec.toLEBytes, leBytes]
-  | w + 1, b, hw => by
-    rw [BitVec.toLEBytes]
-    have hk : (w + 1) / 8 = (w + 1 - 8) / 8 + 1 := by omega
-    simp only [show w + 1 > 0 by omega, ite_true, List.map_cons, hk, leBytes]
-    congr 1
-    · simp only [byte]; congr 1
-      apply BitVec.eq_of_toNat_eq
-      simp
-    · rw [toLEBytes_leBytes (w + 1 - 8) _ (by omega)]
-      rw [← leBytes_mod _ (b.toNat / 256)]
-      congr 1
-      simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight]
-      congr 2 <;> omega
-
-theorem put_slice_spec (buf : alloc.vec.Vec U8) (s : Slice U8)
-    (h : buf.length + s.length ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice buf s ⦃ b => b.val = buf.val ++ s.val ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice alloc.vec.Vec.extend_from_slice
-  rw [dite_eq_left h]
-  step with List.clone_spec
-  simp_all
-
-theorem put_u8_spec (buf : alloc.vec.Vec U8) (n : U8)
-    (h : buf.length + 1 ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 buf n ⦃ b => b.val = buf.val ++ [n] ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8
-  simp only [lift, Std.bind_ok]
-  apply WP.spec_mono (put_slice_spec _ _ (by simpa [Array.to_slice] using h))
-  intro b hb; simpa [Array.to_slice] using hb
-
-theorem put_u16_le_spec (buf : alloc.vec.Vec U8) (n : U16)
-    (h : buf.length + 2 ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u16_le buf n ⦃ b => b.val = buf.val ++ leBytes 2 n.val ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u16_le
-  simp only [lift, Std.bind_ok]
-  apply WP.spec_mono (put_slice_spec _ _ (by simpa [Array.to_slice, core.num.U16.to_le_bytes] using h))
-  intro b hb
-  simp [Array.to_slice, core.num.U16.to_le_bytes] at hb
-  rw [hb]
-  have := toLEBytes_leBytes 16 n.bv rfl
-  simpa using this
-
-theorem put_u32_le_spec (buf : alloc.vec.Vec U8) (n : U32)
-    (h : buf.length + 4 ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u32_le buf n ⦃ b => b.val = buf.val ++ leBytes 4 n.val ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u32_le
-  simp only [lift, Std.bind_ok]
-  apply WP.spec_mono (put_slice_spec _ _ (by simpa [Array.to_slice, core.num.U32.to_le_bytes] using h))
-  intro b hb
-  simp [Array.to_slice, core.num.U32.to_le_bytes] at hb
-  rw [hb]
-  have := toLEBytes_leBytes 32 n.bv rfl
-  simpa using this
-
-theorem put_u64_le_spec (buf : alloc.vec.Vec U8) (n : U64)
-    (h : buf.length + 8 ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u64_le buf n ⦃ b => b.val = buf.val ++ leBytes 8 n.val ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u64_le
-  simp only [lift, Std.bind_ok]
-  apply WP.spec_mono (put_slice_spec _ _ (by simpa [Array.to_slice, core.num.U64.to_le_bytes] using h))
-  intro b hb
-  simp [Array.to_slice, core.num.U64.to_le_bytes] at hb
-  rw [hb]
-  have := toLEBytes_leBytes 64 n.bv rfl
-  simpa using this
-
-theorem toInt_emod_toNat {w : Nat} (b : BitVec w) : (b.toInt % (2 ^ w : Int)).toNat = b.toNat := by
-  rw [BitVec.toInt_eq_toNat_bmod, show (2:Int)^w = ((2^w : Nat) : Int) by simp, Int.bmod_emod]
-  rw [Int.emod_eq_of_lt (by omega) (by exact_mod_cast b.isLt)]
-  simp
-
-theorem put_i64_le_spec (buf : alloc.vec.Vec U8) (n : I64)
-    (h : buf.length + 8 ≤ Usize.max) :
-    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_i64_le buf n ⦃ b => b.val = buf.val ++ leBytesI 8 n.val ⦄ := by
-  unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_i64_le
-  simp only [lift, Std.bind_ok]
-  apply WP.spec_mono (put_slice_spec _ _ (by simpa [Array.to_slice, core.num.I64.to_le_bytes] using h))
-  intro b hb
-  simp [Array.to_slice, core.num.I64.to_le_bytes] at hb
-  rw [hb]
-  have := toLEBytes_leBytes 64 n.bv rfl
-  simp at this
-  rw [this, leBytesI, ← IScalar.bv_toInt_eq]
-  have := toInt_emod_toNat n.bv
-  simp at this
-  simp [this]
-
-attribute [step] put_u8_spec put_u16_le_spec put_u32_le_spec put_u64_le_spec put_i64_le_spec
-
-theorem length_leBytes' (k n : Nat) : (leBytes k n).length = k := by
-  induction k generalizing n <;> simp_all [leBytes]
+open IntAndMisc (length_leBytes' leNat_leBytes')
 
 @[simp] theorem byte_val (x : U8) : byte x.val = x := by
   simp [byte]
 
+/-! The translation's nested `match x with | 0 => … | _ => …` on scalars, as `if`s. These name
+the matchers Lean generated for the translated bodies (`bin_len.match_*`,
+`deserialize_text.match_1`), hence `linter.auxLemma` is off for them. -/
+
+set_option linter.auxLemma false in
 theorem m6 {β : Type} (x : U8) (f : Unit → β) (g : U8 → β) :
     value.Value.bin_len.match_6 (fun _ => β) x f g = if x = 0#u8 then f () else g x := by
   by_cases hx : x = 0#u8
   · subst hx; rfl
   · rw [value.Value.bin_len.match_6.eq_2 _ _ _ _ hx]; simp [hx]
 
+set_option linter.auxLemma false in
 theorem m4 {β : Type} (x : U16) (f : Unit → β) (g : U16 → β) :
     value.Value.bin_len.match_4 (fun _ => β) x f g = if x = 0#u16 then f () else g x := by
   by_cases hx : x = 0#u16
   · subst hx; rfl
   · rw [value.Value.bin_len.match_4.eq_2 _ _ _ _ hx]; simp [hx]
 
+set_option linter.auxLemma false in
 theorem m8 {β : Type} (x : U32) (f : Unit → β) (g : U32 → β) :
     value.Value.bin_len.match_8 (fun _ => β) x f g = if x = 0#u32 then f () else g x := by
   by_cases hx : x = 0#u32
@@ -156,7 +59,6 @@ theorem u32_val_eq_zero (x : U32) : x.val = 0 ↔ x = 0#u32 := by
   · rintro rfl; rfl
 
 open alloc.vec.VecU8.Insts.Mysql_commonIoBufMut in
-set_option maxHeartbeats 10000000 in
 theorem serialize_date_eq (y : U16) (mo d h mi s : U8) (us : U32) (buf : alloc.vec.Vec U8) :
     value.Value.Insts.Mysql_commonProtoMySerialize.serialize (.Date y mo d h mi s us) buf =
     if y = 0#u16 ∧ mo = 0#u8 ∧ d = 0#u8 ∧ h = 0#u8 ∧ mi = 0#u8 ∧ s = 0#u8 ∧ us = 0#u32 then
@@ -170,7 +72,7 @@ theorem serialize_date_eq (y : U16) (mo d h mi s : U8) (us : U32) (buf : alloc.v
       let b ← put_u8 buf 11#u8; let b ← put_u16_le b y; let b ← put_u8 b mo; let b ← put_u8 b d
       let b ← put_u8 b h; let b ← put_u8 b mi; let b ← put_u8 b s; put_u32_le b us) := by
   unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
-  simp (maxSteps := 10000000) only [m4, m6, m8]
+  simp only [m4, m6, m8]
   obtain rfl | hy := eq_or_ne y 0#u16 <;>
   obtain rfl | hmo := eq_or_ne mo 0#u8 <;>
   obtain rfl | hd := eq_or_ne d 0#u8 <;>
@@ -178,30 +80,33 @@ theorem serialize_date_eq (y : U16) (mo d h mi s : U8) (us : U32) (buf : alloc.v
   obtain rfl | hmi := eq_or_ne mi 0#u8 <;>
   obtain rfl | hs := eq_or_ne s 0#u8 <;>
   obtain rfl | hus := eq_or_ne us 0#u32 <;>
-  simp only [ite_true, ite_false, *, and_true, and_false, true_and, false_and]
+  simp only [ite_true, ite_false, *, and_true, and_false]
 
 
 theorem byte_lits : byte 0 = 0#u8 ∧ byte 1 = 1#u8 ∧ byte 4 = 4#u8 ∧ byte 7 = 7#u8 ∧ byte 8 = 8#u8 ∧ byte 11 = 11#u8 ∧ byte 12 = 12#u8 := by
   refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- One branch of the `Date`/`Time` serializer: run the `put_*` steps, discharge each length
+side condition with `omega`, and match the bytes written against `binEnc`. -/
+local macro "serialize_tac " hb:ident : tactic => `(tactic| (
+  simp only [List.length_cons, List.length_append, length_leBytes', List.length_nil] at $hb:ident
+  step*
+  all_goals first
+    | (simp only [alloc.vec.Vec.length] at *
+       simp only [*, List.length_append, List.length_cons, List.length_nil, length_leBytes'] <;>
+         omega)
+    | simp only [*, byte_lits, byte_val, List.append_assoc, List.cons_append, List.nil_append,
+        ite_true, ite_false, Bool.false_eq_true]))
 
 theorem serialize_date_spec (y : U16) (mo d h mi s : U8) (us : U32) (buf : alloc.vec.Vec U8)
     (hb : buf.length + (binEnc (Val.ofValue (.Date y mo d h mi s us))).length ≤ Usize.max) :
     value.Value.Insts.Mysql_commonProtoMySerialize.serialize (.Date y mo d h mi s us) buf ⦃ buf' => buf'.val = buf.val ++ binEnc (Val.ofValue (.Date y mo d h mi s us)) ⦄ := by
   rw [serialize_date_eq]
   simp only [Val.ofValue, binEnc, u8_val_eq_zero, u16_val_eq_zero, u32_val_eq_zero] at hb ⊢
-  split_ifs at hb ⊢
-  all_goals
-    simp only [List.length_cons, List.length_append, length_leBytes', List.length_nil, List.length_singleton] at hb
-    step*
-  all_goals first
-    | (simp only [alloc.vec.Vec.length] at hb ⊢; simp only [*, List.length_append, List.length_cons, List.length_nil, length_leBytes', List.length_singleton] <;> omega)
-    | (simp only [*, byte_lits, byte_val, List.append_assoc, List.cons_append, List.nil_append, List.singleton_append])
+  split_ifs at hb ⊢ <;> serialize_tac hb
 
-
-macro "vec_len_tac" : tactic => `(tactic| (simp only [alloc.vec.Vec.length] at *; simp only [*, List.length_append, List.length_cons, List.length_nil, length_leBytes', List.length_singleton] <;> omega))
 
 open alloc.vec.VecU8.Insts.Mysql_commonIoBufMut in
-set_option maxHeartbeats 10000000 in
 theorem serialize_time_eq (neg : Bool) (d : U32) (h m s : U8) (us : U32) (buf : alloc.vec.Vec U8) :
     value.Value.Insts.Mysql_commonProtoMySerialize.serialize (.Time neg d h m s us) buf =
     if d = 0#u32 ∧ h = 0#u8 ∧ m = 0#u8 ∧ s = 0#u8 ∧ us = 0#u32 then
@@ -216,37 +121,30 @@ theorem serialize_time_eq (neg : Bool) (d : U32) (h m s : U8) (us : U32) (buf : 
       let b ← put_u32_le b d; let b ← put_u8 b h; let b ← put_u8 b m; let b ← put_u8 b s
       put_u32_le b us) := by
   unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
-  simp (maxSteps := 10000000) only [m4, m6, m8]
+  simp only [m6, m8]
   obtain rfl | hd := eq_or_ne d 0#u32 <;>
   obtain rfl | hh := eq_or_ne h 0#u8 <;>
   obtain rfl | hm := eq_or_ne m 0#u8 <;>
   obtain rfl | hs := eq_or_ne s 0#u8 <;>
   obtain rfl | hus := eq_or_ne us 0#u32 <;>
   cases neg <;>
-  simp only [ite_true, ite_false, *, and_true, and_false, true_and, false_and, Bool.false_eq_true]
+  simp only [ite_true, ite_false, *, and_true, and_false, Bool.false_eq_true]
 
 theorem serialize_time_spec (neg : Bool) (d : U32) (h m s : U8) (us : U32) (buf : alloc.vec.Vec U8)
     (hb : buf.length + (binEnc (Val.ofValue (.Time neg d h m s us))).length ≤ Usize.max) :
     value.Value.Insts.Mysql_commonProtoMySerialize.serialize (.Time neg d h m s us) buf ⦃ buf' => buf'.val = buf.val ++ binEnc (Val.ofValue (.Time neg d h m s us)) ⦄ := by
   rw [serialize_time_eq]
-  simp only [Val.ofValue, binEnc, u8_val_eq_zero, u16_val_eq_zero, u32_val_eq_zero] at hb ⊢
-  split_ifs at hb ⊢
-  all_goals
-    simp only [List.length_cons, List.length_append, length_leBytes', List.length_nil, List.length_singleton] at hb
-    step*
-  all_goals first
-    | vec_len_tac
-    | (cases neg <;> simp only [*, byte_lits, byte_val, List.append_assoc, List.cons_append, List.nil_append, List.singleton_append, ite_true, ite_false, Bool.false_eq_true])
+  simp only [Val.ofValue, binEnc, u8_val_eq_zero, u32_val_eq_zero] at hb ⊢
+  split_ifs at hb ⊢ <;> cases neg <;> serialize_tac hb
 
 
-set_option maxHeartbeats 10000000 in
 theorem bin_len_date_eq (y : U16) (mo d h mi s : U8) (us : U32) :
     value.Value.bin_len (.Date y mo d h mi s us) =
     if y = 0#u16 ∧ mo = 0#u8 ∧ d = 0#u8 ∧ h = 0#u8 ∧ mi = 0#u8 ∧ s = 0#u8 ∧ us = 0#u32 then ok 1#u64
     else if h = 0#u8 ∧ mi = 0#u8 ∧ s = 0#u8 ∧ us = 0#u32 then ok 5#u64
     else if us = 0#u32 then ok 8#u64 else ok 12#u64 := by
   unfold value.Value.bin_len
-  simp (maxSteps := 10000000) only [m4, m6, m8]
+  simp only [m4, m6, m8]
   obtain rfl | hy := eq_or_ne y 0#u16 <;>
   obtain rfl | hmo := eq_or_ne mo 0#u8 <;>
   obtain rfl | hd := eq_or_ne d 0#u8 <;>
@@ -254,21 +152,20 @@ theorem bin_len_date_eq (y : U16) (mo d h mi s : U8) (us : U32) :
   obtain rfl | hmi := eq_or_ne mi 0#u8 <;>
   obtain rfl | hs := eq_or_ne s 0#u8 <;>
   obtain rfl | hus := eq_or_ne us 0#u32 <;>
-  simp only [ite_true, ite_false, *, and_true, and_false, true_and, false_and]
+  simp only [ite_true, ite_false, *, and_true, and_false]
 
-set_option maxHeartbeats 10000000 in
 theorem bin_len_time_eq (neg : Bool) (d : U32) (h m s : U8) (us : U32) :
     value.Value.bin_len (.Time neg d h m s us) =
     if d = 0#u32 ∧ h = 0#u8 ∧ m = 0#u8 ∧ s = 0#u8 ∧ us = 0#u32 then ok 1#u64
     else if us = 0#u32 then ok 9#u64 else ok 13#u64 := by
   unfold value.Value.bin_len
-  simp (maxSteps := 10000000) only [m4, m6, m8]
+  simp only [m6, m8]
   obtain rfl | hd := eq_or_ne d 0#u32 <;>
   obtain rfl | hh := eq_or_ne h 0#u8 <;>
   obtain rfl | hm := eq_or_ne m 0#u8 <;>
   obtain rfl | hs := eq_or_ne s 0#u8 <;>
   obtain rfl | hus := eq_or_ne us 0#u32 <;>
-  simp only [ite_true, ite_false, *, and_true, and_false, true_and, false_and]
+  simp only [ite_true, ite_false, *, and_true, and_false]
 
 @[simp] theorem deref_val (x : alloc.vec.Vec U8) : (alloc.vec.Vec.deref x).val = x.val := by
   simp [alloc.vec.Vec.deref, alloc.vec.Vec.val]
@@ -290,7 +187,7 @@ theorem bin_len_spec' (v : value.Value)
     split_ifs <;> simp [length_leBytes']
   | Time neg d hh m s us =>
     rw [bin_len_time_eq]
-    simp only [Val.ofValue, binEnc, u8_val_eq_zero, u16_val_eq_zero, u32_val_eq_zero]
+    simp only [Val.ofValue, binEnc, u8_val_eq_zero, u32_val_eq_zero]
     split_ifs <;> simp [length_leBytes']
   | _ => unfold value.Value.bin_len; simp [Val.ofValue, binEnc, length_leBytes', leBytesI]
 
@@ -311,30 +208,29 @@ theorem serialize_spec' (v : value.Value) (buf : alloc.vec.Vec U8)
   | Int x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
     simp only [Val.ofValue, binEnc] at h ⊢
-    exact put_i64_le_spec _ _ (by simpa [leBytesI, length_leBytes'] using h)
+    exact IntAndMisc.put_i64_le_spec _ _ (by simpa [leBytesI, length_leBytes'] using h)
   | UInt x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
     simp only [Val.ofValue, binEnc] at h ⊢
-    exact put_u64_le_spec _ _ (by simpa [length_leBytes'] using h)
+    exact IntAndMisc.put_u64_le_spec _ _ (by simpa [length_leBytes'] using h)
   | Float x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
       alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_f32_le core.f32.F32.to_bits
     simp only [Val.ofValue, binEnc, Std.bind_ok] at h ⊢
-    exact put_u32_le_spec _ _ (by simpa [length_leBytes'] using h)
+    exact IntAndMisc.put_u32_le_spec _ _ (by simpa [length_leBytes'] using h)
   | Double x =>
     unfold value.Value.Insts.Mysql_commonProtoMySerialize.serialize
       alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_f64_le core.f64.F64.to_bits
     simp only [Val.ofValue, binEnc, Std.bind_ok] at h ⊢
-    exact put_u64_le_spec _ _ (by simpa [length_leBytes'] using h)
+    exact IntAndMisc.put_u64_le_spec _ _ (by simpa [length_leBytes'] using h)
 
 
+set_option linter.auxLemma false in
 theorem mtext {β : Type} (x : U8) (f : Unit → β) (g : U8 → β) :
     value.Value.deserialize_text.match_1 (fun _ => β) x f g = if x = 251#u8 then f () else g x := by
   by_cases hx : x = 251#u8
   · subst hx; rfl
   · rw [value.Value.deserialize_text.match_1.eq_2 _ _ _ _ hx]; simp [hx]
-
-@[simp] theorem eof_ok : ∃ e, misc.unexpected_buf_eof = ok e := ⟨_, rfl⟩
 
 theorem unexpected_buf_eof_spec : misc.unexpected_buf_eof ⦃ _ => True ⦄ := by
   simp [misc.unexpected_buf_eof, misc.io_error_msg]
@@ -342,7 +238,7 @@ theorem unexpected_buf_eof_spec : misc.unexpected_buf_eof ⦃ _ => True ⦄ := b
 @[simp] theorem from_residual_err {T : Type} (e : core.io.error.Error) :
     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual T
       (core.convert.FromSame core.io.error.Error) (.Err e) = ok (.Err e) := by
-  simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame]
+  simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 theorem cow_into_vec_spec (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
     misc.raw.cow_into_vec core.clone.CloneU8 c ⦃ v => v.val = cowList c ⦄ := by
@@ -357,8 +253,7 @@ theorem cow_into_vec_spec (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
 theorem rawbytes_lenenc_size :
     (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
       misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple).SIZE = ok none := by
-  simp only [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize,
-    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+  simp only [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple]
   unfold misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE; rfl
 
@@ -398,20 +293,17 @@ theorem deserialize_text_spec' (h64 : Target64) (buf : io.ParseBuf) :
       rw [← hx]
       cases r with
       | Ok rb =>
-        simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok]
+        simp only [core.result.Result.Insts.CoreOpsTry.branch]
         obtain ⟨c, u⟩ := rb
         step with cow_into_vec_spec as ⟨v, hv⟩
         simp only [okPart, Option.map] at hr ⊢
         rw [← hr]
         simp [Val.ofValue, hv]
       | Err e =>
-        simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, from_residual_err]
+        simp only [core.result.Result.Insts.CoreOpsTry.branch]
         simp only [okPart, Option.map] at hr ⊢
         rw [← hr]
         simp
-
-theorem byte_val_mod (n : Nat) : (byte n).val = n % 256 := by
-  simp [byte, UScalar.val]
 
 theorem lenencStr_head (s t : List U8) :
     ∃ b rest, lenencStr s ++ t = b :: rest ∧ b ≠ 251#u8 := by
@@ -420,7 +312,7 @@ theorem lenencStr_head (s t : List U8) :
   · refine ⟨_, _, rfl, ?_⟩
     intro h
     have h' : (byte s.length).val = 251 := by rw [h]; rfl
-    rw [byte_val_mod] at h'
+    rw [PBUtil.byte_val] at h'
     omega
   all_goals exact ⟨_, _, rfl, by decide⟩
 
@@ -456,7 +348,7 @@ theorem deserialize_text_bytes_case (buf : io.ParseBuf) (i : U8) (rest : List U8
   simp only [WP.uncurry'_pair] at hr
   cases r with
   | Ok rb =>
-    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok]
+    simp only [core.result.Result.Insts.CoreOpsTry.branch]
     obtain ⟨c, u⟩ := rb
     step with cow_into_vec_spec as ⟨v, hv⟩
     exact hr.1 v (by rw [hv]; rfl)
@@ -490,7 +382,7 @@ theorem deserialize_text_null' (tail : List U8) (buf : io.ParseBuf)
   step with Slice.index_usize_spec as ⟨j, hj⟩
   have hix : j = 251#u8 := by rw [hj]; simp [h]; rfl
   subst hix
-  rw [mtext, if_pos rfl]
+  simp only [mtext, ↓reduceIte]
   step with io.ParseBuf.skip_spec as ⟨rest', hr⟩
   simp [okPart, Val.ofValue, hr, h]
 
@@ -515,89 +407,46 @@ theorem contains_unsigned (flags : constants.ColumnFlags) :
   simp only [UScalar.val, BitVec.testBit_toNat]
   exact this
 
+set_option hygiene false in
+/-- One branch of `deserialize_{tiny,short,long}`: `checked_eat_*` (`eat`) either reads the
+integer, which is then widened (`cast`), or finds the buffer short and returns the EOF error.
+(Unhygienic: `step … as ⟨…⟩` names its hypotheses without the macro scope.) -/
+local macro "int_read_tac " eat:ident cast:ident : tactic => `(tactic| (
+  step with $eat:ident as ⟨o, rest, ho⟩
+  split_ifs at ho with hl
+  · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
+    simp only
+    step with $cast:ident as ⟨i, hi⟩
+    simp only [Option.map_some, Option.some.injEq] at ho
+    simp [okPart, Val.ofValue, readIntVal, readLE, *]
+  · obtain ⟨rfl, rfl⟩ := ho
+    simp only
+    step with unexpected_buf_eof_spec
+    simp [okPart, readIntVal, readLE, hl]))
+
 theorem deserialize_tiny_spec (u : Bool) (buf : io.ParseBuf) :
     value.Value.deserialize_tiny u buf ⦃ r rest =>
       ((okPart r).map Val.ofValue, rest.val) = readIntVal 1 u buf.val ⦄ := by
   unfold value.Value.deserialize_tiny
   split
-  · step with io.ParseBuf.checked_eat_u8_spec as ⟨o, rest, ho⟩
-    split_ifs at ho with hl
-    · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
-      simp only
-      step with UScalar.hcast_inBounds_spec as ⟨i, hi⟩
-      simp only [Option.map_some, Option.some.injEq] at ho
-      simp [okPart, Val.ofValue, readIntVal, readLE, hl, hi, ho, *]
-    · obtain ⟨rfl, rfl⟩ := ho
-      simp only
-      step with unexpected_buf_eof_spec
-      simp [okPart, readIntVal, readLE, hl]
-  · step with io.ParseBuf.checked_eat_i8_spec as ⟨o, rest, ho⟩
-    split_ifs at ho with hl
-    · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
-      simp only
-      step with IScalar.cast_inBounds_spec as ⟨i, hi⟩
-      simp only [Option.map_some, Option.some.injEq] at ho
-      simp [okPart, Val.ofValue, readIntVal, readLE, hl, hi, ho, *]
-    · obtain ⟨rfl, rfl⟩ := ho
-      simp only
-      step with unexpected_buf_eof_spec
-      simp [okPart, readIntVal, readLE, hl]
+  · int_read_tac io.ParseBuf.checked_eat_u8_spec UScalar.hcast_inBounds_spec
+  · int_read_tac io.ParseBuf.checked_eat_i8_spec IScalar.cast_inBounds_spec
 
 theorem deserialize_short_spec (u : Bool) (buf : io.ParseBuf) :
     value.Value.deserialize_short u buf ⦃ r rest =>
       ((okPart r).map Val.ofValue, rest.val) = readIntVal 2 u buf.val ⦄ := by
   unfold value.Value.deserialize_short
   split
-  · step with io.ParseBuf.checked_eat_u16_le_spec as ⟨o, rest, ho⟩
-    split_ifs at ho with hl
-    · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
-      simp only
-      step with UScalar.hcast_inBounds_spec as ⟨i, hi⟩
-      simp only [Option.map_some, Option.some.injEq] at ho
-      simp [okPart, Val.ofValue, readIntVal, readLE, hl, hi, ho, *]
-    · obtain ⟨rfl, rfl⟩ := ho
-      simp only
-      step with unexpected_buf_eof_spec
-      simp [okPart, readIntVal, readLE, hl]
-  · step with io.ParseBuf.checked_eat_i16_le_spec as ⟨o, rest, ho⟩
-    split_ifs at ho with hl
-    · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
-      simp only
-      step with IScalar.cast_inBounds_spec as ⟨i, hi⟩
-      simp only [Option.map_some, Option.some.injEq] at ho
-      simp [okPart, Val.ofValue, readIntVal, readLE, hl, hi, ho, *]
-    · obtain ⟨rfl, rfl⟩ := ho
-      simp only
-      step with unexpected_buf_eof_spec
-      simp [okPart, readIntVal, readLE, hl]
+  · int_read_tac io.ParseBuf.checked_eat_u16_le_spec UScalar.hcast_inBounds_spec
+  · int_read_tac io.ParseBuf.checked_eat_i16_le_spec IScalar.cast_inBounds_spec
 
 theorem deserialize_long_spec (u : Bool) (buf : io.ParseBuf) :
     value.Value.deserialize_long u buf ⦃ r rest =>
       ((okPart r).map Val.ofValue, rest.val) = readIntVal 4 u buf.val ⦄ := by
   unfold value.Value.deserialize_long
   split
-  · step with io.ParseBuf.checked_eat_u32_le_spec as ⟨o, rest, ho⟩
-    split_ifs at ho with hl
-    · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
-      simp only
-      step with UScalar.hcast_inBounds_spec as ⟨i, hi⟩
-      simp only [Option.map_some, Option.some.injEq] at ho
-      simp [okPart, Val.ofValue, readIntVal, readLE, hl, hi, ho, *]
-    · obtain ⟨rfl, rfl⟩ := ho
-      simp only
-      step with unexpected_buf_eof_spec
-      simp [okPart, readIntVal, readLE, hl]
-  · step with io.ParseBuf.checked_eat_i32_le_spec as ⟨o, rest, ho⟩
-    split_ifs at ho with hl
-    · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
-      simp only
-      step with IScalar.cast_inBounds_spec as ⟨i, hi⟩
-      simp only [Option.map_some, Option.some.injEq] at ho
-      simp [okPart, Val.ofValue, readIntVal, readLE, hl, hi, ho, *]
-    · obtain ⟨rfl, rfl⟩ := ho
-      simp only
-      step with unexpected_buf_eof_spec
-      simp [okPart, readIntVal, readLE, hl]
+  · int_read_tac io.ParseBuf.checked_eat_u32_le_spec UScalar.hcast_inBounds_spec
+  · int_read_tac io.ParseBuf.checked_eat_i32_le_spec IScalar.cast_inBounds_spec
 
 theorem deserialize_longlong_spec (u : Bool) (buf : io.ParseBuf) :
     value.Value.deserialize_longlong u buf ⦃ r rest =>
@@ -613,16 +462,13 @@ theorem deserialize_longlong_spec (u : Bool) (buf : io.ParseBuf) :
       step with IScalar.hcast_inBounds_spec as ⟨m, hm⟩
       · simp [core.num.I64.MAX, I64.rMax, U64.max, U64.numBits]
       have hm' : m.val = 2 ^ 63 - 1 := by simp [I64.rMax] at hm; omega
-      split
-      · rename_i hxm
-        have hx : x.val ≤ 2 ^ 63 - 1 := by rw [← hm']; exact hxm
-        step with UScalar.hcast_inBounds_spec as ⟨i, hi⟩
-        simp [okPart, Val.ofValue, readLE, hl, ho.1, ho.2, hi]
-        try (rw [← ho.1]; omega)
-      · rename_i hxm
-        have hx : ¬ x.val ≤ 2 ^ 63 - 1 := by rw [← hm']; exact hxm
-        simp [okPart, Val.ofValue, readLE, hl, ho.1, ho.2]
-        try (rw [← ho.1]; omega)
+      obtain ⟨hx, hrest⟩ := ho
+      split_ifs with hxm
+      · step with UScalar.hcast_inBounds_spec as ⟨i, hi⟩
+        simp [okPart, Val.ofValue, readLE, hl, hrest, hi, ← hx]
+        scalar_tac
+      · simp [okPart, Val.ofValue, readLE, hl, hrest, ← hx]
+        scalar_tac
     · obtain ⟨rfl, rfl⟩ := ho
       simp only
       step with unexpected_buf_eof_spec
@@ -631,26 +477,28 @@ theorem deserialize_longlong_spec (u : Bool) (buf : io.ParseBuf) :
     split_ifs at ho with hl
     · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
       simp only [Option.map_some, Option.some.injEq] at ho
-      simp [okPart, Val.ofValue, readLE, hl, ho, *]
+      simp [okPart, Val.ofValue, readLE, *]
     · obtain ⟨rfl, rfl⟩ := ho
       simp only
       step with unexpected_buf_eof_spec
       simp [okPart, readLE, hl]
 
-theorem deserialize_datetime_spec (buf : io.ParseBuf) :
-    value.Value.deserialize_datetime buf ⦃ r rest =>
-      ((okPart r).map Val.ofValue, rest.val) = dateRead buf.val ⦄ := by
-  unfold value.Value.deserialize_datetime
+set_option hygiene false in
+/-- The common start of `deserialize_datetime` and `deserialize_time` (read by `rd`): read the
+length byte `x` (value `l`) and then `l` payload bytes `P`, or return the EOF error when either is
+missing. Leaves the payload `P` with `hP : rest.take l.val = P`, `hPl : P.length = l.val`.
+(Unhygienic: `step … as ⟨…⟩` names its hypotheses without the macro scope.) -/
+local macro "len_prefixed_tac " rd:ident : tactic => `(tactic| (
   step with io.ParseBuf.checked_eat_u8_spec as ⟨o, buf1, ho⟩
   rcases hb : buf.val with _ | ⟨l, rest⟩
   · have : ¬ 1 ≤ buf.length := by simp [Slice.length, hb]
-    rw [if_neg this] at ho
+    rw [ite_eq_right this] at ho
     obtain ⟨rfl, rfl⟩ := ho
     simp only
     step with unexpected_buf_eof_spec
-    simp [okPart, dateRead, hb]
+    simp [okPart, $rd:ident, hb]
   have : 1 ≤ buf.length := by simp [Slice.length, hb]
-  rw [if_pos this] at ho
+  rw [ite_eq_left this] at ho
   obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
   simp only [Option.map_some, Option.some.injEq, hb] at ho
   obtain ⟨hx, h1⟩ := ho
@@ -658,25 +506,31 @@ theorem deserialize_datetime_spec (buf : io.ParseBuf) :
   simp only
   step with UScalar.cast_inBounds_spec as ⟨n, hn⟩
   step with io.ParseBuf.checked_eat_buf_spec as ⟨o1, buf2, ho1⟩
-  simp only [dateRead]
+  simp only [$rd:ident]
   have hnl : n.val = l.val := by simp_all
   have hxl : x.val = l.val := by simp_all
   have hlen1 : Slice.length buf1 = rest.length := by simp [Slice.length, h1]
   rw [hnl, hlen1, h1] at ho1
   by_cases hlen : l.val ≤ rest.length
   swap
-  · rw [if_neg hlen] at ho1
+  · rw [ite_eq_right hlen] at ho1
     obtain ⟨rfl, rfl⟩ := ho1
     simp only
     step with unexpected_buf_eof_spec
     simp [okPart, h1, show rest.length < l.val by omega]
-  rw [if_pos hlen] at ho1
+  rw [ite_eq_left hlen] at ho1
   obtain ⟨pb, rfl⟩ : ∃ x, o1 = some x := by cases o1 <;> simp_all
   simp only [Option.map_some, Option.some.injEq] at ho1
   obtain ⟨hpb, hbuf2⟩ := ho1
   simp only [show ¬ rest.length < l.val by omega, ite_false]
   generalize hP : List.take l.val rest = P at hpb ⊢
-  have hPl : P.length = l.val := by rw [← hP]; simp; omega
+  have hPl : P.length = l.val := by rw [← hP]; simp; omega))
+
+theorem deserialize_datetime_spec (buf : io.ParseBuf) :
+    value.Value.deserialize_datetime buf ⦃ r rest =>
+      ((okPart r).map Val.ofValue, rest.val) = dateRead buf.val ⦄ := by
+  unfold value.Value.deserialize_datetime
+  len_prefixed_tac dateRead
   by_cases h4 : l.val < 4
   · have : ¬ (x ≥ 4#u8) := by scalar_tac
     simp only [this, ite_false, h4, ite_true]
@@ -687,18 +541,18 @@ theorem deserialize_datetime_spec (buf : io.ParseBuf) :
   rcases P with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, P⟩⟩⟩⟩ <;> simp at hPl <;> try omega
   by_cases h7 : l.val < 7
   · have : ¬ 7 ≤ x.val := by omega
-    simp only [this, h7, ite_false, ite_true]
+    simp only [h7, ite_true]
     step* <;> simp_all [Slice.length, leNat, okPart, Val.ofValue]
   rcases P with _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, P⟩⟩⟩ <;> simp at hPl <;> try omega
   have : 7 ≤ x.val := by omega
-  simp only [this, h7, ite_false, ite_true]
+  simp only [h7, ite_false]
   by_cases h11 : l.val = 11
   · have : x = 11#u8 := by apply UScalar.eq_of_val_eq; simp; omega
-    simp only [this, h11, ite_false, ite_true]
+    simp only [this, h11, ite_true]
     rcases P with _ | ⟨a7, _ | ⟨a8, _ | ⟨a9, _ | ⟨a10, P⟩⟩⟩⟩ <;> simp at hPl <;> try omega
     step* <;> simp_all [Slice.length, leNat, okPart, Val.ofValue]
   · have : x ≠ 11#u8 := by intro h; apply h11; rw [← hxl, h]; rfl
-    simp only [this, h11, ite_false, ite_true]
+    simp only [this, ite_false]
     step* <;> simp_all [Slice.length, leNat, okPart, Val.ofValue]
 
 theorem u8_eq_one_iff (x : U8) : x = 1#u8 ↔ x.val = 1 := by
@@ -710,42 +564,7 @@ theorem deserialize_time_spec (buf : io.ParseBuf) :
     value.Value.deserialize_time buf ⦃ r rest =>
       ((okPart r).map Val.ofValue, rest.val) = timeRead buf.val ⦄ := by
   unfold value.Value.deserialize_time
-  step with io.ParseBuf.checked_eat_u8_spec as ⟨o, buf1, ho⟩
-  rcases hb : buf.val with _ | ⟨l, rest⟩
-  · have : ¬ 1 ≤ buf.length := by simp [Slice.length, hb]
-    rw [if_neg this] at ho
-    obtain ⟨rfl, rfl⟩ := ho
-    simp only
-    step with unexpected_buf_eof_spec
-    simp [okPart, timeRead, hb]
-  have : 1 ≤ buf.length := by simp [Slice.length, hb]
-  rw [if_pos this] at ho
-  obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
-  simp only [Option.map_some, Option.some.injEq, hb] at ho
-  obtain ⟨hx, h1⟩ := ho
-  simp [leNat] at hx
-  simp only
-  step with UScalar.cast_inBounds_spec as ⟨n, hn⟩
-  step with io.ParseBuf.checked_eat_buf_spec as ⟨o1, buf2, ho1⟩
-  simp only [timeRead]
-  have hnl : n.val = l.val := by simp_all
-  have hxl : x.val = l.val := by simp_all
-  have hlen1 : Slice.length buf1 = rest.length := by simp [Slice.length, h1]
-  rw [hnl, hlen1, h1] at ho1
-  by_cases hlen : l.val ≤ rest.length
-  swap
-  · rw [if_neg hlen] at ho1
-    obtain ⟨rfl, rfl⟩ := ho1
-    simp only
-    step with unexpected_buf_eof_spec
-    simp [okPart, h1, show rest.length < l.val by omega]
-  rw [if_pos hlen] at ho1
-  obtain ⟨pb, rfl⟩ : ∃ x, o1 = some x := by cases o1 <;> simp_all
-  simp only [Option.map_some, Option.some.injEq] at ho1
-  obtain ⟨hpb, hbuf2⟩ := ho1
-  simp only [show ¬ rest.length < l.val by omega, ite_false]
-  generalize hP : List.take l.val rest = P at hpb ⊢
-  have hPl : P.length = l.val := by rw [← hP]; simp; omega
+  len_prefixed_tac timeRead
   by_cases h8 : l.val < 8
   · have : ¬ (x ≥ 8#u8) := by scalar_tac
     simp only [this, ite_false, h8, ite_true]
@@ -756,11 +575,11 @@ theorem deserialize_time_spec (buf : io.ParseBuf) :
   rcases P with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, _ | ⟨a7, P⟩⟩⟩⟩⟩⟩⟩⟩ <;> simp at hPl <;> try omega
   by_cases h12 : l.val = 12
   · have : x = 12#u8 := by apply UScalar.eq_of_val_eq; simp; omega
-    simp only [this, h12, ite_false, ite_true]
+    simp only [this, h12, ite_true]
     rcases P with _ | ⟨a8, _ | ⟨a9, _ | ⟨a10, _ | ⟨a11, P⟩⟩⟩⟩ <;> simp at hPl <;> try omega
     step* <;> simp_all [Slice.length, leNat, okPart, Val.ofValue, u8_eq_one_iff]
   · have : x ≠ 12#u8 := by intro h; apply h12; rw [← hxl, h]; rfl
-    simp only [this, h12, ite_false, ite_true]
+    simp only [this, ite_false]
     step* <;> simp_all [Slice.length, leNat, okPart, Val.ofValue, u8_eq_one_iff]
 
 theorem bin_str_case (ct : constants.ColumnType) (flags : constants.ColumnFlags)
@@ -774,11 +593,9 @@ theorem bin_str_case (ct : constants.ColumnType) (flags : constants.ColumnFlags)
     simp only [WP.uncurry'_pair] at hq
     cases o with
     | none =>
-      try simp only
       step with unexpected_buf_eof_spec
       simpa [okPart] using hq
     | some x =>
-      try simp only
       step with alloc.slice.Slice.to_vec_spec as ⟨v, hv⟩
       have hvx : v.val = x.val := by simp [alloc.vec.Vec.val, hv]
       simpa [okPart, Val.ofValue, hvx] using hq
@@ -857,17 +674,9 @@ theorem deserialize_bin_spec' (h64 : Target64) (ct : constants.ColumnType)
     simp only [binRead, hs, ite_true, ← ho]
     cases o <;> simp
 
-theorem leNat_leBytes' (k n : Nat) : leNat (leBytes k n) = n % 2 ^ (8 * k) := by
-  induction k generalizing n with
-  | zero => simp [leBytes, leNat, Nat.mod_one]
-  | succ k ih =>
-    simp only [leBytes, leNat, ih, byte_val_mod]
-    have h2 : 2 ^ (8 * (k+1)) = 256 * 2 ^ (8 * k) := by rw [Nat.mul_succ, Nat.pow_add]; omega
-    rw [h2, Nat.mod_mul]
-
 theorem readLE_leBytes (k n : Nat) (t : List U8) :
     readLE k (leBytes k n ++ t) = some (n % 2 ^ (8 * k), t) := by
-  simp [readLE, length_leBytes', leNat_leBytes', List.take_append_of_le_length, List.drop_append_of_le_length]
+  simp [readLE, length_leBytes', leNat_leBytes']
 
 
 theorem binRead_int (x : Int) (hx : -2 ^ 63 ≤ x ∧ x < 2 ^ 63) (u : Bool) (t : List U8) :
@@ -892,19 +701,19 @@ theorem dateRead_enc (y mo d h mi s us : Nat) (hy : y < 2 ^ 16) (hmo : mo < 256)
   simp only [binEnc]
   split_ifs with h0 h4 h7
   · obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h0
-    simp [dateRead, byte_val_mod]
+    simp [dateRead, PBUtil.byte_val]
   · obtain ⟨rfl, rfl, rfl, rfl⟩ := h4
-    simp [dateRead, byte_val_mod, leBytes]
-    rw [if_neg (by omega)]
+    simp [dateRead, PBUtil.byte_val, leBytes]
+    rw [ite_eq_right (by omega)]
     simp only [Option.some.injEq, Prod.mk.injEq, Val.date.injEq, and_true]
     omega
   · subst h7
-    simp [dateRead, byte_val_mod, leBytes]
-    rw [if_neg (by omega)]
+    simp [dateRead, PBUtil.byte_val, leBytes]
+    rw [ite_eq_right (by omega)]
     simp only [Option.some.injEq, Prod.mk.injEq, Val.date.injEq, and_true]
     omega
-  · simp [dateRead, byte_val_mod, leBytes, leNat]
-    rw [if_neg (by omega)]
+  · simp [dateRead, PBUtil.byte_val, leBytes, leNat]
+    rw [ite_eq_right (by omega)]
     simp only [Option.some.injEq, Prod.mk.injEq, Val.date.injEq, and_true]
     omega
 
@@ -920,16 +729,16 @@ theorem timeRead_enc (neg : Bool) (d h mi s us : Nat) (hd : d < 2 ^ 32)
   rw [binNorm_time]
   by_cases h0 : d = 0 ∧ h = 0 ∧ mi = 0 ∧ s = 0 ∧ us = 0
   · obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h0
-    simp [binEnc, timeRead, byte_val_mod]
-  rw [if_neg h0]
+    simp [binEnc, timeRead, PBUtil.byte_val]
+  rw [ite_eq_right h0]
   by_cases h8 : us = 0
   · subst h8
     have h0' : ¬(d = 0 ∧ h = 0 ∧ mi = 0 ∧ s = 0) := by simpa using h0
-    cases neg <;> simp [binEnc, h0', timeRead, byte_val_mod, leBytes, leNat, List.cons_append] <;>
-      (rw [if_neg (by omega)]; simp only [Option.some.injEq, Prod.mk.injEq, Val.time.injEq, and_true]) <;>
+    cases neg <;> simp [binEnc, h0', timeRead, PBUtil.byte_val, leBytes, leNat, List.cons_append] <;>
+      (rw [ite_eq_right (by omega)]; simp only [Option.some.injEq, Prod.mk.injEq, Val.time.injEq, and_true]) <;>
       (simp only [true_and]; omega)
-  · cases neg <;> simp [binEnc, h0, h8, timeRead, byte_val_mod, leBytes, leNat, List.cons_append] <;>
-      (rw [if_neg (by omega)]; simp only [Option.some.injEq, Prod.mk.injEq, Val.time.injEq, and_true]) <;>
+  · cases neg <;> simp [binEnc, h8, timeRead, PBUtil.byte_val, leBytes, leNat, List.cons_append] <;>
+      (rw [ite_eq_right (by omega)]; simp only [Option.some.injEq, Prod.mk.injEq, Val.time.injEq, and_true]) <;>
       (simp only [true_and]; omega)
 
 theorem binRead_binEnc' (v : value.Value) (ct : constants.ColumnType)

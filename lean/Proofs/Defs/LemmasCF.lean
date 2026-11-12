@@ -354,7 +354,7 @@ theorem frame_length (seq : Nat) (p : List U8) :
   | _ n ih =>
     rw [frame]
     split_ifs with hp
-    · simp [PBUtil.length_leBytes, frameCount, Nat.div_eq_of_lt (h ▸ hp)]; omega
+    · simp [frameCount, Nat.div_eq_of_lt (h ▸ hp)]; omega
     · have hM : maxPayloadLen = 2 ^ 24 - 1 := rfl
       have h1 := ih (n - maxPayloadLen) (by rw [hM] at hp ⊢; omega) (seq + 1) (p.drop maxPayloadLen) (by simp [h])
       simp only [List.length_append, List.length_cons, PBUtil.length_leBytes, List.length_take, h1, h, frameCount]

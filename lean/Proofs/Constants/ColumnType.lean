@@ -1,5 +1,4 @@
 import Defs
-import Mathlib.Tactic.IntervalCases
 
 /-! Statements for `enum ColumnType and its impls` (spec file: `Specs/Constants.lean`). -/
 
@@ -15,10 +14,12 @@ theorem constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_fro
       ok (match columnTypeOfCode value.val with
         | some ct => .Ok ct
         | none => .Err value) := by
-  -- One case per byte value: both sides compute.
+  -- Peel off the byte values 255, 254, …, 0 one at a time; in each case both sides compute.
   obtain ⟨⟨⟨n, hn⟩⟩⟩ := value
   change n < 256 at hn
-  interval_cases n <;> rfl
+  have h := hn
+  repeat (obtain h | rfl := Nat.lt_or_eq_of_le (Nat.le_of_lt_succ h); swap; · rfl)
+  exact absurd h (Nat.not_lt_zero _)
 
 /-- `From<ColumnType> for u8`: the type code. -/
 @[step]
