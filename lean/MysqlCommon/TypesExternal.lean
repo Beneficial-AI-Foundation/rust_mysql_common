@@ -36,6 +36,14 @@ axiom core.io.error.Error : Type
 
 /-! ## Models of external types -/
 
+/-- [alloc::sync::Arc]: an `Arc<T>` is modelled by the value it points to. The translated code
+    only creates (`Arc::new`), clones and dereferences `Arc`s (no `get_mut`, `make_mut`,
+    `ptr_eq` or reference counts), and through these operations an `Arc<T>` is
+    indistinguishable from an immutable `T`.
+    Source: '/rustc/library/alloc/src/sync.rs', lines 274:0-277:1 -/
+@[rust_type "alloc::sync::Arc"]
+abbrev alloc.sync.Arc.{u} (T : Type u) : Type u := T
+
 /-- [bitflags::traits::Flag]: a named flag value; the fields of the `bitflags` 2.x definition.
     Source: 'bitflags-2.13.2/src/traits.rs', lines 15:0-15:18 -/
 @[rust_type "bitflags::traits::Flag"]

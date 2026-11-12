@@ -1,0 +1,72 @@
+Translation patch: `RawBytes::into_owned`, `Default for RawBytes`, and `RawBytes::new` in `OldEofPacket::parse_body` and `ComStmtExecuteRequestBuilder::build`
+
+Change:
+  - `RawBytes::into_owned` uses `cow_into_vec(self.0)` (patch 14) instead of `self.0.into_owned()`.
+  - The derived `Default` for `RawBytes` becomes a written-out impl with the same bound (`T: BytesRepr + Default`), returning `RawBytes(Cow::Owned(Vec::new()), PhantomData)`.
+  - `RawBytes::new(&[][..])` becomes `RawBytes::new(Cow::Borrowed(&[][..]))`.
+  - `RawBytes::new(bitmap_bytes)` becomes `RawBytes::new(Cow::Owned(bitmap_bytes))`.
+Why: `Cow::into_owned`, `Default` for `Cow` and for `PhantomData`, and `From<&[T]>` / `From<Vec<T>>` for `Cow` are foreign bodies (externals). `RawBytes::new` applied to a `Cow` goes through the reflexive `From<T> for T`, which Aeneas models.
+Behaviour: Identical. On `[u8]`, `into_owned` is `cow_into_vec`. The derived default is `RawBytes(Cow::default(), PhantomData::default())`, and `Cow::<[u8]>::default()` is `Cow::Owned(Vec::default())`. `Cow::from(&[T])` is `Borrowed`, and `Cow::from(Vec<T>)` is `Owned`.
+
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index 3e13674..5ac2ae3 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -18,15 +18,22 @@ use crate::{
+     proto::{MyDeserialize, MySerialize},
+ };
+ 
+-use super::{RawInt, int::VarLen};
++use super::{RawInt, cow_into_vec, int::VarLen};
+ 
+ /// Wrapper for a raw byte sequence, that came from a server.
+ ///
+ /// `T` encodes the serialized representation.
+-#[derive(Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
++#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+ #[repr(transparent)]
+ pub struct RawBytes<'a, T: BytesRepr>(pub Cow<'a, [u8]>, PhantomData<T>);
+ 
++impl<T: BytesRepr + Default> Default for RawBytes<'_, T> {
++    /// The derived `Default`: `RawBytes(Cow::default(), PhantomData::default())`.
++    fn default() -> Self {
++        RawBytes(Cow::Owned(Vec::new()), PhantomData)
++    }
++}
++
+ impl<'a, T: BytesRepr> RawBytes<'a, T> {
+     /// Wraps the given value.
+     pub fn new(text: impl Into<Cow<'a, [u8]>>) -> Self {
+@@ -35,7 +42,7 @@ impl<'a, T: BytesRepr> RawBytes<'a, T> {
+ 
+     /// Converts self to a 'static version.
+     pub fn into_owned(self) -> RawBytes<'static, T> {
+-        RawBytes(Cow::Owned(self.0.into_owned()), PhantomData)
++        RawBytes(Cow::Owned(cow_into_vec(self.0)), PhantomData)
+     }
+ 
+     /// Returns `true` if bytes is empty.
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 0091b3e..cadfdbe 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -629,8 +629,8 @@ impl OkPacketKind for OldEofPacket {
+             last_insert_id: RawInt::new(0),
+             status_flags,
+             warnings,
+-            info: RawBytes::new(&[][..]),
+-            session_state_info: RawBytes::new(&[][..]),
++            info: RawBytes::new(Cow::Borrowed(&[][..])),
++            session_state_info: RawBytes::new(Cow::Borrowed(&[][..])),
+         })
+     }
+ }
+@@ -2655,7 +2655,7 @@ impl ComStmtExecuteRequestBuilder {
+                 flags: Const::new(CursorType::CURSOR_TYPE_NO_CURSOR),
+                 iteration_count: ConstU32::new(),
+                 params_flags: Const::new(StmtExecuteParamsFlags::NEW_PARAMS_BOUND),
+-                bitmap: RawBytes::new(bitmap_bytes),
++                bitmap: RawBytes::new(Cow::Owned(bitmap_bytes)),
+                 params,
+                 as_long_data,
+             },

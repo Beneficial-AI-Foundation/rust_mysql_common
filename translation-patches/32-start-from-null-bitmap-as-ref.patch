@@ -1,0 +1,18 @@
+Translation patch: `impl AsRef<[u8]> for NullBitmap<T, U>`
+
+Change: Adds `#[verify::start_from]` to the impl.
+Why: The same as patch 08: a `start_from` pattern cannot name the slice type `[u8]`.
+Behaviour: No code change: attribute only.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 6443760..cd4b73f 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -2616,6 +2616,7 @@ impl<T: SerializationSide, U: AsRef<[u8]> + AsMut<[u8]>> NullBitmap<T, U> {
+     }
+ }
+ 
++#[verify::start_from]
+ impl<T, U: AsRef<[u8]>> AsRef<[u8]> for NullBitmap<T, U> {
+     fn as_ref(&self) -> &[u8] {
+         self.0.as_ref()

@@ -1,0 +1,53 @@
+Translation patch: `ComStmtExecuteRequestBuilder::build` and `MySerialize for ComStmtExecuteRequest` (loops)
+
+Change: `for (i, param) in params.iter().enumerate()` becomes `for i in 0..params.len()` using `params[i]`, over the input slice (the `collect` into `Vec<&Value>` moves after the loop). `for param in &self.params` becomes `for i in 0..self.params.len() { let param: &Value = self.params[i]; .. }`, with `**param` becoming `*param`.
+Why: Aeneas does not model `Enumerate` or the slice and `Vec` iterators (see patches 04/05).
+Behaviour: Identical: the same elements are visited in the same order. `collect` only builds a vector of references to the same elements.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 8e37aa1..90bea58 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -2637,17 +2637,17 @@ impl ComStmtExecuteRequestBuilder {
+         let bitmap_len = NullBitmap::<ClientSide>::bitmap_len(params.len());
+ 
+         let mut bitmap = NullBitmap::<ClientSide, Vec<u8>>::from_bytes(vec![0; bitmap_len]);
+-        let params = params.iter().collect::<Vec<_>>();
+ 
+         let meta_len = params.len() * 2;
+ 
+         let mut data_len = 0;
+-        for (i, param) in params.iter().enumerate() {
+-            match param.bin_len() as usize {
++        for i in 0..params.len() {
++            match params[i].bin_len() as usize {
+                 0 => bitmap.set(i, true),
+                 x => data_len += x,
+             }
+         }
++        let params = params.iter().collect::<Vec<_>>();
+         let bitmap_bytes = bitmap.0;
+ 
+         let total_len = 10 + bitmap_len + 1 + meta_len + data_len;
+@@ -2734,7 +2734,8 @@ impl MySerialize for ComStmtExecuteRequest<'_> {
+             self.params_flags.serialize(&mut *buf);
+         }
+ 
+-        for param in &self.params {
++        for i in 0..self.params.len() {
++            let param: &Value = self.params[i];
+             let (column_type, flags) = match param {
+                 Value::NULL => (ColumnType::MYSQL_TYPE_NULL, StmtExecuteParamFlags::empty()),
+                 Value::Bytes(_) => (
+@@ -2764,8 +2765,9 @@ impl MySerialize for ComStmtExecuteRequest<'_> {
+             buf.put_slice(&[column_type as u8, flags.bits()]);
+         }
+ 
+-        for param in &self.params {
+-            match **param {
++        for i in 0..self.params.len() {
++            let param: &Value = self.params[i];
++            match *param {
+                 Value::Int(_)
+                 | Value::UInt(_)
+                 | Value::Float(_)
