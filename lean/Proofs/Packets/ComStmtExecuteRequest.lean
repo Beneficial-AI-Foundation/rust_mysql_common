@@ -190,6 +190,61 @@ private theorem loop1_spec (params : Slice value.Value) (ld : Bool) (k : Usize) 
           | (rw [h3']; simp [paramValue, Val.ofValue, binEnc])))
   · exact ⟨rfl, hk, hbuf⟩
 
+@[step]
+private theorem serialize_params_spec (params : Slice value.Value) (ld : Bool) (buf : alloc.vec.Vec U8)
+    (h : buf.length + ((params.val.map (fun v => paramType (Val.ofValue v))).flatten).length
+      + ((params.val.map (fun v => paramValue ld (Val.ofValue v))).flatten).length ≤ Usize.max) :
+    packets.serialize_params params ld buf ⦃ b =>
+      b.val = buf.val ++ (params.val.map (fun v => paramType (Val.ofValue v))).flatten
+        ++ (params.val.map (fun v => paramValue ld (Val.ofValue v))).flatten ⦄ := by
+  unfold packets.serialize_params
+  apply WP.spec_bind (loop0_spec params 0#usize buf buf (by simp) (by simp) (by omega))
+  intro b1 hb1
+  apply WP.spec_mono (loop1_spec params ld 0#usize b1 b1 (by simp) (by simp)
+    (by simp only [alloc.vec.Vec.length, hb1, List.length_append] at h ⊢; omega))
+  intro b2 hb2
+  rw [hb2, hb1]
+
+@[step]
+private theorem const_cursor_serialize (x : misc.raw._const.Const constants.CursorType U8) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 1 ≤ Usize.max) :
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize constants.CursorType.Insts.CoreMarkerCopy
+      (core.convert.IntoFrom U8.Insts.CoreConvertFromCursorType) U8.Insts.Mysql_commonMiscRawIntIntReprU8 x buf
+      ⦃ b => b.val = buf.val ++ [byte x.1.val] ⦄ := by
+  rw [misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize_eq _ _ _ _ x.1
+    (U8.Insts.CoreConvertFromCursorType.from_eq _), byte_eq_self]
+  exact U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec _ _ h
+
+@[step]
+private theorem const_pflags_serialize (x : misc.raw._const.Const constants.StmtExecuteParamsFlags U8) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 1 ≤ Usize.max) :
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize constants.StmtExecuteParamsFlags.Insts.CoreMarkerCopy
+      (core.convert.IntoFrom U8.Insts.CoreConvertFromStmtExecuteParamsFlags) U8.Insts.Mysql_commonMiscRawIntIntReprU8 x buf
+      ⦃ b => b.val = buf.val ++ [byte x.1.val] ⦄ := by
+  rw [misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize_eq _ _ _ _ x.1
+    (U8.Insts.CoreConvertFromStmtExecuteParamsFlags.from_eq _), byte_eq_self]
+  exact U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec _ _ h
+
+@[step]
+private theorem bitmap_serialize (rb : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 8192#usize) Usize) (buf : alloc.vec.Vec U8)
+    (h : buf.length + ((cowList rb.1).take 8192).length ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 8192#usize) rb buf
+      ⦃ b => b.val = buf.val ++ (cowList rb.1).take 8192 ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  rw [← hs] at h ⊢
+  show misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize 8192#usize s buf ⦃ _ ⦄
+  unfold misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize
+  have key : ∀ (l : List U8) (m : Nat), List.take (min l.length m) l = List.take m l := by
+    intro l m
+    rcases le_total l.length m with h' | h'
+    · rw [Nat.min_eq_left h', List.take_length, List.take_of_length_le h']
+    · rw [Nat.min_eq_right h']
+  simp only [core.cmp.min]
+  step*
+  all_goals simp_all [List.slice]
+
 /-- `MySerialize for ComStmtExecuteRequest`: appends `stmtExecuteBytes` of its fields: header, statement id, flags, iteration count; if there are parameters, the bitmap (truncated to 8192 bytes), the params flags, the parameter types and the values (`Bytes` left out if `as_long_data`). -/
 theorem packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.ComStmtExecuteRequest) (buf : alloc.vec.Vec U8)
     (h : buf.length + (stmtExecuteBytes self.stmt_id.1.val self.flags.1.val ((cowList self.bitmap.1).take 8192)
@@ -197,6 +252,11 @@ theorem packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.seriali
     packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
       buf'.val = buf.val ++ stmtExecuteBytes self.stmt_id.1.val self.flags.1.val ((cowList self.bitmap.1).take 8192)
         self.params_flags.1.val (self.params.val.map Val.ofValue) self.as_long_data ⦄ := by
-  sorry
+  simp only [stmtExecuteBytes, List.length_cons, List.length_append, mysql_common.PBUtil.length_leBytes] at h
+  unfold packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
+  step*
+  all_goals (simp_all [stmtExecuteBytes, alloc.vec.Vec.length, mysql_common.PBUtil.length_leBytes,
+    Function.comp_def]; try omega)
+  all_goals rfl
 
 end mysql_common
