@@ -2,6 +2,7 @@ import Defs.Bytes
 import Defs.LenEnc
 import Defs.VarLen
 import Defs.Value
+import Defs.Convert
 import Defs.Flags
 import Defs.NullBitmap
 import Defs.Row
