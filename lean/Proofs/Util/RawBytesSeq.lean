@@ -192,4 +192,31 @@ theorem array_u8_eq_spec {N : Usize} (a0 a1 : Array U8 N) :
   rw [allM_zip_eq _ _ (by simp)]
   simp
 
+/-! ## `RawInt` wrapper -/
+
+theorem rawint_new_eq {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) :
+    misc.raw.int.RawInt.new inst x = ok (x, ()) := rfl
+
+theorem rawint_serialize_eq {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) (u : core.marker.PhantomData T)
+    (buf : alloc.vec.Vec U8) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize inst (x, u) buf = inst.serialize x buf := rfl
+
+theorem rawint_parse_unchecked_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
+    (buf : io.ParseBuf) (Q : Option P → io.ParseBuf → Prop)
+    (h : inst.deserialize buf ⦃ r rest => Q (okPart r) rest ⦄) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple inst) buf ()
+      ⦃ r rest => Q ((okPart r).map (·.1)) rest ⦄ := by
+  unfold io.ParseBuf.parse_unchecked
+  change misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize inst () buf ⦃ _ ⦄
+  unfold misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  step with h as ⟨ r, rest, hr ⟩
+  cases r with
+  | Ok x =>
+    simp only [misc.raw.int.RawInt.new]
+    apply WP.spec_bind (Pₘ := fun (ri : misc.raw.int.RawInt T P) => ri.1 = x) ((WP.spec_ok _).mpr rfl)
+    intro ri hri
+    apply (WP.spec_ok _).mpr
+    simpa [okPart, hri] using hr
+  | Err e => simpa [okPart] using hr
+
 end mysql_common
