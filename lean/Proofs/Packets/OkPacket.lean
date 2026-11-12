@@ -18,7 +18,7 @@ theorem packets.OkPacket.Insts.CoreConvertTryFromOkPacketBodyError.try_from_spec
   unfold packets.OkPacket.Insts.CoreConvertTryFromOkPacketBodyError.try_from
   step*
   split_ifs with h0 <;> step* <;> simp_all [OkPkt.ofPacket, OkBody.toPkt, OkBody.ofBody]
-  · exact ⟨by simp [← i1_post], rfl, rfl⟩
+  · exact ⟨by simp [← ‹0#u64 = body.last_insert_id.1›], rfl, rfl⟩
   · exact ⟨rfl, rfl⟩
 
 /-- `into_owned`: the same fields. -/
