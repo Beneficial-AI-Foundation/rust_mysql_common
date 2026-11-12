@@ -194,13 +194,59 @@ theorem binRead_binEnc (v : mysql_common.value.Value) (ct : mysql_common.constan
     simp [binRead, binEnc, isLenencStrType, PBUtil.readLE_leBytes 8 _ t hx, binNorm]
   | Date y mo d h mi sec us =>
     simp only [Val.ofValue, binCompatible] at hc ⊢
-    trace_state
-    sorry
+    have hy : y.val < 65536 := by scalar_tac
+    have hmo : mo.val < 256 := by scalar_tac
+    have hd : d.val < 256 := by scalar_tac
+    have hh : h.val < 256 := by scalar_tac
+    have hmi : mi.val < 256 := by scalar_tac
+    have hs : sec.val < 256 := by scalar_tac
+    have hus : us.val < 2 ^ 32 := by scalar_tac
+    have hr : binRead ct u = dateRead := by
+      funext bs; rcases hc with rfl | rfl | rfl | rfl <;> simp [binRead, isLenencStrType]
+    rw [hr]
+    simp only [binEnc, binNorm]
+    have hyy : y.val % 256 + 256 * (y.val / 256 % 256) = y.val := by omega
+    split_ifs with h1 h2 h3
+    · obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h1
+      simp [dateRead, PBUtil.byte_val, h1, h2, h3, h4, h5, h6, h7]
+    · obtain ⟨h4, h5, h6, h7⟩ := h2
+      simp [dateRead, leBytes, PBUtil.byte_val, h4, h5, h6, h7, Nat.mod_eq_of_lt hmo, Nat.mod_eq_of_lt hd, hyy]
+    · simp [dateRead, leBytes, PBUtil.byte_val, h3, Nat.mod_eq_of_lt hmo, Nat.mod_eq_of_lt hd, Nat.mod_eq_of_lt hh,
+        Nat.mod_eq_of_lt hmi, Nat.mod_eq_of_lt hs, hyy]
+    · have hl4 : leNat [byte us.val, byte (us.val / 256), byte (us.val / 256 / 256), byte (us.val / 256 / 256 / 256)] = us.val := by
+        have := IntAndMisc.leNat_leBytes' 4 us.val
+        simp only [leBytes] at this; rw [this]; exact Nat.mod_eq_of_lt (by simpa using hus)
+      simp [dateRead, leBytes, PBUtil.byte_val, Nat.mod_eq_of_lt hmo, Nat.mod_eq_of_lt hd, Nat.mod_eq_of_lt hh,
+        Nat.mod_eq_of_lt hmi, Nat.mod_eq_of_lt hs, hyy, hl4]
   | Time n d h mi sec us =>
     simp only [Val.ofValue, binCompatible] at hc ⊢
     subst hc
-    trace_state
-    sorry
+    have hd : d.val < 2 ^ 32 := by scalar_tac
+    have hh : h.val < 256 := by scalar_tac
+    have hmi : mi.val < 256 := by scalar_tac
+    have hs : sec.val < 256 := by scalar_tac
+    have hus : us.val < 2 ^ 32 := by scalar_tac
+    have hnorm : ∀ (a b c e f : Nat), ¬(a = 0 ∧ b = 0 ∧ c = 0 ∧ e = 0 ∧ f = 0) →
+        binNorm u (.time n a b c e f) = .time n a b c e f := by
+      intro a b c e f hne
+      unfold binNorm; split <;> first | rfl | simp_all
+    have h4 : ∀ x : Nat, x < 2 ^ 32 → leNat [byte x, byte (x / 256), byte (x / 256 / 256), byte (x / 256 / 256 / 256)] = x := by
+      intro x hx
+      have := IntAndMisc.leNat_leBytes' 4 x
+      simp only [leBytes] at this; rw [this]; exact Nat.mod_eq_of_lt (by simpa using hx)
+    have hr : binRead constants.ColumnType.MYSQL_TYPE_TIME u = timeRead := by
+      funext bs; simp [binRead, isLenencStrType]
+    rw [hr]
+    by_cases h1 : d.val = 0 ∧ h.val = 0 ∧ mi.val = 0 ∧ sec.val = 0 ∧ us.val = 0
+    · obtain ⟨h1, h2, h3, h4, h5⟩ := h1
+      simp [binEnc, timeRead, PBUtil.byte_val, binNorm, h1, h2, h3, h4, h5]
+    · rw [hnorm _ _ _ _ _ h1]
+      by_cases h2 : us.val = 0
+      · have h1' : ¬(d.val = 0 ∧ h.val = 0 ∧ mi.val = 0 ∧ sec.val = 0) := fun hc => h1 ⟨hc.1, hc.2.1, hc.2.2.1, hc.2.2.2, h2⟩
+        cases n <;> simp [binEnc, h1', h2, timeRead, leBytes, PBUtil.byte_val, Nat.mod_eq_of_lt hh, Nat.mod_eq_of_lt hmi,
+          Nat.mod_eq_of_lt hs, h4 _ hd]
+      · cases n <;> simp [binEnc, h1, h2, timeRead, leBytes, PBUtil.byte_val, Nat.mod_eq_of_lt hh, Nat.mod_eq_of_lt hmi,
+          Nat.mod_eq_of_lt hs, h4 _ hd, h4 _ hus]
 
 /-- The text decoder reads a length-encoded string as `Bytes`. -/
 theorem textRead_lenencStr (s t : List U8) (hs : s.length < 2 ^ 64) :
