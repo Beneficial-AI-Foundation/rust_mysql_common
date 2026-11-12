@@ -2,7 +2,6 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 import Proofs.Io.BufMutExt
-import Proofs.Defs.Lemmas
 import Proofs.Misc.Raw.Int.LenEnc
 
 /-! Statements for `impl BytesRepr for LenEnc` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: TODO. -/
@@ -89,9 +88,11 @@ theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtr
     simp [lenencStr] at this; scalar_tac
   have hc : checkedLenencInt buf.val = (some s.length, s ++ tail) := by
     rw [h]; simp only [lenencStr, List.append_assoc]
-    exact Defs.checkedLenencInt_lenencInt _ _ (lt_two_pow_64_of_le_max hlen)
+    exact PBUtil.checkedLenencInt_lenencInt _ _ (lt_two_pow_64_of_le_max hlen)
   have hs : checkedLenencStr buf.val = (some s, tail) := by
-    rw [h]; exact Defs.checkedLenencStr_lenencStr _ _ (lt_two_pow_64_of_le_max hlen)
+    rw [h]; unfold checkedLenencStr lenencStr
+    rw [List.append_assoc, PBUtil.checkedLenencInt_lenencInt _ _ (lt_two_pow_64_of_le_max hlen)]
+    simp
   apply WP.spec_mono (deserialize_aux buf (fun n _ hn => by simp [hc] at hn; omega))
   rintro ⟨r, rest⟩ hr
   simp only [hs, WP.uncurry'_pair, Prod.mk.injEq] at hr

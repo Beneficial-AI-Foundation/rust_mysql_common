@@ -2,7 +2,6 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 import Proofs.Io.BufMutExt
-import Proofs.Defs.Lemmas
 
 /-! Statements for `impl BytesRepr for U32Bytes` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: TODO. -/
 
@@ -44,9 +43,9 @@ theorem misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.des
 theorem misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.roundtrip (s : List U8) (hs : s.length < 2 ^ 32) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = leBytes 4 s.length ++ s ++ tail) :
     misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest => (okPart r).map cowList = some s ∧ rest.val = tail ⦄ := by
-  have hl : (leBytes 4 s.length).length = 4 := Defs.length_leBytes 4 s.length
+  have hl : (leBytes 4 s.length).length = 4 := PBUtil.length_leBytes 4 s.length
   have hn : leNat (leBytes 4 s.length) = s.length := by
-    rw [Defs.leNat_leBytes]; exact Nat.mod_eq_of_lt (by omega)
+    rw [PBUtil.leNat_leBytes]; exact Nat.mod_eq_of_lt (by omega)
   have hc : checkedLenPrefixed 4 buf.val = (some s, tail) := by
     simp [checkedLenPrefixed, readLE, h, hl, hn]
   apply WP.spec_mono (misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)

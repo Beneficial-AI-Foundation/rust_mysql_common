@@ -39,7 +39,7 @@ theorem lt_two_pow_64_of_le_max {n : Nat} (h : n ≤ Usize.max) : n < 2 ^ 64 := 
 
 theorem spec_bind_ok {α β : Type} {a : α} {k : α → Result β} {P : β → Prop} (h : k a ⦃ P ⦄) :
     (Std.bind (ok a) k) ⦃ P ⦄ :=
-  WP.spec_bind ((WP.spec_ok _).mpr rfl) (fun x hx => hx ▸ h)
+  WP.spec_bind ((WP.spec_ok _).mpr rfl) (fun _ hx => hx ▸ h)
 
 /-! ## Small std/crate functions -/
 
@@ -291,7 +291,7 @@ theorem parse_items_loop_roundtrip {T : Type} (de : proto.MyDeserialize T Unit) 
     step as ⟨ p, ho, he ⟩
     obtain ⟨o, it1⟩ := p
     simp only at ho he ⊢
-    rw [if_neg (by omega)] at ho
+    simp only [show ¬ (it.start.val < it.end.val) by omega, ↓reduceIte] at ho
     obtain ⟨ho1, ho2⟩ := ho
     subst ho1
     simp_all [okPart, cowList]
@@ -302,7 +302,7 @@ theorem parse_items_loop_roundtrip {T : Type} (de : proto.MyDeserialize T Unit) 
     step as ⟨ p, ho, he ⟩
     obtain ⟨o, it1⟩ := p
     simp only at ho he ⊢
-    rw [if_pos (by omega)] at ho
+    simp only [show it.start.val < it.end.val by omega, ↓reduceIte] at ho
     obtain ⟨ho1, ho2⟩ := ho
     subst ho1
     step with hde x (by simp) (xs.flatMap enc ++ tail) buf (by simp [hbuf]) as ⟨ p, hr1, hr2 ⟩
