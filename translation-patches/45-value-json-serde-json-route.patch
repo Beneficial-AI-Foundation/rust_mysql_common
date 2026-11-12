@@ -1,0 +1,44 @@
+Translation patch: `value::json::serde_integration`: serde_json calls for `serde_json::Value` go through `trusted`
+
+Change: `serde_json::from_slice::<Json>(bytes)` becomes `trusted::json_from_slice(bytes)` (an `Option`), and `serde_json::to_string(&x).unwrap().into()` becomes `trusted::string_into_bytes(trusted::json_to_string(&x).unwrap())`.
+Why: serde_json is not translated (see patch 40).
+Behaviour: Identical: only `Ok`/`Err` of `from_slice` was observed; `Option::unwrap` panics exactly where `Result::unwrap` did; `From<String> for Vec<u8>` is `into_bytes`.
+Panic message (found in review): `json_to_string(..).unwrap()` is an `Option::unwrap` where upstream used `Result::unwrap`: same panic condition, different message.
+
+diff --git a/src/value/json/serde_integration.rs b/src/value/json/serde_integration.rs
+index 46fda8b..ebda045 100644
+--- a/src/value/json/serde_integration.rs
++++ b/src/value/json/serde_integration.rs
+@@ -14,7 +14,7 @@ use serde_json::{self, Value as Json};
+ use super::{Deserialized, Serialized};
+ use crate::value::{
+     Value,
+-    convert::{FromValue, FromValueError, ParseIr},
++    convert::{FromValue, FromValueError, ParseIr, trusted},
+ };
+ 
+ impl TryFrom<Value> for ParseIr<Json> {
+@@ -22,9 +22,9 @@ impl TryFrom<Value> for ParseIr<Json> {
+ 
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+-            Value::Bytes(ref bytes) => match serde_json::from_slice(bytes) {
+-                Ok(x) => Ok(ParseIr(x, v)),
+-                Err(_) => Err(FromValueError(v)),
++            Value::Bytes(ref bytes) => match trusted::json_from_slice(bytes) {
++                Some(x) => Ok(ParseIr(x, v)),
++                None => Err(FromValueError(v)),
+             },
+             v => Err(FromValueError(v)),
+         }
+@@ -79,7 +79,9 @@ impl<T: DeserializeOwned> FromValue for Deserialized<T> {
+ 
+ impl From<Json> for Value {
+     fn from(x: Json) -> Value {
+-        Value::Bytes(serde_json::to_string(&x).unwrap().into())
++        Value::Bytes(trusted::string_into_bytes(
++            trusted::json_to_string(&x).unwrap(),
++        ))
+     }
+ }
+ 

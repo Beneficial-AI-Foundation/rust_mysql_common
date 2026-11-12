@@ -10,13 +10,16 @@ import Proofs.Value.ValueDeserializer
     **Configuration.** As in `Specs/Io.lean`. The decoders' exact characterisations take `Target64`
     (lengths are `u64` cast to `usize`).
 
+    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
+
     **Allocation caveat.** Decoding a byte string copies it (`.to_vec()`, `into_owned`), and
     `serialize` grows the output `Vec`. Aeneas models allocation as infallible (bounded only by
     `usize::MAX`); real Rust aborts on OOM. So "does not panic" means "does not panic, assuming
     allocation succeeds". The length of a decoded string is bounded by the input buffer.
 
     **Definitions used.** `Defs/Value.lean` (`Val`, `Val.ofValue`, `binEnc`, `binRead`, `dateRead`,
-    `timeRead`, `binSupported`, `isLenencStrType`, `isUnsigned`, `binCompatible`, `binNorm`,
+    `timeRead`, `dateProto`, `timeProto` (the protocol's temporal formats, see `Specs/Defs.lean`
+    for how the crate's readers relate to them), `binSupported`, `isLenencStrType`, `isUnsigned`, `binCompatible`, `binNorm`,
     `textRead`), `Defs/LenEnc.lean`, `Defs/Bytes.lean`. Floats are compared by bit pattern only.
 
     **Not covered.** `Value::as_sql`, `Debug`, the conversions in `value/convert/*` and `value/json.rs`

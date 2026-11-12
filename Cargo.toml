@@ -213,6 +213,11 @@ start_from = [
   "mysql_common::value::Value::deserialize_datetime",
   "mysql_common::value::Value::deserialize_time",
   "mysql_common::value::Value::deserialize_bin",
+  # The two `SerializationSide` impls: `ServerSide` (NULL-bitmap offset 2) is the side real result
+  # rows use, so the binary-row specs are instantiated at it; `ClientSide` (offset 0) is used by
+  # COM_STMT_EXECUTE.
+  "{impl mysql_common::value::SerializationSide for mysql_common::value::ServerSide}",
+  "{impl mysql_common::value::SerializationSide for mysql_common::value::ClientSide}",
   # src/row/mod.rs: Row and its wire-format deserializers. (`new_row` (`map(Some).collect()`) and
   # the `FromValue` getters are out of scope.)
   "mysql_common::row::Row",
@@ -359,9 +364,54 @@ start_from = [
   "mysql_common::proto::codec::packet_to_chunks",
   "mysql_common::proto::codec::ChunkDecoder::decode",
   "mysql_common::proto::codec::PlainPacketCodec::_",
+  # src/value/convert/ (mod.rs, uuid.rs, chrono.rs, time.rs, bigint.rs, decimal.rs,
+  # bigdecimal.rs): every item, minus the exclusions below. `mysql_common::value::convert::trusted` (added by
+  # translation-patches/40) is opaque, see below.
+  "mysql_common::value::convert",
+  # src/value/json/serde_integration.rs (`Serialized`/`Deserialized` are reached from it; the
+  # serde derives in json/mod.rs are out of scope).
+  "mysql_common::value::json::serde_integration",
 ]
+# uuid: `Uuid` (a `[u8; 16]` tuple struct with a private field) and `Uuid::as_bytes`/`from_bytes`
+# are translated from uuid's own MIR rather than being opaque (`from_bytes` has no MIR body and is
+# modelled exactly in FunsExternal.lean).
+include = ["uuid::Uuid", "uuid::_::as_bytes", "uuid::_::from_bytes"]
 start_from_attribute = ["verify::start_from"]
-exclude = []
+exclude = [
+  # src/value/convert: formatting, and the derived `Clone`/`PartialEq`/`PartialOrd` impls, are out
+  # of scope (`Debug for Value`, reached from thiserror's `Display for FromValueError`, needs
+  # `str::pattern`, which Aeneas cannot translate).
+  "{impl core::fmt::Debug for mysql_common::value::convert::_}",
+  "{impl core::fmt::Display for mysql_common::value::convert::_}",
+  "{impl core::error::Error for mysql_common::value::convert::_}",
+  "mysql_common::value::convert::{core::clone::Clone<_>}",
+  "mysql_common::value::convert::{core::cmp::PartialEq<_, _>}",
+  "mysql_common::value::convert::{core::cmp::PartialOrd<_, _>}",
+  # src/value/convert/mod.rs: the conversions from/to `Arc<..>`, `Rc<..>`, `Box<..>` and
+  # `Cow<'static, str>` are out of scope (they go through std conversions into shared/boxed
+  # allocations, and `ToOwned for str`, which Aeneas does not model). (`Cow<[u8]>`, `[u8; N]`,
+  # `Option<T>` and `Value` itself are translated.)
+  "mysql_common::value::convert::{core::convert::TryFrom<alloc::sync::Arc<_, _>, _>}",
+  "mysql_common::value::convert::{core::convert::TryFrom<alloc::rc::Rc<_, _>, _>}",
+  "mysql_common::value::convert::{core::convert::TryFrom<alloc::boxed::Box<_, _>, _>}",
+  "mysql_common::value::convert::{core::convert::TryFrom<alloc::borrow::Cow<str>, _>}",
+  "mysql_common::value::convert::{mysql_common::value::convert::FromValue<alloc::sync::Arc<_, _>>}",
+  "mysql_common::value::convert::{mysql_common::value::convert::FromValue<alloc::rc::Rc<_, _>>}",
+  "mysql_common::value::convert::{mysql_common::value::convert::FromValue<alloc::boxed::Box<_, _>>}",
+  "mysql_common::value::convert::{mysql_common::value::convert::FromValue<alloc::borrow::Cow<str>>}",
+  "mysql_common::value::convert::{core::convert::From<mysql_common::value::Value, alloc::sync::Arc<_, _>>}",
+  "mysql_common::value::convert::{core::convert::From<mysql_common::value::Value, alloc::rc::Rc<_, _>>}",
+  "mysql_common::value::convert::{core::convert::From<mysql_common::value::Value, alloc::boxed::Box<_, _>>}",
+  # src/value/json/serde_integration.rs: the impls for `Deserialized<T: DeserializeOwned>` and
+  # `Serialized<T: Serialize>`. Their trait bounds bring in serde's `Serialize`/`Serializer` and
+  # `Deserialize`/`Deserializer` trait declarations, which are mutually recursive: Aeneas cannot
+  # give them a Lean model. (The `serde_json::Value` impls are translated.)
+  "mysql_common::value::json::serde_integration::{core::convert::TryFrom<mysql_common::value::convert::ParseIr<mysql_common::value::json::Deserialized<_>>, _>}",
+  "mysql_common::value::json::serde_integration::{core::convert::From<mysql_common::value::json::Deserialized<_>, mysql_common::value::convert::ParseIr<_>>}",
+  "mysql_common::value::json::serde_integration::{core::convert::From<mysql_common::value::Value, mysql_common::value::convert::ParseIr<mysql_common::value::json::Deserialized<_>>>}",
+  "mysql_common::value::json::serde_integration::{mysql_common::value::convert::FromValue<mysql_common::value::json::Deserialized<_>>}",
+  "mysql_common::value::json::serde_integration::{core::convert::From<mysql_common::value::Value, mysql_common::value::json::Serialized<_>>}",
+]
 opaque = [
   # `Display` of the errors of `TryFrom<uN>` for the flags types: formats with `{:b}`, whose std
   # implementation Aeneas does not model. Out of scope (the value of an `io::Error` is opaque).
@@ -371,6 +421,12 @@ opaque = [
   # support `dyn` types. Specs only ever say that a function returns `Err _`.
   "mysql_common::misc::io_error_msg",
   "mysql_common::misc::io_error_from",
+  # The trust boundary of the value conversions (translation-patches/40): one function per
+  # dependency operation; each has a Lean model or axiom in FunsExternal.lean.
+  "mysql_common::value::convert::trusted",
+  # `serde_json::Value` is only passed to/from `trusted`; its `Object(Map<String, Value>)` variant
+  # nests the type in an opaque map, which a Lean inductive cannot express.
+  "serde_json::value::Value",
 ]
 
 [package.metadata.charon.rustc]

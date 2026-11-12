@@ -1,0 +1,31 @@
+Translation patch: `TryFrom<Value> for ParseIrOpt<bool>`
+
+Change: `match bytes.as_slice() { [b'0'] => .., [b'1'] => .., _ => .. }` becomes `if bytes.len() == 1 && bytes[0] == b'0' { .. } else if bytes.len() == 1 && bytes[0] == b'1' { .. } else { .. }`.
+Why: Aeneas does not support slice patterns ("Inconsistent projection: PtrMetadata").
+Behaviour: Identical: `[c]` matches exactly the slices of length 1 whose byte is `c`.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index 26efd9a..1b91119 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -218,11 +218,15 @@ impl TryFrom<Value> for ParseIrOpt<bool> {
+         match v {
+             Value::Int(0) | Value::UInt(0) => Ok(ParseIrOpt::Ready(false)),
+             Value::Int(_) | Value::UInt(_) => Ok(ParseIrOpt::Ready(true)),
+-            Value::Bytes(ref bytes) => match bytes.as_slice() {
+-                [b'0'] => Ok(ParseIrOpt::Parsed(false, v)),
+-                [b'1'] => Ok(ParseIrOpt::Parsed(true, v)),
+-                _ => Err(FromValueError(v)),
+-            },
++            Value::Bytes(ref bytes) => {
++                if bytes.len() == 1 && bytes[0] == b'0' {
++                    Ok(ParseIrOpt::Parsed(false, v))
++                } else if bytes.len() == 1 && bytes[0] == b'1' {
++                    Ok(ParseIrOpt::Parsed(true, v))
++                } else {
++                    Err(FromValueError(v))
++                }
++            }
+             v => Err(FromValueError(v)),
+         }
+     }

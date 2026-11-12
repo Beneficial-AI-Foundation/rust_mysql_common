@@ -1,0 +1,22 @@
+Translation patch: `create_primitive_date_time`
+
+Change: `let mon = trusted::time_month_from_u8(month)?;` becomes `let mon = match .. { Some(mon) => mon, None => return None };`.
+Why: Aeneas does not model `?` on `Option` (`Try`/`FromResidual` for `Option`), as in patch 13.
+Behaviour: Identical: this is the definition of `?` on `Option`.
+
+diff --git a/src/value/convert/time.rs b/src/value/convert/time.rs
+index 1d277c9..dc84805 100644
+--- a/src/value/convert/time.rs
++++ b/src/value/convert/time.rs
+@@ -156,7 +156,10 @@ fn create_primitive_date_time(
+     second: u8,
+     micros: u32,
+ ) -> Option<PrimitiveDateTime> {
+-    let mon = trusted::time_month_from_u8(month)?;
++    let mon = match trusted::time_month_from_u8(month) {
++        Some(mon) => mon,
++        None => return None,
++    };
+     if let Some(date) = trusted::time_date_from_calendar_date(year as i32, mon, day)
+         && let Some(time) = trusted::time_time_from_hms_micro(hour, minute, second, micros)
+     {

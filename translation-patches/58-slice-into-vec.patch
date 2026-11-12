@@ -1,0 +1,19 @@
+Translation patch: `From<&[u8]> for Value`
+
+Change: `Value::Bytes(x.into())` becomes `Value::Bytes(x.to_vec())`.
+Why: `From<&[T]> for Vec<T>` is not modelled by Aeneas (`<[T]>::to_vec` is).
+Behaviour: Identical: std implements `From<&[T]> for Vec<T>` as `to_vec`.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index d051f77..4453000 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -819,7 +819,7 @@ impl From<bool> for Value {
+ 
+ impl<'a> From<&'a [u8]> for Value {
+     fn from(x: &'a [u8]) -> Value {
+-        Value::Bytes(x.into())
++        Value::Bytes(x.to_vec())
+     }
+ }
+ 

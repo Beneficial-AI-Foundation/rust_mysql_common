@@ -7,6 +7,7 @@ Why:
   - Text: Aeneas fails ("Could not match the contexts") on the loop when its result is used together with `columns` after it (as in patch 11).
   - Binary: inside a loop, Aeneas does not support live shared borrows of `columns` (each `Column` contains an `Arc<ColumnMeta<'static>>`) and of the bitmap (which holds a `Cow<'de, [u8]>`): "Found a case of unsupported nested borrows". A recursion needs no loop fixpoint. Aeneas does not model `enumerate` either (see patches 04/05).
 Behaviour: Identical: the same values are deserialized from `buf` in the same order, with the same early `Err` return. The recursion visits `i = 0, 1, .., len - 1` exactly as the loop does.
+Stack depth (found in review): `deserialize_bin_values` recurses once per column, so the patched copy uses O(columns) stack where the original loop uses constant stack (differential testing: a debug build on a 2 MB thread overflows at ~8000 columns). Results, effect order and errors are identical; the Lean model does not model the stack, and the specs say nothing about stack exhaustion. This difference exists only in the translated copy, not in the shipped crate.
 
 diff --git a/src/row/mod.rs b/src/row/mod.rs
 index 81e2fdb..497f437 100644

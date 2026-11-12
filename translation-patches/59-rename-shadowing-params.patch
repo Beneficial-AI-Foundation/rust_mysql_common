@@ -1,0 +1,476 @@
+Translation patch: parameter names in `value::convert` and `value::json`
+
+Change: parameters and locals named `value` become `ir` (`From<ParseIr..>`/`From<ValueIr>` impls), `v` (`try_from` of `OptionIr2`/`ValueIr`) or `val` (chrono), and the `uuid` parameter of `From<Uuid> for Value` becomes `x`.
+Why: Aeneas bug: the generated Lean names definitions by module path (`value.convert.ParseIr.commit`, `uuid.Uuid.as_bytes`), and a local variable `value` (or `uuid`) shadows that prefix, so Lean reads `value.convert..` as a field projection on the local ("Invalid field `convert`").
+Behaviour: Identical: renaming.
+
+diff --git a/src/value/convert/bigdecimal.rs b/src/value/convert/bigdecimal.rs
+index 250489b..d0f4afd 100644
+--- a/src/value/convert/bigdecimal.rs
++++ b/src/value/convert/bigdecimal.rs
+@@ -43,15 +43,15 @@ impl TryFrom<Value> for ParseIr<BigDecimal> {
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
+ impl From<ParseIr<BigDecimal>> for BigDecimal {
+-    fn from(value: ParseIr<BigDecimal>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<BigDecimal>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
+ impl From<ParseIr<BigDecimal>> for Value {
+-    fn from(value: ParseIr<BigDecimal>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<BigDecimal>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+diff --git a/src/value/convert/bigint.rs b/src/value/convert/bigint.rs
+index 9be8105..2caa802 100644
+--- a/src/value/convert/bigint.rs
++++ b/src/value/convert/bigint.rs
+@@ -31,14 +31,14 @@ impl TryFrom<Value> for ParseIr<BigInt> {
+ }
+ 
+ impl From<ParseIr<BigInt>> for BigInt {
+-    fn from(value: ParseIr<BigInt>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<BigInt>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIr<BigInt>> for Value {
+-    fn from(value: ParseIr<BigInt>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<BigInt>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -81,14 +81,14 @@ impl TryFrom<Value> for ParseIr<BigUint> {
+ }
+ 
+ impl From<ParseIr<BigUint>> for BigUint {
+-    fn from(value: ParseIr<BigUint>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<BigUint>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIr<BigUint>> for Value {
+-    fn from(value: ParseIr<BigUint>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<BigUint>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+diff --git a/src/value/convert/chrono.rs b/src/value/convert/chrono.rs
+index a81fa37..b68dd4a 100644
+--- a/src/value/convert/chrono.rs
++++ b/src/value/convert/chrono.rs
+@@ -100,12 +100,12 @@ impl TryFrom<Value> for ParseIr<NaiveDate> {
+             v => Err(FromValueError(v)),
+         };
+ 
+-        let (date, value) = result?;
++        let (date, val) = result?;
+ 
+         if let Some(output) = date {
+-            Ok(ParseIr(output, value))
++            Ok(ParseIr(output, val))
+         } else {
+-            Err(FromValueError(value))
++            Err(FromValueError(val))
+         }
+     }
+ }
+@@ -131,55 +131,55 @@ impl TryFrom<Value> for ParseIr<NaiveTime> {
+             v => Err(FromValueError(v)),
+         };
+ 
+-        let (time, value) = result?;
++        let (time, val) = result?;
+ 
+         if let Some(output) = time {
+-            Ok(ParseIr(output, value))
++            Ok(ParseIr(output, val))
+         } else {
+-            Err(FromValueError(value))
++            Err(FromValueError(val))
+         }
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<ParseIr<NaiveDateTime>> for NaiveDateTime {
+-    fn from(value: ParseIr<NaiveDateTime>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<NaiveDateTime>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<ParseIr<NaiveDate>> for NaiveDate {
+-    fn from(value: ParseIr<NaiveDate>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<NaiveDate>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<ParseIr<NaiveTime>> for NaiveTime {
+-    fn from(value: ParseIr<NaiveTime>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<NaiveTime>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<ParseIr<NaiveDateTime>> for Value {
+-    fn from(value: ParseIr<NaiveDateTime>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<NaiveDateTime>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<ParseIr<NaiveDate>> for Value {
+-    fn from(value: ParseIr<NaiveDate>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<NaiveDate>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<ParseIr<NaiveTime>> for Value {
+-    fn from(value: ParseIr<NaiveTime>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<NaiveTime>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+diff --git a/src/value/convert/decimal.rs b/src/value/convert/decimal.rs
+index 92b5ca0..e245969 100644
+--- a/src/value/convert/decimal.rs
++++ b/src/value/convert/decimal.rs
+@@ -38,15 +38,15 @@ impl TryFrom<Value> for ParseIr<Decimal> {
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "rust_decimal")))]
+ impl From<ParseIr<Decimal>> for Decimal {
+-    fn from(value: ParseIr<Decimal>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<Decimal>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "rust_decimal")))]
+ impl From<ParseIr<Decimal>> for Value {
+-    fn from(value: ParseIr<Decimal>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<Decimal>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index 4453000..920b7dd 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -189,14 +189,14 @@ macro_rules! impl_from_value_num {
+         }
+ 
+         impl From<ParseIrOpt<$ty>> for $ty {
+-            fn from(value: ParseIrOpt<$ty>) -> Self {
+-                value.commit()
++            fn from(ir: ParseIrOpt<$ty>) -> Self {
++                ir.commit()
+             }
+         }
+ 
+         impl From<ParseIrOpt<$ty>> for Value {
+-            fn from(value: ParseIrOpt<$ty>) -> Self {
+-                value.rollback()
++            fn from(ir: ParseIrOpt<$ty>) -> Self {
++                ir.rollback()
+             }
+         }
+ 
+@@ -241,14 +241,14 @@ impl TryFrom<Value> for ParseIrOpt<bool> {
+ }
+ 
+ impl From<ParseIrOpt<bool>> for bool {
+-    fn from(value: ParseIrOpt<bool>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIrOpt<bool>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIrOpt<bool>> for Value {
+-    fn from(value: ParseIrOpt<bool>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIrOpt<bool>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -275,14 +275,14 @@ impl TryFrom<Value> for ParseIrOpt<f32> {
+ }
+ 
+ impl From<ParseIrOpt<f32>> for f32 {
+-    fn from(value: ParseIrOpt<f32>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIrOpt<f32>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIrOpt<f32>> for Value {
+-    fn from(value: ParseIrOpt<f32>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIrOpt<f32>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -310,14 +310,14 @@ impl TryFrom<Value> for ParseIrOpt<f64> {
+ }
+ 
+ impl From<ParseIrOpt<f64>> for f64 {
+-    fn from(value: ParseIrOpt<f64>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIrOpt<f64>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIrOpt<f64>> for Value {
+-    fn from(value: ParseIrOpt<f64>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIrOpt<f64>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -366,14 +366,14 @@ impl TryFrom<Value> for ParseIrOpt<Duration> {
+ }
+ 
+ impl From<ParseIrOpt<Duration>> for Duration {
+-    fn from(value: ParseIrOpt<Duration>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIrOpt<Duration>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIrOpt<Duration>> for Value {
+-    fn from(value: ParseIrOpt<Duration>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIrOpt<Duration>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -523,8 +523,8 @@ pub enum OptionIr2<T: FromValue> {
+ impl<T: FromValue> TryFrom<Value> for OptionIr2<T> {
+     type Error = <<T as FromValue>::Intermediate as TryFrom<Value>>::Error;
+ 
+-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+-        match value {
++    fn try_from(v: Value) -> Result<Self, Self::Error> {
++        match v {
+             Value::NULL => Ok(Self::None),
+             v => <T as FromValue>::Intermediate::try_from(v).map(Self::Some),
+         }
+@@ -564,14 +564,14 @@ pub struct ValueIr(pub Value);
+ impl TryFrom<Value> for ValueIr {
+     type Error = FromValueError;
+ 
+-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+-        Ok(ValueIr(value))
++    fn try_from(v: Value) -> Result<Self, Self::Error> {
++        Ok(ValueIr(v))
+     }
+ }
+ 
+ impl From<ValueIr> for Value {
+-    fn from(value: ValueIr) -> Self {
+-        value.0
++    fn from(ir: ValueIr) -> Self {
++        ir.0
+     }
+ }
+ 
+diff --git a/src/value/convert/time.rs b/src/value/convert/time.rs
+index ea8d3d8..97ffab0 100644
+--- a/src/value/convert/time.rs
++++ b/src/value/convert/time.rs
+@@ -41,15 +41,15 @@ impl TryFrom<Value> for ParseIr<PrimitiveDateTime> {
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<PrimitiveDateTime>> for PrimitiveDateTime {
+-    fn from(value: ParseIr<PrimitiveDateTime>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<PrimitiveDateTime>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<PrimitiveDateTime>> for Value {
+-    fn from(value: ParseIr<PrimitiveDateTime>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<PrimitiveDateTime>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -88,15 +88,15 @@ impl TryFrom<Value> for ParseIr<Date> {
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<Date>> for Date {
+-    fn from(value: ParseIr<Date>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<Date>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<Date>> for Value {
+-    fn from(value: ParseIr<Date>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<Date>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -126,15 +126,15 @@ impl TryFrom<Value> for ParseIr<Time> {
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<Time>> for Time {
+-    fn from(value: ParseIr<Time>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<Time>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<Time>> for Value {
+-    fn from(value: ParseIr<Time>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<Time>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -261,15 +261,15 @@ impl TryFrom<Value> for ParseIr<time::Duration> {
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<time::Duration>> for time::Duration {
+-    fn from(value: ParseIr<time::Duration>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<time::Duration>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<ParseIr<time::Duration>> for Value {
+-    fn from(value: ParseIr<time::Duration>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<time::Duration>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+diff --git a/src/value/convert/uuid.rs b/src/value/convert/uuid.rs
+index 5ddbf63..71739c7 100644
+--- a/src/value/convert/uuid.rs
++++ b/src/value/convert/uuid.rs
+@@ -17,8 +17,8 @@ use crate::value::Value;
+ use super::{FromValue, FromValueError, ParseIr};
+ 
+ impl From<Uuid> for Value {
+-    fn from(uuid: Uuid) -> Value {
+-        Value::Bytes(uuid.as_bytes().to_vec())
++    fn from(x: Uuid) -> Value {
++        Value::Bytes(x.as_bytes().to_vec())
+     }
+ }
+ 
+@@ -50,14 +50,14 @@ fn uuid_from_slice(b: &[u8]) -> Option<Uuid> {
+ }
+ 
+ impl From<ParseIr<Uuid>> for Uuid {
+-    fn from(value: ParseIr<Uuid>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<Uuid>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIr<Uuid>> for Value {
+-    fn from(value: ParseIr<Uuid>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<Uuid>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+diff --git a/src/value/json/serde_integration.rs b/src/value/json/serde_integration.rs
+index ebda045..922ac30 100644
+--- a/src/value/json/serde_integration.rs
++++ b/src/value/json/serde_integration.rs
+@@ -32,14 +32,14 @@ impl TryFrom<Value> for ParseIr<Json> {
+ }
+ 
+ impl From<ParseIr<Json>> for Json {
+-    fn from(value: ParseIr<Json>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<Json>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl From<ParseIr<Json>> for Value {
+-    fn from(value: ParseIr<Json>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<Json>) -> Self {
++        ir.rollback()
+     }
+ }
+ 
+@@ -62,14 +62,14 @@ impl<T: DeserializeOwned> TryFrom<Value> for ParseIr<Deserialized<T>> {
+ }
+ 
+ impl<T: DeserializeOwned> From<ParseIr<Deserialized<T>>> for Deserialized<T> {
+-    fn from(value: ParseIr<Deserialized<T>>) -> Self {
+-        value.commit()
++    fn from(ir: ParseIr<Deserialized<T>>) -> Self {
++        ir.commit()
+     }
+ }
+ 
+ impl<T: DeserializeOwned> From<ParseIr<Deserialized<T>>> for Value {
+-    fn from(value: ParseIr<Deserialized<T>>) -> Self {
+-        value.rollback()
++    fn from(ir: ParseIr<Deserialized<T>>) -> Self {
++        ir.rollback()
+     }
+ }
+ 

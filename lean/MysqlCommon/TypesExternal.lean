@@ -50,3 +50,76 @@ abbrev alloc.sync.Arc.{u} (T : Type u) : Type u := T
 structure bitflags.traits.Flag (B : Type _) where
   flagName : Str
   flagValue : B
+
+/-- [core::time::Duration]: std's representation, `secs` and `nanos` (std keeps the invariant
+    `nanos < 1_000_000_000`; it is not part of this structure, the constructor
+    `value.convert.trusted.duration_new` establishes it).
+    Source: '/rustc/library/core/src/time.rs' -/
+@[rust_type "core::time::Duration"]
+structure core.time.Duration where
+  secs : Std.U64
+  nanos : Std.U32
+  /-- std's invariant (`Duration` only exists with `nanos < 10^9`); without it Lean would admit
+      Durations Rust cannot build. -/
+  nanos_lt : nanos.val < 1000000000
+
+/-! ## Opaque types of the value-conversion dependencies
+
+The value conversions (`src/value/convert/`, `src/value/json/`) only reach these types through
+the opaque helpers of `mysql_common::value::convert::trusted` (see `FunsExternal.lean`). Nothing
+is assumed about their representation. -/
+
+/-- [chrono::naive::date::NaiveDate]: opaque (chrono 0.4.45). -/
+@[rust_type "chrono::naive::date::NaiveDate"]
+axiom chrono.naive.date.NaiveDate : Type
+
+/-- [chrono::naive::time::NaiveTime]: opaque (chrono 0.4.45). -/
+@[rust_type "chrono::naive::time::NaiveTime"]
+axiom chrono.naive.time.NaiveTime : Type
+
+/-- [chrono::naive::datetime::NaiveDateTime]: opaque (chrono 0.4.45). -/
+@[rust_type "chrono::naive::datetime::NaiveDateTime"]
+axiom chrono.naive.datetime.NaiveDateTime : Type
+
+/-- [time::date::Date]: opaque (time 0.3.55). -/
+@[rust_type "time::date::Date"]
+axiom time.date.Date : Type
+
+/-- [time::time::Time]: opaque (time 0.3.55). -/
+@[rust_type "time::time::Time"]
+axiom time.time.Time : Type
+
+/-- [time::plain_date_time::PlainDateTime] (`time::PrimitiveDateTime`): opaque (time 0.3.55). -/
+@[rust_type "time::plain_date_time::PlainDateTime"]
+axiom time.plain_date_time.PlainDateTime : Type
+
+/-- [time::signed_duration::SignedDuration] (`time::Duration`): opaque (time 0.3.55). -/
+@[rust_type "time::signed_duration::SignedDuration"]
+axiom time.signed_duration.SignedDuration : Type
+
+/-- [time::error::component_range::ComponentRange]: opaque (time 0.3.55); only occurs inside
+    `time::error::Parse`. -/
+@[rust_type "time::error::component_range::ComponentRange"]
+axiom time.error.component_range.ComponentRange : Type
+
+/-- [num_bigint::bigint::BigInt]: opaque (num-bigint 0.5.1). -/
+@[rust_type "num_bigint#1::bigint::BigInt"]
+axiom num_bigint_1.bigint.BigInt : Type
+
+/-- [num_bigint::biguint::BigUint]: opaque (num-bigint 0.5.1). -/
+@[rust_type "num_bigint#1::biguint::BigUint"]
+axiom num_bigint_1.biguint.BigUint : Type
+
+/-- [rust_decimal::decimal::Decimal]: opaque (rust_decimal 1.43.0). -/
+@[rust_type "rust_decimal::decimal::Decimal"]
+axiom rust_decimal.decimal.Decimal : Type
+
+/-- [bigdecimal::BigDecimal]: opaque (bigdecimal 0.4.11). -/
+@[rust_type "bigdecimal::BigDecimal"]
+axiom bigdecimal.BigDecimal : Type
+
+/-- [serde_json::value::Value]: opaque (serde_json 1.0.154; `opaque` in Cargo.toml: its
+    `Object(Map<String, Value>)` variant nests the type inside an opaque map, which a Lean
+    inductive cannot do). -/
+@[rust_type "serde_json::value::Value"]
+axiom serde_json.value.Value : Type

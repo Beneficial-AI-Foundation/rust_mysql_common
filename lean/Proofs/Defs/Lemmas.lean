@@ -80,9 +80,11 @@ theorem dateRead_dateProto (l : U8) (rest : List U8)
   sorry
 
 /-- The crate's lenient TIME reader agrees with the protocol's format on the lengths the protocol
-    defines. (The protocol defines the sign byte only as 0 or 1; both readers take anything but 1
-    as positive.) -/
-theorem timeRead_timeProto (l : U8) (rest : List U8) (hl : l.val = 0 ∨ l.val = 8 ∨ l.val = 12) :
+    defines, when the sign byte (if there is one) is 0 or 1, the only values the protocol defines.
+    (On any other sign byte the protocol decoder is `none`, while the crate reads it as
+    positive.) -/
+theorem timeRead_timeProto (l : U8) (rest : List U8) (hl : l.val = 0 ∨ l.val = 8 ∨ l.val = 12)
+    (hsign : l.val ≠ 0 → ∀ n ∈ rest.head?, n.val ≤ 1) :
     timeRead (l :: rest) =
       match timeProto (l :: rest) with
       | some (v, r) => (some v, r)
