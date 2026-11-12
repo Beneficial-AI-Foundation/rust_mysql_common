@@ -28,9 +28,8 @@ theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.se
   unfold misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize
   step with position_of_zero_spec as ⟨ o, ho ⟩
   have hle := beforeZero_length_le text.val
-  split at ho
-  · rename_i hc
-    cases o with
+  split_ifs at ho with hc
+  · cases o with
     | none => simp at ho
     | some i =>
       simp at ho
@@ -39,8 +38,7 @@ theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.se
       step as ⟨ v, hv ⟩
       step as ⟨ w, hw ⟩
       simp [hw, hv, hs1, List.slice, ho, take_beforeZero_length]; rfl
-  · rename_i hc
-    subst ho
+  · subst ho
     simp only
     step as ⟨ s, hs1, hs2 ⟩
     step as ⟨ v, hv ⟩
@@ -56,9 +54,8 @@ theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.de
       else okPart r = none ∧ rest = buf ⦄ := by
   unfold misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize
   step with position_of_zero_spec as ⟨ o, ho ⟩
-  split at ho
-  · rename_i hc
-    have hlt := beforeZero_length_lt _ hc
+  split_ifs at ho with hc
+  · have hlt := beforeZero_length_lt _ hc
     cases o with
     | none => simp at ho
     | some i =>
@@ -67,8 +64,7 @@ theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.de
       step with io.ParseBuf.eat_spec buf i (by scalar_tac) as ⟨ out, buf1, h1, h2 ⟩
       step with io.ParseBuf.skip_spec buf1 1#usize (by simp [Slice.length, h2]; omega) as ⟨ buf2, h3 ⟩
       simp [hc, okPart, cowList, h1, h3, h2, ho, take_beforeZero_length, List.drop_drop]
-  · rename_i hc
-    subst ho
+  · subst ho
     simp [hc, okPart, misc.io_error_msg]
 
 /-- Round trip, for strings without a `0` byte. -/

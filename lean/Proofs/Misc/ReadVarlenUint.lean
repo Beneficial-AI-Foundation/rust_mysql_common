@@ -14,9 +14,8 @@ private theorem tbody_spec (fb : U8) (t : Usize) (ht : t.val ≤ 8)
       | .done y => y.val = trailingOnes fb
       | .cont t' => (t'.val ≤ 8 ∧ ∀ j < t'.val, fb.val.testBit j = true) ∧ 8 - t'.val < 8 - t.val ⦄ := by
   unfold misc.read_varlen_uint_loop.body
-  split
-  · rename_i hlt
-    have hlt' : t.val < 8 := by scalar_tac
+  split_ifs with hlt
+  · have hlt' : t.val < 8 := by scalar_tac
     step as ⟨ i, hi1, hi2 ⟩
     step as ⟨ i1, hj1, hj2 ⟩
     have hv : i1.val = (fb.val >>> t.val) % 2 := by
@@ -40,8 +39,7 @@ private theorem tbody_spec (fb : U8) (t : Usize) (ht : t.val ≤ 8)
         exact UScalar.eq_of_val_eq (by rw [hv, h]; rfl)
       simp only [spec_ok]
       exact (IntAndMisc.trailingOnes_eq fb t.val ht hall (fun _ => hb)).symm
-  · rename_i hge
-    have : t.val = 8 := by scalar_tac
+  · have : t.val = 8 := by scalar_tac
     simp only [spec_ok]
     exact (IntAndMisc.trailingOnes_eq fb t.val ht hall (by omega)).symm
 
@@ -62,13 +60,11 @@ theorem misc.read_varlen_uint_spec (buf : io.ParseBuf) :
       (okPart r = none → rest = buf) ⦄ := by
   unfold misc.read_varlen_uint
   step with io.ParseBuf.is_empty_spec as ⟨ be, hbe ⟩
-  split
-  · rename_i hbt
-    have hnil : buf.val = [] := hbe.1 hbt
+  split_ifs with hbt
+  · have hnil : buf.val = [] := hbe.1 hbt
     step*
     simp [okPart, hnil, varlenUintDecode]
-  · rename_i hbt
-    obtain ⟨c, rest, hcr⟩ : ∃ c rest, buf.val = c :: rest := by
+  · obtain ⟨c, rest, hcr⟩ : ∃ c rest, buf.val = c :: rest := by
       cases h : buf.val with
       | nil => exact absurd (hbe.2 h) hbt
       | cons c rest => exact ⟨c, rest, rfl⟩
