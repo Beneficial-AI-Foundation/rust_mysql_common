@@ -311,6 +311,94 @@ theorem jsonbVarLenRead_jsonbVarLen' (n : Nat) (t : List U8) (hn : n < 2 ^ 32) :
     List.drop_length, List.nil_append, h1]
   simp only [hn, ↓reduceIte]
 
+theorem base128_append (l : List U8) (c : U8) :
+    base128 (l ++ [c]) = base128 l + 128 ^ l.length * (c.val % 128) := by
+  induction l with
+  | nil => simp [base128]
+  | cons b l ih => simp only [List.cons_append, base128, ih, List.length_cons, pow_succ]; ring
+
+theorem base128_lt (l : List U8) : base128 l < 128 ^ l.length := by
+  induction l with
+  | nil => simp [base128]
+  | cons b l ih => simp only [base128, List.length_cons, pow_succ]; omega
+
+theorem take_succ_of_drop {α : Type} (bs : List α) (i : Nat) (c : α) (rest : List α)
+    (hd : bs.drop i = c :: rest) :
+    bs.take (i + 1) = bs.take i ++ [c] ∧ bs.drop (i + 1) = rest ∧ i < bs.length := by
+  have hil : i < bs.length := by
+    have : (bs.drop i).length > 0 := by rw [hd]; simp
+    simp at this; omega
+  have hlen : (bs.take i).length = i := by simp; omega
+  have hbs : bs = bs.take i ++ c :: rest := by rw [← hd, List.take_append_drop]
+  refine ⟨?_, ?_, hil⟩
+  · conv_lhs => rw [hbs]
+    rw [List.take_append, hlen, List.take_of_length_le (by omega)]
+    simp
+  · rw [← List.drop_drop, hd]; simp
+
+theorem jsonbVarLenRead_none (bs : List U8) (i : Nat) (hall : ∀ c ∈ bs.take i, 128 ≤ c.val)
+    (h : bs.take 5 = bs.take i) : jsonbVarLenRead bs = (none, bs.drop 5) := by
+  unfold jsonbVarLenRead
+  rw [h]
+  have : (bs.take i).findIdx? (fun b => decide (b.val < 128)) = none := by
+    rw [List.findIdx?_eq_none_iff]
+    intro x hx; have := hall x hx; simp; omega
+  rw [this]
+
+theorem jsonbVarLenRead_some (bs : List U8) (i : Nat) (hi : i < 5) (hall : ∀ c ∈ bs.take i, 128 ≤ c.val)
+    (c : U8) (rest : List U8) (hd : bs.drop i = c :: rest) (hc : c.val < 128) :
+    jsonbVarLenRead bs =
+      (if base128 (bs.take i) + 128 ^ i * (c.val % 128) < 2 ^ 32
+        then some (base128 (bs.take i) + 128 ^ i * (c.val % 128)) else none, rest) := by
+  have hil : i < bs.length := by
+    have : (bs.drop i).length > 0 := by rw [hd]; simp
+    simp at this; omega
+  have hlen : (bs.take i).length = i := by simp; omega
+  have hbs : bs = bs.take i ++ c :: rest := by rw [← hd, List.take_append_drop]
+  unfold jsonbVarLenRead
+  have h5 : bs.take 5 = bs.take i ++ c :: rest.take (4 - i) := by
+    conv_lhs => rw [hbs]
+    rw [List.take_append, hlen, List.take_of_length_le (by omega)]
+    congr 1
+    rw [show 5 - i = (4 - i) + 1 by omega]; rfl
+  have hn : (bs.take i).findIdx? (fun b => decide (b.val < 128)) = none := by
+    rw [List.findIdx?_eq_none_iff]
+    intro x hx; have := hall x hx; simp; omega
+  rw [h5, List.findIdx?_append, hn, List.findIdx?_cons]
+  simp only [hc, decide_true, Option.none_or, ↓reduceIte, Option.map_some, zero_add, hlen]
+  have ht : bs.take (i + 1) = bs.take i ++ [c] := by
+    conv_lhs => rw [hbs]
+    rw [List.take_append, hlen, List.take_of_length_le (by omega)]
+    simp
+  have hdr : bs.drop (i + 1) = rest := by
+    rw [← List.drop_drop, hd]; simp
+  rw [ht, hdr, base128_append, hlen]
+
+theorem varlen_or (c len i : Nat) (hi : i < 5) (hlen : len < 128 ^ i) :
+    (len ||| (c % 128) <<< (7 * i) % 2 ^ 64) = len + 128 ^ i * (c % 128) := by
+  have hp : (128 : Nat) ^ i = 2 ^ (7 * i) := by rw [pow_mul]; norm_num
+  have hc : c % 128 < 2 ^ 7 := by omega
+  have hsmall : (c % 128) <<< (7 * i) < 2 ^ 64 := by
+    rw [Nat.shiftLeft_eq]
+    calc c % 128 * 2 ^ (7 * i) < 2 ^ 7 * 2 ^ (7 * i) := by
+          apply Nat.mul_lt_mul_of_pos_right hc (by positivity)
+      _ = 2 ^ (7 + 7 * i) := by rw [pow_add]
+      _ ≤ 2 ^ 64 := Nat.pow_le_pow_right (by norm_num) (by omega)
+  rw [Nat.mod_eq_of_lt hsmall, Nat.lor_comm, ← Nat.shiftLeft_add_eq_or_of_lt (by rw [← hp]; exact hlen),
+    Nat.shiftLeft_eq, hp]
+  ring
+
+theorem and127 (c : Nat) : c &&& 127 = c % 128 := by
+  rw [show (127 : Nat) = 2 ^ 7 - 1 from rfl, Nat.and_two_pow_sub_one_eq_mod]
+
+theorem and128 (c : Nat) (hc : c < 256) : (c &&& 128 = 0 ↔ c < 128) := by
+  rw [show (128 : Nat) = 2 ^ 7 from rfl, Nat.and_two_pow, Nat.testBit_eq_decide_div_mod_eq]
+  by_cases h : c < 128
+  · have : c / 128 % 2 = 0 := by omega
+    simp [this, h]
+  · have : c / 128 % 2 = 1 := by omega
+    simp [this, h]
+
 /-! ## `RawInt` -/
 
 @[step]
@@ -421,6 +509,11 @@ theorem cast_usize_small {ty : UScalarTy} (x : UScalar ty) (h : x.val < 2 ^ 32) 
 theorem io_error_from_spec {E : Type} (inst : core.error.Error E) (kind : core.io.error.ErrorKind) (err : E) :
     misc.io_error_from inst kind err ⦃ _ => True ⦄ := by
   simp [misc.io_error_from]
+
+@[step]
+theorem io_error_msg_spec (kind : core.io.error.ErrorKind) (msg : Str) :
+    misc.io_error_msg kind msg ⦃ _ => True ⦄ := by
+  simp [misc.io_error_msg]
 
 @[step]
 theorem unexpected_buf_eof_spec : misc.unexpected_buf_eof ⦃ _ => True ⦄ := by

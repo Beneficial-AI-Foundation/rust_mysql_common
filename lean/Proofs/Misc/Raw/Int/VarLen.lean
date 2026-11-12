@@ -1,4 +1,5 @@
 import Proofs.Util.IntAndMisc
+import Proofs.Misc.Raw.Int.U8
 
 /-! Statements for `impl IntRepr for VarLen` (spec file: `Specs/Misc/Raw/Int.lean`). -/
 
@@ -7,6 +8,120 @@ set_option autoImplicit false
 open Aeneas Aeneas.Std Result mysql_common Defs WP
 
 namespace mysql_common
+
+private def DInv (bs : List U8) (st : core.ops.range.Range Usize × io.ParseBuf × U64) : Prop :=
+  st.1.start.val ≤ 5 ∧ st.1.end.val = 5 ∧ st.1.start.val ≤ bs.length ∧ st.2.1.val = bs.drop st.1.start.val ∧
+    (∀ c ∈ bs.take st.1.start.val, 128 ≤ c.val) ∧ st.2.2.val = base128 (bs.take st.1.start.val)
+
+private theorem deser_body (bs : List U8) (it : core.ops.range.Range Usize) (b : io.ParseBuf) (len : U64)
+    (hinv : DInv bs (it, b, len)) :
+    misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_loop.body it b len ⦃ r =>
+      match r with
+      | .done y => ((okPart y.1).map (·.val), y.2.val) = jsonbVarLenRead bs
+      | .cont x' => DInv bs x' ∧ 5 - x'.1.start.val < 5 - it.start.val ⦄ := by
+  obtain ⟨h5, hend, hlen, hb, hall, hl⟩ := hinv
+  simp only at h5 hend hlen hb hall hl
+  unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_loop.body
+  step as ⟨ o, iter1, ho, hend1 ⟩
+  by_cases hs : it.start.val < 5
+  · rw [if_pos (by omega)] at ho
+    obtain ⟨rfl, hst⟩ := ho
+    simp only
+    step with U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec as ⟨ r, buf1, hr ⟩
+    by_cases hbl : 1 ≤ b.length
+    · rw [if_pos hbl] at hr
+      obtain ⟨hr1, hr2⟩ := hr
+      obtain ⟨c, rest, hcb⟩ : ∃ c rest, b.val = c :: rest := by
+        cases h : b.val with
+        | nil => simp [Slice.length, h] at hbl
+        | cons c rest => exact ⟨c, rest, rfl⟩
+      rw [hcb] at hr1 hr2
+      simp only [List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero] at hr1 hr2
+      have hd : bs.drop it.start.val = c :: rest := by rw [← hb, hcb]
+      have hlenlt : len.val < 128 ^ it.start.val := by
+        rw [hl]; have := IntAndMisc.base128_lt (bs.take it.start.val); simpa [show (bs.take it.start.val).length = it.start.val by simp; omega] using this
+      cases r with
+      | Err e => simp [okPart] at hr1
+      | Ok v0 =>
+        simp only [okPart, Option.map_some, Option.some.injEq] at hr1
+        simp [leNat] at hr1
+        step*
+        all_goals
+          subst cf_post
+          simp only [core.ops.control_flow.ControlFlow.Continue.injEq] at *
+          obtain rfl : v0 = val := by assumption
+          have hc256 : c.val < 256 := by scalar_tac
+          have hbyte : byte.val = c.val := by
+            rw [byte_post, UScalar.cast_val_eq, i1_post, hr1]; exact Nat.mod_eq_of_lt (by scalar_tac)
+          have hi2 : i2.val = c.val % 128 := by
+            rw [i2_post, UScalar.val_and, hbyte]; exact IntAndMisc.and127 _
+          have hlen1 : len1.val = len.val + 128 ^ it.start.val * (c.val % 128) := by
+            rw [len1_post, UScalar.val_or, i4_post, hi2, i3_post, show U64.size = 2 ^ 64 by rw [U64.size_def]; simp [U64.numBits]]
+            exact IntAndMisc.varlen_or _ _ _ hs hlenlt
+          have hi5v : i5.val = c.val &&& 128 := by rw [i5_post, UScalar.val_and, hbyte]; rfl
+          have hi5 : (i5 = 0#u64) ↔ c.val < 128 := by
+            rw [← IntAndMisc.and128 c.val hc256, ← hi5v]
+            constructor
+            · intro h; rw [h]; rfl
+            · intro h; exact UScalar.eq_of_val_eq (by rw [h]; rfl)
+        all_goals
+          obtain ⟨ht, hdr, hil⟩ := IntAndMisc.take_succ_of_drop bs it.start.val c rest hd
+        · have hi6 : i6.val = 2 ^ 32 - 1 := by
+            rw [i6_post, UScalar.cast_val_eq]; rfl
+          have hc : c.val < 128 := hi5.1 ‹i5 = 0#u64›
+          have hgt : ¬ len1.val < 4294967296 := by
+            have : len1 > i6 := ‹_›
+            have := UScalar.lt_equiv i6 len1 |>.1 this
+            omega
+          rw [IntAndMisc.jsonbVarLenRead_some bs it.start.val hs hall c rest hd hc, ← hl, ← hlen1]
+          simp [okPart, hgt, hr2]
+        · have hi6 : i6.val = 2 ^ 32 - 1 := by
+            rw [i6_post, UScalar.cast_val_eq]; rfl
+          have hc : c.val < 128 := hi5.1 ‹i5 = 0#u64›
+          have hle : len1.val < 4294967296 := by
+            have : ¬ len1 > i6 := ‹_›
+            have : ¬ i6.val < len1.val := fun h => this ((UScalar.lt_equiv i6 len1).2 h)
+            omega
+          rw [IntAndMisc.jsonbVarLenRead_some bs it.start.val hs hall c rest hd hc, ← hl, ← hlen1]
+          have hi7 : i7.val = len1.val := by
+            rw [i7_post, UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by simpa using hle)
+          simp [okPart, hle, hr2, hi7]
+        · have hc : ¬ c.val < 128 := fun h => ‹¬ i5 = 0#u64› (hi5.2 h)
+          unfold DInv
+          simp only
+          refine ⟨⟨by omega, by rw [hend1]; exact hend, by omega, ?_, ?_, ?_⟩, by omega⟩
+          · rw [hst, hdr, hr2]
+          · rw [hst, ht]
+            intro x hx
+            simp only [List.mem_append, List.mem_singleton] at hx
+            rcases hx with hx | rfl
+            · exact hall x hx
+            · omega
+          · rw [hst, ht, IntAndMisc.base128_append, hlen1, hl]
+            simp; left; omega
+    · rw [if_neg hbl] at hr
+      obtain ⟨hr1, rfl⟩ := hr
+      cases r with
+      | Ok v => simp [okPart] at hr1
+      | Err e =>
+        step*
+        subst residual_post e_post r1_post
+        have hnil : buf1.val = [] := by
+          simp [Slice.length] at hbl; exact hbl
+        rw [hnil] at hb
+        have hbl' : bs.length ≤ it.start.val := by
+          have := congrArg List.length hb; simp at this; omega
+        rw [IntAndMisc.jsonbVarLenRead_none bs it.start.val hall (by
+          rw [List.take_of_length_le (by omega), List.take_of_length_le (by omega)])]
+        simp [okPart, hnil, List.drop_eq_nil_of_le (by omega : bs.length ≤ 5)]
+  · rw [if_neg (by omega)] at ho
+    obtain ⟨rfl, hst⟩ := ho
+    step*
+    have h5' : it.start.val = 5 := by omega
+    rw [h5'] at hb hall
+    rw [IntAndMisc.jsonbVarLenRead_none bs 5 hall rfl]
+    simp [okPart, hb]
+
 
 private theorem put_u8_full (b : alloc.vec.Vec U8) (x : U8) (hb : ¬ b.length + 1 ≤ Usize.max) :
     ¬ alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 b x ⦃ _ => True ⦄ := by
@@ -72,7 +187,18 @@ theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.SIZE_eq :
 theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec (buf : io.ParseBuf) :
     misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf ⦃ r rest =>
       ((okPart r).map (·.val), rest.val) = jsonbVarLenRead buf.val ⦄ := by
-  sorry
+  unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_loop
+  apply spec_bind (Pₘ := fun r => ((okPart r.1).map (·.val), r.2.val) = jsonbVarLenRead buf.val)
+  · apply loop.spec_decr_nat (fun st => 5 - st.1.start.val) (DInv buf.val)
+    · rintro ⟨it, b, len⟩ hinv
+      simp only
+      apply spec_mono (deser_body buf.val it b len hinv)
+      intro r h
+      cases r <;> exact h
+    · refine ⟨by simp, ?_, by simp, by simp, by simp, by simp [base128]⟩
+      simp [misc.raw.int.IntReprVarLenU32.deserialize.MAX_REPR_LEN]
+  · rintro ⟨r, rest⟩ h
+    simpa using h
 
 /-- `buf.parse::<RawInt<VarLen>>(())`: total; `jsonbVarLenRead` (`SIZE` is `None`, so this is `deserialize`). -/
 theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec (buf : io.ParseBuf) :
