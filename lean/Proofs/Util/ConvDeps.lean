@@ -57,6 +57,22 @@ theorem bind_eq_ok_inv {α β : Type} {m : Result α} {k : α → Result β} {w 
     (h : (m >>= k) = ok w) : ∃ a, m = ok a ∧ k a = ok w := by
   cases m <;> simp_all
 
+theorem daysInMonth_le (y : Int) (m : Nat) : Trusted.daysInMonth y m ≤ 31 := by
+  unfold Trusted.daysInMonth
+  split <;> (try split) <;> omega
+
+/-! ## Panic messages -/
+
+theorem bind_new_display {T β : Type} (inst : core.fmt.Display T) (x : T)
+    (f : core.fmt.rt.Argument → Result β) :
+    Std.bind (core.fmt.rt.Argument.new_display inst x) f = f () := by
+  unfold core.fmt.rt.Argument.new_display; exact Std.bind_ok _ _
+
+theorem bind_arguments_new {N M : Usize} {β : Type} (a : Std.Array U8 N)
+    (b : Std.Array core.fmt.rt.Argument M) (f : core.fmt.Arguments → Result β) :
+    Std.bind (core.fmt.Arguments.new a b) f = f () := by
+  unfold core.fmt.Arguments.new; exact Std.bind_ok _ _
+
 /-! ## Text literals -/
 
 theorem digitsVal4_lt (a b c d : U8) : digitsVal [a, b, c, d] < 2 ^ 31 := by
