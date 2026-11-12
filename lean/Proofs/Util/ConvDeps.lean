@@ -57,6 +57,27 @@ theorem bind_eq_ok_inv {α β : Type} {m : Result α} {k : α → Result β} {w 
     (h : (m >>= k) = ok w) : ∃ a, m = ok a ∧ k a = ok w := by
   cases m <;> simp_all
 
+/-! ## Text literals -/
+
+theorem digitsVal4_lt (a b c d : U8) : digitsVal [a, b, c, d] < 2 ^ 31 := by
+  have := a.hBounds; have := b.hBounds; have := c.hBounds; have := d.hBounds
+  simp [digitsVal] at *
+  omega
+
+theorem datetimeStringRead_year_lt (bs : List U8) (t : Nat × Nat × Nat × Nat × Nat × Nat × Nat)
+    (h : datetimeStringRead bs = some t) : t.1 < 2 ^ 31 := by
+  unfold datetimeStringRead at h
+  split at h
+  · split at h
+    · split at h
+      · cases h; exact digitsVal4_lt _ _ _ _
+      · split at h
+        · obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp h; exact digitsVal4_lt _ _ _ _
+        · cases h
+      · cases h
+    · cases h
+  · cases h
+
 /-! ## `time::Month` -/
 
 theorem month_from_u8_spec (mo : U8) : ∃ o, value.convert.trusted.time_month_from_u8 mo = ok o ∧
