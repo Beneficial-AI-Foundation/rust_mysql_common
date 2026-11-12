@@ -1,0 +1,18 @@
+Translation patch: test module of `value::convert::time`
+
+Change: The `#[cfg(test)]` module imports `time::error::TryFromParsed` itself.
+Why: patch 43 moved the only non-test use of `TryFromParsed` into `trusted.rs` and dropped the import from time.rs, but the tests reach it through `use super::*`; without this the patched copy does not compile its tests.
+Behaviour: test-only; no non-test code changes (the translation does not build tests).
+
+diff --git a/src/value/convert/time.rs b/src/value/convert/time.rs
+--- a/src/value/convert/time.rs
++++ b/src/value/convert/time.rs
+@@ -362,7 +362,7 @@
+ #[cfg(test)]
+ mod tests {
+     use proptest::prelude::*;
+-    use time::error::ParseFromDescription;
++    use time::error::{ParseFromDescription, TryFromParsed};
+ 
+     use super::*;
+ 

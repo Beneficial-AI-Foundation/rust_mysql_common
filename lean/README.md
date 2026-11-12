@@ -57,7 +57,7 @@ code is the same either way. Aeneas is pinned in `../lakefile.toml`.
 
 1. **Tools:** Charon and Aeneas translate the Rust faithfully, and Lean's kernel checks the
    proofs.
-2. **Translation patches** (`../translation-patches/`, 51 patches). These are behaviour-preserving
+2. **Translation patches** (`../translation-patches/`, 52 patches). These are behaviour-preserving
    edits applied to a copy of the crate so that it translates. Each one has a
    Change / Why / Behaviour header and was reviewed by three independent agents. The patched
    copy passes the crate's own 121 library tests. Some patches go beyond small rewrites:
