@@ -51,6 +51,15 @@ fi
 # Lean must match the Aeneas Lean library.
 cp "$DEST/backends/lean/lean-toolchain" "$ROOT/lean-toolchain"
 
+# The release bundle ships a prebuilt Aeneas Lean library for the same tag; seed lake's copy of
+# the package with it so `lake build` doesn't rebuild Aeneas from source.
+if [[ -d "$ROOT/.lake/packages/aeneas/backends/lean" ]] \
+   && [[ ! -d "$ROOT/.lake/packages/aeneas/backends/lean/.lake/build" ]] \
+   && [[ -d "$DEST/backends/lean/.lake/build" ]]; then
+  mkdir -p "$ROOT/.lake/packages/aeneas/backends/lean/.lake"
+  cp -R "$DEST/backends/lean/.lake/build" "$ROOT/.lake/packages/aeneas/backends/lean/.lake/"
+fi
+
 echo "aeneas: $("$DEST/aeneas" -version 2>&1 | head -1)"
 echo "rust toolchain: $TOOLCHAIN"
 echo "lean toolchain: $(cat "$ROOT/lean-toolchain")"
