@@ -81,8 +81,8 @@ private theorem errPacketRead_enc (caps : Nat) (e : packets.ErrPacket) (hc : err
     rw [hc01] at hl ⊢
     simp only [List.cons_append, List.nil_append, List.length_cons, List.drop_succ_cons, List.drop_zero,
       List.take_succ_cons, List.take_zero, List.getD_cons_zero, hl, byte_val]
-    rw [if_neg (by omega), if_neg (by omega)]
-    rw [if_neg (by
+    rw [ite_eq_right (by omega), ite_eq_right (by omega)]
+    rw [ite_eq_right (by
       rintro ⟨h1, h2⟩
       rcases hcode with h3 | h3
       · exact h3 h1
@@ -103,7 +103,7 @@ private theorem errPacketRead_enc (caps : Nat) (e : packets.ErrPacket) (hc : err
     have hc01 : leBytes 2 0xFFFF = [byte 0xFFFF, byte (0xFFFF / 256)] := rfl
     simp only [hc01, List.cons_append, List.nil_append, List.length_cons, List.drop_succ_cons, List.drop_zero,
       List.take_succ_cons, List.take_zero, List.getD_cons_zero, byte_val, leNat]
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
     simp only [ErrPkt.of, errPacketEnc, hc01, List.length_cons, List.cons_append, List.nil_append] at hlen
     have hi : (Progress.of pr).info.length < 2 ^ 64 := by
       simp only [progressEnc, lenencStr, List.length_cons, List.length_append] at hlen; omega
@@ -160,7 +160,7 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.
   split_ifs at h1 with hl
   · obtain ⟨h1a, h1b⟩ := h1
     have hl' : (↑buf : List U8).length ≥ 3 := hl
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
     obtain ⟨a0, a1, a2, rest, hbuf⟩ : ∃ a0 a1 a2 rest, (↑buf : List U8) = a0 :: a1 :: a2 :: rest := by
       match h : (↑buf : List U8), hl' with
       | a0 :: a1 :: a2 :: rest, _ => exact ⟨a0, a1, a2, rest, rfl⟩
@@ -169,7 +169,7 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.
     | Err e => simp at h1a
     | Ok pb =>
       simp at h1a h1b
-      simp only [CoreOpsTry.branch, bind_tc_ok, List.drop_succ_cons, List.drop_zero, List.take_succ_cons,
+      simp only [CoreOpsTry.branch, List.drop_succ_cons, List.drop_zero, List.take_succ_cons,
         List.take_zero, List.getD_cons_zero]
       step with parse_unchecked_err_header_spec as ⟨r1, sbuf, h2a, h2b⟩
       rw [h1a] at h2a h2b
@@ -177,19 +177,19 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.
       cases r1 with
       | Err e =>
         have ha : a0.val ≠ 0xFF := by intro h; simp [h] at h2a
-        rw [if_pos ha, ← h1b]
-        simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual]
+        rw [ite_eq_left ha, ← h1b]
+        simp [CoreOpsTry_traitFromResidualResult.from_residual]
       | Ok hd =>
         have ha : a0.val = 0xFF := by simpa using h2a
-        rw [if_neg (by simp [ha])]
-        simp only [CoreOpsTry.branch, bind_tc_ok]
+        rw [ite_eq_right (by simp [ha])]
+        simp only
         step with parse_unchecked_leu16_spec as ⟨r2, sbuf2, h3a, h3b⟩
         cases r2 with
         | Err e => simp at h3a
         | Ok cv =>
         simp only [okPart_Ok, Option.map_some, Option.some.injEq, h2b] at h3a
         simp only [List.take_succ_cons, List.take_zero, leNat] at h3a
-        simp only [CoreOpsTry.branch, bind_tc_ok]
+        simp only
         step with rawint_deref_spec as ⟨i, hi⟩
         subst hi
         rw [← h1b]
@@ -197,18 +197,18 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.
         rw [hcode]
         by_cases hff : cv.1 = 65535#u16
         · have hffv : cv.1.val = 0xFFFF := by rw [hff]; rfl
-          rw [if_pos hff]
+          rw [ite_eq_left hff]
           step with caps_contains_spec as ⟨b, hb⟩
           subst hb
           simp only [CLIENT_PROGRESS_OBSOLETE_val]
           by_cases hp : hasFlag (↑caps) CLIENT_PROGRESS_OBSOLETE = true
-          · rw [if_pos hp, if_pos ⟨hffv, hp⟩]
+          · rw [ite_eq_left hp, ite_eq_left ⟨hffv, hp⟩]
             step with parse_progress_spec h64 as ⟨r3, buf2, h4⟩
             rw [← h4]
             cases r3 with
             | Err e => simp
             | Ok pr => simp [ErrPkt.of]
-          · rw [if_neg hp, if_neg (by simp [hp])]
+          · rw [ite_eq_right hp, ite_eq_right (by simp [hp])]
             step with caps_contains_spec as ⟨b1, hb1⟩
             subst hb1
             simp only [CLIENT_PROTOCOL_41_val]
@@ -218,7 +218,7 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.
             | Err e => simp
             | Ok se => simp [ErrPkt.of]
         · have hffv : cv.1.val ≠ 0xFFFF := by intro h; apply hff; scalar_tac
-          rw [if_neg hff, if_neg (by simp [hffv])]
+          rw [ite_eq_right hff, ite_eq_right (by simp [hffv])]
           step with caps_contains_spec as ⟨b1, hb1⟩
           subst hb1
           simp only [CLIENT_PROTOCOL_41_val]
@@ -228,7 +228,7 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.
           | Err e => simp
           | Ok se => simp [ErrPkt.of]
   · obtain ⟨h1a, rfl⟩ := h1
-    rw [if_pos (by simp only [Slice.length] at hl; omega)]
+    rw [ite_eq_left (by simp only [Slice.length] at hl; omega)]
     cases r with
     | Ok _ => simp at h1a
     | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual]
@@ -252,9 +252,9 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMySerialize.serialize_spec (sel
     simp only [errPacketEnc, ErrPkt.of, ErrPkt.ofServerError, List.length_cons, List.length_append,
       length_leBytes, vec_len] at h
     step with rawint_leu16_ser as ⟨buf2, h2⟩
-    · simp [vec_len, h1]; omega
+    · simp [h1]; omega
     apply WP.spec_mono (server_error_ser _ _ (by
-      cases state <;> simp_all [vec_len, length_leBytes] <;> omega))
+      cases state <;> simp_all <;> omega))
     intro b hb
     rw [hb, h2, h1]
     cases state <;> simp [errPacketEnc, ErrPkt.of, ErrPkt.ofServerError] <;> rfl
@@ -263,9 +263,9 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMySerialize.serialize_spec (sel
     simp only [errPacketEnc, ErrPkt.of, List.length_cons, List.length_append, length_leBytes, vec_len] at h
     step with rawint_new_spec as ⟨ri, hri⟩
     step with rawint_leu16_ser as ⟨buf2, h2⟩
-    · simp [vec_len, h1]; omega
+    · simp [h1]; omega
     apply WP.spec_mono (packets.ProgressReport.Insts.Mysql_commonProtoMySerialize.serialize_spec _ _ (by
-      simp [vec_len, h2, h1, length_leBytes]; omega))
+      simp [h2, h1]; omega))
     intro b hb
     rw [hb, h2, h1, hri]
     simp [errPacketEnc, ErrPkt.of]

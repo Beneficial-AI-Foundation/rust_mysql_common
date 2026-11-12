@@ -94,7 +94,7 @@ theorem packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.de
     split_ifs at h1 with hl
     · obtain ⟨h1a, h1b⟩ := h1
       have hl' : (↑buf : List U8).length ≥ 6 := hl
-      rw [if_neg (by omega)]
+      rw [ite_eq_right (by omega)]
       obtain ⟨m, t, hmt⟩ : ∃ m t, (↑buf : List U8) = m :: t := by
         cases h : (↑buf : List U8) with
         | nil => simp [h] at hl'
@@ -107,24 +107,24 @@ theorem packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.de
       | Err e =>
         simp only [okPart_Err, Option.map_none] at h1a
         have hm : m.val ≠ 0x23 := by
-          intro hm; rw [if_neg (by simp [hm])] at h1a; simp at h1a
-        rw [if_pos hm, ← h1b]
+          intro hm; rw [ite_eq_right (by simp [hm])] at h1a; simp at h1a
+        rw [ite_eq_left hm, ← h1b]
         simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual]
       | Ok st =>
         simp only [okPart_Ok, Option.map_some] at h1a
         have hm : m.val = 0x23 := by
-          by_contra hm; rw [if_pos hm] at h1a; simp at h1a
-        simp only [hm, ne_eq, not_true_eq_false, ite_false, Nat.reduceEqDiff] at h1a ⊢
+          by_contra hm; rw [ite_eq_left hm] at h1a; simp at h1a
+        simp only [hm, ne_eq, not_true_eq_false, ite_false] at h1a ⊢
         simp only [Option.some.injEq] at h1a
-        simp only [CoreOpsTry.branch, bind_tc_ok]
+        simp only [CoreOpsTry.branch]
         step with parse_eof_bytes_spec as ⟨r1, buf2, h2, h3⟩
         cases r1 with
         | Err e => simp at h2
         | Ok rb =>
           simp at h2
-          simp [CoreOpsTry.branch, ErrPkt.ofServerError, hri, h2, h3, h1a, h1b]
+          simp [ErrPkt.ofServerError, hri, h2, h3, h1a, h1b]
     · obtain ⟨h1a, rfl⟩ := h1
-      rw [if_pos (by simp only [Slice.length] at hl; omega)]
+      rw [ite_eq_left (by simp only [Slice.length] at hl; omega)]
       cases r with
       | Ok _ => simp at h1a
       | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual]

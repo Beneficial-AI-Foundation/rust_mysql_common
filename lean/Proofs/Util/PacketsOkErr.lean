@@ -262,7 +262,7 @@ theorem okStatusRead_enc (s w : Nat) (t : List U8) (hs : s < 2 ^ 16) (hw : w < 2
   unfold okStatusRead
   have l1 := length_leBytes 2 s
   have l2 := length_leBytes 2 w
-  rw [if_neg (by simp [l1, l2]; omega)]
+  rw [ite_eq_right (by simp [l1, l2]; omega)]
   rw [List.append_assoc, leNat_take_leBytes 2 s _ hs]
   rw [List.drop_append_of_le_length (by omega), List.drop_of_length_le (by omega), List.nil_append,
     leNat_take_leBytes 2 w _ hw, hsk]
@@ -298,7 +298,7 @@ theorem okTailRead_enc (caps : Nat) (compact : Bool) (b : OkBody)
     okTailRead caps b.status (okTailEnc caps compact b) = (some (b.info, b.sessionStateInfo), []) := by
   unfold okTailEnc
   cases hc : hasFlag caps CLIENT_SESSION_TRACK <;> cases hsf : hasFlag b.status SERVER_SESSION_STATE_CHANGED <;>
-    simp only [hc, hsf, and_true, and_false, true_and, false_and, or_false, false_or, Bool.false_eq_true,
+    simp only [hc, hsf, and_true, and_false, false_or, Bool.false_eq_true,
       Bool.true_eq_false, ite_true, ite_false, List.append_nil] at hssi ⊢
   · -- no session track, no state change
     by_cases hinf : b.info = []
@@ -307,7 +307,7 @@ theorem okTailRead_enc (caps : Nat) (compact : Bool) (b : OkBody)
       obtain ⟨x, t, hxt, hx⟩ := lenencInt_head_pos b.info.length (List.length_pos_iff.mpr hinf)
       have hl : lenencStr b.info = x :: (t ++ b.info) := by simp [lenencStr, hxt]
       unfold okTailRead
-      rw [if_neg (by simp [hc])]
+      rw [ite_eq_right (by simp [hc])]
       rw [hl]; simp only [hx, ite_true]; rw [← hl, checkedLenencStr_lenencStr' _ hi, hssi]
   · by_cases hinf : b.info = []
     · simp [hinf, okTailRead, hssi]
@@ -315,17 +315,17 @@ theorem okTailRead_enc (caps : Nat) (compact : Bool) (b : OkBody)
       obtain ⟨x, t, hxt, hx⟩ := lenencInt_head_pos b.info.length (List.length_pos_iff.mpr hinf)
       have hl : lenencStr b.info = x :: (t ++ b.info) := by simp [lenencStr, hxt]
       unfold okTailRead
-      rw [if_neg (by simp [hc])]
+      rw [ite_eq_right (by simp [hc])]
       rw [hl]; simp only [hx, ite_true]; rw [← hl, checkedLenencStr_lenencStr' _ hi, hssi]
   · split_ifs with hcomp
     · obtain ⟨hcomp, hinf⟩ := hcomp
       simp [hinf, okTailRead, hssi]
     · unfold okTailRead
-      rw [if_pos ⟨by simp [hc], by simp [lenencStr_ne_nil]⟩]
+      rw [ite_eq_left ⟨by simp [hc], by simp [lenencStr_ne_nil]⟩]
       rw [checkedLenencStr_lenencStr' _ hi]
       simp [hsf, hssi]
   · unfold okTailRead
-    rw [if_pos ⟨by simp [hc], by simp [lenencStr_ne_nil]⟩]
+    rw [ite_eq_left ⟨by simp [hc], by simp [lenencStr_ne_nil]⟩]
     rw [checkedLenencStr_lenencStr _ _ hi]
     simp only [hsf, ite_true]
     rw [checkedLenencStr_lenencStr' _ hs]
@@ -351,7 +351,7 @@ theorem okBodyRead_enc (caps : Nat) (compact : Bool) (b : OkBody)
 theorem info_length_le (caps : Nat) (compact : Bool) (b : OkBody) :
     b.info.length ≤ (okTailEnc caps compact b).length := by
   unfold okTailEnc lenencStr
-  split_ifs <;> simp_all <;> omega
+  split_ifs <;> simp_all; omega
 
 theorem ssi_length_le (caps : Nat) (compact : Bool) (b : OkBody)
     (hssi : (hasFlag caps CLIENT_SESSION_TRACK ∧ hasFlag b.status SERVER_SESSION_STATE_CHANGED) ∨
@@ -403,7 +403,7 @@ theorem eofBodyRead_enc (w s : Nat) (hw : w < 2 ^ 16) (hs : s < 2 ^ 16) (hsk : s
   unfold eofBodyRead
   have l1 := length_leBytes 2 s
   have l2 := length_leBytes 2 w
-  rw [if_neg (by simp [l1, l2]; omega)]
+  rw [ite_eq_right (by simp [l1, l2]; omega)]
   rw [List.append_assoc, leNat_take_leBytes 2 w _ hw]
   rw [List.drop_append_of_le_length (by omega), List.drop_of_length_le (by omega), List.nil_append,
     leNat_take_leBytes 2 s _ hs, hsk]
@@ -539,7 +539,7 @@ theorem progressRead_enc (p : Progress) (tail : List U8) (hs : p.stage < 256) (h
   rw [h3, Nat.mod_eq_of_lt (by simpa using hp)] at hl
   unfold progressRead
   simp only [h3, List.cons_append, List.nil_append, List.length_cons]
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
   simp only [List.drop_succ_cons, List.drop_zero, List.take_succ_cons, List.take_zero, List.getD_cons_succ,
     List.getD_cons_zero]
   rw [checkedLenencStr_lenencStr _ _ hi]

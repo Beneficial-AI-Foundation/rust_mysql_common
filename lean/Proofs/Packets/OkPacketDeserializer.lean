@@ -24,45 +24,45 @@ private theorem deser_generic {T : Type} (inst : packets.OkPacketKind T) (k : Ok
   cases hb : (↑buf : List U8) with
   | nil =>
     have hl : ¬ 1 ≤ Slice.length buf := by simp [Slice.length, hb]
-    rw [if_neg hl] at h1
+    rw [ite_eq_right hl] at h1
     obtain ⟨hr, rfl⟩ := h1
     cases r with
     | Ok _ => simp at hr
     | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPacketRead, hb]
   | cons h t =>
     have hl : 1 ≤ Slice.length buf := by simp [Slice.length, hb]
-    rw [if_pos hl, hb] at h1
+    rw [ite_eq_left hl, hb] at h1
     obtain ⟨hr, hb1⟩ := h1
     cases r with
     | Err e => simp at hr
     | Ok v =>
       simp [leNat] at hr hb1
-      simp only [CoreOpsTry.branch, bind_tc_ok]
+      simp only [CoreOpsTry.branch]
       step with rawint_deref_spec as ⟨i, hi⟩
-      simp only [hH, bind_tc_ok, Std.bind_ok]
+      simp only [hH, Std.bind_ok]
       subst hi
       simp only [okPacketRead]
       by_cases heq : v.1 = hdr
       · have hv : h.val = k.header := by rw [← hr, heq, hk]
-        rw [if_pos heq]
+        rw [ite_eq_left heq]
         simp only [hv, ne_eq, not_true_eq_false, ite_false]
         step with hP buf1 as ⟨r1, buf2, h2⟩
         rw [hb1] at h2
         rw [← h2]
         cases r1 with
-        | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual]
+        | Err e => simp [CoreOpsTry_traitFromResidualResult.from_residual]
         | Ok opb =>
-          simp only [CoreOpsTry.branch, bind_tc_ok, okPart_Ok, Option.map_some]
+          simp only [okPart_Ok, Option.map_some]
           step with packets.OkPacket.Insts.CoreConvertTryFromOkPacketBodyError.try_from_spec as ⟨r2, h3⟩
           cases r2 with
           | Err e => simp at h3
           | Ok op =>
             simp only [okPart_Ok, Option.map_some, Option.some.injEq] at h3
-            simp [CoreOpsTry.branch]
+            simp
             exact ⟨(op, ()), rfl, h3⟩
       · have hv : ¬ h.val = k.header := by
           rw [← hr, ← hk]; intro hh; apply heq; scalar_tac
-        rw [if_neg heq]
+        rw [ite_eq_right heq]
         simp only [hv, ne_eq, not_false_eq_true, ite_true]
         simp [misc.io_error_from, hb1]
 
