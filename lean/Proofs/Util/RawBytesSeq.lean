@@ -395,4 +395,10 @@ theorem parse_parsebuf_spec (buf : io.ParseBuf) (n : Usize) :
     simp [io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE])]
   exact io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize_spec n buf
 
+theorem length_flatMap_take_le {T : Type} (enc : T → List U8) (l : List T) (n : Nat) :
+    ((l.take n).flatMap enc).length ≤ (l.flatMap enc).length := by
+  have : l.flatMap enc = (l.take n).flatMap enc ++ (l.drop n).flatMap enc := by
+    rw [← List.flatMap_append, List.take_append_drop]
+  rw [this, List.length_append]; omega
+
 end mysql_common
