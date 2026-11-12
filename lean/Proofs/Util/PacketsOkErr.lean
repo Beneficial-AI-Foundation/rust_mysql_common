@@ -483,4 +483,66 @@ theorem leNat_take_one (l : List U8) (h : 1 ≤ l.length) : leNat (l.take 1) = (
   | nil => simp at h
   | cons a t => simp [leNat]
 
+/-! ## Serializers -/
+
+theorem lenenc_ser (self : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (lenencStr (cowList self.1)).length ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf ⦃ buf' =>
+        buf'.val = buf.val ++ lenencStr (cowList self.1) ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
+    (by rw [hs]; exact h))
+  intro b hb; rw [hb, hs]
+
+theorem eof_ser (self : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (cowList self.1).length ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf ⦃ buf' =>
+        buf'.val = buf.val ++ cowList self.1 ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
+    (by simp only [Slice.length, hs]; exact h))
+  intro b hb; rw [hb, hs]
+
+theorem rawint_u8_ser (x : misc.raw.int.RawInt U8 U8) (buf : alloc.vec.Vec U8) (h : buf.length + 1 ≤ Usize.max) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize U8.Insts.Mysql_commonMiscRawIntIntReprU8 x buf
+      ⦃ buf' => buf'.val = buf.val ++ [x.1] ⦄ := by
+  rw [misc.raw.int.RawInt.serialize_eq]
+  exact U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec _ _ h
+
+theorem rawint_leu16_ser (x : misc.raw.int.RawInt misc.raw.int.LeU16 U16) (buf : alloc.vec.Vec U8) (h : buf.length + 2 ≤ Usize.max) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 x buf
+      ⦃ buf' => buf'.val = buf.val ++ leBytes 2 x.1.val ⦄ := by
+  rw [misc.raw.int.RawInt.serialize_eq]
+  exact misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec _ _ h
+
+theorem rawint_leu24_ser (x : misc.raw.int.RawInt misc.raw.int.LeU24 U32) (buf : alloc.vec.Vec U8) (h : buf.length + 3 ≤ Usize.max) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32 x buf
+      ⦃ buf' => buf'.val = buf.val ++ leBytes 3 x.1.val ⦄ := by
+  rw [misc.raw.int.RawInt.serialize_eq]
+  exact misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec _ _ h
+
+theorem vec_len (v : alloc.vec.Vec U8) : v.length = v.val.length := rfl
+
+theorem progressRead_enc (p : Progress) (tail : List U8) (hs : p.stage < 256) (hm : p.maxStage < 256)
+    (hp : p.progress < 2 ^ 24) (hi : p.info.length < 2 ^ 64) :
+    progressRead (progressEnc p ++ tail) = (some p, tail) := by
+  unfold progressEnc
+  have l3 := length_leBytes 3 p.progress
+  obtain ⟨b3, b4, b5, h3⟩ : ∃ b3 b4 b5, leBytes 3 p.progress = [b3, b4, b5] := by
+    match h : leBytes 3 p.progress, l3 with
+    | [b3, b4, b5], _ => exact ⟨b3, b4, b5, rfl⟩
+  have hl := leNat_leBytes 3 p.progress
+  rw [h3, Nat.mod_eq_of_lt (by simpa using hp)] at hl
+  unfold progressRead
+  simp only [h3, List.cons_append, List.nil_append, List.length_cons]
+  rw [if_neg (by omega)]
+  simp only [List.drop_succ_cons, List.drop_zero, List.take_succ_cons, List.take_zero, List.getD_cons_succ,
+    List.getD_cons_zero]
+  rw [checkedLenencStr_lenencStr _ _ hi]
+  simp [byte_val, Nat.mod_eq_of_lt hs, Nat.mod_eq_of_lt hm, hl]
+
 end mysql_common.PKUtil

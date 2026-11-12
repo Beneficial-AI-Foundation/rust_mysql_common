@@ -33,16 +33,6 @@ private theorem parse_sqlstate_spec (buf : io.ParseBuf) :
   · simp only [hl, ite_false]
     exact io.ParseBuf.parse_of_size_short _ _ _ 6#usize hs (by simp only [Slice.length] at hl ⊢; simp; omega)
 
-private theorem eof_ser (self : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (cowList self.1).length ≤ Usize.max) :
-    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
-      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf ⦃ buf' =>
-        buf'.val = buf.val ++ cowList self.1 ⦄ := by
-  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
-  intro s hs
-  apply WP.spec_mono (misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
-    (by simp only [Slice.length, hs]; exact h))
-  intro b hb; rw [hb, hs]
 
 
 /-- `new`: the given fields (the message converted with `into`). -/
