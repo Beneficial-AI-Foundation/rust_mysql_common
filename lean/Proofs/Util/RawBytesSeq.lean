@@ -142,10 +142,6 @@ theorem array_u8_eq_spec {N : Usize} (a0 a1 : Array U8 N) :
 theorem rawint_new_eq {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) :
     misc.raw.int.RawInt.new inst x = ok (x, ()) := rfl
 
-theorem rawint_serialize_eq {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) (u : core.marker.PhantomData T)
-    (buf : alloc.vec.Vec U8) :
-    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize inst (x, u) buf = inst.serialize x buf := rfl
-
 theorem rawint_parse_unchecked_spec {T P : Type} (inst : misc.raw.int.IntRepr T P)
     (buf : io.ParseBuf) (Q : Option P → io.ParseBuf → Prop)
     (h : inst.deserialize buf ⦃ r rest => Q (okPart r) rest ⦄) :

@@ -148,10 +148,6 @@ theorem leBytes_take_drop (k n : Nat) (tail : List U8) :
   · rw [List.take_append_of_le_length (by simp)]; simp
   · rw [List.drop_append_of_le_length (by simp)]; simp
 
-theorem leBytesI_take_drop (k : Nat) (x : Int) (tail : List U8) :
-    (leBytesI k x ++ tail).take k = leBytesI k x ∧ (leBytesI k x ++ tail).drop k = tail :=
-  leBytes_take_drop k _ tail
-
 theorem leNat_leBytesI (k : Nat) (x : Int) : leNat (leBytesI k x) = (x % (2 ^ (8 * k) : Int)).toNat := by
   unfold leBytesI
   rw [PBUtil.leNat_leBytes]
