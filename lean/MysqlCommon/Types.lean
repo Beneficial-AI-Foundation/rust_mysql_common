@@ -164,6 +164,71 @@ structure bitflags.traits.Flags (Self : Type _) (Self_Bits : Type _) where
   from_bits_truncate : Self_Bits → Result Self
   from_bits_retain : Self_Bits → Result Self
 
+/-- [time::error::try_from_parsed::TryFromParsed]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.55/src/error/try_from_parsed.rs', lines 11:0-11:22
+    Name pattern: [time::error::try_from_parsed::TryFromParsed]
+    Visibility: public -/
+@[discriminant isize, rust_type "time::error::try_from_parsed::TryFromParsed"]
+inductive time.error.try_from_parsed.TryFromParsed where
+| InsufficientInformation : time.error.try_from_parsed.TryFromParsed
+| ComponentRange :
+  time.error.component_range.ComponentRange →
+  time.error.try_from_parsed.TryFromParsed
+
+/-- [time::error::parse_from_description::ParseFromDescription]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.55/src/error/parse_from_description.rs', lines 10:0-10:29
+    Name pattern: [time::error::parse_from_description::ParseFromDescription]
+    Visibility: public -/
+@[discriminant isize, rust_type
+  "time::error::parse_from_description::ParseFromDescription"]
+inductive time.error.parse_from_description.ParseFromDescription where
+| InvalidLiteral : time.error.parse_from_description.ParseFromDescription
+| InvalidComponent :
+  Str →
+  time.error.parse_from_description.ParseFromDescription
+| UnexpectedTrailingCharacters :
+  time.error.parse_from_description.ParseFromDescription
+
+/-- [time::error::parse::Parse]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.55/src/error/parse.rs', lines 12:0-12:14
+    Name pattern: [time::error::parse::Parse]
+    Visibility: public -/
+@[discriminant isize, rust_type "time::error::parse::Parse"]
+inductive time.error.parse.Parse where
+| TryFromParsed :
+  time.error.try_from_parsed.TryFromParsed →
+  time.error.parse.Parse
+| ParseFromDescription :
+  time.error.parse_from_description.ParseFromDescription →
+  time.error.parse.Parse
+| UnexpectedTrailingCharacters : Never → time.error.parse.Parse
+
+/-- [time::month::Month]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.55/src/month.rs', lines 16:0-16:14
+    Name pattern: [time::month::Month]
+    Visibility: public -/
+@[discriminant u8 [1,2,3,4,5,6,7,8,9,10,11,12], rust_type "time::month::Month"]
+inductive time.month.Month where
+| January : time.month.Month
+| February : time.month.Month
+| March : time.month.Month
+| April : time.month.Month
+| May : time.month.Month
+| June : time.month.Month
+| July : time.month.Month
+| August : time.month.Month
+| September : time.month.Month
+| October : time.month.Month
+| November : time.month.Month
+| December : time.month.Month
+
+/-- [uuid::Uuid]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/lib.rs', lines 460:0-460:15
+    Name pattern: [uuid::Uuid]
+    Visibility: public -/
+@[reducible, rust_type "uuid::Uuid"]
+def uuid.Uuid := Array Std.U8 16#usize
+
 /-- [mysql_common::constants::StatusFlags]
     Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
     Visibility: public -/
@@ -912,5 +977,111 @@ def value.TextValue := Unit
     Visibility: public -/
 @[reducible]
 def value.BinValue := Unit
+
+/-- [mysql_common::value::convert::ParseIr]
+    Source: 'src/value/convert/mod.rs', lines 120:0-120:40
+    Visibility: public -/
+def value.convert.ParseIr (T : Type _) := T × value.Value
+
+/-- [mysql_common::value::convert::FromValueError]
+    Source: 'src/value/convert/mod.rs', lines 86:0-86:37
+    Visibility: public -/
+@[reducible]
+def value.convert.FromValueError := value.Value
+
+/-- Trait declaration: [mysql_common::value::convert::FromValue]
+    Source: 'src/value/convert/mod.rs', lines 93:0-116:1
+    Visibility: public -/
+structure value.convert.FromValue (Self : Type _) (Self_Intermediate : Type _)
+  where
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :
+    core.convert.TryFrom Self_Intermediate value.Value
+    value.convert.FromValueError
+  coreconvertIntoInst : core.convert.Into Self_Intermediate Self
+  from_value : value.Value → Result Self
+  from_value_opt : value.Value → Result (core.result.Result Self
+    value.convert.FromValueError)
+  get_intermediate : value.Value → Result (core.result.Result
+    Self_Intermediate value.convert.FromValueError)
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{closure#3}]
+    Source: 'src/value/convert/mod.rs', lines 79:19-79:50 -/
+@[reducible]
+def value.convert.parse_mysql_datetime_string.closure_3 := Slice Std.U8
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{closure#2}]
+    Source: 'src/value/convert/mod.rs', lines 78:19-78:64 -/
+@[reducible]
+def value.convert.parse_mysql_datetime_string.closure_2 := Slice Std.U8
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{closure#1}]
+    Source: 'src/value/convert/mod.rs', lines 77:19-77:64 -/
+@[reducible]
+def value.convert.parse_mysql_datetime_string.closure_1 := Slice Std.U8
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{closure}]
+    Source: 'src/value/convert/mod.rs', lines 76:17-76:62 -/
+@[reducible]
+def value.convert.parse_mysql_datetime_string.closure := Slice Std.U8
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind]
+    Source: 'src/value/convert/mod.rs', lines 34:4-38:5 -/
+@[discriminant u8]
+inductive value.convert.parse_mysql_datetime_string.DateTimeKind where
+| Ymd : value.convert.parse_mysql_datetime_string.DateTimeKind
+| YmdHms : value.convert.parse_mysql_datetime_string.DateTimeKind
+| YmdHmsMs : value.convert.parse_mysql_datetime_string.DateTimeKind
+
+/-- [mysql_common::value::convert::parse_mysql_time_string::{closure}]
+    Source: 'src/value/convert/mod.rs', lines 702:23-702:54 -/
+@[reducible]
+def value.convert.parse_mysql_time_string.closure := Slice Std.U8
+
+/-- [mysql_common::value::convert::parse_mysql_time_string::TimeKind]
+    Source: 'src/value/convert/mod.rs', lines 660:4-665:5 -/
+@[discriminant u8]
+inductive value.convert.parse_mysql_time_string.TimeKind where
+| HhMmSs : value.convert.parse_mysql_time_string.TimeKind
+| HhhMmSs : value.convert.parse_mysql_time_string.TimeKind
+| HhMmSsMs : value.convert.parse_mysql_time_string.TimeKind
+| HhhMmSsMs : value.convert.parse_mysql_time_string.TimeKind
+
+/-- [mysql_common::value::convert::ParseIrOpt]
+    Source: 'src/value/convert/mod.rs', lines 134:0-139:1
+    Visibility: public -/
+@[discriminant isize]
+inductive value.convert.ParseIrOpt (T : Type _) where
+| Ready : T → value.convert.ParseIrOpt T
+| Parsed : T → value.Value → value.convert.ParseIrOpt T
+
+/-- [mysql_common::value::convert::OptionIr2]
+    Source: 'src/value/convert/mod.rs', lines 518:0-521:1
+    Visibility: public -/
+@[discriminant isize]
+inductive value.convert.OptionIr2 (T : Type _) (Clause0_Intermediate : Type _)
+  where
+| None : value.convert.OptionIr2 T Clause0_Intermediate
+| Some :
+  Clause0_Intermediate →
+  value.convert.OptionIr2 T Clause0_Intermediate
+
+/-- [mysql_common::value::convert::ValueIr]
+    Source: 'src/value/convert/mod.rs', lines 562:0-562:30
+    Visibility: public -/
+@[reducible]
+def value.convert.ValueIr := value.Value
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from::{closure}]
+    Source: 'src/value/convert/mod.rs', lines 632:25-632:60 -/
+@[reducible]
+def value.convert.TryFromArrayU8NValueFromValueError.try_from.closure (N :
+  Std.Usize) :=
+Unit
+
+/-- Trait declaration: [mysql_common::value::convert::ToValue]
+    Source: 'src/value/convert/mod.rs', lines 727:0-729:1
+    Visibility: public -/
+structure value.convert.ToValue (Self : Type _) where
+  to_value : Self → Result value.Value
 
 end mysql_common

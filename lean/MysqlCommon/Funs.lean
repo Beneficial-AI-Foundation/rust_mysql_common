@@ -34,6 +34,14 @@ def Shared0T.Insts.CoreFmtDisplay {T : Type _} (DisplayInst : core.fmt.Display
   fmt := Shared0T.Insts.CoreFmtDisplay.fmt DisplayInst
 }
 
+/-- Trait implementation: [core::fmt::num::imp::{impl core::fmt::Display for i32}]
+    Source: '/rustc/library/core/src/fmt/num.rs', lines 155:8-155:37; this code is generated from a macro invocation at: '/rustc/library/core/src/fmt/num.rs', lines 606:4-606:94
+    Name pattern: [core::fmt::Display<i32>] -/
+@[reducible, rust_trait_impl "core::fmt::Display<i32>"]
+def I32.Insts.CoreFmtDisplay : core.fmt.Display Std.I32 := {
+  fmt := core.fmt.num.imp.DisplayI32.fmt
+}
+
 /-- Trait implementation: [core::fmt::num::imp::{impl core::fmt::Display for u8}]
     Source: '/rustc/library/core/src/fmt/num.rs', lines 134:8-134:39; this code is generated from a macro invocation at: '/rustc/library/core/src/fmt/num.rs', lines 606:4-606:94
     Name pattern: [core::fmt::Display<u8>] -/
@@ -101,6 +109,15 @@ def alloc.vec.Vec.Insts.CoreConvertAsMutSlice (T : Type _) (A : Type _) :
   core.convert.AsMut (alloc.vec.Vec T) (Slice T) := {
   as_mut := alloc.vec.Vec.Insts.CoreConvertAsMutSlice.as_mut A
 }
+
+/-- [uuid::{uuid::Uuid}::as_bytes]:
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/lib.rs', lines 793:4-793:42
+    Name pattern: [uuid::{uuid::Uuid}::as_bytes]
+    Visibility: public -/
+@[rust_fun "uuid::{uuid::Uuid}::as_bytes"]
+def uuid.Uuid.as_bytes
+  (self : uuid.Uuid) : Result (Array Std.U8 16#usize) := do
+  ok self
 
 /-- [mysql_common::constants::MAX_PAYLOAD_LEN]
     Source: 'src/constants.rs', lines 11:0-11:47
@@ -14638,6 +14655,5616 @@ def
   deserialize :=
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize
     valueSerializationSideInst
+}
+
+/-- [mysql_common::value::convert::bigdecimal::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>}::try_from]:
+    Source: 'src/value/convert/bigdecimal.rs', lines 23:4-41:5
+    Visibility: public -/
+def
+  value.convert.ParseIrBigDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr bigdecimal.BigDecimal)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.bigdecimal_parse_bytes s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x => ok (core.result.Result.Ok (x, v))
+  | value.Value.Int x =>
+    let bd ← value.convert.trusted.bigdecimal_from_i64 x
+    ok (core.result.Result.Ok (bd, v))
+  | value.Value.UInt x =>
+    let bd ← value.convert.trusted.bigdecimal_from_u64 x
+    ok (core.result.Result.Ok (bd, v))
+  | value.Value.Float x =>
+    let o ← value.convert.trusted.bigdecimal_try_from_f32 x
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x1 => ok (core.result.Result.Ok (x1, v))
+  | value.Value.Double x =>
+    let o ← value.convert.trusted.bigdecimal_try_from_f64 x
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x1 => ok (core.result.Result.Ok (x1, v))
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::bigdecimal::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>}]
+    Source: 'src/value/convert/bigdecimal.rs', lines 20:0-42:1 -/
+@[reducible]
+def value.convert.ParseIrBigDecimal.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (value.convert.ParseIr bigdecimal.BigDecimal)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrBigDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{mysql_common::value::convert::ParseIr<T>}::commit]:
+    Source: 'src/value/convert/mod.rs', lines 123:4-125:5
+    Visibility: public -/
+def value.convert.ParseIr.commit
+  {T : Type _} (self : value.convert.ParseIr T) : Result T := do
+  let (t, _) := self
+  ok t
+
+/-- [mysql_common::value::convert::bigdecimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>> for bigdecimal::BigDecimal}::from]:
+    Source: 'src/value/convert/bigdecimal.rs', lines 46:4-48:5
+    Visibility: public -/
+def bigdecimal.BigDecimal.Insts.CoreConvertFromParseIrBigDecimal.from
+  (ir : value.convert.ParseIr bigdecimal.BigDecimal) :
+  Result bigdecimal.BigDecimal
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::bigdecimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>> for bigdecimal::BigDecimal}]
+    Source: 'src/value/convert/bigdecimal.rs', lines 45:0-49:1 -/
+@[reducible]
+def bigdecimal.BigDecimal.Insts.CoreConvertFromParseIrBigDecimal :
+  core.convert.From bigdecimal.BigDecimal (value.convert.ParseIr
+  bigdecimal.BigDecimal) := {
+  «from» := bigdecimal.BigDecimal.Insts.CoreConvertFromParseIrBigDecimal.from
+}
+
+/-- [mysql_common::value::convert::{mysql_common::value::convert::ParseIr<T>}::rollback]:
+    Source: 'src/value/convert/mod.rs', lines 127:4-129:5
+    Visibility: public -/
+def value.convert.ParseIr.rollback
+  {T : Type _} (self : value.convert.ParseIr T) : Result value.Value := do
+  let (_, v) := self
+  ok v
+
+/-- [mysql_common::value::convert::bigdecimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/bigdecimal.rs', lines 53:4-55:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrBigDecimal.from
+  (ir : value.convert.ParseIr bigdecimal.BigDecimal) : Result value.Value := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::bigdecimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/bigdecimal.rs', lines 52:0-56:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrBigDecimal : core.convert.From
+  value.Value (value.convert.ParseIr bigdecimal.BigDecimal) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrBigDecimal.from
+}
+
+/-- [mysql_common::value::convert::FromValue::get_intermediate]:
+    Source: 'src/value/convert/mod.rs', lines 113:4-115:5
+    Visibility: public -/
+@[trait_default]
+def value.convert.FromValue.get_intermediate.default
+  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
+  Result (core.result.Result Clause0_Intermediate value.convert.FromValueError)
+  := do
+  FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+    v
+
+/-- [mysql_common::value::convert::FromValue::from_value_opt]:
+    Source: 'src/value/convert/mod.rs', lines 105:4-110:5
+    Visibility: public -/
+@[trait_default]
+def value.convert.FromValue.from_value_opt.default
+  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
+  Result (core.result.Result Self value.convert.FromValueError)
+  := do
+  let r ←
+    FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+      v
+  match r with
+  | core.result.Result.Ok x =>
+    let t ← FromValueInst.coreconvertIntoInst.into x
+    ok (core.result.Result.Ok t)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [mysql_common::value::convert::FromValue::from_value]:
+    Source: 'src/value/convert/mod.rs', lines 97:4-102:5
+    Visibility: public -/
+@[trait_default]
+def value.convert.FromValue.from_value.default
+  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
+  Result Self
+  := do
+  let r ← FromValueInst.from_value_opt v
+  match r with
+  | core.result.Result.Ok this => ok this
+  | core.result.Result.Err _ => fail panic
+
+/-- Trait implementation: [mysql_common::value::convert::bigdecimal::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>> for bigdecimal::BigDecimal}]
+    Source: 'src/value/convert/bigdecimal.rs', lines 59:0-61:1 -/
+@[reducible]
+impl_def
+  bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal
+  : value.convert.FromValue bigdecimal.BigDecimal (value.convert.ParseIr
+  bigdecimal.BigDecimal) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrBigDecimal.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    bigdecimal.BigDecimal.Insts.CoreConvertFromParseIrBigDecimal
+  from_value := value.convert.FromValue.from_value.default
+    bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    bigdecimal.BigDecimal.Insts.Mysql_commonValueConvertFromValueParseIrBigDecimal
+}
+
+/-- [mysql_common::value::convert::bigdecimal::{impl core::convert::From<bigdecimal::BigDecimal> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/bigdecimal.rs', lines 65:4-67:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromBigDecimal.from
+  (big_decimal : bigdecimal.BigDecimal) : Result value.Value := do
+  let s ← value.convert.trusted.bigdecimal_to_string big_decimal
+  let v ← value.convert.trusted.string_into_bytes s
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::bigdecimal::{impl core::convert::From<bigdecimal::BigDecimal> for mysql_common::value::Value}]
+    Source: 'src/value/convert/bigdecimal.rs', lines 64:0-68:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromBigDecimal : core.convert.From value.Value
+  bigdecimal.BigDecimal := {
+  «from» := value.Value.Insts.CoreConvertFromBigDecimal.from
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<num_bigint#1::bigint::BigInt>}::try_from]:
+    Source: 'src/value/convert/bigint.rs', lines 20:4-30:5
+    Visibility: public -/
+def
+  value.convert.ParseIrBigInt.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr num_bigint_1.bigint.BigInt)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.bigint_parse_bytes s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x => ok (core.result.Result.Ok (x, v))
+  | value.Value.Int x =>
+    let bi ← value.convert.trusted.bigint_from_i64 x
+    ok (core.result.Result.Ok (bi, v))
+  | value.Value.UInt x =>
+    let bi ← value.convert.trusted.bigint_from_u64 x
+    ok (core.result.Result.Ok (bi, v))
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<num_bigint#1::bigint::BigInt>}]
+    Source: 'src/value/convert/bigint.rs', lines 17:0-31:1 -/
+@[reducible]
+def value.convert.ParseIrBigInt.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIr num_bigint_1.bigint.BigInt)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrBigInt.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::bigint::BigInt>> for num_bigint#1::bigint::BigInt}::from]:
+    Source: 'src/value/convert/bigint.rs', lines 34:4-36:5
+    Visibility: public -/
+def num_bigint_1.bigint.BigInt.Insts.CoreConvertFromParseIrBigInt.from
+  (ir : value.convert.ParseIr num_bigint_1.bigint.BigInt) :
+  Result num_bigint_1.bigint.BigInt
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::bigint::BigInt>> for num_bigint#1::bigint::BigInt}]
+    Source: 'src/value/convert/bigint.rs', lines 33:0-37:1 -/
+@[reducible]
+def num_bigint_1.bigint.BigInt.Insts.CoreConvertFromParseIrBigInt :
+  core.convert.From num_bigint_1.bigint.BigInt (value.convert.ParseIr
+  num_bigint_1.bigint.BigInt) := {
+  «from» :=
+    num_bigint_1.bigint.BigInt.Insts.CoreConvertFromParseIrBigInt.from
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::bigint::BigInt>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/bigint.rs', lines 40:4-42:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrBigInt.from
+  (ir : value.convert.ParseIr num_bigint_1.bigint.BigInt) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::bigint::BigInt>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/bigint.rs', lines 39:0-43:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrBigInt : core.convert.From
+  value.Value (value.convert.ParseIr num_bigint_1.bigint.BigInt) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrBigInt.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<num_bigint#1::bigint::BigInt>> for num_bigint#1::bigint::BigInt}]
+    Source: 'src/value/convert/bigint.rs', lines 45:0-47:1 -/
+@[reducible]
+impl_def
+  num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt
+  : value.convert.FromValue num_bigint_1.bigint.BigInt (value.convert.ParseIr
+  num_bigint_1.bigint.BigInt) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrBigInt.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    num_bigint_1.bigint.BigInt.Insts.CoreConvertFromParseIrBigInt
+  from_value := value.convert.FromValue.from_value.default
+    num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    num_bigint_1.bigint.BigInt.Insts.Mysql_commonValueConvertFromValueParseIrBigInt
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::From<num_bigint#1::bigint::BigInt> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/bigint.rs', lines 50:4-58:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromBigInt.from
+  (x : num_bigint_1.bigint.BigInt) : Result value.Value := do
+  let o ← value.convert.trusted.bigint_to_i64 x
+  match o with
+  | none =>
+    let o1 ← value.convert.trusted.bigint_to_u64 x
+    match o1 with
+    | none =>
+      let s ← value.convert.trusted.bigint_to_string x
+      let v ← value.convert.trusted.string_into_bytes s
+      ok (value.Value.Bytes v)
+    | some x1 => ok (value.Value.UInt x1)
+  | some x1 => ok (value.Value.Int x1)
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::From<num_bigint#1::bigint::BigInt> for mysql_common::value::Value}]
+    Source: 'src/value/convert/bigint.rs', lines 49:0-59:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromBigInt : core.convert.From value.Value
+  num_bigint_1.bigint.BigInt := {
+  «from» := value.Value.Insts.CoreConvertFromBigInt.from
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<num_bigint#1::biguint::BigUint>}::try_from]:
+    Source: 'src/value/convert/bigint.rs', lines 64:4-80:5
+    Visibility: public -/
+def
+  value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr
+    num_bigint_1.biguint.BigUint) value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.biguint_parse_bytes s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x => ok (core.result.Result.Ok (x, v))
+  | value.Value.Int x =>
+    let o ← value.convert.trusted.biguint_from_i64 x
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x1 => ok (core.result.Result.Ok (x1, v))
+  | value.Value.UInt x =>
+    let bu ← value.convert.trusted.biguint_from_u64 x
+    ok (core.result.Result.Ok (bu, v))
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<num_bigint#1::biguint::BigUint>}]
+    Source: 'src/value/convert/bigint.rs', lines 61:0-81:1 -/
+@[reducible]
+def value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIr num_bigint_1.biguint.BigUint)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::biguint::BigUint>> for num_bigint#1::biguint::BigUint}::from]:
+    Source: 'src/value/convert/bigint.rs', lines 84:4-86:5
+    Visibility: public -/
+def num_bigint_1.biguint.BigUint.Insts.CoreConvertFromParseIrBigUint.from
+  (ir : value.convert.ParseIr num_bigint_1.biguint.BigUint) :
+  Result num_bigint_1.biguint.BigUint
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::biguint::BigUint>> for num_bigint#1::biguint::BigUint}]
+    Source: 'src/value/convert/bigint.rs', lines 83:0-87:1 -/
+@[reducible]
+def num_bigint_1.biguint.BigUint.Insts.CoreConvertFromParseIrBigUint :
+  core.convert.From num_bigint_1.biguint.BigUint (value.convert.ParseIr
+  num_bigint_1.biguint.BigUint) := {
+  «from» :=
+    num_bigint_1.biguint.BigUint.Insts.CoreConvertFromParseIrBigUint.from
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::biguint::BigUint>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/bigint.rs', lines 90:4-92:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrBigUint.from
+  (ir : value.convert.ParseIr num_bigint_1.biguint.BigUint) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::From<mysql_common::value::convert::ParseIr<num_bigint#1::biguint::BigUint>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/bigint.rs', lines 89:0-93:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrBigUint : core.convert.From
+  value.Value (value.convert.ParseIr num_bigint_1.biguint.BigUint) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrBigUint.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<num_bigint#1::biguint::BigUint>> for num_bigint#1::biguint::BigUint}]
+    Source: 'src/value/convert/bigint.rs', lines 95:0-97:1 -/
+@[reducible]
+impl_def
+  num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint
+  : value.convert.FromValue num_bigint_1.biguint.BigUint (value.convert.ParseIr
+  num_bigint_1.biguint.BigUint) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrBigUint.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    num_bigint_1.biguint.BigUint.Insts.CoreConvertFromParseIrBigUint
+  from_value := value.convert.FromValue.from_value.default
+    num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    num_bigint_1.biguint.BigUint.Insts.Mysql_commonValueConvertFromValueParseIrBigUint
+}
+
+/-- [mysql_common::value::convert::bigint::{impl core::convert::From<num_bigint#1::biguint::BigUint> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/bigint.rs', lines 100:4-106:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromBigUint.from
+  (x : num_bigint_1.biguint.BigUint) : Result value.Value := do
+  let o ← value.convert.trusted.biguint_to_u64 x
+  match o with
+  | none =>
+    let s ← value.convert.trusted.biguint_to_string x
+    let v ← value.convert.trusted.string_into_bytes s
+    ok (value.Value.Bytes v)
+  | some x1 => ok (value.Value.UInt x1)
+
+/-- Trait implementation: [mysql_common::value::convert::bigint::{impl core::convert::From<num_bigint#1::biguint::BigUint> for mysql_common::value::Value}]
+    Source: 'src/value/convert/bigint.rs', lines 99:0-107:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromBigUint : core.convert.From value.Value
+  num_bigint_1.biguint.BigUint := {
+  «from» := value.Value.Insts.CoreConvertFromBigUint.from
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::date::NaiveDate>> for chrono::naive::date::NaiveDate}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 153:4-155:5
+    Visibility: public -/
+def chrono.naive.date.NaiveDate.Insts.CoreConvertFromParseIrNaiveDate.from
+  (ir : value.convert.ParseIr chrono.naive.date.NaiveDate) :
+  Result chrono.naive.date.NaiveDate
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::date::NaiveDate>> for chrono::naive::date::NaiveDate}]
+    Source: 'src/value/convert/chrono.rs', lines 152:0-156:1 -/
+@[reducible]
+def chrono.naive.date.NaiveDate.Insts.CoreConvertFromParseIrNaiveDate :
+  core.convert.From chrono.naive.date.NaiveDate (value.convert.ParseIr
+  chrono.naive.date.NaiveDate) := {
+  «from» :=
+    chrono.naive.date.NaiveDate.Insts.CoreConvertFromParseIrNaiveDate.from
+}
+
+/-- [mysql_common::value::convert::parse_micros]: loop body 0:
+    Source: 'src/value/convert/mod.rs', lines 646:4-648:5 -/
+@[rust_loop_body]
+def value.convert.parse_micros_loop0.body
+  (micros_bytes : Slice Std.U8) (pad_zero_cnt : Std.Usize) :
+  Result (ControlFlow Std.Usize Std.Usize)
+  := do
+  let i := Slice.len micros_bytes
+  if pad_zero_cnt < i
+  then
+    let i1 ← Slice.index_usize micros_bytes pad_zero_cnt
+    if i1 = 48#u8
+    then let pad_zero_cnt1 ← pad_zero_cnt + 1#usize
+         ok (cont pad_zero_cnt1)
+    else ok (done pad_zero_cnt)
+  else ok (done pad_zero_cnt)
+
+/-- [mysql_common::value::convert::parse_micros]: loop 0:
+    Source: 'src/value/convert/mod.rs', lines 646:4-648:5 -/
+@[rust_loop]
+def value.convert.parse_micros_loop0
+  (micros_bytes : Slice Std.U8) (pad_zero_cnt : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun pad_zero_cnt1 => value.convert.parse_micros_loop0.body micros_bytes
+      pad_zero_cnt1)
+    pad_zero_cnt
+
+/-- [mysql_common::value::convert::parse_micros]: loop body 1:
+    Source: 'src/value/convert/mod.rs', lines 650:4-652:5 -/
+@[rust_loop_body]
+def value.convert.parse_micros_loop1.body
+  (iter : core.ops.range.Range Std.Usize) (micros : Std.U32) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × Std.U32) Std.U32)
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done micros)
+  | some _ => let micros1 ← micros * 10#u32
+              ok (cont (iter1, micros1))
+
+/-- [mysql_common::value::convert::parse_micros]: loop 1:
+    Source: 'src/value/convert/mod.rs', lines 650:4-652:5 -/
+@[rust_loop]
+def value.convert.parse_micros_loop1
+  (iter : core.ops.range.Range Std.Usize) (micros : Std.U32) :
+  Result Std.U32
+  := do
+  loop
+    (fun (iter1, micros1) => value.convert.parse_micros_loop1.body iter1
+      micros1)
+    (iter, micros)
+
+/-- [mysql_common::value::convert::parse_micros]:
+    Source: 'src/value/convert/mod.rs', lines 642:0-654:1 -/
+def value.convert.parse_micros
+  (micros_bytes : Slice Std.U8) : Result Std.U32 := do
+  let o ← value.convert.trusted.btou_u32 micros_bytes
+  let micros ← core.option.Option.unwrap o
+  let pad_zero_cnt ← value.convert.parse_micros_loop0 micros_bytes 0#usize
+  let i ← 6#usize - pad_zero_cnt
+  let i1 := Slice.len micros_bytes
+  let i2 ← i1 - pad_zero_cnt
+  let i3 ← i - i2
+  value.convert.parse_micros_loop1 { start := 0#usize, «end» := i3 } micros
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::RangeFrom<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure#3}<'_0>}::call_once]:
+    Source: 'src/value/convert/mod.rs', lines 79:19-79:50 -/
+def
+  value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once
+  (c : value.convert.parse_mysql_datetime_string.closure_3)
+  (tupled_args : core.ops.range.RangeFrom Std.Usize) :
+  Result Std.U32
+  := do
+  let s ←
+    core.slice.index.Slice.index
+      (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) c tupled_args
+  value.convert.parse_micros s
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::RangeFrom<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure#3}<'_0>}]
+    Source: 'src/value/convert/mod.rs', lines 79:19-79:50 -/
+@[reducible]
+def
+  value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+  : core.ops.function.FnOnce
+  value.convert.parse_mysql_datetime_string.closure_3 (core.ops.range.RangeFrom
+  Std.Usize) Std.U32 := {
+  call_once :=
+    value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once
+}
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::Range<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure#2}<'_0>}::call_once]:
+    Source: 'src/value/convert/mod.rs', lines 78:19-78:64 -/
+def
+  value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once
+  (c : value.convert.parse_mysql_datetime_string.closure_2)
+  (tupled_args : core.ops.range.Range Std.Usize) :
+  Result Std.U32
+  := do
+  let s ←
+    core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+      Std.U8) c tupled_args
+  let o ← value.convert.trusted.btou_u32 s
+  core.option.Option.unwrap o
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::Range<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure#2}<'_0>}]
+    Source: 'src/value/convert/mod.rs', lines 78:19-78:64 -/
+@[reducible]
+def
+  value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+  : core.ops.function.FnOnce
+  value.convert.parse_mysql_datetime_string.closure_2 (core.ops.range.Range
+  Std.Usize) Std.U32 := {
+  call_once :=
+    value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once
+}
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::Range<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure#1}<'_0>}::call_once]:
+    Source: 'src/value/convert/mod.rs', lines 77:19-77:64 -/
+def
+  value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once
+  (c : value.convert.parse_mysql_datetime_string.closure_1)
+  (tupled_args : core.ops.range.Range Std.Usize) :
+  Result Std.U32
+  := do
+  let s ←
+    core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+      Std.U8) c tupled_args
+  let o ← value.convert.trusted.btou_u32 s
+  core.option.Option.unwrap o
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::Range<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure#1}<'_0>}]
+    Source: 'src/value/convert/mod.rs', lines 77:19-77:64 -/
+@[reducible]
+def
+  value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+  : core.ops.function.FnOnce
+  value.convert.parse_mysql_datetime_string.closure_1 (core.ops.range.Range
+  Std.Usize) Std.U32 := {
+  call_once :=
+    value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once
+}
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::Range<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure}<'_0>}::call_once]:
+    Source: 'src/value/convert/mod.rs', lines 76:17-76:62 -/
+def
+  value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once
+  (c : value.convert.parse_mysql_datetime_string.closure)
+  (tupled_args : core.ops.range.Range Std.Usize) :
+  Result Std.U32
+  := do
+  let s ←
+    core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+      Std.U8) c tupled_args
+  let o ← value.convert.trusted.btou_u32 s
+  core.option.Option.unwrap o
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::ops::function::FnOnce<(core::ops::range::Range<usize>,), u32> for mysql_common::value::convert::parse_mysql_datetime_string::{closure}<'_0>}]
+    Source: 'src/value/convert/mod.rs', lines 76:17-76:62 -/
+@[reducible]
+def
+  value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+  : core.ops.function.FnOnce value.convert.parse_mysql_datetime_string.closure
+  (core.ops.range.Range Std.Usize) Std.U32 := {
+  call_once :=
+    value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once
+}
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string]:
+    Source: 'src/value/convert/mod.rs', lines 29:0-81:1 -/
+def value.convert.parse_mysql_datetime_string
+  (bytes : Slice Std.U8) :
+  Result (Option (Std.U32 × Std.U32 × Std.U32 × Std.U32 × Std.U32 ×
+    Std.U32 × Std.U32))
+  := do
+  let len := Slice.len bytes
+  if len = 10#usize
+  then
+    let b ← value.convert.trusted.datetime_re_ymd bytes
+    if b
+    then
+      let s ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes
+          { «end» := 4#usize }
+      let o ← value.convert.trusted.btou_u32 s
+      let i ← core.option.Option.unwrap o
+      let s1 ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+          { start := 5#usize, «end» := 7#usize }
+      let o1 ← value.convert.trusted.btou_u32 s1
+      let i1 ← core.option.Option.unwrap o1
+      let s2 ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+          { start := 8#usize, «end» := 10#usize }
+      let o2 ← value.convert.trusted.btou_u32 s2
+      let i2 ← core.option.Option.unwrap o2
+      let o3 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+          none bytes
+      let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+      let o4 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+          none bytes
+      let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+      let o5 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+          none bytes
+      let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+      let o6 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+          none bytes
+      let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+      ok (some (i, i1, i2, i3, i4, i5, i6))
+    else
+      if len = 19#usize
+      then
+        let b1 ← value.convert.trusted.datetime_re_ymd_hms bytes
+        if b1
+        then
+          let s ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes
+              { «end» := 4#usize }
+          let o ← value.convert.trusted.btou_u32 s
+          let i ← core.option.Option.unwrap o
+          let s1 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+              { start := 5#usize, «end» := 7#usize }
+          let o1 ← value.convert.trusted.btou_u32 s1
+          let i1 ← core.option.Option.unwrap o1
+          let s2 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+              { start := 8#usize, «end» := 10#usize }
+          let o2 ← value.convert.trusted.btou_u32 s2
+          let i2 ← core.option.Option.unwrap o2
+          let o3 ←
+            core.option.Option.map
+              value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+              (some { start := 11#usize, «end» := 13#usize }) bytes
+          let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+          let o4 ←
+            core.option.Option.map
+              value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+              (some { start := 14#usize, «end» := 16#usize }) bytes
+          let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+          let o5 ←
+            core.option.Option.map
+              value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+              (some { start := 17#usize, «end» := 19#usize }) bytes
+          let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+          let o6 ←
+            core.option.Option.map
+              value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+              none bytes
+          let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+          ok (some (i, i1, i2, i3, i4, i5, i6))
+        else
+          if 20#usize < len
+          then
+            if len < 27#usize
+            then
+              let b2 ← value.convert.trusted.datetime_re_ymd_hms_ns bytes
+              if b2
+              then
+                let s ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes
+                    { «end» := 4#usize }
+                let o ← value.convert.trusted.btou_u32 s
+                let i ← core.option.Option.unwrap o
+                let s1 ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                    { start := 5#usize, «end» := 7#usize }
+                let o1 ← value.convert.trusted.btou_u32 s1
+                let i1 ← core.option.Option.unwrap o1
+                let s2 ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                    { start := 8#usize, «end» := 10#usize }
+                let o2 ← value.convert.trusted.btou_u32 s2
+                let i2 ← core.option.Option.unwrap o2
+                let o3 ←
+                  core.option.Option.map
+                    value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                    (some { start := 11#usize, «end» := 13#usize }) bytes
+                let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+                let o4 ←
+                  core.option.Option.map
+                    value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                    (some { start := 14#usize, «end» := 16#usize }) bytes
+                let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+                let o5 ←
+                  core.option.Option.map
+                    value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                    (some { start := 17#usize, «end» := 19#usize }) bytes
+                let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+                let o6 ←
+                  core.option.Option.map
+                    value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                    (some { start := 20#usize }) bytes
+                let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+                ok (some (i, i1, i2, i3, i4, i5, i6))
+              else ok none
+            else ok none
+          else ok none
+      else
+        if 20#usize < len
+        then
+          if len < 27#usize
+          then
+            let b1 ← value.convert.trusted.datetime_re_ymd_hms_ns bytes
+            if b1
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes
+                  { «end» := 4#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                  { start := 5#usize, «end» := 7#usize }
+              let o1 ← value.convert.trusted.btou_u32 s1
+              let i1 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                  { start := 8#usize, «end» := 10#usize }
+              let o2 ← value.convert.trusted.btou_u32 s2
+              let i2 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                  (some { start := 11#usize, «end» := 13#usize }) bytes
+              let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              let o4 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                  (some { start := 14#usize, «end» := 16#usize }) bytes
+              let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+              let o5 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                  (some { start := 17#usize, «end» := 19#usize }) bytes
+              let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+              let o6 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 20#usize }) bytes
+              let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+              ok (some (i, i1, i2, i3, i4, i5, i6))
+            else ok none
+          else ok none
+        else ok none
+  else
+    if len = 19#usize
+    then
+      let b ← value.convert.trusted.datetime_re_ymd_hms bytes
+      if b
+      then
+        let s ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes
+            { «end» := 4#usize }
+        let o ← value.convert.trusted.btou_u32 s
+        let i ← core.option.Option.unwrap o
+        let s1 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+            { start := 5#usize, «end» := 7#usize }
+        let o1 ← value.convert.trusted.btou_u32 s1
+        let i1 ← core.option.Option.unwrap o1
+        let s2 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+            { start := 8#usize, «end» := 10#usize }
+        let o2 ← value.convert.trusted.btou_u32 s2
+        let i2 ← core.option.Option.unwrap o2
+        let o3 ←
+          core.option.Option.map
+            value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+            (some { start := 11#usize, «end» := 13#usize }) bytes
+        let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+        let o4 ←
+          core.option.Option.map
+            value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+            (some { start := 14#usize, «end» := 16#usize }) bytes
+        let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+        let o5 ←
+          core.option.Option.map
+            value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+            (some { start := 17#usize, «end» := 19#usize }) bytes
+        let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+        let o6 ←
+          core.option.Option.map
+            value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+            none bytes
+        let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+        ok (some (i, i1, i2, i3, i4, i5, i6))
+      else
+        if 20#usize < len
+        then
+          if len < 27#usize
+          then
+            let b1 ← value.convert.trusted.datetime_re_ymd_hms_ns bytes
+            if b1
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes
+                  { «end» := 4#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                  { start := 5#usize, «end» := 7#usize }
+              let o1 ← value.convert.trusted.btou_u32 s1
+              let i1 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                  { start := 8#usize, «end» := 10#usize }
+              let o2 ← value.convert.trusted.btou_u32 s2
+              let i2 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                  (some { start := 11#usize, «end» := 13#usize }) bytes
+              let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              let o4 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                  (some { start := 14#usize, «end» := 16#usize }) bytes
+              let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+              let o5 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                  (some { start := 17#usize, «end» := 19#usize }) bytes
+              let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+              let o6 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 20#usize }) bytes
+              let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+              ok (some (i, i1, i2, i3, i4, i5, i6))
+            else ok none
+          else ok none
+        else ok none
+    else
+      if 20#usize < len
+      then
+        if len < 27#usize
+        then
+          let b ← value.convert.trusted.datetime_re_ymd_hms_ns bytes
+          if b
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes
+                { «end» := 4#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                { start := 5#usize, «end» := 7#usize }
+            let o1 ← value.convert.trusted.btou_u32 s1
+            let i1 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                { start := 8#usize, «end» := 10#usize }
+            let o2 ← value.convert.trusted.btou_u32 s2
+            let i2 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                (some { start := 11#usize, «end» := 13#usize }) bytes
+            let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            let o4 ←
+              core.option.Option.map
+                value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                (some { start := 14#usize, «end» := 16#usize }) bytes
+            let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+            let o5 ←
+              core.option.Option.map
+                value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+                (some { start := 17#usize, «end» := 19#usize }) bytes
+            let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+            let o6 ←
+              core.option.Option.map
+                value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                (some { start := 20#usize }) bytes
+            let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+            ok (some (i, i1, i2, i3, i4, i5, i6))
+          else ok none
+        else ok none
+      else ok none
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<chrono::naive::date::NaiveDate>}::try_from]:
+    Source: 'src/value/convert/chrono.rs', lines 83:4-110:5
+    Visibility: public -/
+def
+  value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr
+    chrono.naive.date.NaiveDate) value.convert.FromValueError)
+  := do
+  let result ←
+    match v with
+    | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+    | value.Value.Bytes bytes =>
+      do
+      let s := alloc.vec.Vec.deref bytes
+      let o ← value.convert.parse_mysql_datetime_string s
+      match o with
+      | none => ok (core.result.Result.Err v)
+      | some t =>
+        let (y, m, d, _, _, _, _) := t
+        let i ← lift (UScalar.hcast .I32 y)
+        let date ← value.convert.trusted.naive_date_from_ymd i m d
+        ok (core.result.Result.Ok (date, v))
+    | value.Value.Int _ => ok (core.result.Result.Err v)
+    | value.Value.UInt _ => ok (core.result.Result.Err v)
+    | value.Value.Float _ => ok (core.result.Result.Err v)
+    | value.Value.Double _ => ok (core.result.Result.Err v)
+    | value.Value.Date year month day _ _ _ _ =>
+      do
+      let i ← lift (UScalar.hcast .I32 year)
+      let i1 ← core.convert.IntoFrom.into core.convert.FromU32U8 month
+      let i2 ← core.convert.IntoFrom.into core.convert.FromU32U8 day
+      let date ← value.convert.trusted.naive_date_from_ymd i i1 i2
+      ok (core.result.Result.Ok (date, v))
+    | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch result
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (date, val1) := val
+    match date with
+    | none => ok (core.result.Result.Err val1)
+    | some output => ok (core.result.Result.Ok (output, val1))
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+      (value.convert.ParseIr chrono.naive.date.NaiveDate)
+      (core.convert.FromSame value.convert.FromValueError) residual
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<chrono::naive::date::NaiveDate>}]
+    Source: 'src/value/convert/chrono.rs', lines 80:0-111:1 -/
+@[reducible]
+def value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (value.convert.ParseIr chrono.naive.date.NaiveDate)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<chrono::naive::date::NaiveDate>> for chrono::naive::date::NaiveDate}]
+    Source: 'src/value/convert/chrono.rs', lines 25:0-27:1 -/
+@[reducible]
+impl_def
+  chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate
+  : value.convert.FromValue chrono.naive.date.NaiveDate (value.convert.ParseIr
+  chrono.naive.date.NaiveDate) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    chrono.naive.date.NaiveDate.Insts.CoreConvertFromParseIrNaiveDate
+  from_value := value.convert.FromValue.from_value.default
+    chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    chrono.naive.date.NaiveDate.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDate
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::time::NaiveTime>> for chrono::naive::time::NaiveTime}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 160:4-162:5
+    Visibility: public -/
+def chrono.naive.time.NaiveTime.Insts.CoreConvertFromParseIrNaiveTime.from
+  (ir : value.convert.ParseIr chrono.naive.time.NaiveTime) :
+  Result chrono.naive.time.NaiveTime
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::time::NaiveTime>> for chrono::naive::time::NaiveTime}]
+    Source: 'src/value/convert/chrono.rs', lines 159:0-163:1 -/
+@[reducible]
+def chrono.naive.time.NaiveTime.Insts.CoreConvertFromParseIrNaiveTime :
+  core.convert.From chrono.naive.time.NaiveTime (value.convert.ParseIr
+  chrono.naive.time.NaiveTime) := {
+  «from» :=
+    chrono.naive.time.NaiveTime.Insts.CoreConvertFromParseIrNaiveTime.from
+}
+
+/-- [mysql_common::value::convert::parse_mysql_time_string::{impl core::ops::function::FnOnce<(core::ops::range::RangeFrom<usize>,), u32> for mysql_common::value::convert::parse_mysql_time_string::{closure}<'_0>}::call_once]:
+    Source: 'src/value/convert/mod.rs', lines 702:23-702:54 -/
+def
+  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once
+  (c : value.convert.parse_mysql_time_string.closure)
+  (tupled_args : core.ops.range.RangeFrom Std.Usize) :
+  Result Std.U32
+  := do
+  let s ←
+    core.slice.index.Slice.index
+      (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) c tupled_args
+  value.convert.parse_micros s
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::ops::function::FnOnce<(core::ops::range::RangeFrom<usize>,), u32> for mysql_common::value::convert::parse_mysql_time_string::{closure}<'_0>}]
+    Source: 'src/value/convert/mod.rs', lines 702:23-702:54 -/
+@[reducible]
+def
+  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+  : core.ops.function.FnOnce value.convert.parse_mysql_time_string.closure
+  (core.ops.range.RangeFrom Std.Usize) Std.U32 := {
+  call_once :=
+    value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once
+}
+
+/-- [mysql_common::value::convert::parse_mysql_time_string]:
+    Source: 'src/value/convert/mod.rs', lines 657:0-704:1 -/
+def value.convert.parse_mysql_time_string
+  (bytes : Slice Std.U8) :
+  Result (Option (Bool × Std.U32 × Std.U8 × Std.U8 × Std.U32))
+  := do
+  let i := Slice.len bytes
+  if i < 8#usize
+  then ok none
+  else
+    let i1 ← Slice.index_usize bytes 0#usize
+    let bytes1 ←
+      if i1 = 45#u8
+      then
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) bytes
+          { start := 1#usize }
+      else ok bytes
+    let len := Slice.len bytes1
+    if len = 8#usize
+    then
+      let b ← value.convert.trusted.time_re_hh_mm_ss bytes1
+      if b
+      then
+        let s ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+            { «end» := 2#usize }
+        let o ← value.convert.trusted.btou_u32 s
+        let i2 ← core.option.Option.unwrap o
+        let s1 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+            { start := 3#usize, «end» := 5#usize }
+        let o1 ← value.convert.trusted.btou_u8 s1
+        let i3 ← core.option.Option.unwrap o1
+        let s2 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+            { start := 6#usize, «end» := 8#usize }
+        let o2 ← value.convert.trusted.btou_u8 s2
+        let i4 ← core.option.Option.unwrap o2
+        let o3 ←
+          core.option.Option.map
+            value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+            none bytes1
+        let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+        ok (some (i1 = 45#u8, i2, i3, i4, i5))
+      else
+        if len = 9#usize
+        then
+          let b1 ← value.convert.trusted.time_re_hhh_mm_ss bytes1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+                { «end» := 3#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 4#usize, «end» := 6#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 7#usize, «end» := 9#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                none bytes1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (i1 = 45#u8, i2, i3, i4, i5))
+          else
+            let b2 ← value.convert.trusted.time_re_hh_mm_ss_ms bytes1
+            if b2
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+                  { «end» := 2#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i2 ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                  { start := 3#usize, «end» := 5#usize }
+              let o1 ← value.convert.trusted.btou_u8 s1
+              let i3 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                  { start := 6#usize, «end» := 8#usize }
+              let o2 ← value.convert.trusted.btou_u8 s2
+              let i4 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 9#usize }) bytes1
+              let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              ok (some (i1 = 45#u8, i2, i3, i4, i5))
+            else
+              let b3 ← value.convert.trusted.time_re_hhh_mm_ss_ms bytes1
+              if b3
+              then
+                let s ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)
+                    bytes1 { «end» := 3#usize }
+                let o ← value.convert.trusted.btou_u32 s
+                let i2 ← core.option.Option.unwrap o
+                let s1 ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                    { start := 4#usize, «end» := 6#usize }
+                let o1 ← value.convert.trusted.btou_u8 s1
+                let i3 ← core.option.Option.unwrap o1
+                let s2 ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                    { start := 7#usize, «end» := 9#usize }
+                let o2 ← value.convert.trusted.btou_u8 s2
+                let i4 ← core.option.Option.unwrap o2
+                let o3 ←
+                  core.option.Option.map
+                    value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                    (some { start := 10#usize }) bytes1
+                let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+                ok (some (i1 = 45#u8, i2, i3, i4, i5))
+              else ok none
+        else
+          let b1 ← value.convert.trusted.time_re_hh_mm_ss_ms bytes1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+                { «end» := 2#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 3#usize, «end» := 5#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 6#usize, «end» := 8#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                (some { start := 9#usize }) bytes1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (i1 = 45#u8, i2, i3, i4, i5))
+          else
+            let b2 ← value.convert.trusted.time_re_hhh_mm_ss_ms bytes1
+            if b2
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+                  { «end» := 3#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i2 ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                  { start := 4#usize, «end» := 6#usize }
+              let o1 ← value.convert.trusted.btou_u8 s1
+              let i3 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                  { start := 7#usize, «end» := 9#usize }
+              let o2 ← value.convert.trusted.btou_u8 s2
+              let i4 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 10#usize }) bytes1
+              let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              ok (some (i1 = 45#u8, i2, i3, i4, i5))
+            else ok none
+    else
+      if len = 9#usize
+      then
+        let b ← value.convert.trusted.time_re_hhh_mm_ss bytes1
+        if b
+        then
+          let s ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+              { «end» := 3#usize }
+          let o ← value.convert.trusted.btou_u32 s
+          let i2 ← core.option.Option.unwrap o
+          let s1 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+              { start := 4#usize, «end» := 6#usize }
+          let o1 ← value.convert.trusted.btou_u8 s1
+          let i3 ← core.option.Option.unwrap o1
+          let s2 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+              { start := 7#usize, «end» := 9#usize }
+          let o2 ← value.convert.trusted.btou_u8 s2
+          let i4 ← core.option.Option.unwrap o2
+          let o3 ←
+            core.option.Option.map
+              value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+              none bytes1
+          let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+          ok (some (i1 = 45#u8, i2, i3, i4, i5))
+        else
+          let b1 ← value.convert.trusted.time_re_hh_mm_ss_ms bytes1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+                { «end» := 2#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 3#usize, «end» := 5#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 6#usize, «end» := 8#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                (some { start := 9#usize }) bytes1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (i1 = 45#u8, i2, i3, i4, i5))
+          else
+            let b2 ← value.convert.trusted.time_re_hhh_mm_ss_ms bytes1
+            if b2
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+                  { «end» := 3#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i2 ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                  { start := 4#usize, «end» := 6#usize }
+              let o1 ← value.convert.trusted.btou_u8 s1
+              let i3 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                  { start := 7#usize, «end» := 9#usize }
+              let o2 ← value.convert.trusted.btou_u8 s2
+              let i4 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 10#usize }) bytes1
+              let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              ok (some (i1 = 45#u8, i2, i3, i4, i5))
+            else ok none
+      else
+        let b ← value.convert.trusted.time_re_hh_mm_ss_ms bytes1
+        if b
+        then
+          let s ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+              { «end» := 2#usize }
+          let o ← value.convert.trusted.btou_u32 s
+          let i2 ← core.option.Option.unwrap o
+          let s1 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+              { start := 3#usize, «end» := 5#usize }
+          let o1 ← value.convert.trusted.btou_u8 s1
+          let i3 ← core.option.Option.unwrap o1
+          let s2 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+              { start := 6#usize, «end» := 8#usize }
+          let o2 ← value.convert.trusted.btou_u8 s2
+          let i4 ← core.option.Option.unwrap o2
+          let o3 ←
+            core.option.Option.map
+              value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+              (some { start := 9#usize }) bytes1
+          let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+          ok (some (i1 = 45#u8, i2, i3, i4, i5))
+        else
+          let b1 ← value.convert.trusted.time_re_hhh_mm_ss_ms bytes1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bytes1
+                { «end» := 3#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 4#usize, «end» := 6#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes1
+                { start := 7#usize, «end» := 9#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                (some { start := 10#usize }) bytes1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (i1 = 45#u8, i2, i3, i4, i5))
+          else ok none
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<chrono::naive::time::NaiveTime>}::try_from]:
+    Source: 'src/value/convert/chrono.rs', lines 117:4-141:5
+    Visibility: public -/
+def
+  value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr
+    chrono.naive.time.NaiveTime) value.convert.FromValueError)
+  := do
+  let result ←
+    match v with
+    | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+    | value.Value.Bytes bytes =>
+      do
+      let s := alloc.vec.Vec.deref bytes
+      let o ← value.convert.parse_mysql_time_string s
+      match o with
+      | none => ok (core.result.Result.Err v)
+      | some t =>
+        let (b, h, m, s1, u) := t
+        if b
+        then ok (core.result.Result.Err v)
+        else
+          let i ← lift (UScalar.cast .U32 m)
+          let i1 ← lift (UScalar.cast .U32 s1)
+          let time ← value.convert.trusted.naive_time_from_hms_micro h i i1 u
+          ok (core.result.Result.Ok (time, v))
+    | value.Value.Int _ => ok (core.result.Result.Err v)
+    | value.Value.UInt _ => ok (core.result.Result.Err v)
+    | value.Value.Float _ => ok (core.result.Result.Err v)
+    | value.Value.Double _ => ok (core.result.Result.Err v)
+    | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+    | value.Value.Time b i h m s u =>
+      if b
+      then ok (core.result.Result.Err v)
+      else
+        match i with
+        | 0#uscalar =>
+          do
+          let i1 ← core.convert.IntoFrom.into core.convert.FromU32U8 h
+          let i2 ← core.convert.IntoFrom.into core.convert.FromU32U8 m
+          let i3 ← core.convert.IntoFrom.into core.convert.FromU32U8 s
+          let time ←
+            value.convert.trusted.naive_time_from_hms_micro i1 i2 i3 u
+          ok (core.result.Result.Ok (time, v))
+        | _ => ok (core.result.Result.Err v)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch result
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (time, val1) := val
+    match time with
+    | none => ok (core.result.Result.Err val1)
+    | some output => ok (core.result.Result.Ok (output, val1))
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+      (value.convert.ParseIr chrono.naive.time.NaiveTime)
+      (core.convert.FromSame value.convert.FromValueError) residual
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<chrono::naive::time::NaiveTime>}]
+    Source: 'src/value/convert/chrono.rs', lines 114:0-142:1 -/
+@[reducible]
+def value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (value.convert.ParseIr chrono.naive.time.NaiveTime)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<chrono::naive::time::NaiveTime>> for chrono::naive::time::NaiveTime}]
+    Source: 'src/value/convert/chrono.rs', lines 30:0-32:1 -/
+@[reducible]
+impl_def
+  chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime
+  : value.convert.FromValue chrono.naive.time.NaiveTime (value.convert.ParseIr
+  chrono.naive.time.NaiveTime) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrNaiveTime.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    chrono.naive.time.NaiveTime.Insts.CoreConvertFromParseIrNaiveTime
+  from_value := value.convert.FromValue.from_value.default
+    chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::datetime::NaiveDateTime>> for chrono::naive::datetime::NaiveDateTime}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 146:4-148:5
+    Visibility: public -/
+def
+  chrono.naive.datetime.NaiveDateTime.Insts.CoreConvertFromParseIrNaiveDateTime.from
+  (ir : value.convert.ParseIr chrono.naive.datetime.NaiveDateTime) :
+  Result chrono.naive.datetime.NaiveDateTime
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::datetime::NaiveDateTime>> for chrono::naive::datetime::NaiveDateTime}]
+    Source: 'src/value/convert/chrono.rs', lines 145:0-149:1 -/
+@[reducible]
+def
+  chrono.naive.datetime.NaiveDateTime.Insts.CoreConvertFromParseIrNaiveDateTime
+  : core.convert.From chrono.naive.datetime.NaiveDateTime
+  (value.convert.ParseIr chrono.naive.datetime.NaiveDateTime) := {
+  «from» :=
+    chrono.naive.datetime.NaiveDateTime.Insts.CoreConvertFromParseIrNaiveDateTime.from
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<chrono::naive::datetime::NaiveDateTime>}::try_from]:
+    Source: 'src/value/convert/chrono.rs', lines 43:4-76:5
+    Visibility: public -/
+def
+  value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr
+    chrono.naive.datetime.NaiveDateTime) value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.parse_mysql_datetime_string s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some t =>
+      let (year, month, day, hour, minute, second, micros) := t
+      let i ← lift (UScalar.hcast .I32 year)
+      let date ← value.convert.trusted.naive_date_from_ymd i month day
+      let time ←
+        value.convert.trusted.naive_time_from_hms_micro hour minute second
+          micros
+      match date with
+      | none => ok (core.result.Result.Err v)
+      | some date1 =>
+        match time with
+        | none => ok (core.result.Result.Err v)
+        | some time1 =>
+          let ndt ← value.convert.trusted.naive_datetime_new date1 time1
+          ok (core.result.Result.Ok (ndt, v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date year month day hour minute second micros =>
+    let i ← lift (UScalar.hcast .I32 year)
+    let i1 ← core.convert.IntoFrom.into core.convert.FromU32U8 month
+    let i2 ← core.convert.IntoFrom.into core.convert.FromU32U8 day
+    let date ← value.convert.trusted.naive_date_from_ymd i i1 i2
+    let i3 ← core.convert.IntoFrom.into core.convert.FromU32U8 hour
+    let i4 ← core.convert.IntoFrom.into core.convert.FromU32U8 minute
+    let i5 ← core.convert.IntoFrom.into core.convert.FromU32U8 second
+    let time ←
+      value.convert.trusted.naive_time_from_hms_micro i3 i4 i5 micros
+    match date with
+    | none => ok (core.result.Result.Err v)
+    | some date1 =>
+      match time with
+      | none => ok (core.result.Result.Err v)
+      | some time1 =>
+        let ndt ← value.convert.trusted.naive_datetime_new date1 time1
+        ok (core.result.Result.Ok (ndt, v))
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<chrono::naive::datetime::NaiveDateTime>}]
+    Source: 'src/value/convert/chrono.rs', lines 40:0-77:1 -/
+@[reducible]
+def
+  value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (value.convert.ParseIr
+  chrono.naive.datetime.NaiveDateTime) value.Value value.convert.FromValueError
+  := {
+  try_from :=
+    value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<chrono::naive::datetime::NaiveDateTime>> for chrono::naive::datetime::NaiveDateTime}]
+    Source: 'src/value/convert/chrono.rs', lines 35:0-37:1 -/
+@[reducible]
+impl_def
+  chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime
+  : value.convert.FromValue chrono.naive.datetime.NaiveDateTime
+  (value.convert.ParseIr chrono.naive.datetime.NaiveDateTime) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    chrono.naive.datetime.NaiveDateTime.Insts.CoreConvertFromParseIrNaiveDateTime
+  from_value := value.convert.FromValue.from_value.default
+    chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::datetime::NaiveDateTime>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 167:4-169:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrNaiveDateTime.from
+  (ir : value.convert.ParseIr chrono.naive.datetime.NaiveDateTime) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::datetime::NaiveDateTime>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/chrono.rs', lines 166:0-170:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrNaiveDateTime : core.convert.From
+  value.Value (value.convert.ParseIr chrono.naive.datetime.NaiveDateTime) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrNaiveDateTime.from
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::date::NaiveDate>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 174:4-176:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrNaiveDate.from
+  (ir : value.convert.ParseIr chrono.naive.date.NaiveDate) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::date::NaiveDate>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/chrono.rs', lines 173:0-177:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrNaiveDate : core.convert.From
+  value.Value (value.convert.ParseIr chrono.naive.date.NaiveDate) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrNaiveDate.from
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::time::NaiveTime>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 181:4-183:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrNaiveTime.from
+  (ir : value.convert.ParseIr chrono.naive.time.NaiveTime) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<mysql_common::value::convert::ParseIr<chrono::naive::time::NaiveTime>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/chrono.rs', lines 180:0-184:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrNaiveTime : core.convert.From
+  value.Value (value.convert.ParseIr chrono.naive.time.NaiveTime) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrNaiveTime.from
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<chrono::naive::datetime::NaiveDateTime> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 188:4-206:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromNaiveDateTime.from
+  (x : chrono.naive.datetime.NaiveDateTime) : Result value.Value := do
+  let date ← value.convert.trusted.naive_datetime_date x
+  let time ← value.convert.trusted.naive_datetime_time x
+  let i ← value.convert.trusted.naive_date_year date
+  if 1000#i32 > i
+  then
+    let a ← core.fmt.rt.Argument.new_display I32.Insts.CoreFmtDisplay i
+    let _ ←
+      core.fmt.Arguments.new
+        (Array.make 47#usize [
+          6#u8, 89#u8, 101#u8, 97#u8, 114#u8, 32#u8, 96#u8, 192#u8, 37#u8,
+          96#u8, 32#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 110#u8, 32#u8,
+          115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8, 116#u8, 101#u8,
+          100#u8, 32#u8, 114#u8, 97#u8, 110#u8, 103#u8, 101#u8, 32#u8, 91#u8,
+          49#u8, 48#u8, 48#u8, 48#u8, 44#u8, 32#u8, 57#u8, 57#u8, 57#u8, 57#u8,
+          93#u8, 0#u8
+          ]) (Array.make 1#usize [ a ])
+    fail panic
+  else
+    if i > 9999#i32
+    then
+      let a ← core.fmt.rt.Argument.new_display I32.Insts.CoreFmtDisplay i
+      let _ ←
+        core.fmt.Arguments.new
+          (Array.make 47#usize [
+            6#u8, 89#u8, 101#u8, 97#u8, 114#u8, 32#u8, 96#u8, 192#u8, 37#u8,
+            96#u8, 32#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 110#u8, 32#u8,
+            115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8, 116#u8, 101#u8,
+            100#u8, 32#u8, 114#u8, 97#u8, 110#u8, 103#u8, 101#u8, 32#u8, 91#u8,
+            49#u8, 48#u8, 48#u8, 48#u8, 44#u8, 32#u8, 57#u8, 57#u8, 57#u8,
+            57#u8, 93#u8, 0#u8
+            ]) (Array.make 1#usize [ a ])
+      fail panic
+    else
+      let i1 ← lift (IScalar.hcast .U16 i)
+      let i2 ← value.convert.trusted.naive_date_month date
+      let i3 ← lift (UScalar.cast .U8 i2)
+      let i4 ← value.convert.trusted.naive_date_day date
+      let i5 ← lift (UScalar.cast .U8 i4)
+      let i6 ← value.convert.trusted.naive_time_hour time
+      let i7 ← lift (UScalar.cast .U8 i6)
+      let i8 ← value.convert.trusted.naive_time_minute time
+      let i9 ← lift (UScalar.cast .U8 i8)
+      let i10 ← value.convert.trusted.naive_time_second time
+      let i11 ← lift (UScalar.cast .U8 i10)
+      let i12 ← value.convert.trusted.naive_time_nanosecond time
+      let i13 ← i12 / 1000#u32
+      ok (value.Value.Date i1 i3 i5 i7 i9 i11 i13)
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<chrono::naive::datetime::NaiveDateTime> for mysql_common::value::Value}]
+    Source: 'src/value/convert/chrono.rs', lines 187:0-207:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromNaiveDateTime : core.convert.From
+  value.Value chrono.naive.datetime.NaiveDateTime := {
+  «from» := value.Value.Insts.CoreConvertFromNaiveDateTime.from
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<chrono::naive::date::NaiveDate> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 211:4-227:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromNaiveDate.from
+  (x : chrono.naive.date.NaiveDate) : Result value.Value := do
+  let i ← value.convert.trusted.naive_date_year x
+  if 1000#i32 > i
+  then
+    let a ← core.fmt.rt.Argument.new_display I32.Insts.CoreFmtDisplay i
+    let _ ←
+      core.fmt.Arguments.new
+        (Array.make 47#usize [
+          6#u8, 89#u8, 101#u8, 97#u8, 114#u8, 32#u8, 96#u8, 192#u8, 37#u8,
+          96#u8, 32#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 110#u8, 32#u8,
+          115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8, 116#u8, 101#u8,
+          100#u8, 32#u8, 114#u8, 97#u8, 110#u8, 103#u8, 101#u8, 32#u8, 91#u8,
+          49#u8, 48#u8, 48#u8, 48#u8, 44#u8, 32#u8, 57#u8, 57#u8, 57#u8, 57#u8,
+          93#u8, 0#u8
+          ]) (Array.make 1#usize [ a ])
+    fail panic
+  else
+    if i > 9999#i32
+    then
+      let a ← core.fmt.rt.Argument.new_display I32.Insts.CoreFmtDisplay i
+      let _ ←
+        core.fmt.Arguments.new
+          (Array.make 47#usize [
+            6#u8, 89#u8, 101#u8, 97#u8, 114#u8, 32#u8, 96#u8, 192#u8, 37#u8,
+            96#u8, 32#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 110#u8, 32#u8,
+            115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8, 116#u8, 101#u8,
+            100#u8, 32#u8, 114#u8, 97#u8, 110#u8, 103#u8, 101#u8, 32#u8, 91#u8,
+            49#u8, 48#u8, 48#u8, 48#u8, 44#u8, 32#u8, 57#u8, 57#u8, 57#u8,
+            57#u8, 93#u8, 0#u8
+            ]) (Array.make 1#usize [ a ])
+      fail panic
+    else
+      let i1 ← lift (IScalar.hcast .U16 i)
+      let i2 ← value.convert.trusted.naive_date_month x
+      let i3 ← lift (UScalar.cast .U8 i2)
+      let i4 ← value.convert.trusted.naive_date_day x
+      let i5 ← lift (UScalar.cast .U8 i4)
+      ok (value.Value.Date i1 i3 i5 0#u8 0#u8 0#u8 0#u32)
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<chrono::naive::date::NaiveDate> for mysql_common::value::Value}]
+    Source: 'src/value/convert/chrono.rs', lines 210:0-228:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromNaiveDate : core.convert.From value.Value
+  chrono.naive.date.NaiveDate := {
+  «from» := value.Value.Insts.CoreConvertFromNaiveDate.from
+}
+
+/-- [mysql_common::value::convert::chrono::{impl core::convert::From<chrono::naive::time::NaiveTime> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/chrono.rs', lines 232:4-241:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromNaiveTime.from
+  (x : chrono.naive.time.NaiveTime) : Result value.Value := do
+  let i ← value.convert.trusted.naive_time_hour x
+  let i1 ← lift (UScalar.cast .U8 i)
+  let i2 ← value.convert.trusted.naive_time_minute x
+  let i3 ← lift (UScalar.cast .U8 i2)
+  let i4 ← value.convert.trusted.naive_time_second x
+  let i5 ← lift (UScalar.cast .U8 i4)
+  let i6 ← value.convert.trusted.naive_time_nanosecond x
+  let i7 ← i6 / 1000#u32
+  ok (value.Value.Time false 0#u32 i1 i3 i5 i7)
+
+/-- Trait implementation: [mysql_common::value::convert::chrono::{impl core::convert::From<chrono::naive::time::NaiveTime> for mysql_common::value::Value}]
+    Source: 'src/value/convert/chrono.rs', lines 231:0-242:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromNaiveTime : core.convert.From value.Value
+  chrono.naive.time.NaiveTime := {
+  «from» := value.Value.Insts.CoreConvertFromNaiveTime.from
+}
+
+/-- [mysql_common::value::convert::decimal::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<rust_decimal::decimal::Decimal>}::try_from]:
+    Source: 'src/value/convert/decimal.rs', lines 23:4-36:5
+    Visibility: public -/
+def
+  value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr
+    rust_decimal.decimal.Decimal) value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.str_from_utf8 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      let o1 ← value.convert.trusted.decimal_from_str x
+      match o1 with
+      | none => ok (core.result.Result.Err v)
+      | some x1 => ok (core.result.Result.Ok (x1, v))
+  | value.Value.Int x =>
+    let d ← value.convert.trusted.decimal_from_i64 x
+    ok (core.result.Result.Ok (d, v))
+  | value.Value.UInt x =>
+    let d ← value.convert.trusted.decimal_from_u64 x
+    ok (core.result.Result.Ok (d, v))
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::decimal::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<rust_decimal::decimal::Decimal>}]
+    Source: 'src/value/convert/decimal.rs', lines 20:0-37:1 -/
+@[reducible]
+def value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIr rust_decimal.decimal.Decimal)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::decimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<rust_decimal::decimal::Decimal>> for rust_decimal::decimal::Decimal}::from]:
+    Source: 'src/value/convert/decimal.rs', lines 41:4-43:5
+    Visibility: public -/
+def rust_decimal.decimal.Decimal.Insts.CoreConvertFromParseIrDecimal.from
+  (ir : value.convert.ParseIr rust_decimal.decimal.Decimal) :
+  Result rust_decimal.decimal.Decimal
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::decimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<rust_decimal::decimal::Decimal>> for rust_decimal::decimal::Decimal}]
+    Source: 'src/value/convert/decimal.rs', lines 40:0-44:1 -/
+@[reducible]
+def rust_decimal.decimal.Decimal.Insts.CoreConvertFromParseIrDecimal :
+  core.convert.From rust_decimal.decimal.Decimal (value.convert.ParseIr
+  rust_decimal.decimal.Decimal) := {
+  «from» :=
+    rust_decimal.decimal.Decimal.Insts.CoreConvertFromParseIrDecimal.from
+}
+
+/-- [mysql_common::value::convert::decimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<rust_decimal::decimal::Decimal>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/decimal.rs', lines 48:4-50:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrDecimal.from
+  (ir : value.convert.ParseIr rust_decimal.decimal.Decimal) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::decimal::{impl core::convert::From<mysql_common::value::convert::ParseIr<rust_decimal::decimal::Decimal>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/decimal.rs', lines 47:0-51:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrDecimal : core.convert.From
+  value.Value (value.convert.ParseIr rust_decimal.decimal.Decimal) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrDecimal.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::decimal::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<rust_decimal::decimal::Decimal>> for rust_decimal::decimal::Decimal}]
+    Source: 'src/value/convert/decimal.rs', lines 54:0-56:1 -/
+@[reducible]
+impl_def
+  rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal
+  : value.convert.FromValue rust_decimal.decimal.Decimal (value.convert.ParseIr
+  rust_decimal.decimal.Decimal) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrDecimal.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    rust_decimal.decimal.Decimal.Insts.CoreConvertFromParseIrDecimal
+  from_value := value.convert.FromValue.from_value.default
+    rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    rust_decimal.decimal.Decimal.Insts.Mysql_commonValueConvertFromValueParseIrDecimal
+}
+
+/-- [mysql_common::value::convert::decimal::{impl core::convert::From<rust_decimal::decimal::Decimal> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/decimal.rs', lines 60:4-62:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromDecimal.from
+  (decimal : rust_decimal.decimal.Decimal) : Result value.Value := do
+  let s ← value.convert.trusted.decimal_to_string decimal
+  let v ← value.convert.trusted.string_into_bytes s
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::decimal::{impl core::convert::From<rust_decimal::decimal::Decimal> for mysql_common::value::Value}]
+    Source: 'src/value/convert/decimal.rs', lines 59:0-63:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromDecimal : core.convert.From value.Value
+  rust_decimal.decimal.Decimal := {
+  «from» := value.Value.Insts.CoreConvertFromDecimal.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::marker::StructuralPartialEq for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 32:13-32:22 -/
+@[reducible]
+def
+  value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreMarkerStructuralPartialEq
+  : core.marker.StructuralPartialEq
+  value.convert.parse_mysql_datetime_string.DateTimeKind := {
+}
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::PartialEq<mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind> for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}::eq]:
+    Source: 'src/value/convert/mod.rs', lines 32:13-32:22
+    Visibility: public -/
+def
+  value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind.eq
+  (self : value.convert.parse_mysql_datetime_string.DateTimeKind)
+  (other : value.convert.parse_mysql_datetime_string.DateTimeKind) :
+  Result Bool
+  := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (self1 = other1)
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::PartialEq<mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind> for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 32:13-32:22 -/
+@[reducible]
+def
+  value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind
+  : core.cmp.PartialEq value.convert.parse_mysql_datetime_string.DateTimeKind
+  value.convert.parse_mysql_datetime_string.DateTimeKind := {
+  eq :=
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind.eq
+}
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::Eq for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 32:24-32:26 -/
+@[reducible]
+def value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpEq :
+  core.cmp.Eq value.convert.parse_mysql_datetime_string.DateTimeKind := {
+  partialEqInst :=
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind
+}
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::Ord for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}::cmp]:
+    Source: 'src/value/convert/mod.rs', lines 32:40-32:43
+    Visibility: public -/
+def value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpOrd.cmp
+  (self : value.convert.parse_mysql_datetime_string.DateTimeKind)
+  (other : value.convert.parse_mysql_datetime_string.DateTimeKind) :
+  Result Ordering
+  := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (core.cmp.impls.OrdU8.cmp self1 other1)
+
+/-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::PartialOrd<mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind> for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}::partial_cmp]:
+    Source: 'src/value/convert/mod.rs', lines 32:28-32:38
+    Visibility: public -/
+def
+  value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialOrdDateTimeKind.partial_cmp
+  (self : value.convert.parse_mysql_datetime_string.DateTimeKind)
+  (other : value.convert.parse_mysql_datetime_string.DateTimeKind) :
+  Result (Option Ordering)
+  := do
+  let o ←
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpOrd.cmp
+      self other
+  ok (some o)
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::PartialOrd<mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind> for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 32:28-32:38 -/
+@[reducible]
+def
+  value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialOrdDateTimeKind
+  : core.cmp.PartialOrd value.convert.parse_mysql_datetime_string.DateTimeKind
+  value.convert.parse_mysql_datetime_string.DateTimeKind := {
+  partialEqInst :=
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind
+  partial_cmp :=
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialOrdDateTimeKind.partial_cmp
+}
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::Ord for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 32:40-32:43 -/
+@[reducible]
+def value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpOrd :
+  core.cmp.Ord value.convert.parse_mysql_datetime_string.DateTimeKind := {
+  eqInst :=
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpEq
+  partialOrdInst :=
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialOrdDateTimeKind
+  cmp :=
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpOrd.cmp
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::marker::StructuralPartialEq for mysql_common::value::convert::FromValueError}]
+    Source: 'src/value/convert/mod.rs', lines 84:23-84:32 -/
+@[reducible]
+def value.convert.FromValueError.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq value.convert.FromValueError := {
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::marker::StructuralPartialEq for mysql_common::value::convert::ParseIr<T>}]
+    Source: 'src/value/convert/mod.rs', lines 119:23-119:32 -/
+@[reducible]
+def value.convert.ParseIr.Insts.CoreMarkerStructuralPartialEq {T : Type _}
+  (corecmpPartialEqInst : core.cmp.PartialEq T T) :
+  core.marker.StructuralPartialEq (value.convert.ParseIr T) := {
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::marker::StructuralPartialEq for mysql_common::value::convert::ParseIrOpt<T>}]
+    Source: 'src/value/convert/mod.rs', lines 133:23-133:32 -/
+@[reducible]
+def value.convert.ParseIrOpt.Insts.CoreMarkerStructuralPartialEq {T : Type _}
+  (corecmpPartialEqInst : core.cmp.PartialEq T T) :
+  core.marker.StructuralPartialEq (value.convert.ParseIrOpt T) := {
+}
+
+/-- [mysql_common::value::convert::{mysql_common::value::convert::ParseIrOpt<T>}::commit]:
+    Source: 'src/value/convert/mod.rs', lines 142:4-146:5
+    Visibility: public -/
+def value.convert.ParseIrOpt.commit
+  {T : Type _} (self : value.convert.ParseIrOpt T) : Result T := do
+  match self with
+  | value.convert.ParseIrOpt.Ready t => ok t
+  | value.convert.ParseIrOpt.Parsed t _ => ok t
+
+/-- [mysql_common::value::convert::{mysql_common::value::convert::ParseIrOpt<T>}::rollback]:
+    Source: 'src/value/convert/mod.rs', lines 148:4-156:5
+    Visibility: public -/
+def value.convert.ParseIrOpt.rollback
+  {T : Type _} (coreconvertIntoTValueInst : core.convert.Into T value.Value)
+  (self : value.convert.ParseIrOpt T) :
+  Result value.Value
+  := do
+  match self with
+  | value.convert.ParseIrOpt.Ready t => coreconvertIntoTValueInst.into t
+  | value.convert.ParseIrOpt.Parsed _ v => ok v
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i8>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 209:0-209:33
+    Visibility: public -/
+def
+  value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.I8)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_i8 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (IScalar.cast .I128 core.num.I8.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.cast .I8 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (IScalar.hcast .U128 core.num.I8.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.cast .I8 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (IScalar.hcast .U128 core.num.I8.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.hcast .I8 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i8>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 209:0-209:33 -/
+@[reducible]
+def value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.I8) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i8>> for i8}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 209:0-209:33
+    Visibility: public -/
+def I8.Insts.CoreConvertFromParseIrOptI8.from
+  (ir : value.convert.ParseIrOpt Std.I8) : Result Std.I8 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i8>> for i8}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 209:0-209:33 -/
+@[reducible]
+def I8.Insts.CoreConvertFromParseIrOptI8 : core.convert.From Std.I8
+  (value.convert.ParseIrOpt Std.I8) := {
+  «from» := I8.Insts.CoreConvertFromParseIrOptI8.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<i8> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 755:12-757:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 769:0-769:27
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromI8.from
+  (x : Std.I8) : Result value.Value := do
+  let i ← lift (IScalar.cast .I64 x)
+  ok (value.Value.Int i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<i8> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 754:8-758:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 769:0-769:27 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromI8 : core.convert.From value.Value Std.I8
+  := {
+  «from» := value.Value.Insts.CoreConvertFromI8.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i8>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 209:0-209:33
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptI8.from
+  (ir : value.convert.ParseIrOpt Std.I8) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromI8) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i8>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 209:0-209:33 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptI8 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.I8) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptI8.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<i8>> for i8}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 209:0-209:33 -/
+@[reducible]
+impl_def I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8 :
+  value.convert.FromValue Std.I8 (value.convert.ParseIrOpt Std.I8) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptI8.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    I8.Insts.CoreConvertFromParseIrOptI8
+  from_value := value.convert.FromValue.from_value.default
+    I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u8>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 210:0-210:33
+    Visibility: public -/
+def
+  value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.U8)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_u8 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (UScalar.hcast .I128 core.num.U8.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.hcast .U8 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (UScalar.cast .U128 core.num.U8.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.hcast .U8 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (UScalar.cast .U128 core.num.U8.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.cast .U8 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u8>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 210:0-210:33 -/
+@[reducible]
+def value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.U8) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u8>> for u8}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 210:0-210:33
+    Visibility: public -/
+def U8.Insts.CoreConvertFromParseIrOptU8.from
+  (ir : value.convert.ParseIrOpt Std.U8) : Result Std.U8 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u8>> for u8}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 210:0-210:33 -/
+@[reducible]
+def U8.Insts.CoreConvertFromParseIrOptU8 : core.convert.From Std.U8
+  (value.convert.ParseIrOpt Std.U8) := {
+  «from» := U8.Insts.CoreConvertFromParseIrOptU8.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<u8> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 762:12-764:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 774:0-774:29
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromU8.from
+  (x : Std.U8) : Result value.Value := do
+  let i ← lift (UScalar.cast .U64 x)
+  ok (value.Value.UInt i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<u8> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 761:8-765:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 774:0-774:29 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromU8 : core.convert.From value.Value Std.U8
+  := {
+  «from» := value.Value.Insts.CoreConvertFromU8.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u8>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 210:0-210:33
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptU8.from
+  (ir : value.convert.ParseIrOpt Std.U8) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromU8) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u8>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 210:0-210:33 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptU8 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.U8) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptU8.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<u8>> for u8}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 210:0-210:33 -/
+@[reducible]
+impl_def U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8 :
+  value.convert.FromValue Std.U8 (value.convert.ParseIrOpt Std.U8) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptU8.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    U8.Insts.CoreConvertFromParseIrOptU8
+  from_value := value.convert.FromValue.from_value.default
+    U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    U8.Insts.Mysql_commonValueConvertFromValueParseIrOptU8
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i16>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 211:0-211:35
+    Visibility: public -/
+def
+  value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.I16)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_i16 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (IScalar.cast .I128 core.num.I16.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.cast .I16 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (IScalar.hcast .U128 core.num.I16.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.cast .I16 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (IScalar.hcast .U128 core.num.I16.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.hcast .I16 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i16>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 211:0-211:35 -/
+@[reducible]
+def value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.I16) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i16>> for i16}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 211:0-211:35
+    Visibility: public -/
+def I16.Insts.CoreConvertFromParseIrOptI16.from
+  (ir : value.convert.ParseIrOpt Std.I16) : Result Std.I16 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i16>> for i16}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 211:0-211:35 -/
+@[reducible]
+def I16.Insts.CoreConvertFromParseIrOptI16 : core.convert.From Std.I16
+  (value.convert.ParseIrOpt Std.I16) := {
+  «from» := I16.Insts.CoreConvertFromParseIrOptI16.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<i16> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 755:12-757:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 770:0-770:28
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromI16.from
+  (x : Std.I16) : Result value.Value := do
+  let i ← lift (IScalar.cast .I64 x)
+  ok (value.Value.Int i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<i16> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 754:8-758:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 770:0-770:28 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromI16 : core.convert.From value.Value
+  Std.I16 := {
+  «from» := value.Value.Insts.CoreConvertFromI16.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i16>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 211:0-211:35
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptI16.from
+  (ir : value.convert.ParseIrOpt Std.I16) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromI16) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i16>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 211:0-211:35 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptI16 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.I16) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptI16.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<i16>> for i16}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 211:0-211:35 -/
+@[reducible]
+impl_def I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16 :
+  value.convert.FromValue Std.I16 (value.convert.ParseIrOpt Std.I16) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptI16.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    I16.Insts.CoreConvertFromParseIrOptI16
+  from_value := value.convert.FromValue.from_value.default
+    I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    I16.Insts.Mysql_commonValueConvertFromValueParseIrOptI16
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u16>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 212:0-212:35
+    Visibility: public -/
+def
+  value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.U16)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_u16 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (UScalar.hcast .I128 core.num.U16.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.hcast .U16 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (UScalar.cast .U128 core.num.U16.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.hcast .U16 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (UScalar.cast .U128 core.num.U16.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.cast .U16 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u16>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 212:0-212:35 -/
+@[reducible]
+def value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.U16) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u16>> for u16}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 212:0-212:35
+    Visibility: public -/
+def U16.Insts.CoreConvertFromParseIrOptU16.from
+  (ir : value.convert.ParseIrOpt Std.U16) : Result Std.U16 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u16>> for u16}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 212:0-212:35 -/
+@[reducible]
+def U16.Insts.CoreConvertFromParseIrOptU16 : core.convert.From Std.U16
+  (value.convert.ParseIrOpt Std.U16) := {
+  «from» := U16.Insts.CoreConvertFromParseIrOptU16.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<u16> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 762:12-764:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 775:0-775:30
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromU16.from
+  (x : Std.U16) : Result value.Value := do
+  let i ← lift (UScalar.cast .U64 x)
+  ok (value.Value.UInt i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<u16> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 761:8-765:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 775:0-775:30 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromU16 : core.convert.From value.Value
+  Std.U16 := {
+  «from» := value.Value.Insts.CoreConvertFromU16.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u16>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 212:0-212:35
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptU16.from
+  (ir : value.convert.ParseIrOpt Std.U16) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromU16) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u16>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 212:0-212:35 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptU16 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.U16) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptU16.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<u16>> for u16}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 212:0-212:35 -/
+@[reducible]
+impl_def U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16 :
+  value.convert.FromValue Std.U16 (value.convert.ParseIrOpt Std.U16) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptU16.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    U16.Insts.CoreConvertFromParseIrOptU16
+  from_value := value.convert.FromValue.from_value.default
+    U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    U16.Insts.Mysql_commonValueConvertFromValueParseIrOptU16
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i32>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 213:0-213:35
+    Visibility: public -/
+def
+  value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.I32)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_i32 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (IScalar.cast .I128 core.num.I32.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.cast .I32 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (IScalar.hcast .U128 core.num.I32.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.cast .I32 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (IScalar.hcast .U128 core.num.I32.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.hcast .I32 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i32>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 213:0-213:35 -/
+@[reducible]
+def value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.I32) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i32>> for i32}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 213:0-213:35
+    Visibility: public -/
+def I32.Insts.CoreConvertFromParseIrOptI32.from
+  (ir : value.convert.ParseIrOpt Std.I32) : Result Std.I32 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i32>> for i32}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 213:0-213:35 -/
+@[reducible]
+def I32.Insts.CoreConvertFromParseIrOptI32 : core.convert.From Std.I32
+  (value.convert.ParseIrOpt Std.I32) := {
+  «from» := I32.Insts.CoreConvertFromParseIrOptI32.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<i32> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 755:12-757:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 771:0-771:28
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromI32.from
+  (x : Std.I32) : Result value.Value := do
+  let i ← lift (IScalar.cast .I64 x)
+  ok (value.Value.Int i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<i32> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 754:8-758:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 771:0-771:28 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromI32 : core.convert.From value.Value
+  Std.I32 := {
+  «from» := value.Value.Insts.CoreConvertFromI32.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i32>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 213:0-213:35
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptI32.from
+  (ir : value.convert.ParseIrOpt Std.I32) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromI32) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i32>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 213:0-213:35 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptI32 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.I32) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptI32.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<i32>> for i32}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 213:0-213:35 -/
+@[reducible]
+impl_def I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32 :
+  value.convert.FromValue Std.I32 (value.convert.ParseIrOpt Std.I32) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptI32.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    I32.Insts.CoreConvertFromParseIrOptI32
+  from_value := value.convert.FromValue.from_value.default
+    I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    I32.Insts.Mysql_commonValueConvertFromValueParseIrOptI32
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u32>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 214:0-214:35
+    Visibility: public -/
+def
+  value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.U32)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_u32 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (UScalar.hcast .I128 core.num.U32.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.hcast .U32 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (UScalar.cast .U128 core.num.U32.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.hcast .U32 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (UScalar.cast .U128 core.num.U32.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.cast .U32 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u32>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 214:0-214:35 -/
+@[reducible]
+def value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.U32) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u32>> for u32}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 214:0-214:35
+    Visibility: public -/
+def U32.Insts.CoreConvertFromParseIrOptU32.from
+  (ir : value.convert.ParseIrOpt Std.U32) : Result Std.U32 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u32>> for u32}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 214:0-214:35 -/
+@[reducible]
+def U32.Insts.CoreConvertFromParseIrOptU32 : core.convert.From Std.U32
+  (value.convert.ParseIrOpt Std.U32) := {
+  «from» := U32.Insts.CoreConvertFromParseIrOptU32.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<u32> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 762:12-764:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 776:0-776:30
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromU32.from
+  (x : Std.U32) : Result value.Value := do
+  let i ← lift (UScalar.cast .U64 x)
+  ok (value.Value.UInt i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<u32> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 761:8-765:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 776:0-776:30 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromU32 : core.convert.From value.Value
+  Std.U32 := {
+  «from» := value.Value.Insts.CoreConvertFromU32.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u32>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 214:0-214:35
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptU32.from
+  (ir : value.convert.ParseIrOpt Std.U32) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromU32) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u32>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 214:0-214:35 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptU32 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.U32) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptU32.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<u32>> for u32}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 214:0-214:35 -/
+@[reducible]
+impl_def U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32 :
+  value.convert.FromValue Std.U32 (value.convert.ParseIrOpt Std.U32) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptU32.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    U32.Insts.CoreConvertFromParseIrOptU32
+  from_value := value.convert.FromValue.from_value.default
+    U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    U32.Insts.Mysql_commonValueConvertFromValueParseIrOptU32
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i64>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 215:0-215:35
+    Visibility: public -/
+def
+  value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.I64)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_i64 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (IScalar.cast .I128 core.num.I64.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready x))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (IScalar.hcast .U128 core.num.I64.MAX)
+        if i2 <= i3
+        then ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready x))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (IScalar.hcast .U128 core.num.I64.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.hcast .I64 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i64>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 215:0-215:35 -/
+@[reducible]
+def value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.I64) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i64>> for i64}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 215:0-215:35
+    Visibility: public -/
+def I64.Insts.CoreConvertFromParseIrOptI64.from
+  (ir : value.convert.ParseIrOpt Std.I64) : Result Std.I64 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i64>> for i64}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 215:0-215:35 -/
+@[reducible]
+def I64.Insts.CoreConvertFromParseIrOptI64 : core.convert.From Std.I64
+  (value.convert.ParseIrOpt Std.I64) := {
+  «from» := I64.Insts.CoreConvertFromParseIrOptI64.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<i64> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 755:12-757:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 772:0-772:28
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromI64.from
+  (x : Std.I64) : Result value.Value := do
+  ok (value.Value.Int x)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<i64> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 754:8-758:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 772:0-772:28 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromI64 : core.convert.From value.Value
+  Std.I64 := {
+  «from» := value.Value.Insts.CoreConvertFromI64.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i64>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 215:0-215:35
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptI64.from
+  (ir : value.convert.ParseIrOpt Std.I64) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromI64) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i64>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 215:0-215:35 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptI64 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.I64) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptI64.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<i64>> for i64}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 215:0-215:35 -/
+@[reducible]
+impl_def I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64 :
+  value.convert.FromValue Std.I64 (value.convert.ParseIrOpt Std.I64) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptI64.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    I64.Insts.CoreConvertFromParseIrOptI64
+  from_value := value.convert.FromValue.from_value.default
+    I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u64>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 216:0-216:35
+    Visibility: public -/
+def
+  value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.U64)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_u64 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (UScalar.hcast .I128 core.num.U64.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.hcast .U64 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (UScalar.cast .U128 core.num.U64.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.hcast .U64 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (UScalar.cast .U128 core.num.U64.MAX)
+    if i <= i1
+    then ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready x))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u64>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 216:0-216:35 -/
+@[reducible]
+def value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.U64) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u64>> for u64}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 216:0-216:35
+    Visibility: public -/
+def U64.Insts.CoreConvertFromParseIrOptU64.from
+  (ir : value.convert.ParseIrOpt Std.U64) : Result Std.U64 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u64>> for u64}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 216:0-216:35 -/
+@[reducible]
+def U64.Insts.CoreConvertFromParseIrOptU64 : core.convert.From Std.U64
+  (value.convert.ParseIrOpt Std.U64) := {
+  «from» := U64.Insts.CoreConvertFromParseIrOptU64.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<u64> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 762:12-764:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 777:0-777:30
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromU64.from
+  (x : Std.U64) : Result value.Value := do
+  ok (value.Value.UInt x)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<u64> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 761:8-765:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 777:0-777:30 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromU64 : core.convert.From value.Value
+  Std.U64 := {
+  «from» := value.Value.Insts.CoreConvertFromU64.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u64>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 216:0-216:35
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptU64.from
+  (ir : value.convert.ParseIrOpt Std.U64) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromU64) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u64>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 216:0-216:35 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptU64 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.U64) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptU64.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<u64>> for u64}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 216:0-216:35 -/
+@[reducible]
+impl_def U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64 :
+  value.convert.FromValue Std.U64 (value.convert.ParseIrOpt Std.U64) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptU64.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    U64.Insts.CoreConvertFromParseIrOptU64
+  from_value := value.convert.FromValue.from_value.default
+    U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    U64.Insts.Mysql_commonValueConvertFromValueParseIrOptU64
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<isize>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 217:0-217:39
+    Visibility: public -/
+def
+  value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.Isize)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_isize s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (IScalar.cast .I128 core.num.Isize.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.cast .Isize x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (IScalar.hcast .U128 core.num.Isize.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.cast .Isize x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (IScalar.hcast .U128 core.num.Isize.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.hcast .Isize x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<isize>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 217:0-217:39 -/
+@[reducible]
+def value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.Isize) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<isize>> for isize}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 217:0-217:39
+    Visibility: public -/
+def Isize.Insts.CoreConvertFromParseIrOptIsize.from
+  (ir : value.convert.ParseIrOpt Std.Isize) : Result Std.Isize := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<isize>> for isize}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 217:0-217:39 -/
+@[reducible]
+def Isize.Insts.CoreConvertFromParseIrOptIsize : core.convert.From Std.Isize
+  (value.convert.ParseIrOpt Std.Isize) := {
+  «from» := Isize.Insts.CoreConvertFromParseIrOptIsize.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<isize> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 755:12-757:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 773:0-773:30
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromIsize.from
+  (x : Std.Isize) : Result value.Value := do
+  let i ← lift (IScalar.cast .I64 x)
+  ok (value.Value.Int i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<isize> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 754:8-758:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 773:0-773:30 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromIsize : core.convert.From value.Value
+  Std.Isize := {
+  «from» := value.Value.Insts.CoreConvertFromIsize.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<isize>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 217:0-217:39
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptIsize.from
+  (ir : value.convert.ParseIrOpt Std.Isize) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromIsize) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<isize>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 217:0-217:39 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptIsize : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.Isize) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptIsize.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<isize>> for isize}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 217:0-217:39 -/
+@[reducible]
+impl_def Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize :
+  value.convert.FromValue Std.Isize (value.convert.ParseIrOpt Std.Isize) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptIsize.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    Isize.Insts.CoreConvertFromParseIrOptIsize
+  from_value := value.convert.FromValue.from_value.default
+    Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    Isize.Insts.Mysql_commonValueConvertFromValueParseIrOptIsize
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<usize>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 218:0-218:39
+    Visibility: public -/
+def
+  value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.Usize)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_usize s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (UScalar.hcast .I128 core.num.Usize.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.hcast .Usize x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        let i3 ← lift (UScalar.cast .U128 core.num.Usize.MAX)
+        if i2 <= i3
+        then
+          let i4 ← lift (IScalar.hcast .Usize x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i4))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (UScalar.cast .U128 core.num.Usize.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.cast .Usize x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<usize>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 218:0-218:39 -/
+@[reducible]
+def value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.Usize) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<usize>> for usize}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 218:0-218:39
+    Visibility: public -/
+def Usize.Insts.CoreConvertFromParseIrOptUsize.from
+  (ir : value.convert.ParseIrOpt Std.Usize) : Result Std.Usize := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<usize>> for usize}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 218:0-218:39 -/
+@[reducible]
+def Usize.Insts.CoreConvertFromParseIrOptUsize : core.convert.From Std.Usize
+  (value.convert.ParseIrOpt Std.Usize) := {
+  «from» := Usize.Insts.CoreConvertFromParseIrOptUsize.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<usize> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 762:12-764:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 778:0-778:32
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromUsize.from
+  (x : Std.Usize) : Result value.Value := do
+  let i ← lift (UScalar.cast .U64 x)
+  ok (value.Value.UInt i)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<usize> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 761:8-765:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 778:0-778:32 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromUsize : core.convert.From value.Value
+  Std.Usize := {
+  «from» := value.Value.Insts.CoreConvertFromUsize.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<usize>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 218:0-218:39
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptUsize.from
+  (ir : value.convert.ParseIrOpt Std.Usize) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromUsize) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<usize>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 218:0-218:39 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptUsize : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.Usize) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptUsize.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<usize>> for usize}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 218:0-218:39 -/
+@[reducible]
+impl_def Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize :
+  value.convert.FromValue Std.Usize (value.convert.ParseIrOpt Std.Usize) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptUsize.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    Usize.Insts.CoreConvertFromParseIrOptUsize
+  from_value := value.convert.FromValue.from_value.default
+    Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    Usize.Insts.Mysql_commonValueConvertFromValueParseIrOptUsize
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i128>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 219:0-219:37
+    Visibility: public -/
+def
+  value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.I128)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_i128 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (IScalar.cast .I128 x)
+    if core.num.I128.MIN <= i
+    then
+      if x < 0#i64
+      then
+        let i1 ← lift (IScalar.cast .I128 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i1))
+      else
+        let i1 ← lift (IScalar.hcast .U128 x)
+        let i2 ← lift (IScalar.hcast .U128 core.num.I128.MAX)
+        if i1 <= i2
+        then
+          let i3 ← lift (IScalar.cast .I128 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i3))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    let i1 ← lift (IScalar.hcast .U128 core.num.I128.MAX)
+    if i <= i1
+    then
+      let i2 ← lift (UScalar.hcast .I128 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<i128>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 219:0-219:37 -/
+@[reducible]
+def value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.I128) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i128>> for i128}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 219:0-219:37
+    Visibility: public -/
+def I128.Insts.CoreConvertFromParseIrOptI128.from
+  (ir : value.convert.ParseIrOpt Std.I128) : Result Std.I128 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i128>> for i128}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 219:0-219:37 -/
+@[reducible]
+def I128.Insts.CoreConvertFromParseIrOptI128 : core.convert.From Std.I128
+  (value.convert.ParseIrOpt Std.I128) := {
+  «from» := I128.Insts.CoreConvertFromParseIrOptI128.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<i128> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 781:4-789:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromI128.from
+  (x : Std.I128) : Result value.Value := do
+  let i ← lift (IScalar.cast .I128 core.num.I64.MIN)
+  if i <= x
+  then
+    let i1 ← lift (IScalar.cast .I128 core.num.I64.MAX)
+    if x <= i1
+    then let i2 ← lift (IScalar.cast .I64 x)
+         ok (value.Value.Int i2)
+    else
+      if 0#i128 <= x
+      then
+        let i2 ← lift (UScalar.hcast .I128 core.num.U64.MAX)
+        if x <= i2
+        then let i3 ← lift (IScalar.hcast .U64 x)
+             ok (value.Value.UInt i3)
+        else
+          let s ← value.convert.trusted.i128_to_string x
+          let v ← value.convert.trusted.string_into_bytes s
+          ok (value.Value.Bytes v)
+      else
+        let s ← value.convert.trusted.i128_to_string x
+        let v ← value.convert.trusted.string_into_bytes s
+        ok (value.Value.Bytes v)
+  else
+    if 0#i128 <= x
+    then
+      let i1 ← lift (UScalar.hcast .I128 core.num.U64.MAX)
+      if x <= i1
+      then let i2 ← lift (IScalar.hcast .U64 x)
+           ok (value.Value.UInt i2)
+      else
+        let s ← value.convert.trusted.i128_to_string x
+        let v ← value.convert.trusted.string_into_bytes s
+        ok (value.Value.Bytes v)
+    else
+      let s ← value.convert.trusted.i128_to_string x
+      let v ← value.convert.trusted.string_into_bytes s
+      ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<i128> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 780:0-790:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromI128 : core.convert.From value.Value
+  Std.I128 := {
+  «from» := value.Value.Insts.CoreConvertFromI128.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i128>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 219:0-219:37
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptI128.from
+  (ir : value.convert.ParseIrOpt Std.I128) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromI128) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<i128>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 219:0-219:37 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptI128 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.I128) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptI128.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<i128>> for i128}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 219:0-219:37 -/
+@[reducible]
+impl_def I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128 :
+  value.convert.FromValue Std.I128 (value.convert.ParseIrOpt Std.I128) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptI128.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    I128.Insts.CoreConvertFromParseIrOptI128
+  from_value := value.convert.FromValue.from_value.default
+    I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    I128.Insts.Mysql_commonValueConvertFromValueParseIrOptI128
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u128>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 164:12-188:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 220:0-220:37
+    Visibility: public -/
+def
+  value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Std.U128)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.btoi_u128 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int x =>
+    let i ← lift (UScalar.hcast .I128 core.num.U128.MIN)
+    let i1 ← lift (IScalar.cast .I128 x)
+    if i <= i1
+    then
+      if x < 0#i64
+      then
+        let i2 ← lift (IScalar.hcast .U128 x)
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i2))
+      else
+        let i2 ← lift (IScalar.hcast .U128 x)
+        if i2 <= core.num.U128.MAX
+        then
+          let i3 ← lift (IScalar.hcast .U128 x)
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i3))
+        else ok (core.result.Result.Err v)
+    else ok (core.result.Result.Err v)
+  | value.Value.UInt x =>
+    let i ← lift (UScalar.cast .U128 x)
+    if i <= core.num.U128.MAX
+    then
+      let i1 ← lift (UScalar.cast .U128 x)
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready i1))
+    else ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<u128>}]
+    Source: 'src/value/convert/mod.rs', lines 161:8-189:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 220:0-220:37 -/
+@[reducible]
+def value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Std.U128) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u128>> for u128}::from]:
+    Source: 'src/value/convert/mod.rs', lines 192:12-194:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 220:0-220:37
+    Visibility: public -/
+def U128.Insts.CoreConvertFromParseIrOptU128.from
+  (ir : value.convert.ParseIrOpt Std.U128) : Result Std.U128 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u128>> for u128}]
+    Source: 'src/value/convert/mod.rs', lines 191:8-195:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 220:0-220:37 -/
+@[reducible]
+def U128.Insts.CoreConvertFromParseIrOptU128 : core.convert.From Std.U128
+  (value.convert.ParseIrOpt Std.U128) := {
+  «from» := U128.Insts.CoreConvertFromParseIrOptU128.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<u128> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 793:4-799:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromU128.from
+  (x : Std.U128) : Result value.Value := do
+  let i ← lift (UScalar.cast .U128 core.num.U64.MAX)
+  if x <= i
+  then let i1 ← lift (UScalar.cast .U64 x)
+       ok (value.Value.UInt i1)
+  else
+    let s ← value.convert.trusted.u128_to_string x
+    let v ← value.convert.trusted.string_into_bytes s
+    ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<u128> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 792:0-800:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromU128 : core.convert.From value.Value
+  Std.U128 := {
+  «from» := value.Value.Insts.CoreConvertFromU128.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u128>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 198:12-200:13; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 220:0-220:37
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptU128.from
+  (ir : value.convert.ParseIrOpt Std.U128) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromU128) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<u128>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 197:8-201:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 220:0-220:37 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptU128 : core.convert.From
+  value.Value (value.convert.ParseIrOpt Std.U128) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptU128.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<u128>> for u128}]
+    Source: 'src/value/convert/mod.rs', lines 203:8-205:9; this code is generated from a macro invocation at: 'src/value/convert/mod.rs', lines 220:0-220:37 -/
+@[reducible]
+impl_def U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128 :
+  value.convert.FromValue Std.U128 (value.convert.ParseIrOpt Std.U128) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptU128.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    U128.Insts.CoreConvertFromParseIrOptU128
+  from_value := value.convert.FromValue.from_value.default
+    U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    U128.Insts.Mysql_commonValueConvertFromValueParseIrOptU128
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<bool>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 225:4-240:5
+    Visibility: public -/
+def
+  value.convert.ParseIrOptBool.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt Bool)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let i := alloc.vec.Vec.len bytes
+    if i = 1#usize
+    then
+      let i1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8)
+          bytes 0#usize
+      if i1 = 48#u8
+      then ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed false v))
+      else
+        let i2 := alloc.vec.Vec.len bytes
+        if i2 = 1#usize
+        then
+          if i1 = 49#u8
+          then
+            ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed true v))
+          else ok (core.result.Result.Err v)
+        else ok (core.result.Result.Err v)
+    else
+      let i1 := alloc.vec.Vec.len bytes
+      if i1 = 1#usize
+      then
+        let i2 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8)
+            bytes 0#usize
+        if i2 = 49#u8
+        then
+          ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed true v))
+        else ok (core.result.Result.Err v)
+      else ok (core.result.Result.Err v)
+  | value.Value.Int i =>
+    match i with
+    | 0#iscalar =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready false))
+    | _ => ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready true))
+  | value.Value.UInt i =>
+    match i with
+    | 0#uscalar =>
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready false))
+    | _ => ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready true))
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<bool>}]
+    Source: 'src/value/convert/mod.rs', lines 222:0-241:1 -/
+@[reducible]
+def value.convert.ParseIrOptBool.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt Bool) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptBool.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<bool>> for bool}::from]:
+    Source: 'src/value/convert/mod.rs', lines 244:4-246:5
+    Visibility: public -/
+def Bool.Insts.CoreConvertFromParseIrOptBool.from
+  (ir : value.convert.ParseIrOpt Bool) : Result Bool := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<bool>> for bool}]
+    Source: 'src/value/convert/mod.rs', lines 243:0-247:1 -/
+@[reducible]
+def Bool.Insts.CoreConvertFromParseIrOptBool : core.convert.From Bool
+  (value.convert.ParseIrOpt Bool) := {
+  «from» := Bool.Insts.CoreConvertFromParseIrOptBool.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<bool> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 815:4-817:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromBool.from
+  (x : Bool) : Result value.Value := do
+  if x
+  then ok (value.Value.Int 1#i64)
+  else ok (value.Value.Int 0#i64)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<bool> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 814:0-818:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromBool : core.convert.From value.Value Bool
+  := {
+  «from» := value.Value.Insts.CoreConvertFromBool.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<bool>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 250:4-252:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptBool.from
+  (ir : value.convert.ParseIrOpt Bool) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromBool) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<bool>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 249:0-253:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptBool : core.convert.From
+  value.Value (value.convert.ParseIrOpt Bool) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptBool.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<bool>> for bool}]
+    Source: 'src/value/convert/mod.rs', lines 255:0-257:1 -/
+@[reducible]
+impl_def Bool.Insts.Mysql_commonValueConvertFromValueParseIrOptBool :
+  value.convert.FromValue Bool (value.convert.ParseIrOpt Bool) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptBool.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    Bool.Insts.CoreConvertFromParseIrOptBool
+  from_value := value.convert.FromValue.from_value.default
+    Bool.Insts.Mysql_commonValueConvertFromValueParseIrOptBool
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    Bool.Insts.Mysql_commonValueConvertFromValueParseIrOptBool
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    Bool.Insts.Mysql_commonValueConvertFromValueParseIrOptBool
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<f32>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 262:4-274:5
+    Visibility: public -/
+def
+  value.convert.ParseIrOptF32.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt F32)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.str_from_utf8 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some f =>
+      let o1 ← value.convert.trusted.str_parse_f32 f
+      match o1 with
+      | none => ok (core.result.Result.Err v)
+      | some x =>
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float x =>
+    ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready x))
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<f32>}]
+    Source: 'src/value/convert/mod.rs', lines 259:0-275:1 -/
+@[reducible]
+def value.convert.ParseIrOptF32.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt F32) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptF32.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f32>> for f32}::from]:
+    Source: 'src/value/convert/mod.rs', lines 278:4-280:5
+    Visibility: public -/
+def F32.Insts.CoreConvertFromParseIrOptF32.from
+  (ir : value.convert.ParseIrOpt F32) : Result F32 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f32>> for f32}]
+    Source: 'src/value/convert/mod.rs', lines 277:0-281:1 -/
+@[reducible]
+def F32.Insts.CoreConvertFromParseIrOptF32 : core.convert.From F32
+  (value.convert.ParseIrOpt F32) := {
+  «from» := F32.Insts.CoreConvertFromParseIrOptF32.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<f32> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 803:4-805:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromF32.from
+  (x : F32) : Result value.Value := do
+  ok (value.Value.Float x)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<f32> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 802:0-806:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromF32 : core.convert.From value.Value F32
+  := {
+  «from» := value.Value.Insts.CoreConvertFromF32.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f32>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 284:4-286:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptF32.from
+  (ir : value.convert.ParseIrOpt F32) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromF32) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f32>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 283:0-287:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptF32 : core.convert.From
+  value.Value (value.convert.ParseIrOpt F32) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptF32.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<f32>> for f32}]
+    Source: 'src/value/convert/mod.rs', lines 289:0-291:1 -/
+@[reducible]
+impl_def F32.Insts.Mysql_commonValueConvertFromValueParseIrOptF32 :
+  value.convert.FromValue F32 (value.convert.ParseIrOpt F32) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptF32.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    F32.Insts.CoreConvertFromParseIrOptF32
+  from_value := value.convert.FromValue.from_value.default
+    F32.Insts.Mysql_commonValueConvertFromValueParseIrOptF32
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    F32.Insts.Mysql_commonValueConvertFromValueParseIrOptF32
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    F32.Insts.Mysql_commonValueConvertFromValueParseIrOptF32
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<f64>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 296:4-309:5
+    Visibility: public -/
+def
+  value.convert.ParseIrOptF64.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt F64)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.str_from_utf8 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some f =>
+      let o1 ← value.convert.trusted.str_parse_f64 f
+      match o1 with
+      | none => ok (core.result.Result.Err v)
+      | some x =>
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed x v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float x =>
+    let fl ← value.convert.trusted.f32_to_f64 x
+    ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready fl))
+  | value.Value.Double x =>
+    ok (core.result.Result.Ok (value.convert.ParseIrOpt.Ready x))
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<f64>}]
+    Source: 'src/value/convert/mod.rs', lines 293:0-310:1 -/
+@[reducible]
+def value.convert.ParseIrOptF64.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIrOpt F64) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptF64.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f64>> for f64}::from]:
+    Source: 'src/value/convert/mod.rs', lines 313:4-315:5
+    Visibility: public -/
+def F64.Insts.CoreConvertFromParseIrOptF64.from
+  (ir : value.convert.ParseIrOpt F64) : Result F64 := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f64>> for f64}]
+    Source: 'src/value/convert/mod.rs', lines 312:0-316:1 -/
+@[reducible]
+def F64.Insts.CoreConvertFromParseIrOptF64 : core.convert.From F64
+  (value.convert.ParseIrOpt F64) := {
+  «from» := F64.Insts.CoreConvertFromParseIrOptF64.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<f64> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 809:4-811:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromF64.from
+  (x : F64) : Result value.Value := do
+  ok (value.Value.Double x)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<f64> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 808:0-812:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromF64 : core.convert.From value.Value F64
+  := {
+  «from» := value.Value.Insts.CoreConvertFromF64.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f64>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 319:4-321:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptF64.from
+  (ir : value.convert.ParseIrOpt F64) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromF64) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<f64>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 318:0-322:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptF64 : core.convert.From
+  value.Value (value.convert.ParseIrOpt F64) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptF64.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<f64>> for f64}]
+    Source: 'src/value/convert/mod.rs', lines 324:0-326:1 -/
+@[reducible]
+impl_def F64.Insts.Mysql_commonValueConvertFromValueParseIrOptF64 :
+  value.convert.FromValue F64 (value.convert.ParseIrOpt F64) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptF64.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    F64.Insts.CoreConvertFromParseIrOptF64
+  from_value := value.convert.FromValue.from_value.default
+    F64.Insts.Mysql_commonValueConvertFromValueParseIrOptF64
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    F64.Insts.Mysql_commonValueConvertFromValueParseIrOptF64
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    F64.Insts.Mysql_commonValueConvertFromValueParseIrOptF64
+}
+
+/-- [mysql_common::value::convert::mysql_time_to_duration]:
+    Source: 'src/value/convert/mod.rs', lines 328:0-341:1 -/
+def value.convert.mysql_time_to_duration
+  (days : Std.U32) (hours : Std.U8) (minutes : Std.U8) (seconds : Std.U8)
+  (microseconds : Std.U32) :
+  Result core.time.Duration
+  := do
+  let nanos ← microseconds * 1000#u32
+  let i ← lift (core.convert.num.FromU64U8.from seconds)
+  let i1 ← lift (core.convert.num.FromU64U8.from minutes)
+  let i2 ← i1 * 60#u64
+  let i3 ← i + i2
+  let i4 ← lift (core.convert.num.FromU64U8.from hours)
+  let i5 ← i4 * 60#u64
+  let i6 ← i5 * 60#u64
+  let i7 ← i3 + i6
+  let i8 ← lift (core.convert.num.FromU64U32.from days)
+  let i9 ← i8 * 60#u64
+  let i10 ← i9 * 60#u64
+  let i11 ← i10 * 24#u64
+  let secs ← i7 + i11
+  value.convert.trusted.duration_new secs nanos
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<core::time::Duration>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 346:4-365:5
+    Visibility: public -/
+def
+  value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIrOpt core.time.Duration)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes val_bytes =>
+    let s := alloc.vec.Vec.deref val_bytes
+    let o ← value.convert.parse_mysql_time_string s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some t =>
+      let (b, hours, minutes, seconds, microseconds) := t
+      if b
+      then ok (core.result.Result.Err v)
+      else
+        let days ← hours / 24#u32
+        let i ← hours % 24#u32
+        let hours1 ← lift (UScalar.cast .U8 i)
+        let duration ←
+          value.convert.mysql_time_to_duration days hours1 minutes seconds
+            microseconds
+        ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed duration v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time b days hours minutes seconds microseconds =>
+    if b
+    then ok (core.result.Result.Err v)
+    else
+      let duration ←
+        value.convert.mysql_time_to_duration days hours minutes seconds
+          microseconds
+      ok (core.result.Result.Ok (value.convert.ParseIrOpt.Parsed duration v))
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIrOpt<core::time::Duration>}]
+    Source: 'src/value/convert/mod.rs', lines 343:0-366:1 -/
+@[reducible]
+def
+  value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (value.convert.ParseIrOpt core.time.Duration)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<core::time::Duration>> for core::time::Duration}::from]:
+    Source: 'src/value/convert/mod.rs', lines 369:4-371:5
+    Visibility: public -/
+def core.time.Duration.Insts.CoreConvertFromParseIrOptDuration.from
+  (ir : value.convert.ParseIrOpt core.time.Duration) :
+  Result core.time.Duration
+  := do
+  value.convert.ParseIrOpt.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<core::time::Duration>> for core::time::Duration}]
+    Source: 'src/value/convert/mod.rs', lines 368:0-372:1 -/
+@[reducible]
+def core.time.Duration.Insts.CoreConvertFromParseIrOptDuration :
+  core.convert.From core.time.Duration (value.convert.ParseIrOpt
+  core.time.Duration) := {
+  «from» := core.time.Duration.Insts.CoreConvertFromParseIrOptDuration.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<core::time::Duration> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 707:4-724:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromDuration.from
+  (x : core.time.Duration) : Result value.Value := do
+  let secs_total ← value.convert.trusted.duration_as_secs x
+  let i ← value.convert.trusted.duration_subsec_nanos x
+  let i1 ← i + 500#u32
+  let micros ← i1 / 1000#u32
+  let i2 ← secs_total % 60#u64
+  let seconds ← lift (UScalar.cast .U8 i2)
+  let i3 ← lift (core.convert.num.FromU64U8.from seconds)
+  let secs_total1 ← secs_total - i3
+  let i4 ← 60#u64 * 60#u64
+  let i5 ← secs_total1 % i4
+  let i6 ← i5 / 60#u64
+  let minutes ← lift (UScalar.cast .U8 i6)
+  let i7 ← lift (core.convert.num.FromU64U8.from minutes)
+  let i8 ← i7 * 60#u64
+  let secs_total2 ← secs_total1 - i8
+  let i9 ← i4 * 24#u64
+  let i10 ← secs_total2 % i9
+  let i11 ← i10 / i4
+  let hours ← lift (UScalar.cast .U8 i11)
+  let i12 ← lift (core.convert.num.FromU64U8.from hours)
+  let i13 ← i12 * 60#u64
+  let i14 ← i13 * 60#u64
+  let secs_total3 ← secs_total2 - i14
+  let i15 ← i4 * 24#u64
+  let i16 ← secs_total3 / i15
+  let i17 ← lift (UScalar.cast .U32 i16)
+  ok (value.Value.Time false i17 hours minutes seconds micros)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<core::time::Duration> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 706:0-725:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromDuration : core.convert.From value.Value
+  core.time.Duration := {
+  «from» := value.Value.Insts.CoreConvertFromDuration.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<core::time::Duration>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 375:4-377:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrOptDuration.from
+  (ir : value.convert.ParseIrOpt core.time.Duration) : Result value.Value := do
+  value.convert.ParseIrOpt.rollback (core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromDuration) ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ParseIrOpt<core::time::Duration>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 374:0-378:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrOptDuration : core.convert.From
+  value.Value (value.convert.ParseIrOpt core.time.Duration) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrOptDuration.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIrOpt<core::time::Duration>> for core::time::Duration}]
+    Source: 'src/value/convert/mod.rs', lines 380:0-382:1 -/
+@[reducible]
+impl_def
+  core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration
+  : value.convert.FromValue core.time.Duration (value.convert.ParseIrOpt
+  core.time.Duration) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    core.time.Duration.Insts.CoreConvertFromParseIrOptDuration
+  from_value := value.convert.FromValue.from_value.default
+    core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for alloc::string::String}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 387:4-395:5
+    Visibility: public -/
+def alloc.string.String.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result String value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let r ← value.convert.trusted.string_from_utf8 bytes
+    match r with
+    | core.result.Result.Ok x => ok (core.result.Result.Ok x)
+    | core.result.Result.Err bytes1 =>
+      ok (core.result.Result.Err (value.Value.Bytes bytes1))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for alloc::string::String}]
+    Source: 'src/value/convert/mod.rs', lines 384:0-396:1 -/
+@[reducible]
+def alloc.string.String.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom String value.Value value.convert.FromValueError := {
+  try_from :=
+    alloc.string.String.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<alloc::string::String> for alloc::string::String}]
+    Source: 'src/value/convert/mod.rs', lines 398:0-400:1 -/
+@[reducible]
+impl_def alloc.string.String.Insts.Mysql_commonValueConvertFromValueString :
+  value.convert.FromValue String String := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    alloc.string.String.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom (core.convert.FromSame String)
+  from_value := value.convert.FromValue.from_value.default
+    alloc.string.String.Insts.Mysql_commonValueConvertFromValueString
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    alloc.string.String.Insts.Mysql_commonValueConvertFromValueString
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    alloc.string.String.Insts.Mysql_commonValueConvertFromValueString
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for alloc::vec::Vec<u8>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 405:4-410:5
+    Visibility: public -/
+def alloc.vec.VecU8.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (alloc.vec.Vec Std.U8)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes => ok (core.result.Result.Ok bytes)
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for alloc::vec::Vec<u8>}]
+    Source: 'src/value/convert/mod.rs', lines 402:0-411:1 -/
+@[reducible]
+def alloc.vec.VecU8.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (alloc.vec.Vec Std.U8) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    alloc.vec.VecU8.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<alloc::vec::Vec<u8>> for alloc::vec::Vec<u8>}]
+    Source: 'src/value/convert/mod.rs', lines 413:0-415:1 -/
+@[reducible]
+impl_def alloc.vec.VecU8.Insts.Mysql_commonValueConvertFromValueVecU8 :
+  value.convert.FromValue (alloc.vec.Vec Std.U8) (alloc.vec.Vec Std.U8) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    alloc.vec.VecU8.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom (core.convert.FromSame
+    (alloc.vec.Vec Std.U8))
+  from_value := value.convert.FromValue.from_value.default
+    alloc.vec.VecU8.Insts.Mysql_commonValueConvertFromValueVecU8
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    alloc.vec.VecU8.Insts.Mysql_commonValueConvertFromValueVecU8
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    alloc.vec.VecU8.Insts.Mysql_commonValueConvertFromValueVecU8
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::marker::StructuralPartialEq for mysql_common::value::convert::OptionIr2<T, Clause1_Intermediate>}]
+    Source: 'src/value/convert/mod.rs', lines 517:23-517:32 -/
+@[reducible]
+def value.convert.OptionIr2.Insts.CoreMarkerStructuralPartialEq {T : Type _}
+  {Clause1_Intermediate : Type _} (corecmpPartialEqInst : core.cmp.PartialEq T
+  T) (FromValueInst : value.convert.FromValue T Clause1_Intermediate)
+  (corecmpPartialEqInst1 : core.cmp.PartialEq Clause1_Intermediate
+  Clause1_Intermediate) : core.marker.StructuralPartialEq
+  (value.convert.OptionIr2 T Clause1_Intermediate) := {
+}
+
+/-- [mysql_common::value::convert::OptionIr2::Some]:
+    Source: 'src/value/convert/mod.rs', lines 520:4-520:25 -/
+def value.convert.OptionIr2.Some.constructor
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) (t : Clause0_Intermediate) :
+  Result (value.convert.OptionIr2 T Clause0_Intermediate)
+  := do
+  ok (value.convert.OptionIr2.Some t)
+
+/-- [mysql_common::value::convert::OptionIr2::{impl core::ops::function::FnOnce<(Clause0_Intermediate,), mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>> for mysql_common::value::convert::OptionIr2::Some<T, Clause0_Intermediate>[TraitClause0]}::call_once]:
+    Source: 'src/value/convert/mod.rs', lines 520:4-520:25 -/
+def P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2.call_once
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate)
+  (state : Clause0_Intermediate → Result (value.convert.OptionIr2 T
+  Clause0_Intermediate)) (args : Clause0_Intermediate) :
+  Result (value.convert.OptionIr2 T Clause0_Intermediate)
+  := do
+  value.convert.OptionIr2.Some.constructor FromValueInst args
+
+/-- Trait implementation: [mysql_common::value::convert::OptionIr2::{impl core::ops::function::FnOnce<(Clause0_Intermediate,), mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>> for mysql_common::value::convert::OptionIr2::Some<T, Clause0_Intermediate>[TraitClause0]}]
+    Source: 'src/value/convert/mod.rs', lines 520:4-520:25 -/
+@[reducible]
+def P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2 {T :
+  Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) : core.ops.function.FnOnce
+  (Clause0_Intermediate → Result (value.convert.OptionIr2 T
+  Clause0_Intermediate)) Clause0_Intermediate (value.convert.OptionIr2 T
+  Clause0_Intermediate) := {
+  call_once :=
+    P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2.call_once
+    FromValueInst
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 526:4-531:5
+    Visibility: public -/
+def
+  value.convert.OptionIr2.Insts.CoreConvertTryFromValueFromValueError.try_from
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) (v : value.Value) :
+  Result (core.result.Result (value.convert.OptionIr2 T Clause0_Intermediate)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Ok value.convert.OptionIr2.None)
+  | value.Value.Bytes _ =>
+    let r ←
+      FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+        v
+    core.result.Result.map
+      (P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2
+      FromValueInst) r (value.convert.OptionIr2.Some.constructor FromValueInst)
+  | value.Value.Int _ =>
+    let r ←
+      FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+        v
+    core.result.Result.map
+      (P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2
+      FromValueInst) r (value.convert.OptionIr2.Some.constructor FromValueInst)
+  | value.Value.UInt _ =>
+    let r ←
+      FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+        v
+    core.result.Result.map
+      (P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2
+      FromValueInst) r (value.convert.OptionIr2.Some.constructor FromValueInst)
+  | value.Value.Float _ =>
+    let r ←
+      FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+        v
+    core.result.Result.map
+      (P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2
+      FromValueInst) r (value.convert.OptionIr2.Some.constructor FromValueInst)
+  | value.Value.Double _ =>
+    let r ←
+      FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+        v
+    core.result.Result.map
+      (P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2
+      FromValueInst) r (value.convert.OptionIr2.Some.constructor FromValueInst)
+  | value.Value.Date _ _ _ _ _ _ _ =>
+    let r ←
+      FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+        v
+    core.result.Result.map
+      (P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2
+      FromValueInst) r (value.convert.OptionIr2.Some.constructor FromValueInst)
+  | value.Value.Time _ _ _ _ _ _ =>
+    let r ←
+      FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+        v
+    core.result.Result.map
+      (P.Insts.CoreOpsFunctionFnOnceTupleClause0_IntermediateOptionIr2
+      FromValueInst) r (value.convert.OptionIr2.Some.constructor FromValueInst)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>}]
+    Source: 'src/value/convert/mod.rs', lines 523:0-532:1 -/
+@[reducible]
+def value.convert.OptionIr2.Insts.CoreConvertTryFromValueFromValueError {T :
+  Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) : core.convert.TryFrom
+  (value.convert.OptionIr2 T Clause0_Intermediate) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.OptionIr2.Insts.CoreConvertTryFromValueFromValueError.try_from
+    FromValueInst
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>> for core::option::Option<T>}::from]:
+    Source: 'src/value/convert/mod.rs', lines 535:4-540:5
+    Visibility: public -/
+def core.option.Option.Insts.CoreConvertFromOptionIr2.from
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate)
+  (ir : value.convert.OptionIr2 T Clause0_Intermediate) :
+  Result (Option T)
+  := do
+  match ir with
+  | value.convert.OptionIr2.None => ok none
+  | value.convert.OptionIr2.Some ir1 =>
+    let t ← FromValueInst.coreconvertIntoInst.into ir1
+    ok (some t)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>> for core::option::Option<T>}]
+    Source: 'src/value/convert/mod.rs', lines 534:0-541:1 -/
+@[reducible]
+def core.option.Option.Insts.CoreConvertFromOptionIr2 {T : Type _}
+  {Clause0_Intermediate : Type _} (FromValueInst : value.convert.FromValue T
+  Clause0_Intermediate) : core.convert.From (Option T) (value.convert.OptionIr2
+  T Clause0_Intermediate) := {
+  «from» := core.option.Option.Insts.CoreConvertFromOptionIr2.from
+    FromValueInst
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 547:4-552:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromOptionIr2.from
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value)
+  (ir : value.convert.OptionIr2 T Clause0_Intermediate) :
+  Result value.Value
+  := do
+  match ir with
+  | value.convert.OptionIr2.None => ok value.Value.NULL
+  | value.convert.OptionIr2.Some ir1 =>
+    coreconvertIntoClause0_IntermediateValueInst.into ir1
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 543:0-553:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromOptionIr2 {T : Type _}
+  {Clause0_Intermediate : Type _} (FromValueInst : value.convert.FromValue T
+  Clause0_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value) : core.convert.From
+  value.Value (value.convert.OptionIr2 T Clause0_Intermediate) := {
+  «from» := value.Value.Insts.CoreConvertFromOptionIr2.from FromValueInst
+    coreconvertIntoClause0_IntermediateValueInst
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::OptionIr2<T, Clause0_Intermediate>> for core::option::Option<T>}]
+    Source: 'src/value/convert/mod.rs', lines 555:0-557:1 -/
+@[reducible]
+impl_def core.option.Option.Insts.Mysql_commonValueConvertFromValueOptionIr2 {T
+  : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) : value.convert.FromValue
+  (Option T) (value.convert.OptionIr2 T Clause0_Intermediate) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.OptionIr2.Insts.CoreConvertTryFromValueFromValueError
+    FromValueInst
+  coreconvertIntoInst := core.convert.IntoFrom
+    (core.option.Option.Insts.CoreConvertFromOptionIr2 FromValueInst)
+  from_value := value.convert.FromValue.from_value.default
+    (core.option.Option.Insts.Mysql_commonValueConvertFromValueOptionIr2
+    FromValueInst)
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    (core.option.Option.Insts.Mysql_commonValueConvertFromValueOptionIr2
+    FromValueInst)
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    (core.option.Option.Insts.Mysql_commonValueConvertFromValueOptionIr2
+    FromValueInst)
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::marker::StructuralPartialEq for mysql_common::value::convert::ValueIr}]
+    Source: 'src/value/convert/mod.rs', lines 560:23-560:32 -/
+@[reducible]
+def value.convert.ValueIr.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq value.convert.ValueIr := {
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ValueIr}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 567:4-569:5
+    Visibility: public -/
+def value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result value.convert.ValueIr
+    value.convert.FromValueError)
+  := do
+  ok (core.result.Result.Ok v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ValueIr}]
+    Source: 'src/value/convert/mod.rs', lines 564:0-570:1 -/
+@[reducible]
+def value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom value.convert.ValueIr value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 573:4-575:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromValueIr.from
+  (ir : value.convert.ValueIr) : Result value.Value := do
+  ok ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 572:0-576:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromValueIr : core.convert.From value.Value
+  value.convert.ValueIr := {
+  «from» := value.Value.Insts.CoreConvertFromValueIr.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 578:0-580:1 -/
+@[reducible]
+impl_def value.Value.Insts.Mysql_commonValueConvertFromValueValueIr :
+  value.convert.FromValue value.Value value.convert.ValueIr := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromValueIr
+  from_value := value.convert.FromValue.from_value.default
+    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+}
+
+/-- [mysql_common::value::convert::from_value]:
+    Source: 'src/value/convert/mod.rs', lines 583:0-585:1
+    Visibility: public -/
+def value.convert.from_value
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) (v : value.Value) :
+  Result T
+  := do
+  FromValueInst.from_value v
+
+/-- [mysql_common::value::convert::from_value_opt]:
+    Source: 'src/value/convert/mod.rs', lines 588:0-590:1
+    Visibility: public -/
+def value.convert.from_value_opt
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) (v : value.Value) :
+  Result (core.result.Result T value.convert.FromValueError)
+  := do
+  FromValueInst.from_value_opt v
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for alloc::borrow::Cow<'static, [u8], alloc::vec::Vec<u8>>}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 613:4-618:5
+    Visibility: public -/
+def
+  alloc.borrow.CowStaticSliceU8VecU8.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+    Std.U8)) value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes x =>
+    ok (core.result.Result.Ok (alloc.borrow.Cow.Owned x))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for alloc::borrow::Cow<'static, [u8], alloc::vec::Vec<u8>>}]
+    Source: 'src/value/convert/mod.rs', lines 610:0-619:1 -/
+@[reducible]
+def
+  alloc.borrow.CowStaticSliceU8VecU8.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+  Std.U8)) value.Value value.convert.FromValueError := {
+  try_from :=
+    alloc.borrow.CowStaticSliceU8VecU8.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<alloc::borrow::Cow<'static, [u8], alloc::vec::Vec<u8>>> for alloc::borrow::Cow<'static, [u8], alloc::vec::Vec<u8>>}]
+    Source: 'src/value/convert/mod.rs', lines 621:0-623:1 -/
+@[reducible]
+impl_def
+  alloc.borrow.CowStaticSliceU8VecU8.Insts.Mysql_commonValueConvertFromValueCowStaticSliceU8VecU8
+  : value.convert.FromValue (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+  Std.U8)) (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    alloc.borrow.CowStaticSliceU8VecU8.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom (core.convert.FromSame
+    (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  from_value := value.convert.FromValue.from_value.default
+    alloc.borrow.CowStaticSliceU8VecU8.Insts.Mysql_commonValueConvertFromValueCowStaticSliceU8VecU8
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    alloc.borrow.CowStaticSliceU8VecU8.Insts.Mysql_commonValueConvertFromValueCowStaticSliceU8VecU8
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    alloc.borrow.CowStaticSliceU8VecU8.Insts.Mysql_commonValueConvertFromValueCowStaticSliceU8VecU8
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from::{impl core::ops::function::FnOnce<(alloc::vec::Vec<u8>,), mysql_common::value::convert::FromValueError> for mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from::{closure}<N>}::call_once]:
+    Source: 'src/value/convert/mod.rs', lines 632:25-632:60 -/
+def
+  value.convert.TryFromArrayU8NValueFromValueError.try_from.closure.Insts.CoreOpsFunctionFnOnceTupleVecU8FromValueError.call_once
+  {N : Std.Usize}
+  (c : value.convert.TryFromArrayU8NValueFromValueError.try_from.closure N)
+  (tupled_args : alloc.vec.Vec Std.U8) :
+  Result value.convert.FromValueError
+  := do
+  ok (value.Value.Bytes tupled_args)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from::{impl core::ops::function::FnOnce<(alloc::vec::Vec<u8>,), mysql_common::value::convert::FromValueError> for mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from::{closure}<N>}]
+    Source: 'src/value/convert/mod.rs', lines 632:25-632:60 -/
+@[reducible]
+def
+  value.convert.TryFromArrayU8NValueFromValueError.try_from.closure.Insts.CoreOpsFunctionFnOnceTupleVecU8FromValueError
+  (N : Std.Usize) : core.ops.function.FnOnce
+  (value.convert.TryFromArrayU8NValueFromValueError.try_from.closure N)
+  (alloc.vec.Vec Std.U8) value.convert.FromValueError := {
+  call_once :=
+    value.convert.TryFromArrayU8NValueFromValueError.try_from.closure.Insts.CoreOpsFunctionFnOnceTupleVecU8FromValueError.call_once
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 628:4-635:5
+    Visibility: public -/
+def ArrayU8N.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (N : Std.Usize) (v : value.Value) :
+  Result (core.result.Result (Array Std.U8 N) value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let r ←
+      Array.Insts.CoreConvertTryFromVecVec.try_from alloc.alloc.Global N bytes
+    core.result.Result.map_err
+      (value.convert.TryFromArrayU8NValueFromValueError.try_from.closure.Insts.CoreOpsFunctionFnOnceTupleVecU8FromValueError
+      N) r ()
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}]
+    Source: 'src/value/convert/mod.rs', lines 625:0-636:1 -/
+@[reducible]
+def ArrayU8N.Insts.CoreConvertTryFromValueFromValueError (N : Std.Usize) :
+  core.convert.TryFrom (Array Std.U8 N) value.Value
+  value.convert.FromValueError := {
+  try_from := ArrayU8N.Insts.CoreConvertTryFromValueFromValueError.try_from N
+}
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<[u8; N]> for [u8; N]}]
+    Source: 'src/value/convert/mod.rs', lines 638:0-640:1 -/
+@[reducible]
+impl_def ArrayU8N.Insts.Mysql_commonValueConvertFromValueArrayU8N (N :
+  Std.Usize) : value.convert.FromValue (Array Std.U8 N) (Array Std.U8 N) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    ArrayU8N.Insts.CoreConvertTryFromValueFromValueError N
+  coreconvertIntoInst := core.convert.IntoFrom (core.convert.FromSame (Array
+    Std.U8 N))
+  from_value := value.convert.FromValue.from_value.default
+    (ArrayU8N.Insts.Mysql_commonValueConvertFromValueArrayU8N N)
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    (ArrayU8N.Insts.Mysql_commonValueConvertFromValueArrayU8N N)
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    (ArrayU8N.Insts.Mysql_commonValueConvertFromValueArrayU8N N)
+}
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::marker::StructuralPartialEq for mysql_common::value::convert::parse_mysql_time_string::TimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 658:13-658:22 -/
+@[reducible]
+def
+  value.convert.parse_mysql_time_string.TimeKind.Insts.CoreMarkerStructuralPartialEq
+  : core.marker.StructuralPartialEq
+  value.convert.parse_mysql_time_string.TimeKind := {
+}
+
+/-- [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::PartialEq<mysql_common::value::convert::parse_mysql_time_string::TimeKind> for mysql_common::value::convert::parse_mysql_time_string::TimeKind}::eq]:
+    Source: 'src/value/convert/mod.rs', lines 658:13-658:22
+    Visibility: public -/
+def
+  value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind.eq
+  (self : value.convert.parse_mysql_time_string.TimeKind)
+  (other : value.convert.parse_mysql_time_string.TimeKind) :
+  Result Bool
+  := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (self1 = other1)
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::PartialEq<mysql_common::value::convert::parse_mysql_time_string::TimeKind> for mysql_common::value::convert::parse_mysql_time_string::TimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 658:13-658:22 -/
+@[reducible]
+def
+  value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind
+  : core.cmp.PartialEq value.convert.parse_mysql_time_string.TimeKind
+  value.convert.parse_mysql_time_string.TimeKind := {
+  eq :=
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind.eq
+}
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::Eq for mysql_common::value::convert::parse_mysql_time_string::TimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 658:24-658:26 -/
+@[reducible]
+def value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpEq :
+  core.cmp.Eq value.convert.parse_mysql_time_string.TimeKind := {
+  partialEqInst :=
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind
+}
+
+/-- [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::Ord for mysql_common::value::convert::parse_mysql_time_string::TimeKind}::cmp]:
+    Source: 'src/value/convert/mod.rs', lines 658:40-658:43
+    Visibility: public -/
+def value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpOrd.cmp
+  (self : value.convert.parse_mysql_time_string.TimeKind)
+  (other : value.convert.parse_mysql_time_string.TimeKind) :
+  Result Ordering
+  := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (core.cmp.impls.OrdU8.cmp self1 other1)
+
+/-- [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::PartialOrd<mysql_common::value::convert::parse_mysql_time_string::TimeKind> for mysql_common::value::convert::parse_mysql_time_string::TimeKind}::partial_cmp]:
+    Source: 'src/value/convert/mod.rs', lines 658:28-658:38
+    Visibility: public -/
+def
+  value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialOrdTimeKind.partial_cmp
+  (self : value.convert.parse_mysql_time_string.TimeKind)
+  (other : value.convert.parse_mysql_time_string.TimeKind) :
+  Result (Option Ordering)
+  := do
+  let o ←
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpOrd.cmp self
+      other
+  ok (some o)
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::PartialOrd<mysql_common::value::convert::parse_mysql_time_string::TimeKind> for mysql_common::value::convert::parse_mysql_time_string::TimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 658:28-658:38 -/
+@[reducible]
+def
+  value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialOrdTimeKind
+  : core.cmp.PartialOrd value.convert.parse_mysql_time_string.TimeKind
+  value.convert.parse_mysql_time_string.TimeKind := {
+  partialEqInst :=
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind
+  partial_cmp :=
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialOrdTimeKind.partial_cmp
+}
+
+/-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::Ord for mysql_common::value::convert::parse_mysql_time_string::TimeKind}]
+    Source: 'src/value/convert/mod.rs', lines 658:40-658:43 -/
+@[reducible]
+def value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpOrd :
+  core.cmp.Ord value.convert.parse_mysql_time_string.TimeKind := {
+  eqInst := value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpEq
+  partialOrdInst :=
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialOrdTimeKind
+  cmp := value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpOrd.cmp
+}
+
+/-- [mysql_common::value::convert::{impl mysql_common::value::convert::ToValue for T}::to_value]:
+    Source: 'src/value/convert/mod.rs', lines 732:4-734:5
+    Visibility: public -/
+def value.convert.ToValue.Blanket.to_value
+  {T : Type _} (coreconvertIntoTValueInst : core.convert.Into T value.Value)
+  (corecloneCloneInst : core.clone.Clone T) (self : T) :
+  Result value.Value
+  := do
+  let t ← corecloneCloneInst.clone self
+  coreconvertIntoTValueInst.into t
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::ToValue for T}]
+    Source: 'src/value/convert/mod.rs', lines 731:0-735:1 -/
+@[reducible]
+def value.convert.ToValue.Blanket {T : Type _} (coreconvertIntoTValueInst :
+  core.convert.Into T value.Value) (corecloneCloneInst : core.clone.Clone T) :
+  value.convert.ToValue T := {
+  to_value := value.convert.ToValue.Blanket.to_value coreconvertIntoTValueInst
+    corecloneCloneInst
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<&'a T> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 738:4-740:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromSharedAT.from
+  {T : Type _} (ToValueInst : value.convert.ToValue T) (x : T) :
+  Result value.Value
+  := do
+  ToValueInst.to_value x
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<&'a T> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 737:0-741:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromSharedAT {T : Type _} (ToValueInst :
+  value.convert.ToValue T) : core.convert.From value.Value T := {
+  «from» := value.Value.Insts.CoreConvertFromSharedAT.from ToValueInst
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<core::option::Option<T>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 744:4-749:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromOption.from
+  {T : Type _} (coreconvertIntoTValueInst : core.convert.Into T value.Value)
+  (x : Option T) :
+  Result value.Value
+  := do
+  match x with
+  | none => ok value.Value.NULL
+  | some x1 => coreconvertIntoTValueInst.into x1
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<core::option::Option<T>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 743:0-750:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromOption {T : Type _}
+  (coreconvertIntoTValueInst : core.convert.Into T value.Value) :
+  core.convert.From value.Value (Option T) := {
+  «from» := value.Value.Insts.CoreConvertFromOption.from
+    coreconvertIntoTValueInst
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<&'a [u8]> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 821:4-823:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromSharedASliceU8.from
+  (x : Slice Std.U8) : Result value.Value := do
+  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<&'a [u8]> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 820:0-824:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromSharedASliceU8 : core.convert.From
+  value.Value (Slice Std.U8) := {
+  «from» := value.Value.Insts.CoreConvertFromSharedASliceU8.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<alloc::vec::Vec<u8>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 845:4-847:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromVecU8.from
+  (x : alloc.vec.Vec Std.U8) : Result value.Value := do
+  ok (value.Value.Bytes x)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<alloc::vec::Vec<u8>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 844:0-848:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromVecU8 : core.convert.From value.Value
+  (alloc.vec.Vec Std.U8) := {
+  «from» := value.Value.Insts.CoreConvertFromVecU8.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<&'a str> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 851:4-853:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromSharedAStr.from
+  (x : Str) : Result value.Value := do
+  let s ← value.convert.trusted.str_as_bytes x
+  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<&'a str> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 850:0-854:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromSharedAStr : core.convert.From value.Value
+  Str := {
+  «from» := value.Value.Insts.CoreConvertFromSharedAStr.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<alloc::borrow::Cow<'a, T, Clause0_Owned>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 879:4-884:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromCow.from
+  {T : Type _} {Clause0_Owned : Type _} (allocborrowToOwnedInst :
+  alloc.borrow.ToOwned T Clause0_Owned) (coreconvertIntoClause0_OwnedValueInst
+  : core.convert.Into Clause0_Owned value.Value)
+  (coreconvertIntoSharedATValueInst : core.convert.Into T value.Value)
+  (x : alloc.borrow.Cow T Clause0_Owned) :
+  Result value.Value
+  := do
+  match x with
+  | alloc.borrow.Cow.Borrowed x1 => coreconvertIntoSharedATValueInst.into x1
+  | alloc.borrow.Cow.Owned x1 => coreconvertIntoClause0_OwnedValueInst.into x1
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<alloc::borrow::Cow<'a, T, Clause0_Owned>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 874:0-885:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromCow {T : Type _} {Clause0_Owned : Type _}
+  (allocborrowToOwnedInst : alloc.borrow.ToOwned T Clause0_Owned)
+  (coreconvertIntoClause0_OwnedValueInst : core.convert.Into Clause0_Owned
+  value.Value) (coreconvertIntoSharedATValueInst : core.convert.Into T
+  value.Value) : core.convert.From value.Value (alloc.borrow.Cow T
+  Clause0_Owned) := {
+  «from» := value.Value.Insts.CoreConvertFromCow.from allocborrowToOwnedInst
+    coreconvertIntoClause0_OwnedValueInst coreconvertIntoSharedATValueInst
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<alloc::string::String> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 888:4-890:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromString.from
+  (x : String) : Result value.Value := do
+  let v ← value.convert.trusted.string_into_bytes x
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<alloc::string::String> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 887:0-891:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromString : core.convert.From value.Value
+  String := {
+  «from» := value.Value.Insts.CoreConvertFromString.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<[u8; N]> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 894:4-896:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromArrayU8N.from
+  {N : Std.Usize} (x : Array Std.U8 N) : Result value.Value := do
+  let s ← lift (Array.to_slice x)
+  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<[u8; N]> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 893:0-897:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromArrayU8N (N : Std.Usize) :
+  core.convert.From value.Value (Array Std.U8 N) := {
+  «from» := value.Value.Insts.CoreConvertFromArrayU8N.from
+}
+
+/-- [mysql_common::value::convert::time::parse_mysql_datetime_string_with_time]:
+    Source: 'src/value/convert/time.rs', lines 172:0-189:1 -/
+def value.convert.time.parse_mysql_datetime_string_with_time
+  (bytes : Slice Std.U8) :
+  Result (core.result.Result time.plain_date_time.PlainDateTime
+    time.error.parse.Parse)
+  := do
+  let o ← value.convert.trusted.str_from_utf8 bytes
+  match o with
+  | none =>
+    let p ← value.convert.trusted.time_parse_insufficient_information
+    ok (core.result.Result.Err p)
+  | some s =>
+    let s1 ← value.convert.trusted.str_as_bytes s
+    let i := Slice.len s1
+    if i > 19#usize
+    then value.convert.trusted.time_primitive_date_time_parse_date_time_micro s
+    else
+      let i1 := Slice.len s1
+      if i1 = 19#usize
+      then value.convert.trusted.time_primitive_date_time_parse_date_time s
+      else
+        let i2 := Slice.len s1
+        if i2 >= 10#usize
+        then value.convert.trusted.time_primitive_date_time_parse_date s
+        else
+          let p ← value.convert.trusted.time_parse_insufficient_information
+          ok (core.result.Result.Err p)
+
+/-- [mysql_common::value::convert::time::create_primitive_date_time]:
+    Source: 'src/value/convert/time.rs', lines 150:0-170:1 -/
+def value.convert.time.create_primitive_date_time
+  (year : Std.U16) (month : Std.U8) (day : Std.U8) (hour : Std.U8)
+  (minute : Std.U8) (second : Std.U8) (micros : Std.U32) :
+  Result (Option time.plain_date_time.PlainDateTime)
+  := do
+  let o ← value.convert.trusted.time_month_from_u8 month
+  match o with
+  | none => ok none
+  | some mon =>
+    let i ← lift (UScalar.hcast .I32 year)
+    let o1 ← value.convert.trusted.time_date_from_calendar_date i mon day
+    match o1 with
+    | none => ok none
+    | some date =>
+      let o2 ←
+        value.convert.trusted.time_time_from_hms_micro hour minute second
+          micros
+      match o2 with
+      | none => ok none
+      | some time =>
+        let pdt ←
+          value.convert.trusted.time_primitive_date_time_new date time
+        ok (some pdt)
+
+/-- [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::plain_date_time::PlainDateTime>}::try_from]:
+    Source: 'src/value/convert/time.rs', lines 25:4-39:5
+    Visibility: public -/
+def
+  value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr
+    time.plain_date_time.PlainDateTime) value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let r ← value.convert.time.parse_mysql_datetime_string_with_time s
+    match r with
+    | core.result.Result.Ok x => ok (core.result.Result.Ok (x, v))
+    | core.result.Result.Err _ => ok (core.result.Result.Err v)
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date year month day hour minute second micros =>
+    let o ←
+      value.convert.time.create_primitive_date_time year month day hour minute
+        second micros
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x => ok (core.result.Result.Ok (x, v))
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::plain_date_time::PlainDateTime>}]
+    Source: 'src/value/convert/time.rs', lines 22:0-40:1 -/
+@[reducible]
+def
+  value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (value.convert.ParseIr
+  time.plain_date_time.PlainDateTime) value.Value value.convert.FromValueError
+  := {
+  try_from :=
+    value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::plain_date_time::PlainDateTime>> for time::plain_date_time::PlainDateTime}::from]:
+    Source: 'src/value/convert/time.rs', lines 44:4-46:5
+    Visibility: public -/
+def
+  time.plain_date_time.PlainDateTime.Insts.CoreConvertFromParseIrPlainDateTime.from
+  (ir : value.convert.ParseIr time.plain_date_time.PlainDateTime) :
+  Result time.plain_date_time.PlainDateTime
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::plain_date_time::PlainDateTime>> for time::plain_date_time::PlainDateTime}]
+    Source: 'src/value/convert/time.rs', lines 43:0-47:1 -/
+@[reducible]
+def
+  time.plain_date_time.PlainDateTime.Insts.CoreConvertFromParseIrPlainDateTime
+  : core.convert.From time.plain_date_time.PlainDateTime (value.convert.ParseIr
+  time.plain_date_time.PlainDateTime) := {
+  «from» :=
+    time.plain_date_time.PlainDateTime.Insts.CoreConvertFromParseIrPlainDateTime.from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::plain_date_time::PlainDateTime>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 51:4-53:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrPlainDateTime.from
+  (ir : value.convert.ParseIr time.plain_date_time.PlainDateTime) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::plain_date_time::PlainDateTime>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 50:0-54:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrPlainDateTime : core.convert.From
+  value.Value (value.convert.ParseIr time.plain_date_time.PlainDateTime) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrPlainDateTime.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<time::plain_date_time::PlainDateTime>> for time::plain_date_time::PlainDateTime}]
+    Source: 'src/value/convert/time.rs', lines 57:0-59:1 -/
+@[reducible]
+impl_def
+  time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime
+  : value.convert.FromValue time.plain_date_time.PlainDateTime
+  (value.convert.ParseIr time.plain_date_time.PlainDateTime) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrPlainDateTime.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    time.plain_date_time.PlainDateTime.Insts.CoreConvertFromParseIrPlainDateTime
+  from_value := value.convert.FromValue.from_value.default
+    time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    time.plain_date_time.PlainDateTime.Insts.Mysql_commonValueConvertFromValueParseIrPlainDateTime
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::date::Date>}::try_from]:
+    Source: 'src/value/convert/time.rs', lines 65:4-86:5
+    Visibility: public -/
+def
+  value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr time.date.Date)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.str_from_utf8 s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some s1 =>
+      let o1 ← value.convert.trusted.time_date_parse_date s1
+      match o1 with
+      | none => ok (core.result.Result.Err v)
+      | some x => ok (core.result.Result.Ok (x, v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date year month day _ _ _ _ =>
+    let o ← value.convert.trusted.time_month_from_u8 month
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some month1 =>
+      let i ← lift (UScalar.hcast .I32 year)
+      let o1 ←
+        value.convert.trusted.time_date_from_calendar_date i month1 day
+      match o1 with
+      | none => ok (core.result.Result.Err v)
+      | some x => ok (core.result.Result.Ok (x, v))
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::date::Date>}]
+    Source: 'src/value/convert/time.rs', lines 62:0-87:1 -/
+@[reducible]
+def value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIr time.date.Date) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::date::Date>> for time::date::Date}::from]:
+    Source: 'src/value/convert/time.rs', lines 91:4-93:5
+    Visibility: public -/
+def time.date.Date.Insts.CoreConvertFromParseIrDate.from
+  (ir : value.convert.ParseIr time.date.Date) : Result time.date.Date := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::date::Date>> for time::date::Date}]
+    Source: 'src/value/convert/time.rs', lines 90:0-94:1 -/
+@[reducible]
+def time.date.Date.Insts.CoreConvertFromParseIrDate : core.convert.From
+  time.date.Date (value.convert.ParseIr time.date.Date) := {
+  «from» := time.date.Date.Insts.CoreConvertFromParseIrDate.from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::date::Date>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 98:4-100:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrDate.from
+  (ir : value.convert.ParseIr time.date.Date) : Result value.Value := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::date::Date>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 97:0-101:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrDate : core.convert.From
+  value.Value (value.convert.ParseIr time.date.Date) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrDate.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<time::date::Date>> for time::date::Date}]
+    Source: 'src/value/convert/time.rs', lines 104:0-106:1 -/
+@[reducible]
+impl_def time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate :
+  value.convert.FromValue time.date.Date (value.convert.ParseIr time.date.Date)
+  := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrDate.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    time.date.Date.Insts.CoreConvertFromParseIrDate
+  from_value := value.convert.FromValue.from_value.default
+    time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    time.date.Date.Insts.Mysql_commonValueConvertFromValueParseIrDate
+}
+
+/-- [mysql_common::value::convert::time::parse_mysql_time_string_with_time]:
+    Source: 'src/value/convert/time.rs', lines 191:0-200:1 -/
+def value.convert.time.parse_mysql_time_string_with_time
+  (bytes : Slice Std.U8) :
+  Result (core.result.Result time.time.Time time.error.parse.Parse)
+  := do
+  let o ← value.convert.trusted.str_from_utf8 bytes
+  match o with
+  | none =>
+    let p ← value.convert.trusted.time_parse_insufficient_information
+    ok (core.result.Result.Err p)
+  | some s =>
+    let s1 ← value.convert.trusted.str_as_bytes s
+    let i := Slice.len s1
+    let o1 ← lift (core.cmp.impls.OrdUsize.cmp i 8#usize)
+    match o1 with
+    | Ordering.lt =>
+      let p ← value.convert.trusted.time_parse_insufficient_information
+      ok (core.result.Result.Err p)
+    | Ordering.eq => value.convert.trusted.time_time_parse_time s
+    | Ordering.gt => value.convert.trusted.time_time_parse_time_micro s
+
+/-- [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::time::Time>}::try_from]:
+    Source: 'src/value/convert/time.rs', lines 112:4-124:5
+    Visibility: public -/
+def
+  value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr time.time.Time)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let r ← value.convert.time.parse_mysql_time_string_with_time s
+    match r with
+    | core.result.Result.Ok x => ok (core.result.Result.Ok (x, v))
+    | core.result.Result.Err _ => ok (core.result.Result.Err v)
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time b i h m s u =>
+    if b
+    then ok (core.result.Result.Err v)
+    else
+      match i with
+      | 0#uscalar =>
+        let o ← value.convert.trusted.time_time_from_hms_micro h m s u
+        match o with
+        | none => ok (core.result.Result.Err v)
+        | some x => ok (core.result.Result.Ok (x, v))
+      | _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::time::Time>}]
+    Source: 'src/value/convert/time.rs', lines 109:0-125:1 -/
+@[reducible]
+def value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIr time.time.Time) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::time::Time>> for time::time::Time}::from]:
+    Source: 'src/value/convert/time.rs', lines 129:4-131:5
+    Visibility: public -/
+def time.time.Time.Insts.CoreConvertFromParseIrTime.from
+  (ir : value.convert.ParseIr time.time.Time) : Result time.time.Time := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::time::Time>> for time::time::Time}]
+    Source: 'src/value/convert/time.rs', lines 128:0-132:1 -/
+@[reducible]
+def time.time.Time.Insts.CoreConvertFromParseIrTime : core.convert.From
+  time.time.Time (value.convert.ParseIr time.time.Time) := {
+  «from» := time.time.Time.Insts.CoreConvertFromParseIrTime.from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::time::Time>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 136:4-138:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrTime.from
+  (ir : value.convert.ParseIr time.time.Time) : Result value.Value := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::time::Time>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 135:0-139:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrTime : core.convert.From
+  value.Value (value.convert.ParseIr time.time.Time) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrTime.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<time::time::Time>> for time::time::Time}]
+    Source: 'src/value/convert/time.rs', lines 146:0-148:1 -/
+@[reducible]
+impl_def time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime :
+  value.convert.FromValue time.time.Time (value.convert.ParseIr time.time.Time)
+  := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrTime.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    time.time.Time.Insts.CoreConvertFromParseIrTime
+  from_value := value.convert.FromValue.from_value.default
+    time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::signed_duration::SignedDuration>}::try_from]:
+    Source: 'src/value/convert/time.rs', lines 206:4-259:5
+    Visibility: public -/
+def
+  value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr
+    time.signed_duration.SignedDuration) value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes val_bytes =>
+    let s := alloc.vec.Vec.deref val_bytes
+    let o ← value.convert.parse_mysql_time_string s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some t =>
+      let (is_neg, hours, minutes, seconds, microseconds) := t
+      let i ← lift (UScalar.hcast .I64 hours)
+      let sd ← value.convert.trusted.time_duration_hours i
+      let i1 ← lift (UScalar.hcast .I64 minutes)
+      let sd1 ← value.convert.trusted.time_duration_minutes i1
+      let sd2 ← value.convert.trusted.time_duration_add sd sd1
+      let i2 ← lift (UScalar.hcast .I64 seconds)
+      let sd3 ← value.convert.trusted.time_duration_seconds i2
+      let sd4 ← value.convert.trusted.time_duration_add sd2 sd3
+      let i3 ← lift (UScalar.hcast .I64 microseconds)
+      let sd5 ← value.convert.trusted.time_duration_microseconds i3
+      let duration ← value.convert.trusted.time_duration_add sd4 sd5
+      if is_neg
+      then
+        let duration1 ← value.convert.trusted.time_duration_neg duration
+        ok (core.result.Result.Ok (duration1, v))
+      else ok (core.result.Result.Ok (duration, v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time is_neg days hours minutes seconds microseconds =>
+    let i ← lift (UScalar.hcast .I64 days)
+    let sd ← value.convert.trusted.time_duration_days i
+    let i1 ← lift (UScalar.hcast .I64 hours)
+    let sd1 ← value.convert.trusted.time_duration_hours i1
+    let sd2 ← value.convert.trusted.time_duration_add sd sd1
+    let i2 ← lift (UScalar.hcast .I64 minutes)
+    let sd3 ← value.convert.trusted.time_duration_minutes i2
+    let sd4 ← value.convert.trusted.time_duration_add sd2 sd3
+    let i3 ← lift (UScalar.hcast .I64 seconds)
+    let sd5 ← value.convert.trusted.time_duration_seconds i3
+    let sd6 ← value.convert.trusted.time_duration_add sd4 sd5
+    let i4 ← lift (UScalar.hcast .I64 microseconds)
+    let sd7 ← value.convert.trusted.time_duration_microseconds i4
+    let duration ← value.convert.trusted.time_duration_add sd6 sd7
+    if is_neg
+    then
+      let duration1 ← value.convert.trusted.time_duration_neg duration
+      ok (core.result.Result.Ok (duration1, v))
+    else ok (core.result.Result.Ok (duration, v))
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<time::signed_duration::SignedDuration>}]
+    Source: 'src/value/convert/time.rs', lines 203:0-260:1 -/
+@[reducible]
+def
+  value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError
+  : core.convert.TryFrom (value.convert.ParseIr
+  time.signed_duration.SignedDuration) value.Value value.convert.FromValueError
+  := {
+  try_from :=
+    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::signed_duration::SignedDuration>> for time::signed_duration::SignedDuration}::from]:
+    Source: 'src/value/convert/time.rs', lines 264:4-266:5
+    Visibility: public -/
+def
+  time.signed_duration.SignedDuration.Insts.CoreConvertFromParseIrSignedDuration.from
+  (ir : value.convert.ParseIr time.signed_duration.SignedDuration) :
+  Result time.signed_duration.SignedDuration
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::signed_duration::SignedDuration>> for time::signed_duration::SignedDuration}]
+    Source: 'src/value/convert/time.rs', lines 263:0-267:1 -/
+@[reducible]
+def
+  time.signed_duration.SignedDuration.Insts.CoreConvertFromParseIrSignedDuration
+  : core.convert.From time.signed_duration.SignedDuration
+  (value.convert.ParseIr time.signed_duration.SignedDuration) := {
+  «from» :=
+    time.signed_duration.SignedDuration.Insts.CoreConvertFromParseIrSignedDuration.from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::signed_duration::SignedDuration>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 271:4-273:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrSignedDuration.from
+  (ir : value.convert.ParseIr time.signed_duration.SignedDuration) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<mysql_common::value::convert::ParseIr<time::signed_duration::SignedDuration>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 270:0-274:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrSignedDuration : core.convert.From
+  value.Value (value.convert.ParseIr time.signed_duration.SignedDuration) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrSignedDuration.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<time::signed_duration::SignedDuration>> for time::signed_duration::SignedDuration}]
+    Source: 'src/value/convert/time.rs', lines 277:0-279:1 -/
+@[reducible]
+impl_def
+  time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration
+  : value.convert.FromValue time.signed_duration.SignedDuration
+  (value.convert.ParseIr time.signed_duration.SignedDuration) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    time.signed_duration.SignedDuration.Insts.CoreConvertFromParseIrSignedDuration
+  from_value := value.convert.FromValue.from_value.default
+    time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<time::plain_date_time::PlainDateTime> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 283:4-295:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromPlainDateTime.from
+  (x : time.plain_date_time.PlainDateTime) : Result value.Value := do
+  let date ← value.convert.trusted.time_primitive_date_time_date x
+  let time ← value.convert.trusted.time_primitive_date_time_time x
+  let i ← value.convert.trusted.time_date_year date
+  let i1 ← lift (IScalar.hcast .U16 i)
+  let m ← value.convert.trusted.time_date_month date
+  let i2 ← value.convert.trusted.time_month_to_u8 m
+  let i3 ← value.convert.trusted.time_date_day date
+  let i4 ← value.convert.trusted.time_time_hour time
+  let i5 ← value.convert.trusted.time_time_minute time
+  let i6 ← value.convert.trusted.time_time_second time
+  let i7 ← value.convert.trusted.time_time_microsecond time
+  ok (value.Value.Date i1 i2 i3 i4 i5 i6 i7)
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<time::plain_date_time::PlainDateTime> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 282:0-296:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromPlainDateTime : core.convert.From
+  value.Value time.plain_date_time.PlainDateTime := {
+  «from» := value.Value.Insts.CoreConvertFromPlainDateTime.from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<time::date::Date> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 300:4-310:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromDate.from
+  (x : time.date.Date) : Result value.Value := do
+  let i ← value.convert.trusted.time_date_year x
+  let i1 ← lift (IScalar.hcast .U16 i)
+  let m ← value.convert.trusted.time_date_month x
+  let i2 ← value.convert.trusted.time_month_to_u8 m
+  let i3 ← value.convert.trusted.time_date_day x
+  ok (value.Value.Date i1 i2 i3 0#u8 0#u8 0#u8 0#u32)
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<time::date::Date> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 299:0-311:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromDate : core.convert.From value.Value
+  time.date.Date := {
+  «from» := value.Value.Insts.CoreConvertFromDate.from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<time::time::Time> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 315:4-324:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromTime.from
+  (x : time.time.Time) : Result value.Value := do
+  let i ← value.convert.trusted.time_time_hour x
+  let i1 ← value.convert.trusted.time_time_minute x
+  let i2 ← value.convert.trusted.time_time_second x
+  let i3 ← value.convert.trusted.time_time_microsecond x
+  ok (value.Value.Time false 0#u32 i i1 i2 i3)
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<time::time::Time> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 314:0-325:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromTime : core.convert.From value.Value
+  time.time.Time := {
+  «from» := value.Value.Insts.CoreConvertFromTime.from
+}
+
+/-- [mysql_common::value::convert::time::{impl core::convert::From<time::signed_duration::SignedDuration> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/time.rs', lines 329:4-359:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromSignedDuration.from
+  (x : time.signed_duration.SignedDuration) : Result value.Value := do
+  let negative ← value.convert.trusted.time_duration_lt_zero x
+  let x1 ←
+    if negative
+    then value.convert.trusted.time_duration_neg x
+    else ok x
+  let i ← value.convert.trusted.time_duration_whole_days x1
+  let days ← lift (IScalar.hcast .U32 i)
+  let sd ← value.convert.trusted.time_duration_days i
+  let x2 ← value.convert.trusted.time_duration_sub x1 sd
+  let i1 ← value.convert.trusted.time_duration_whole_hours x2
+  let hours ← lift (IScalar.hcast .U8 i1)
+  let sd1 ← value.convert.trusted.time_duration_hours i1
+  let x3 ← value.convert.trusted.time_duration_sub x2 sd1
+  let i2 ← value.convert.trusted.time_duration_whole_minutes x3
+  let minutes ← lift (IScalar.hcast .U8 i2)
+  let sd2 ← value.convert.trusted.time_duration_minutes i2
+  let x4 ← value.convert.trusted.time_duration_sub x3 sd2
+  let i3 ← value.convert.trusted.time_duration_whole_seconds x4
+  let seconds ← lift (IScalar.hcast .U8 i3)
+  let sd3 ← value.convert.trusted.time_duration_seconds i3
+  let x5 ← value.convert.trusted.time_duration_sub x4 sd3
+  let i4 ← value.convert.trusted.time_duration_whole_microseconds x5
+  let microseconds ← lift (IScalar.hcast .U32 i4)
+  ok (value.Value.Time negative days hours minutes seconds microseconds)
+
+/-- Trait implementation: [mysql_common::value::convert::time::{impl core::convert::From<time::signed_duration::SignedDuration> for mysql_common::value::Value}]
+    Source: 'src/value/convert/time.rs', lines 328:0-360:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromSignedDuration : core.convert.From
+  value.Value time.signed_duration.SignedDuration := {
+  «from» := value.Value.Insts.CoreConvertFromSignedDuration.from
+}
+
+/-- [mysql_common::value::convert::uuid::{impl core::convert::From<uuid::Uuid> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/uuid.rs', lines 20:4-22:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromUuid.from
+  (x : uuid.Uuid) : Result value.Value := do
+  let a ← uuid.Uuid.as_bytes x
+  let s ← lift (Array.to_slice a)
+  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::convert::uuid::{impl core::convert::From<uuid::Uuid> for mysql_common::value::Value}]
+    Source: 'src/value/convert/uuid.rs', lines 19:0-23:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromUuid : core.convert.From value.Value
+  uuid.Uuid := {
+  «from» := value.Value.Insts.CoreConvertFromUuid.from
+}
+
+/-- [mysql_common::value::convert::uuid::uuid_from_slice]:
+    Source: 'src/value/convert/uuid.rs', lines 42:0-50:1 -/
+def value.convert.uuid.uuid_from_slice
+  (b : Slice Std.U8) : Result (Option uuid.Uuid) := do
+  let i := Slice.len b
+  if i != 16#usize
+  then ok none
+  else
+    let bytes := Array.repeat 16#usize 0#u8
+    let (s, to_slice_mut_back) ← lift (Array.to_slice_mut bytes)
+    let s1 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s b
+    let bytes1 := to_slice_mut_back s1
+    let u ← uuid.builder.Uuid.from_bytes bytes1
+    ok (some u)
+
+/-- [mysql_common::value::convert::uuid::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<uuid::Uuid>}::try_from]:
+    Source: 'src/value/convert/uuid.rs', lines 28:4-36:5
+    Visibility: public -/
+def
+  value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr uuid.Uuid)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.uuid.uuid_from_slice s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some val => ok (core.result.Result.Ok (val, v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::convert::uuid::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<uuid::Uuid>}]
+    Source: 'src/value/convert/uuid.rs', lines 25:0-37:1 -/
+@[reducible]
+def value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIr uuid.Uuid) value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::uuid::{impl core::convert::From<mysql_common::value::convert::ParseIr<uuid::Uuid>> for uuid::Uuid}::from]:
+    Source: 'src/value/convert/uuid.rs', lines 53:4-55:5
+    Visibility: public -/
+def uuid.Uuid.Insts.CoreConvertFromParseIrUuid.from
+  (ir : value.convert.ParseIr uuid.Uuid) : Result uuid.Uuid := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::convert::uuid::{impl core::convert::From<mysql_common::value::convert::ParseIr<uuid::Uuid>> for uuid::Uuid}]
+    Source: 'src/value/convert/uuid.rs', lines 52:0-56:1 -/
+@[reducible]
+def uuid.Uuid.Insts.CoreConvertFromParseIrUuid : core.convert.From uuid.Uuid
+  (value.convert.ParseIr uuid.Uuid) := {
+  «from» := uuid.Uuid.Insts.CoreConvertFromParseIrUuid.from
+}
+
+/-- [mysql_common::value::convert::uuid::{impl core::convert::From<mysql_common::value::convert::ParseIr<uuid::Uuid>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/uuid.rs', lines 59:4-61:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrUuid.from
+  (ir : value.convert.ParseIr uuid.Uuid) : Result value.Value := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::convert::uuid::{impl core::convert::From<mysql_common::value::convert::ParseIr<uuid::Uuid>> for mysql_common::value::Value}]
+    Source: 'src/value/convert/uuid.rs', lines 58:0-62:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrUuid : core.convert.From
+  value.Value (value.convert.ParseIr uuid.Uuid) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrUuid.from
+}
+
+/-- Trait implementation: [mysql_common::value::convert::uuid::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<uuid::Uuid>> for uuid::Uuid}]
+    Source: 'src/value/convert/uuid.rs', lines 64:0-66:1 -/
+@[reducible]
+impl_def uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid :
+  value.convert.FromValue uuid.Uuid (value.convert.ParseIr uuid.Uuid) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrUuid.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    uuid.Uuid.Insts.CoreConvertFromParseIrUuid
+  from_value := value.convert.FromValue.from_value.default
+    uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    uuid.Uuid.Insts.Mysql_commonValueConvertFromValueParseIrUuid
+}
+
+/-- [mysql_common::value::json::serde_integration::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<serde_json::value::Value>}::try_from]:
+    Source: 'src/value/json/serde_integration.rs', lines 23:4-31:5
+    Visibility: public -/
+def
+  value.convert.ParseIrValue.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result (value.convert.ParseIr serde_json.value.Value)
+    value.convert.FromValueError)
+  := do
+  match v with
+  | value.Value.NULL => ok (core.result.Result.Err value.Value.NULL)
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.json_from_slice s
+    match o with
+    | none => ok (core.result.Result.Err v)
+    | some x => ok (core.result.Result.Ok (x, v))
+  | value.Value.Int _ => ok (core.result.Result.Err v)
+  | value.Value.UInt _ => ok (core.result.Result.Err v)
+  | value.Value.Float _ => ok (core.result.Result.Err v)
+  | value.Value.Double _ => ok (core.result.Result.Err v)
+  | value.Value.Date _ _ _ _ _ _ _ => ok (core.result.Result.Err v)
+  | value.Value.Time _ _ _ _ _ _ => ok (core.result.Result.Err v)
+
+/-- Trait implementation: [mysql_common::value::json::serde_integration::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ParseIr<serde_json::value::Value>}]
+    Source: 'src/value/json/serde_integration.rs', lines 20:0-32:1 -/
+@[reducible]
+def value.convert.ParseIrValue.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom (value.convert.ParseIr serde_json.value.Value)
+  value.Value value.convert.FromValueError := {
+  try_from :=
+    value.convert.ParseIrValue.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::json::serde_integration::{impl core::convert::From<mysql_common::value::convert::ParseIr<serde_json::value::Value>> for serde_json::value::Value}::from]:
+    Source: 'src/value/json/serde_integration.rs', lines 35:4-37:5
+    Visibility: public -/
+def serde_json.value.Value.Insts.CoreConvertFromParseIrValue.from
+  (ir : value.convert.ParseIr serde_json.value.Value) :
+  Result serde_json.value.Value
+  := do
+  value.convert.ParseIr.commit ir
+
+/-- Trait implementation: [mysql_common::value::json::serde_integration::{impl core::convert::From<mysql_common::value::convert::ParseIr<serde_json::value::Value>> for serde_json::value::Value}]
+    Source: 'src/value/json/serde_integration.rs', lines 34:0-38:1 -/
+@[reducible]
+def serde_json.value.Value.Insts.CoreConvertFromParseIrValue :
+  core.convert.From serde_json.value.Value (value.convert.ParseIr
+  serde_json.value.Value) := {
+  «from» := serde_json.value.Value.Insts.CoreConvertFromParseIrValue.from
+}
+
+/-- [mysql_common::value::json::serde_integration::{impl core::convert::From<mysql_common::value::convert::ParseIr<serde_json::value::Value>> for mysql_common::value::Value}::from]:
+    Source: 'src/value/json/serde_integration.rs', lines 41:4-43:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromParseIrValue.from
+  (ir : value.convert.ParseIr serde_json.value.Value) :
+  Result value.Value
+  := do
+  value.convert.ParseIr.rollback ir
+
+/-- Trait implementation: [mysql_common::value::json::serde_integration::{impl core::convert::From<mysql_common::value::convert::ParseIr<serde_json::value::Value>> for mysql_common::value::Value}]
+    Source: 'src/value/json/serde_integration.rs', lines 40:0-44:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromParseIrValue : core.convert.From
+  value.Value (value.convert.ParseIr serde_json.value.Value) := {
+  «from» := value.Value.Insts.CoreConvertFromParseIrValue.from
+}
+
+/-- Trait implementation: [mysql_common::value::json::serde_integration::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<serde_json::value::Value>> for serde_json::value::Value}]
+    Source: 'src/value/json/serde_integration.rs', lines 46:0-48:1 -/
+@[reducible]
+impl_def
+  serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue :
+  value.convert.FromValue serde_json.value.Value (value.convert.ParseIr
+  serde_json.value.Value) := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ParseIrValue.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    serde_json.value.Value.Insts.CoreConvertFromParseIrValue
+  from_value := value.convert.FromValue.from_value.default
+    serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    serde_json.value.Value.Insts.Mysql_commonValueConvertFromValueParseIrValue
+}
+
+/-- [mysql_common::value::json::serde_integration::{impl core::convert::From<serde_json::value::Value> for mysql_common::value::Value}::from]:
+    Source: 'src/value/json/serde_integration.rs', lines 81:4-85:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromValue.from
+  (x : serde_json.value.Value) : Result value.Value := do
+  let o ← value.convert.trusted.json_to_string x
+  let s ← core.option.Option.unwrap o
+  let v ← value.convert.trusted.string_into_bytes s
+  ok (value.Value.Bytes v)
+
+/-- Trait implementation: [mysql_common::value::json::serde_integration::{impl core::convert::From<serde_json::value::Value> for mysql_common::value::Value}]
+    Source: 'src/value/json/serde_integration.rs', lines 80:0-86:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromValue : core.convert.From value.Value
+  serde_json.value.Value := {
+  «from» := value.Value.Insts.CoreConvertFromValue.from
 }
 
 /-- Trait implementation: [mysql_common::value::{impl mysql_common::proto::MySerialize for mysql_common::value::Value}]

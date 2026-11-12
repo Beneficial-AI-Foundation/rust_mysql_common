@@ -1,0 +1,184 @@
+Translation patch: `value::convert::{bigint, decimal, bigdecimal}`: num-bigint, rust_decimal and bigdecimal calls go through `trusted`
+
+Change: `x.into()` (`From<i64>`/`From<u64>`), `parse_bytes(bytes, 10)`, `BigUint::from_i64`, `to_i64`/`to_u64`, `to_string().into()`, `Decimal::from_str`, `from_utf8`, and `x.try_into()` (`TryFrom<f32/f64> for BigDecimal`) become `trusted::*` helpers; `Ok`/`Err` matches on them become `Some`/`None` matches.
+Why: these crates are not translated (see patch 40).
+Behaviour: Identical: each helper is the call it replaces (`.ok()` where only `Ok`/`Err` was observed); `From<String> for Vec<u8>` is `into_bytes`.
+
+diff --git a/src/value/convert/bigdecimal.rs b/src/value/convert/bigdecimal.rs
+index d5895e9..250489b 100644
+--- a/src/value/convert/bigdecimal.rs
++++ b/src/value/convert/bigdecimal.rs
+@@ -10,11 +10,11 @@
+ 
+ #![cfg(feature = "bigdecimal")]
+ 
+-use std::convert::{TryFrom, TryInto};
++use std::convert::TryFrom;
+ 
+ use bigdecimal::BigDecimal;
+ 
+-use super::{FromValue, FromValueError, ParseIr, Value};
++use super::{FromValue, FromValueError, ParseIr, Value, trusted};
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
+ impl TryFrom<Value> for ParseIr<BigDecimal> {
+@@ -22,17 +22,17 @@ impl TryFrom<Value> for ParseIr<BigDecimal> {
+ 
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+-            Value::Int(x) => Ok(ParseIr(x.into(), v)),
+-            Value::UInt(x) => Ok(ParseIr(x.into(), v)),
+-            Value::Float(x) => match x.try_into() {
+-                Ok(x) => Ok(ParseIr(x, v)),
+-                Err(_) => Err(FromValueError(v)),
++            Value::Int(x) => Ok(ParseIr(trusted::bigdecimal_from_i64(x), v)),
++            Value::UInt(x) => Ok(ParseIr(trusted::bigdecimal_from_u64(x), v)),
++            Value::Float(x) => match trusted::bigdecimal_try_from_f32(x) {
++                Some(x) => Ok(ParseIr(x, v)),
++                None => Err(FromValueError(v)),
+             },
+-            Value::Double(x) => match x.try_into() {
+-                Ok(x) => Ok(ParseIr(x, v)),
+-                Err(_) => Err(FromValueError(v)),
++            Value::Double(x) => match trusted::bigdecimal_try_from_f64(x) {
++                Some(x) => Ok(ParseIr(x, v)),
++                None => Err(FromValueError(v)),
+             },
+-            Value::Bytes(ref bytes) => match BigDecimal::parse_bytes(bytes, 10) {
++            Value::Bytes(ref bytes) => match trusted::bigdecimal_parse_bytes(bytes) {
+                 Some(x) => Ok(ParseIr(x, v)),
+                 None => Err(FromValueError(v)),
+             },
+@@ -63,7 +63,7 @@ impl FromValue for BigDecimal {
+ #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
+ impl From<BigDecimal> for Value {
+     fn from(big_decimal: BigDecimal) -> Value {
+-        Value::Bytes(big_decimal.to_string().into())
++        Value::Bytes(trusted::string_into_bytes(trusted::bigdecimal_to_string(&big_decimal)))
+     }
+ }
+ 
+diff --git a/src/value/convert/bigint.rs b/src/value/convert/bigint.rs
+index c6da407..9be8105 100644
+--- a/src/value/convert/bigint.rs
++++ b/src/value/convert/bigint.rs
+@@ -11,18 +11,17 @@
+ use std::convert::TryFrom;
+ 
+ use num_bigint::{BigInt, BigUint};
+-use num_traits::{FromPrimitive, ToPrimitive};
+ 
+-use super::{FromValue, FromValueError, ParseIr, Value};
++use super::{FromValue, FromValueError, ParseIr, Value, trusted};
+ 
+ impl TryFrom<Value> for ParseIr<BigInt> {
+     type Error = FromValueError;
+ 
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+-            Value::Int(x) => Ok(ParseIr(x.into(), v)),
+-            Value::UInt(x) => Ok(ParseIr(x.into(), v)),
+-            Value::Bytes(ref bytes) => match BigInt::parse_bytes(bytes, 10) {
++            Value::Int(x) => Ok(ParseIr(trusted::bigint_from_i64(x), v)),
++            Value::UInt(x) => Ok(ParseIr(trusted::bigint_from_u64(x), v)),
++            Value::Bytes(ref bytes) => match trusted::bigint_parse_bytes(bytes) {
+                 Some(x) => Ok(ParseIr(x, v)),
+                 None => Err(FromValueError(v)),
+             },
+@@ -49,12 +48,12 @@ impl FromValue for BigInt {
+ 
+ impl From<BigInt> for Value {
+     fn from(x: BigInt) -> Value {
+-        if let Some(x) = x.to_i64() {
++        if let Some(x) = trusted::bigint_to_i64(&x) {
+             Value::Int(x)
+-        } else if let Some(x) = x.to_u64() {
++        } else if let Some(x) = trusted::bigint_to_u64(&x) {
+             Value::UInt(x)
+         } else {
+-            Value::Bytes(x.to_string().into())
++            Value::Bytes(trusted::string_into_bytes(trusted::bigint_to_string(&x)))
+         }
+     }
+ }
+@@ -65,14 +64,14 @@ impl TryFrom<Value> for ParseIr<BigUint> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+             Value::Int(x) => {
+-                if let Some(x) = BigUint::from_i64(x) {
++                if let Some(x) = trusted::biguint_from_i64(x) {
+                     Ok(ParseIr(x, v))
+                 } else {
+                     Err(FromValueError(v))
+                 }
+             }
+-            Value::UInt(x) => Ok(ParseIr(x.into(), v)),
+-            Value::Bytes(ref bytes) => match BigUint::parse_bytes(bytes, 10) {
++            Value::UInt(x) => Ok(ParseIr(trusted::biguint_from_u64(x), v)),
++            Value::Bytes(ref bytes) => match trusted::biguint_parse_bytes(bytes) {
+                 Some(x) => Ok(ParseIr(x, v)),
+                 None => Err(FromValueError(v)),
+             },
+@@ -99,10 +98,10 @@ impl FromValue for BigUint {
+ 
+ impl From<BigUint> for Value {
+     fn from(x: BigUint) -> Value {
+-        if let Some(x) = x.to_u64() {
++        if let Some(x) = trusted::biguint_to_u64(&x) {
+             Value::UInt(x)
+         } else {
+-            Value::Bytes(x.to_string().into())
++            Value::Bytes(trusted::string_into_bytes(trusted::biguint_to_string(&x)))
+         }
+     }
+ }
+diff --git a/src/value/convert/decimal.rs b/src/value/convert/decimal.rs
+index 101a94a..92b5ca0 100644
+--- a/src/value/convert/decimal.rs
++++ b/src/value/convert/decimal.rs
+@@ -12,12 +12,9 @@
+ 
+ use rust_decimal::Decimal;
+ 
+-use std::{
+-    convert::TryFrom,
+-    str::{FromStr, from_utf8},
+-};
++use std::convert::TryFrom;
+ 
+-use super::{FromValue, FromValueError, ParseIr, Value};
++use super::{FromValue, FromValueError, ParseIr, Value, trusted};
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "rust_decimal")))]
+ impl TryFrom<Value> for ParseIr<Decimal> {
+@@ -25,14 +22,14 @@ impl TryFrom<Value> for ParseIr<Decimal> {
+ 
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+-            Value::Int(x) => Ok(ParseIr(x.into(), v)),
+-            Value::UInt(x) => Ok(ParseIr(x.into(), v)),
+-            Value::Bytes(ref bytes) => match from_utf8(bytes) {
+-                Ok(x) => match Decimal::from_str(x) {
+-                    Ok(x) => Ok(ParseIr(x, v)),
+-                    Err(_) => Err(FromValueError(v)),
++            Value::Int(x) => Ok(ParseIr(trusted::decimal_from_i64(x), v)),
++            Value::UInt(x) => Ok(ParseIr(trusted::decimal_from_u64(x), v)),
++            Value::Bytes(ref bytes) => match trusted::str_from_utf8(bytes) {
++                Some(x) => match trusted::decimal_from_str(x) {
++                    Some(x) => Ok(ParseIr(x, v)),
++                    None => Err(FromValueError(v)),
+                 },
+-                Err(_) => Err(FromValueError(v)),
++                None => Err(FromValueError(v)),
+             },
+             _ => Err(FromValueError(v)),
+         }
+@@ -61,7 +58,7 @@ impl FromValue for Decimal {
+ #[cfg_attr(docsrs, doc(cfg(feature = "rust_decimal")))]
+ impl From<Decimal> for Value {
+     fn from(decimal: Decimal) -> Value {
+-        Value::Bytes(decimal.to_string().into())
++        Value::Bytes(trusted::string_into_bytes(trusted::decimal_to_string(&decimal)))
+     }
+ }
+ 

@@ -1,0 +1,344 @@
+Translation patch: `value::convert::time`: time calls go through `trusted`
+
+Change: `time::Month::try_from`, `month as u8`, `Date::from_calendar_date`, `Time::from_hms_micro`, `PrimitiveDateTime::new`, the `Date`/`Time` getters, `Date::parse`/`Time::parse`/`PrimitiveDateTime::parse` with each format description (moved to trusted.rs), `Parse::TryFromParsed(TryFromParsed::InsufficientInformation)`, `from_utf8`, `str::len` (as `trusted::str_as_bytes(s).len()`), and the `time::Duration` constructors, `+`, `-`, unary `-`, `< Duration::ZERO` and `whole_*` become `trusted::time_*` helpers; `a + b + c` becomes `time_duration_add(time_duration_add(a, b), c)`. For a `PrimitiveDateTime x`, the date getters go through `x.date()` and the time getters through `x.time()`. `from_utf8(b).map_err(|_| e)` becomes `trusted::str_from_utf8(b).ok_or_else(|| e)`.
+Why: time is not translated (see patch 40).
+Behaviour: Identical: the same calls in the same order (operands left to right, then the operator); time 0.3.55's `PrimitiveDateTime` getters return those of its `date()`/`time()`; `str::len` is `as_bytes().len()`.
+
+diff --git a/src/value/convert/time.rs b/src/value/convert/time.rs
+index e2d09d8..82be50c 100644
+--- a/src/value/convert/time.rs
++++ b/src/value/convert/time.rs
+@@ -10,68 +10,13 @@
+ 
+ #![cfg(feature = "time")]
+ 
+-use std::{cmp::Ordering, convert::TryFrom, str::from_utf8};
++use std::{cmp::Ordering, convert::TryFrom};
+ 
+-use time::{
+-    Date, PrimitiveDateTime, Time,
+-    error::{Parse, TryFromParsed},
+-    format_description::BorrowedFormatItem,
+-    macros::format_description,
+-};
++use time::{Date, PrimitiveDateTime, Time, error::Parse};
+ 
+ use crate::value::Value;
+ 
+-use super::{FromValue, FromValueError, ParseIr, parse_mysql_time_string};
+-
+-static DATE_FORMAT: &[BorrowedFormatItem<'static>] = format_description!(
+-    "[year
+-        padding:zero repr:full
+-        range:extended
+-        sign:automatic]-\
+-    [month
+-        repr:numerical
+-        padding:zero
+-        case_sensitive:true]-\
+-    [day padding:zero]"
+-);
+-
+-static TIME_FORMAT: &[BorrowedFormatItem<'static>] =
+-    format_description!("[hour padding:zero repr:24]:[minute padding:zero]:[second padding:zero]");
+-
+-static TIME_FORMAT_MICRO: &[BorrowedFormatItem<'static>] = format_description!(
+-    "[hour padding:zero repr:24]:[minute padding:zero]:[second padding:zero].[subsecond digits:1+]"
+-);
+-
+-static DATE_TIME_FORMAT: &[BorrowedFormatItem<'static>] = format_description!(
+-    "[year
+-        padding:zero repr:full
+-        range:extended
+-        sign:automatic]-\
+-    [month
+-        repr:numerical
+-        padding:zero
+-        case_sensitive:true]-\
+-    [day padding:zero] \
+-    [hour padding:zero repr:24]:\
+-    [minute padding:zero]:\
+-    [second padding:zero]"
+-);
+-
+-static DATE_TIME_FORMAT_MICRO: &[BorrowedFormatItem<'static>] = format_description!(
+-    "[year
+-        padding:zero repr:full
+-        range:extended
+-        sign:automatic]-\
+-    [month
+-        repr:numerical
+-        padding:zero
+-        case_sensitive:true]-\
+-    [day padding:zero] \
+-    [hour padding:zero repr:24]:\
+-    [minute padding:zero]:\
+-    [second padding:zero].\
+-    [subsecond digits:1+]"
+-);
++use super::{FromValue, FromValueError, ParseIr, parse_mysql_time_string, trusted};
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl TryFrom<Value> for ParseIr<PrimitiveDateTime> {
+@@ -120,20 +65,17 @@ impl TryFrom<Value> for ParseIr<Date> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+             Value::Date(year, month, day, _, _, _, _) => {
+-                let mon = match time::Month::try_from(month) {
+-                    Ok(month) => month,
+-                    Err(_) => return Err(FromValueError(v)),
++                let mon = match trusted::time_month_from_u8(month) {
++                    Some(month) => month,
++                    None => return Err(FromValueError(v)),
+                 };
+-                match Date::from_calendar_date(year as i32, mon, day) {
+-                    Ok(x) => Ok(ParseIr(x, v)),
+-                    Err(_) => Err(FromValueError(v)),
++                match trusted::time_date_from_calendar_date(year as i32, mon, day) {
++                    Some(x) => Ok(ParseIr(x, v)),
++                    None => Err(FromValueError(v)),
+                 }
+             }
+             Value::Bytes(ref bytes) => {
+-                match from_utf8(bytes)
+-                    .ok()
+-                    .and_then(|s| Date::parse(s, DATE_FORMAT).ok())
+-                {
++                match trusted::str_from_utf8(bytes).and_then(|s| trusted::time_date_parse_date(s)) {
+                     Some(x) => Ok(ParseIr(x, v)),
+                     None => Err(FromValueError(v)),
+                 }
+@@ -168,9 +110,9 @@ impl TryFrom<Value> for ParseIr<Time> {
+ 
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+-            Value::Time(false, 0, h, m, s, u) => match Time::from_hms_micro(h, m, s, u) {
+-                Ok(x) => Ok(ParseIr(x, v)),
+-                Err(_) => Err(FromValueError(v)),
++            Value::Time(false, 0, h, m, s, u) => match trusted::time_time_from_hms_micro(h, m, s, u) {
++                Some(x) => Ok(ParseIr(x, v)),
++                None => Err(FromValueError(v)),
+             },
+             Value::Bytes(ref bytes) => match parse_mysql_time_string_with_time(bytes) {
+                 Ok(x) => Ok(ParseIr(x, v)),
+@@ -213,11 +155,11 @@ fn create_primitive_date_time(
+     second: u8,
+     micros: u32,
+ ) -> Option<PrimitiveDateTime> {
+-    let mon = time::Month::try_from(month).ok()?;
+-    if let Ok(date) = Date::from_calendar_date(year as i32, mon, day)
+-        && let Ok(time) = Time::from_hms_micro(hour, minute, second, micros)
++    let mon = trusted::time_month_from_u8(month)?;
++    if let Some(date) = trusted::time_date_from_calendar_date(year as i32, mon, day)
++        && let Some(time) = trusted::time_time_from_hms_micro(hour, minute, second, micros)
+     {
+-        return Some(PrimitiveDateTime::new(date, time));
++        return Some(trusted::time_primitive_date_time_new(date, time));
+     }
+ 
+     None
+@@ -226,28 +168,28 @@ fn create_primitive_date_time(
+ pub(crate) fn parse_mysql_datetime_string_with_time(
+     bytes: &[u8],
+ ) -> Result<PrimitiveDateTime, Parse> {
+-    from_utf8(bytes)
+-        .map_err(|_| Parse::TryFromParsed(TryFromParsed::InsufficientInformation))
++    trusted::str_from_utf8(bytes)
++        .ok_or_else(|| trusted::time_parse_insufficient_information())
+         .and_then(|s| {
+-            if s.len() > 19 {
+-                PrimitiveDateTime::parse(s, DATE_TIME_FORMAT_MICRO)
+-            } else if s.len() == 19 {
+-                PrimitiveDateTime::parse(&s[..19], DATE_TIME_FORMAT)
+-            } else if s.len() >= 10 {
+-                PrimitiveDateTime::parse(s, DATE_FORMAT)
++            if trusted::str_as_bytes(s).len() > 19 {
++                trusted::time_primitive_date_time_parse_date_time_micro(s)
++            } else if trusted::str_as_bytes(s).len() == 19 {
++                trusted::time_primitive_date_time_parse_date_time(&s[..19])
++            } else if trusted::str_as_bytes(s).len() >= 10 {
++                trusted::time_primitive_date_time_parse_date(s)
+             } else {
+-                Err(Parse::TryFromParsed(TryFromParsed::InsufficientInformation))
++                Err(trusted::time_parse_insufficient_information())
+             }
+         })
+ }
+ 
+ fn parse_mysql_time_string_with_time(bytes: &[u8]) -> Result<Time, Parse> {
+-    from_utf8(bytes)
+-        .map_err(|_| Parse::TryFromParsed(TryFromParsed::InsufficientInformation))
+-        .and_then(|s| match s.len().cmp(&8) {
+-            Ordering::Less => Err(Parse::TryFromParsed(TryFromParsed::InsufficientInformation)),
+-            Ordering::Equal => Time::parse(s, TIME_FORMAT),
+-            Ordering::Greater => Time::parse(s, TIME_FORMAT_MICRO),
++    trusted::str_from_utf8(bytes)
++        .ok_or_else(|| trusted::time_parse_insufficient_information())
++        .and_then(|s| match trusted::str_as_bytes(s).len().cmp(&8) {
++            Ordering::Less => Err(trusted::time_parse_insufficient_information()),
++            Ordering::Equal => trusted::time_time_parse_time(s),
++            Ordering::Greater => trusted::time_time_parse_time_micro(s),
+         })
+ }
+ 
+@@ -258,12 +200,27 @@ impl TryFrom<Value> for ParseIr<time::Duration> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+             Value::Time(is_neg, days, hours, minutes, seconds, microseconds) => {
+-                let duration = time::Duration::days(days.into())
+-                    + time::Duration::hours(hours.into())
+-                    + time::Duration::minutes(minutes.into())
+-                    + time::Duration::seconds(seconds.into())
+-                    + time::Duration::microseconds(microseconds.into());
+-                Ok(ParseIr(if is_neg { -duration } else { duration }, v))
++                let duration = trusted::time_duration_add(
++                    trusted::time_duration_add(
++                        trusted::time_duration_add(
++                            trusted::time_duration_add(
++                                trusted::time_duration_days(days.into()),
++                                trusted::time_duration_hours(hours.into()),
++                            ),
++                            trusted::time_duration_minutes(minutes.into()),
++                        ),
++                        trusted::time_duration_seconds(seconds.into()),
++                    ),
++                    trusted::time_duration_microseconds(microseconds.into()),
++                );
++                Ok(ParseIr(
++                    if is_neg {
++                        trusted::time_duration_neg(duration)
++                    } else {
++                        duration
++                    },
++                    v,
++                ))
+             }
+             Value::Bytes(ref val_bytes) => {
+                 // Parse the string using `parse_mysql_time_string`
+@@ -271,11 +228,21 @@ impl TryFrom<Value> for ParseIr<time::Duration> {
+                 // as it may contain an hour value that's outside of a day's normal 0-23 hour range.
+                 let duration = match parse_mysql_time_string(val_bytes) {
+                     Some((is_neg, hours, minutes, seconds, microseconds)) => {
+-                        let duration = time::Duration::hours(hours.into())
+-                            + time::Duration::minutes(minutes.into())
+-                            + time::Duration::seconds(seconds.into())
+-                            + time::Duration::microseconds(microseconds.into());
+-                        if is_neg { -duration } else { duration }
++                        let duration = trusted::time_duration_add(
++                            trusted::time_duration_add(
++                                trusted::time_duration_add(
++                                    trusted::time_duration_hours(hours.into()),
++                                    trusted::time_duration_minutes(minutes.into()),
++                                ),
++                                trusted::time_duration_seconds(seconds.into()),
++                            ),
++                            trusted::time_duration_microseconds(microseconds.into()),
++                        );
++                        if is_neg {
++                            trusted::time_duration_neg(duration)
++                        } else {
++                            duration
++                        }
+                     }
+                     _ => return Err(FromValueError(v)),
+                 };
+@@ -308,14 +275,16 @@ impl FromValue for time::Duration {
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<PrimitiveDateTime> for Value {
+     fn from(x: PrimitiveDateTime) -> Value {
++        let date = trusted::time_primitive_date_time_date(&x);
++        let time = trusted::time_primitive_date_time_time(&x);
+         Value::Date(
+-            x.year() as u16,
+-            x.month() as u8,
+-            x.day(),
+-            x.hour(),
+-            x.minute(),
+-            x.second(),
+-            x.microsecond(),
++            trusted::time_date_year(&date) as u16,
++            trusted::time_month_to_u8(trusted::time_date_month(&date)),
++            trusted::time_date_day(&date),
++            trusted::time_time_hour(&time),
++            trusted::time_time_minute(&time),
++            trusted::time_time_second(&time),
++            trusted::time_time_microsecond(&time),
+         )
+     }
+ }
+@@ -323,35 +292,62 @@ impl From<PrimitiveDateTime> for Value {
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<Date> for Value {
+     fn from(x: Date) -> Value {
+-        Value::Date(x.year() as u16, x.month() as u8, x.day(), 0, 0, 0, 0)
++        Value::Date(
++            trusted::time_date_year(&x) as u16,
++            trusted::time_month_to_u8(trusted::time_date_month(&x)),
++            trusted::time_date_day(&x),
++            0,
++            0,
++            0,
++            0,
++        )
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<Time> for Value {
+     fn from(x: Time) -> Value {
+-        Value::Time(false, 0, x.hour(), x.minute(), x.second(), x.microsecond())
++        Value::Time(
++            false,
++            0,
++            trusted::time_time_hour(&x),
++            trusted::time_time_minute(&x),
++            trusted::time_time_second(&x),
++            trusted::time_time_microsecond(&x),
++        )
+     }
+ }
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "time")))]
+ impl From<time::Duration> for Value {
+     fn from(mut x: time::Duration) -> Value {
+-        let negative = x < time::Duration::ZERO;
++        let negative = trusted::time_duration_lt_zero(&x);
+ 
+         if negative {
+-            x = -x;
++            x = trusted::time_duration_neg(x);
+         }
+ 
+-        let days = x.whole_days() as u32;
+-        x = x - time::Duration::days(x.whole_days());
+-        let hours = x.whole_hours() as u8;
+-        x = x - time::Duration::hours(x.whole_hours());
+-        let minutes = x.whole_minutes() as u8;
+-        x = x - time::Duration::minutes(x.whole_minutes());
+-        let seconds = x.whole_seconds() as u8;
+-        x = x - time::Duration::seconds(x.whole_seconds());
+-        let microseconds = x.whole_microseconds() as u32;
++        let days = trusted::time_duration_whole_days(&x) as u32;
++        x = trusted::time_duration_sub(
++            x,
++            trusted::time_duration_days(trusted::time_duration_whole_days(&x)),
++        );
++        let hours = trusted::time_duration_whole_hours(&x) as u8;
++        x = trusted::time_duration_sub(
++            x,
++            trusted::time_duration_hours(trusted::time_duration_whole_hours(&x)),
++        );
++        let minutes = trusted::time_duration_whole_minutes(&x) as u8;
++        x = trusted::time_duration_sub(
++            x,
++            trusted::time_duration_minutes(trusted::time_duration_whole_minutes(&x)),
++        );
++        let seconds = trusted::time_duration_whole_seconds(&x) as u8;
++        x = trusted::time_duration_sub(
++            x,
++            trusted::time_duration_seconds(trusted::time_duration_whole_seconds(&x)),
++        );
++        let microseconds = trusted::time_duration_whole_microseconds(&x) as u32;
+ 
+         Value::Time(negative, days, hours, minutes, seconds, microseconds)
+     }

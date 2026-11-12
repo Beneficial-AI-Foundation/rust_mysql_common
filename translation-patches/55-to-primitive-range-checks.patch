@@ -1,0 +1,45 @@
+Translation patch: `From<i128> for Value`, `From<u128> for Value`
+
+Change: `if let Some(x) = x.to_i64()` becomes `if i64::MIN as i128 <= x && x <= i64::MAX as i128` with `x as i64`; `x.to_u64()` becomes `0 <= x && x <= u64::MAX as i128` (`i128`) or `x <= u64::MAX as u128` (`u128`) with `x as u64`; the `num_traits::ToPrimitive` import is dropped.
+Why: `num_traits::ToPrimitive` is not modelled by Aeneas.
+Behaviour: Identical: num-traits returns `Some` exactly when the value is in the target range, and then `as` gives that value.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index 53d14b8..c974bf6 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -6,8 +6,6 @@
+ // option. All files in the project carrying such notice may not be copied,
+ // modified, or distributed except according to those terms.
+ 
+-use num_traits::ToPrimitive;
+-
+ use std::{
+     borrow::Cow,
+     convert::{TryFrom, TryInto},
+@@ -771,10 +769,10 @@ into_value_impl!(unsigned usize);
+ 
+ impl From<i128> for Value {
+     fn from(x: i128) -> Value {
+-        if let Some(x) = x.to_i64() {
+-            Value::Int(x)
+-        } else if let Some(x) = x.to_u64() {
+-            Value::UInt(x)
++        if i64::MIN as i128 <= x && x <= i64::MAX as i128 {
++            Value::Int(x as i64)
++        } else if 0 <= x && x <= u64::MAX as i128 {
++            Value::UInt(x as u64)
+         } else {
+             Value::Bytes(trusted::string_into_bytes(trusted::i128_to_string(x)))
+         }
+@@ -783,8 +781,8 @@ impl From<i128> for Value {
+ 
+ impl From<u128> for Value {
+     fn from(x: u128) -> Value {
+-        if let Some(x) = x.to_u64() {
+-            Value::UInt(x)
++        if x <= u64::MAX as u128 {
++            Value::UInt(x as u64)
+         } else {
+             Value::Bytes(trusted::string_into_bytes(trusted::u128_to_string(x)))
+         }

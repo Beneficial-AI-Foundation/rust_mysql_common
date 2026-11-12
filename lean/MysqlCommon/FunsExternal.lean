@@ -157,3 +157,588 @@ axiom constants.UnknownStatusFlags.Insts.CoreFmtDisplay.fmt :
 axiom constants.UnknownColumnFlags.Insts.CoreFmtDisplay.fmt :
   constants.UnknownColumnFlags → core.fmt.Formatter → Result
     ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+/-! ## Exact models of std / dependency items reached by the value conversions -/
+
+/-- `impl TryFrom<Vec<T>> for [T; N]` (std): `Ok` of the elements when the length is `N`, else
+    `Err` of the unchanged vector. -/
+@[rust_fun
+  "alloc::vec::{core::convert::TryFrom<[@T; @N], alloc::vec::Vec<@T>, alloc::vec::Vec<@T>>}::try_from"]
+def Array.Insts.CoreConvertTryFromVecVec.try_from
+  {T : Type _} (A : Type _) (N : Std.Usize) (v : alloc.vec.Vec T) :
+  Result (core.result.Result (Array T N) (alloc.vec.Vec T)) :=
+  if h : v.val.length = N.val then ok (.Ok (Array.from v.val h)) else ok (.Err v)
+
+/-- [uuid::Uuid::from_bytes] (uuid 1.29.2, `const fn from_bytes(bytes: Bytes) -> Uuid { Uuid(bytes) }`;
+    `uuid::Uuid` is translated as its field `[u8; 16]`). -/
+@[rust_fun "uuid::builder::{uuid::Uuid}::from_bytes"]
+def uuid.builder.Uuid.from_bytes (b : Array Std.U8 16#usize) : Result uuid.Uuid := ok b
+
+/-! ## The trust boundary of the value conversions: `mysql_common::value::convert::trusted`
+
+`translation-patches/40-value-convert-trusted-module.patch` adds this module; each function is
+one call into a dependency (or a std function Aeneas does not model), and the module is `opaque`
+in Cargo.toml. Each function gets one of:
+
+* an **exact model** (a Lean `def` equal to the Rust function on every input): the UTF-8 checks,
+  `String`/`str` byte conversions, integer `to_string`, `std::time::Duration`, `btoi`/`btou`,
+  `time::Month`, and `time::error::Parse` construction;
+* an **opaque value** with **partial specification axioms** (the axioms in `Trusted` below): the
+  regexes (exact on ASCII input), the chrono and time constructors (success iff the components
+  are valid) and getters;
+* an **opaque value with no specification**: float parsing and widening, the parsers of time,
+  num-bigint, rust_decimal, bigdecimal and serde_json, their `From`/`to_string`, and the
+  `time::Duration` arithmetic.
+
+Unless a declaration says otherwise, a helper is assumed not to panic (it returns `ok`). -/
+
+namespace Trusted
+
+/-- The bytes of a byte list, as a Lean `ByteArray`. -/
+def bytesOf (l : List Std.U8) : ByteArray := ⟨(l.map fun b => UInt8.ofNat b.val).toArray⟩
+
+/-- The bytes of a Lean `ByteArray`, as a list of `u8`. -/
+def u8sOf (a : ByteArray) : List Std.U8 := a.data.toList.map fun b => (⟨b.toBitVec⟩ : Std.U8)
+
+def isAsciiDigit (b : Std.U8) : Bool := 48 ≤ b.val && b.val ≤ 57
+
+/-- A non-empty sequence of ASCII digits, as a number. -/
+def decimalDigits? (l : List Std.U8) : Option Nat :=
+  if !l.isEmpty && l.all isAsciiDigit then
+    some (l.foldl (fun acc d => 10 * acc + (d.val - 48)) 0)
+  else none
+
+/-- The integer `btoi` reads: an optional `+`/`-` sign followed by `decimalDigits?`. -/
+def btoiValue? : List Std.U8 → Option Int
+  | [] => none
+  | b :: rest =>
+    if b.val = 43 then (decimalDigits? rest).map Int.ofNat
+    else if b.val = 45 then (decimalDigits? rest).map fun n => -(n : Int)
+    else (decimalDigits? (b :: rest)).map Int.ofNat
+
+/-- `btoi::btoi::<T>` for a signed `T`. -/
+def btoiSigned (ty : IScalarTy) (b : Slice Std.U8) : Option (IScalar ty) :=
+  (btoiValue? b.val).bind (IScalar.tryMkOpt ty)
+
+/-- `btoi::btoi::<T>` for an unsigned `T` (a `-` sign is accepted for the value 0). -/
+def btoiUnsigned (ty : UScalarTy) (b : Slice Std.U8) : Option (UScalar ty) :=
+  (btoiValue? b.val).bind fun v => if 0 ≤ v then UScalar.tryMkOpt ty v.toNat else none
+
+/-- `btoi::btou::<T>`. -/
+def btou (ty : UScalarTy) (b : Slice Std.U8) : Option (UScalar ty) :=
+  (decimalDigits? b.val).bind (UScalar.tryMkOpt ty)
+
+end Trusted
+
+/-! ### std -/
+
+/-- `std::str::from_utf8(bytes).ok()`: exact. A `&str` is its bytes (`Str = Slice U8`), and Lean's
+    `ByteArray.IsValidUTF8` (the bytes are the UTF-8 encoding of a list of Unicode scalar values)
+    is the definition of UTF-8 that std checks. -/
+def value.convert.trusted.str_from_utf8 (bytes : Slice Std.U8) : Result (Option Str) :=
+  ok (if (Trusted.bytesOf bytes.val).IsValidUTF8 then some bytes else none)
+
+/-- `String::from_utf8(bytes)`, with the error's `into_bytes()`: exact (`String` is Lean's
+    `String`, whose UTF-8 bytes are `bytes`). -/
+def value.convert.trusted.string_from_utf8 (bytes : alloc.vec.Vec Std.U8) :
+    Result (core.result.Result String (alloc.vec.Vec Std.U8)) :=
+  ok (match String.fromUTF8? (Trusted.bytesOf bytes.val) with
+    | some s => .Ok s
+    | none => .Err bytes)
+
+/-- `String::into_bytes`: exact (the `fail` branch is for a Lean string longer than
+    `usize::MAX` bytes, which no Rust `String` is). -/
+def value.convert.trusted.string_into_bytes (s : String) : Result (alloc.vec.Vec Std.U8) :=
+  let l := Trusted.u8sOf s.toUTF8
+  if h : l.length ≤ Usize.max then ok (alloc.vec.Vec.from l h) else fail .panic
+
+/-- `str::as_bytes`: exact (`Str = Slice U8`). -/
+def value.convert.trusted.str_as_bytes (s : Str) : Result (Slice Std.U8) := ok s
+
+/-- `i128::to_string`: exact (decimal, with a leading `-` for negative values). -/
+def value.convert.trusted.i128_to_string (x : Std.I128) : Result String := ok (toString x.val)
+
+/-- `u128::to_string`: exact (decimal). -/
+def value.convert.trusted.u128_to_string (x : Std.U128) : Result String := ok (toString x.val)
+
+/-- `Duration::new(secs, nanos)`: exact (std: carries `nanos / 10^9` into `secs` with
+    `checked_add(..).expect(..)`, keeps `nanos % 10^9`). -/
+def value.convert.trusted.duration_new (secs : Std.U64) (nanos : Std.U32) :
+    Result core.time.Duration :=
+  if nanos.val < 1000000000 then ok ⟨secs, nanos⟩
+  else
+    match UScalar.tryMkOpt .U64 (secs.val + nanos.val / 1000000000),
+          UScalar.tryMkOpt .U32 (nanos.val % 1000000000) with
+    | some s, some n => ok ⟨s, n⟩
+    | _, _ => fail .panic
+
+/-- `Duration::as_secs`: exact. -/
+def value.convert.trusted.duration_as_secs (x : core.time.Duration) : Result Std.U64 := ok x.secs
+
+/-- `Duration::subsec_nanos`: exact. -/
+def value.convert.trusted.duration_subsec_nanos (x : core.time.Duration) : Result Std.U32 :=
+  ok x.nanos
+
+namespace Trusted
+/-- `s.parse::<f32>().ok()`: opaque. -/
+axiom parseF32 : Str → Option F32
+/-- `s.parse::<f64>().ok()`: opaque. -/
+axiom parseF64 : Str → Option F64
+/-- `f64::from(x: f32)`: opaque (NaN payloads are not specified by Rust). -/
+axiom f32ToF64 : F32 → F64
+end Trusted
+
+noncomputable def value.convert.trusted.str_parse_f32 (s : Str) : Result (Option F32) :=
+  ok (Trusted.parseF32 s)
+noncomputable def value.convert.trusted.str_parse_f64 (s : Str) : Result (Option F64) :=
+  ok (Trusted.parseF64 s)
+noncomputable def value.convert.trusted.f32_to_f64 (x : F32) : Result F64 := ok (Trusted.f32ToF64 x)
+
+/-! ### btoi 0.5.0: exact
+
+`btoi::<I>(b)` (and `btou`) accumulate the digits with `checked_mul`/`checked_add` (`checked_sub`
+after a `-`); the accumulator's magnitude only grows, so it overflows exactly when the final value
+is out of range. Only `Ok`/`Err` is observed (the helpers return `.ok()`). -/
+
+def value.convert.trusted.btoi_i8 (b : Slice Std.U8) : Result (Option Std.I8) :=
+  ok (Trusted.btoiSigned .I8 b)
+def value.convert.trusted.btoi_i16 (b : Slice Std.U8) : Result (Option Std.I16) :=
+  ok (Trusted.btoiSigned .I16 b)
+def value.convert.trusted.btoi_i32 (b : Slice Std.U8) : Result (Option Std.I32) :=
+  ok (Trusted.btoiSigned .I32 b)
+def value.convert.trusted.btoi_i64 (b : Slice Std.U8) : Result (Option Std.I64) :=
+  ok (Trusted.btoiSigned .I64 b)
+def value.convert.trusted.btoi_i128 (b : Slice Std.U8) : Result (Option Std.I128) :=
+  ok (Trusted.btoiSigned .I128 b)
+def value.convert.trusted.btoi_isize (b : Slice Std.U8) : Result (Option Std.Isize) :=
+  ok (Trusted.btoiSigned .Isize b)
+def value.convert.trusted.btoi_u8 (b : Slice Std.U8) : Result (Option Std.U8) :=
+  ok (Trusted.btoiUnsigned .U8 b)
+def value.convert.trusted.btoi_u16 (b : Slice Std.U8) : Result (Option Std.U16) :=
+  ok (Trusted.btoiUnsigned .U16 b)
+def value.convert.trusted.btoi_u32 (b : Slice Std.U8) : Result (Option Std.U32) :=
+  ok (Trusted.btoiUnsigned .U32 b)
+def value.convert.trusted.btoi_u64 (b : Slice Std.U8) : Result (Option Std.U64) :=
+  ok (Trusted.btoiUnsigned .U64 b)
+def value.convert.trusted.btoi_u128 (b : Slice Std.U8) : Result (Option Std.U128) :=
+  ok (Trusted.btoiUnsigned .U128 b)
+def value.convert.trusted.btoi_usize (b : Slice Std.U8) : Result (Option Std.Usize) :=
+  ok (Trusted.btoiUnsigned .Usize b)
+def value.convert.trusted.btou_u8 (b : Slice Std.U8) : Result (Option Std.U8) :=
+  ok (Trusted.btou .U8 b)
+def value.convert.trusted.btou_u32 (b : Slice Std.U8) : Result (Option Std.U32) :=
+  ok (Trusted.btou .U32 b)
+
+/-! ### regex: opaque, exact on ASCII input
+
+The seven regexes of `value::convert` (`regex::bytes::Regex`, Unicode mode: `\d` matches any
+Unicode decimal digit, so on non-ASCII input nothing is assumed). On ASCII input `\d` is
+`[0-9]`, and `^`/`$` anchor at the ends of the input. -/
+
+namespace Trusted
+
+def digit (b : Std.U8) : Bool := isAsciiDigit b
+def byteIn (lo hi : Nat) (b : Std.U8) : Bool := lo ≤ b.val && b.val ≤ hi
+def lit (c : Nat) (b : Std.U8) : Bool := b.val = c
+
+/-- The input is exactly one byte per class, in order. -/
+def matchSeq : List (Std.U8 → Bool) → List Std.U8 → Bool
+  | [], [] => true
+  | p :: ps, b :: bs => p b && matchSeq ps bs
+  | _, _ => false
+
+/-- `\.\d{1,6}$`. -/
+def matchFrac : List Std.U8 → Bool
+  | b :: ds => lit 46 b && 1 ≤ ds.length && ds.length ≤ 6 && ds.all isAsciiDigit
+  | [] => false
+
+/-- `\d{4}-\d{2}-\d{2}`. -/
+def ymd : List (Std.U8 → Bool) :=
+  [digit, digit, digit, digit, lit 45, digit, digit, lit 45, digit, digit]
+/-- `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`. -/
+def ymdHms : List (Std.U8 → Bool) :=
+  ymd ++ [lit 32, digit, digit, lit 58, digit, digit, lit 58, digit, digit]
+/-- `:[0-5]\d:[0-5]\d`. -/
+def mmss : List (Std.U8 → Bool) := [lit 58, byteIn 48 53, digit, lit 58, byteIn 48 53, digit]
+/-- `\d{2}:[0-5]\d:[0-5]\d`. -/
+def hhmmss : List (Std.U8 → Bool) := [digit, digit] ++ mmss
+/-- `[0-8]\d\d:[0-5]\d:[0-5]\d`. -/
+def hhhmmss : List (Std.U8 → Bool) := [byteIn 48 56, digit, digit] ++ mmss
+
+/-- The regexes of `value::convert`. -/
+inductive Regex where
+  | datetimeYmd | datetimeYmdHms | datetimeYmdHmsNs
+  | timeHhMmSs | timeHhMmSsMs | timeHhhMmSs | timeHhhMmSsMs
+
+/-- What each regex matches, on ASCII input. -/
+def Regex.asciiMatch : Regex → List Std.U8 → Bool
+  | .datetimeYmd, l => matchSeq ymd l
+  | .datetimeYmdHms, l => matchSeq ymdHms l
+  | .datetimeYmdHmsNs, l => matchSeq ymdHms (l.take 19) && matchFrac (l.drop 19)
+  | .timeHhMmSs, l => matchSeq hhmmss l
+  | .timeHhMmSsMs, l => matchSeq hhmmss (l.take 8) && matchFrac (l.drop 8)
+  | .timeHhhMmSs, l => matchSeq hhhmmss l
+  | .timeHhhMmSsMs, l => matchSeq hhhmmss (l.take 9) && matchFrac (l.drop 9)
+
+/-- `REGEX.is_match(bytes)`: opaque. -/
+axiom isMatch : Regex → Slice Std.U8 → Bool
+
+/-- On ASCII input, `is_match` is `Regex.asciiMatch`. -/
+axiom isMatch_ascii (r : Regex) (b : Slice Std.U8) (h : ∀ x ∈ b.val, x.val < 128) :
+  isMatch r b = r.asciiMatch b.val
+
+end Trusted
+
+noncomputable def value.convert.trusted.datetime_re_ymd (b : Slice Std.U8) : Result Bool :=
+  ok (Trusted.isMatch .datetimeYmd b)
+noncomputable def value.convert.trusted.datetime_re_ymd_hms (b : Slice Std.U8) : Result Bool :=
+  ok (Trusted.isMatch .datetimeYmdHms b)
+noncomputable def value.convert.trusted.datetime_re_ymd_hms_ns (b : Slice Std.U8) : Result Bool :=
+  ok (Trusted.isMatch .datetimeYmdHmsNs b)
+noncomputable def value.convert.trusted.time_re_hh_mm_ss (b : Slice Std.U8) : Result Bool :=
+  ok (Trusted.isMatch .timeHhMmSs b)
+noncomputable def value.convert.trusted.time_re_hh_mm_ss_ms (b : Slice Std.U8) : Result Bool :=
+  ok (Trusted.isMatch .timeHhMmSsMs b)
+noncomputable def value.convert.trusted.time_re_hhh_mm_ss (b : Slice Std.U8) : Result Bool :=
+  ok (Trusted.isMatch .timeHhhMmSs b)
+noncomputable def value.convert.trusted.time_re_hhh_mm_ss_ms (b : Slice Std.U8) : Result Bool :=
+  ok (Trusted.isMatch .timeHhhMmSsMs b)
+
+/-! ### chrono 0.4.45: opaque values; constructors succeed iff the components are valid -/
+
+namespace Trusted
+
+/-- Proleptic Gregorian leap years (chrono's and time's calendar). -/
+def isLeapYear (y : Int) : Bool := (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+
+def daysInMonth (y : Int) : Nat → Nat
+  | 1 | 3 | 5 | 7 | 8 | 10 | 12 => 31
+  | 4 | 6 | 9 | 11 => 30
+  | 2 => if isLeapYear y then 29 else 28
+  | _ => 0
+
+/-- `NaiveDate::from_ymd_opt` succeeds: `MIN_YEAR = (i32::MIN >> 13) + 1`,
+    `MAX_YEAR = (i32::MAX >> 13) - 1`, and the day exists in that month. -/
+def chronoYmdValid (y : Int) (m d : Nat) : Prop :=
+  -262143 ≤ y ∧ y ≤ 262142 ∧ 1 ≤ m ∧ m ≤ 12 ∧ 1 ≤ d ∧ d ≤ daysInMonth y m
+
+/-- `NaiveTime::from_hms_micro_opt` succeeds (`micro * 1000` is a valid nanosecond: below
+    `2 * 10^9`, and at least `10^9` only for a leap second `sec = 59`). -/
+def chronoHmsMicroValid (h m s us : Nat) : Prop :=
+  h < 24 ∧ m < 60 ∧ s < 60 ∧ us < 2000000 ∧ (us < 1000000 ∨ s = 59)
+
+axiom NaiveDate.ofYmd : Std.I32 → Std.U32 → Std.U32 → Option chrono.naive.date.NaiveDate
+axiom NaiveDate.year : chrono.naive.date.NaiveDate → Std.I32
+axiom NaiveDate.month : chrono.naive.date.NaiveDate → Std.U32
+axiom NaiveDate.day : chrono.naive.date.NaiveDate → Std.U32
+axiom NaiveTime.ofHmsMicro :
+  Std.U32 → Std.U32 → Std.U32 → Std.U32 → Option chrono.naive.time.NaiveTime
+axiom NaiveTime.hour : chrono.naive.time.NaiveTime → Std.U32
+axiom NaiveTime.minute : chrono.naive.time.NaiveTime → Std.U32
+axiom NaiveTime.second : chrono.naive.time.NaiveTime → Std.U32
+axiom NaiveTime.nanosecond : chrono.naive.time.NaiveTime → Std.U32
+axiom NaiveDateTime.new :
+  chrono.naive.date.NaiveDate → chrono.naive.time.NaiveTime → chrono.naive.datetime.NaiveDateTime
+axiom NaiveDateTime.date : chrono.naive.datetime.NaiveDateTime → chrono.naive.date.NaiveDate
+axiom NaiveDateTime.time : chrono.naive.datetime.NaiveDateTime → chrono.naive.time.NaiveTime
+
+axiom NaiveDate.ofYmd_isSome (y : Std.I32) (m d : Std.U32) :
+  (NaiveDate.ofYmd y m d).isSome ↔ chronoYmdValid y.val m.val d.val
+axiom NaiveDate.ofYmd_some (y : Std.I32) (m d : Std.U32) (x : chrono.naive.date.NaiveDate) :
+  NaiveDate.ofYmd y m d = some x → NaiveDate.year x = y ∧ NaiveDate.month x = m ∧ NaiveDate.day x = d
+axiom NaiveTime.ofHmsMicro_isSome (h m s us : Std.U32) :
+  (NaiveTime.ofHmsMicro h m s us).isSome ↔ chronoHmsMicroValid h.val m.val s.val us.val
+axiom NaiveTime.ofHmsMicro_some (h m s us : Std.U32) (x : chrono.naive.time.NaiveTime) :
+  NaiveTime.ofHmsMicro h m s us = some x →
+    NaiveTime.hour x = h ∧ NaiveTime.minute x = m ∧ NaiveTime.second x = s ∧
+      (NaiveTime.nanosecond x).val = us.val * 1000
+axiom NaiveDateTime.date_new (d : chrono.naive.date.NaiveDate) (t : chrono.naive.time.NaiveTime) :
+  NaiveDateTime.date (NaiveDateTime.new d t) = d
+axiom NaiveDateTime.time_new (d : chrono.naive.date.NaiveDate) (t : chrono.naive.time.NaiveTime) :
+  NaiveDateTime.time (NaiveDateTime.new d t) = t
+
+end Trusted
+
+noncomputable def value.convert.trusted.naive_date_from_ymd (y : Std.I32) (m d : Std.U32) :
+    Result (Option chrono.naive.date.NaiveDate) := ok (Trusted.NaiveDate.ofYmd y m d)
+noncomputable def value.convert.trusted.naive_time_from_hms_micro (h m s us : Std.U32) :
+    Result (Option chrono.naive.time.NaiveTime) := ok (Trusted.NaiveTime.ofHmsMicro h m s us)
+noncomputable def value.convert.trusted.naive_datetime_new (d : chrono.naive.date.NaiveDate)
+    (t : chrono.naive.time.NaiveTime) : Result chrono.naive.datetime.NaiveDateTime :=
+  ok (Trusted.NaiveDateTime.new d t)
+noncomputable def value.convert.trusted.naive_datetime_date
+    (x : chrono.naive.datetime.NaiveDateTime) : Result chrono.naive.date.NaiveDate :=
+  ok (Trusted.NaiveDateTime.date x)
+noncomputable def value.convert.trusted.naive_datetime_time
+    (x : chrono.naive.datetime.NaiveDateTime) : Result chrono.naive.time.NaiveTime :=
+  ok (Trusted.NaiveDateTime.time x)
+noncomputable def value.convert.trusted.naive_date_year (x : chrono.naive.date.NaiveDate) :
+    Result Std.I32 := ok (Trusted.NaiveDate.year x)
+noncomputable def value.convert.trusted.naive_date_month (x : chrono.naive.date.NaiveDate) :
+    Result Std.U32 := ok (Trusted.NaiveDate.month x)
+noncomputable def value.convert.trusted.naive_date_day (x : chrono.naive.date.NaiveDate) :
+    Result Std.U32 := ok (Trusted.NaiveDate.day x)
+noncomputable def value.convert.trusted.naive_time_hour (x : chrono.naive.time.NaiveTime) :
+    Result Std.U32 := ok (Trusted.NaiveTime.hour x)
+noncomputable def value.convert.trusted.naive_time_minute (x : chrono.naive.time.NaiveTime) :
+    Result Std.U32 := ok (Trusted.NaiveTime.minute x)
+noncomputable def value.convert.trusted.naive_time_second (x : chrono.naive.time.NaiveTime) :
+    Result Std.U32 := ok (Trusted.NaiveTime.second x)
+noncomputable def value.convert.trusted.naive_time_nanosecond (x : chrono.naive.time.NaiveTime) :
+    Result Std.U32 := ok (Trusted.NaiveTime.nanosecond x)
+
+/-! ### time 0.3.55: `Month` and `Parse` exact; other values opaque
+
+Configuration: time's `large-dates` feature is off (years in `-9999..=9999`). -/
+
+/-- `time::Month::try_from(month).ok()`: exact (`1..=12`). -/
+def value.convert.trusted.time_month_from_u8 (m : Std.U8) : Result (Option time.month.Month) :=
+  ok (match m.val with
+    | 1 => some .January | 2 => some .February | 3 => some .March | 4 => some .April
+    | 5 => some .May | 6 => some .June | 7 => some .July | 8 => some .August
+    | 9 => some .September | 10 => some .October | 11 => some .November
+    | 12 => some .December | _ => none)
+
+/-- `month as u8`: exact (the `#[repr(u8)]` discriminants `1..=12`). -/
+def value.convert.trusted.time_month_to_u8 (m : time.month.Month) : Result Std.U8 :=
+  ok (match m with
+    | .January => 1#u8 | .February => 2#u8 | .March => 3#u8 | .April => 4#u8
+    | .May => 5#u8 | .June => 6#u8 | .July => 7#u8 | .August => 8#u8
+    | .September => 9#u8 | .October => 10#u8 | .November => 11#u8 | .December => 12#u8)
+
+/-- `Parse::TryFromParsed(TryFromParsed::InsufficientInformation)`: exact. -/
+def value.convert.trusted.time_parse_insufficient_information : Result time.error.parse.Parse :=
+  ok (.TryFromParsed .InsufficientInformation)
+
+namespace Trusted
+
+def monthNumber (m : time.month.Month) : Nat :=
+  match m with
+  | .January => 1 | .February => 2 | .March => 3 | .April => 4 | .May => 5 | .June => 6
+  | .July => 7 | .August => 8 | .September => 9 | .October => 10 | .November => 11
+  | .December => 12
+
+axiom Date.ofCalendarDate : Std.I32 → time.month.Month → Std.U8 → Option time.date.Date
+axiom Date.year : time.date.Date → Std.I32
+axiom Date.month : time.date.Date → time.month.Month
+axiom Date.day : time.date.Date → Std.U8
+axiom Time.hour : time.time.Time → Std.U8
+axiom Time.minute : time.time.Time → Std.U8
+axiom Time.second : time.time.Time → Std.U8
+axiom Time.microsecond : time.time.Time → Std.U32
+axiom PrimitiveDateTime.new : time.date.Date → time.time.Time → time.plain_date_time.PlainDateTime
+axiom PrimitiveDateTime.date : time.plain_date_time.PlainDateTime → time.date.Date
+axiom PrimitiveDateTime.time : time.plain_date_time.PlainDateTime → time.time.Time
+
+/-- `Date::from_calendar_date(year, month, day).ok()` succeeds iff `-9999 <= year <= 9999` and the
+    day exists in that month; the date then has these components. -/
+axiom Date.ofCalendarDate_isSome (y : Std.I32) (m : time.month.Month) (d : Std.U8) :
+  (Date.ofCalendarDate y m d).isSome ↔
+    (-9999 ≤ y.val ∧ y.val ≤ 9999 ∧ 1 ≤ d.val ∧ d.val ≤ daysInMonth y.val (monthNumber m))
+axiom Date.ofCalendarDate_some (y : Std.I32) (m : time.month.Month) (d : Std.U8)
+    (x : time.date.Date) :
+  Date.ofCalendarDate y m d = some x → Date.year x = y ∧ Date.month x = m ∧ Date.day x = d
+
+/-- `Time::from_hms_micro(h, m, s, us).ok()`. It computes `us * 1000` in `u32` unchecked, which
+    panics (debug builds) or wraps (release builds) for `us > 4_294_967`: only smaller `us` are
+    specified. -/
+axiom timeFromHmsMicro :
+  Std.U8 → Std.U8 → Std.U8 → Std.U32 → Result (Option time.time.Time)
+axiom timeFromHmsMicro_spec (h m s : Std.U8) (us : Std.U32) (hus : us.val ≤ 4294967) :
+  ∃ r, timeFromHmsMicro h m s us = ok r ∧
+    (r.isSome ↔ (h.val < 24 ∧ m.val < 60 ∧ s.val < 60 ∧ us.val < 1000000)) ∧
+    ∀ x, r = some x →
+      Time.hour x = h ∧ Time.minute x = m ∧ Time.second x = s ∧ Time.microsecond x = us
+
+axiom PrimitiveDateTime.date_new (d : time.date.Date) (t : time.time.Time) :
+  PrimitiveDateTime.date (PrimitiveDateTime.new d t) = d
+axiom PrimitiveDateTime.time_new (d : time.date.Date) (t : time.time.Time) :
+  PrimitiveDateTime.time (PrimitiveDateTime.new d t) = t
+
+/-- The parsers with the format descriptions of `value::convert::time`: opaque. -/
+axiom dateParseDate : Str → Option time.date.Date
+axiom timeParseTime : Str → core.result.Result time.time.Time time.error.parse.Parse
+axiom timeParseTimeMicro : Str → core.result.Result time.time.Time time.error.parse.Parse
+axiom pdtParseDate :
+  Str → core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse
+axiom pdtParseDateTime :
+  Str → core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse
+axiom pdtParseDateTimeMicro :
+  Str → core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse
+
+/-- `time::Duration` operations: opaque, and (except the getters and the comparison) not even
+    assumed not to panic (`days`/`hours`/`minutes` and `+`/`-`/negation panic on overflow). -/
+axiom durationDays : Std.I64 → Result time.signed_duration.SignedDuration
+axiom durationHours : Std.I64 → Result time.signed_duration.SignedDuration
+axiom durationMinutes : Std.I64 → Result time.signed_duration.SignedDuration
+axiom durationSeconds : Std.I64 → Result time.signed_duration.SignedDuration
+axiom durationMicroseconds : Std.I64 → Result time.signed_duration.SignedDuration
+axiom durationAdd : time.signed_duration.SignedDuration → time.signed_duration.SignedDuration →
+  Result time.signed_duration.SignedDuration
+axiom durationSub : time.signed_duration.SignedDuration → time.signed_duration.SignedDuration →
+  Result time.signed_duration.SignedDuration
+axiom durationNeg : time.signed_duration.SignedDuration →
+  Result time.signed_duration.SignedDuration
+axiom durationLtZero : time.signed_duration.SignedDuration → Bool
+axiom durationWholeDays : time.signed_duration.SignedDuration → Std.I64
+axiom durationWholeHours : time.signed_duration.SignedDuration → Std.I64
+axiom durationWholeMinutes : time.signed_duration.SignedDuration → Std.I64
+axiom durationWholeSeconds : time.signed_duration.SignedDuration → Std.I64
+axiom durationWholeMicroseconds : time.signed_duration.SignedDuration → Std.I128
+
+end Trusted
+
+noncomputable def value.convert.trusted.time_date_from_calendar_date (y : Std.I32)
+    (m : time.month.Month) (d : Std.U8) : Result (Option time.date.Date) :=
+  ok (Trusted.Date.ofCalendarDate y m d)
+noncomputable def value.convert.trusted.time_time_from_hms_micro (h m s : Std.U8) (us : Std.U32) :
+    Result (Option time.time.Time) := Trusted.timeFromHmsMicro h m s us
+noncomputable def value.convert.trusted.time_primitive_date_time_new (d : time.date.Date)
+    (t : time.time.Time) : Result time.plain_date_time.PlainDateTime :=
+  ok (Trusted.PrimitiveDateTime.new d t)
+noncomputable def value.convert.trusted.time_primitive_date_time_date
+    (x : time.plain_date_time.PlainDateTime) : Result time.date.Date :=
+  ok (Trusted.PrimitiveDateTime.date x)
+noncomputable def value.convert.trusted.time_primitive_date_time_time
+    (x : time.plain_date_time.PlainDateTime) : Result time.time.Time :=
+  ok (Trusted.PrimitiveDateTime.time x)
+noncomputable def value.convert.trusted.time_date_year (x : time.date.Date) : Result Std.I32 :=
+  ok (Trusted.Date.year x)
+noncomputable def value.convert.trusted.time_date_month (x : time.date.Date) :
+    Result time.month.Month := ok (Trusted.Date.month x)
+noncomputable def value.convert.trusted.time_date_day (x : time.date.Date) : Result Std.U8 :=
+  ok (Trusted.Date.day x)
+noncomputable def value.convert.trusted.time_time_hour (x : time.time.Time) : Result Std.U8 :=
+  ok (Trusted.Time.hour x)
+noncomputable def value.convert.trusted.time_time_minute (x : time.time.Time) : Result Std.U8 :=
+  ok (Trusted.Time.minute x)
+noncomputable def value.convert.trusted.time_time_second (x : time.time.Time) : Result Std.U8 :=
+  ok (Trusted.Time.second x)
+noncomputable def value.convert.trusted.time_time_microsecond (x : time.time.Time) :
+    Result Std.U32 := ok (Trusted.Time.microsecond x)
+noncomputable def value.convert.trusted.time_date_parse_date (s : Str) :
+    Result (Option time.date.Date) := ok (Trusted.dateParseDate s)
+noncomputable def value.convert.trusted.time_time_parse_time (s : Str) :
+    Result (core.result.Result time.time.Time time.error.parse.Parse) :=
+  ok (Trusted.timeParseTime s)
+noncomputable def value.convert.trusted.time_time_parse_time_micro (s : Str) :
+    Result (core.result.Result time.time.Time time.error.parse.Parse) :=
+  ok (Trusted.timeParseTimeMicro s)
+noncomputable def value.convert.trusted.time_primitive_date_time_parse_date (s : Str) :
+    Result (core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse) :=
+  ok (Trusted.pdtParseDate s)
+noncomputable def value.convert.trusted.time_primitive_date_time_parse_date_time (s : Str) :
+    Result (core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse) :=
+  ok (Trusted.pdtParseDateTime s)
+noncomputable def value.convert.trusted.time_primitive_date_time_parse_date_time_micro (s : Str) :
+    Result (core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse) :=
+  ok (Trusted.pdtParseDateTimeMicro s)
+noncomputable def value.convert.trusted.time_duration_days (x : Std.I64) :
+    Result time.signed_duration.SignedDuration := Trusted.durationDays x
+noncomputable def value.convert.trusted.time_duration_hours (x : Std.I64) :
+    Result time.signed_duration.SignedDuration := Trusted.durationHours x
+noncomputable def value.convert.trusted.time_duration_minutes (x : Std.I64) :
+    Result time.signed_duration.SignedDuration := Trusted.durationMinutes x
+noncomputable def value.convert.trusted.time_duration_seconds (x : Std.I64) :
+    Result time.signed_duration.SignedDuration := Trusted.durationSeconds x
+noncomputable def value.convert.trusted.time_duration_microseconds (x : Std.I64) :
+    Result time.signed_duration.SignedDuration := Trusted.durationMicroseconds x
+noncomputable def value.convert.trusted.time_duration_add
+    (a b : time.signed_duration.SignedDuration) : Result time.signed_duration.SignedDuration :=
+  Trusted.durationAdd a b
+noncomputable def value.convert.trusted.time_duration_sub
+    (a b : time.signed_duration.SignedDuration) : Result time.signed_duration.SignedDuration :=
+  Trusted.durationSub a b
+noncomputable def value.convert.trusted.time_duration_neg
+    (a : time.signed_duration.SignedDuration) : Result time.signed_duration.SignedDuration :=
+  Trusted.durationNeg a
+noncomputable def value.convert.trusted.time_duration_lt_zero
+    (a : time.signed_duration.SignedDuration) : Result Bool := ok (Trusted.durationLtZero a)
+noncomputable def value.convert.trusted.time_duration_whole_days
+    (a : time.signed_duration.SignedDuration) : Result Std.I64 := ok (Trusted.durationWholeDays a)
+noncomputable def value.convert.trusted.time_duration_whole_hours
+    (a : time.signed_duration.SignedDuration) : Result Std.I64 := ok (Trusted.durationWholeHours a)
+noncomputable def value.convert.trusted.time_duration_whole_minutes
+    (a : time.signed_duration.SignedDuration) : Result Std.I64 :=
+  ok (Trusted.durationWholeMinutes a)
+noncomputable def value.convert.trusted.time_duration_whole_seconds
+    (a : time.signed_duration.SignedDuration) : Result Std.I64 :=
+  ok (Trusted.durationWholeSeconds a)
+noncomputable def value.convert.trusted.time_duration_whole_microseconds
+    (a : time.signed_duration.SignedDuration) : Result Std.I128 :=
+  ok (Trusted.durationWholeMicroseconds a)
+
+/-! ### num-bigint 0.5.1, rust_decimal 1.43.0, bigdecimal 0.4.11, serde_json 1.0.154: opaque,
+    no specification (only assumed not to panic) -/
+
+namespace Trusted
+axiom bigintFromI64 : Std.I64 → num_bigint_1.bigint.BigInt
+axiom bigintFromU64 : Std.U64 → num_bigint_1.bigint.BigInt
+axiom bigintParseBytes : Slice Std.U8 → Option num_bigint_1.bigint.BigInt
+axiom bigintToI64 : num_bigint_1.bigint.BigInt → Option Std.I64
+axiom bigintToU64 : num_bigint_1.bigint.BigInt → Option Std.U64
+axiom bigintToString : num_bigint_1.bigint.BigInt → String
+axiom biguintFromI64 : Std.I64 → Option num_bigint_1.biguint.BigUint
+axiom biguintFromU64 : Std.U64 → num_bigint_1.biguint.BigUint
+axiom biguintParseBytes : Slice Std.U8 → Option num_bigint_1.biguint.BigUint
+axiom biguintToU64 : num_bigint_1.biguint.BigUint → Option Std.U64
+axiom biguintToString : num_bigint_1.biguint.BigUint → String
+axiom decimalFromI64 : Std.I64 → rust_decimal.decimal.Decimal
+axiom decimalFromU64 : Std.U64 → rust_decimal.decimal.Decimal
+axiom decimalFromStr : Str → Option rust_decimal.decimal.Decimal
+axiom decimalToString : rust_decimal.decimal.Decimal → String
+axiom bigdecimalFromI64 : Std.I64 → bigdecimal.BigDecimal
+axiom bigdecimalFromU64 : Std.U64 → bigdecimal.BigDecimal
+axiom bigdecimalTryFromF32 : F32 → Option bigdecimal.BigDecimal
+axiom bigdecimalTryFromF64 : F64 → Option bigdecimal.BigDecimal
+axiom bigdecimalParseBytes : Slice Std.U8 → Option bigdecimal.BigDecimal
+axiom bigdecimalToString : bigdecimal.BigDecimal → String
+axiom jsonFromSlice : Slice Std.U8 → Option serde_json.value.Value
+axiom jsonToString : serde_json.value.Value → Option String
+end Trusted
+
+noncomputable def value.convert.trusted.bigint_from_i64 (x : Std.I64) :
+    Result num_bigint_1.bigint.BigInt := ok (Trusted.bigintFromI64 x)
+noncomputable def value.convert.trusted.bigint_from_u64 (x : Std.U64) :
+    Result num_bigint_1.bigint.BigInt := ok (Trusted.bigintFromU64 x)
+noncomputable def value.convert.trusted.bigint_parse_bytes (b : Slice Std.U8) :
+    Result (Option num_bigint_1.bigint.BigInt) := ok (Trusted.bigintParseBytes b)
+noncomputable def value.convert.trusted.bigint_to_i64 (x : num_bigint_1.bigint.BigInt) :
+    Result (Option Std.I64) := ok (Trusted.bigintToI64 x)
+noncomputable def value.convert.trusted.bigint_to_u64 (x : num_bigint_1.bigint.BigInt) :
+    Result (Option Std.U64) := ok (Trusted.bigintToU64 x)
+noncomputable def value.convert.trusted.bigint_to_string (x : num_bigint_1.bigint.BigInt) :
+    Result String := ok (Trusted.bigintToString x)
+noncomputable def value.convert.trusted.biguint_from_i64 (x : Std.I64) :
+    Result (Option num_bigint_1.biguint.BigUint) := ok (Trusted.biguintFromI64 x)
+noncomputable def value.convert.trusted.biguint_from_u64 (x : Std.U64) :
+    Result num_bigint_1.biguint.BigUint := ok (Trusted.biguintFromU64 x)
+noncomputable def value.convert.trusted.biguint_parse_bytes (b : Slice Std.U8) :
+    Result (Option num_bigint_1.biguint.BigUint) := ok (Trusted.biguintParseBytes b)
+noncomputable def value.convert.trusted.biguint_to_u64 (x : num_bigint_1.biguint.BigUint) :
+    Result (Option Std.U64) := ok (Trusted.biguintToU64 x)
+noncomputable def value.convert.trusted.biguint_to_string (x : num_bigint_1.biguint.BigUint) :
+    Result String := ok (Trusted.biguintToString x)
+noncomputable def value.convert.trusted.decimal_from_i64 (x : Std.I64) :
+    Result rust_decimal.decimal.Decimal := ok (Trusted.decimalFromI64 x)
+noncomputable def value.convert.trusted.decimal_from_u64 (x : Std.U64) :
+    Result rust_decimal.decimal.Decimal := ok (Trusted.decimalFromU64 x)
+noncomputable def value.convert.trusted.decimal_from_str (s : Str) :
+    Result (Option rust_decimal.decimal.Decimal) := ok (Trusted.decimalFromStr s)
+noncomputable def value.convert.trusted.decimal_to_string (x : rust_decimal.decimal.Decimal) :
+    Result String := ok (Trusted.decimalToString x)
+noncomputable def value.convert.trusted.bigdecimal_from_i64 (x : Std.I64) :
+    Result bigdecimal.BigDecimal := ok (Trusted.bigdecimalFromI64 x)
+noncomputable def value.convert.trusted.bigdecimal_from_u64 (x : Std.U64) :
+    Result bigdecimal.BigDecimal := ok (Trusted.bigdecimalFromU64 x)
+noncomputable def value.convert.trusted.bigdecimal_try_from_f32 (x : F32) :
+    Result (Option bigdecimal.BigDecimal) := ok (Trusted.bigdecimalTryFromF32 x)
+noncomputable def value.convert.trusted.bigdecimal_try_from_f64 (x : F64) :
+    Result (Option bigdecimal.BigDecimal) := ok (Trusted.bigdecimalTryFromF64 x)
+noncomputable def value.convert.trusted.bigdecimal_parse_bytes (b : Slice Std.U8) :
+    Result (Option bigdecimal.BigDecimal) := ok (Trusted.bigdecimalParseBytes b)
+noncomputable def value.convert.trusted.bigdecimal_to_string (x : bigdecimal.BigDecimal) :
+    Result String := ok (Trusted.bigdecimalToString x)
+noncomputable def value.convert.trusted.json_from_slice (b : Slice Std.U8) :
+    Result (Option serde_json.value.Value) := ok (Trusted.jsonFromSlice b)
+noncomputable def value.convert.trusted.json_to_string (x : serde_json.value.Value) :
+    Result (Option String) := ok (Trusted.jsonToString x)
