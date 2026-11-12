@@ -478,11 +478,6 @@ theorem put_u8_spec (buf : alloc.vec.Vec U8) (x : U8) (h : buf.length + 1 ≤ Us
 theorem byte_val_self (x : U8) : byte x.val = x := by
   unfold byte; cases x; simp [UScalar.val]
 
-theorem leNat_take_one (l : List U8) (h : 1 ≤ l.length) : leNat (l.take 1) = (l.getD 0 (byte 0)).val := by
-  cases l with
-  | nil => simp at h
-  | cons a t => simp [leNat]
-
 /-! ## Serializers -/
 
 theorem lenenc_ser (self : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (buf : alloc.vec.Vec U8)
