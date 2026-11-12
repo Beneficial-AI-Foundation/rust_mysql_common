@@ -32,7 +32,7 @@ WORK="$ROOT/.llbc/work"
 mkdir -p "$WORK"
 rsync -a --delete \
   --exclude '/target/' --exclude '/lean/' --exclude '/.llbc/' --exclude '/.aeneas/' \
-  --exclude '/.lake/' --exclude '/.git/' --exclude '/translation-patches/' \
+  --exclude '/.lake/' --exclude '/.git' --exclude '/translation-patches/' \
   ./ "$WORK/"
 ( cd "$WORK" && git init -q . 2>/dev/null || true )
 shopt -s nullglob

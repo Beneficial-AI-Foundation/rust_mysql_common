@@ -4,7 +4,8 @@ target/
 .vscode
 
 # Aeneas verification: build outputs and regenerated templates
-/.aeneas/
+/.aeneas
 /.llbc/
 /.lake/
 *External_Template.lean
+/.claude/worktrees/
