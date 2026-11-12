@@ -252,6 +252,65 @@ theorem put_int_le_spec (buf : alloc.vec.Vec U8) (x : I64) (k : Usize) (hk : k.v
   rw [b'_post, s_post, ← leBytes_int64 _ hk]
   simp [List.slice, slice_post, leBytes_bv 8 rfl, take_leBytes _ _ _ hk, ival_bv]
 
+/-! ## JSONB varlen -/
+
+theorem byte_val' (n : Nat) : (byte n).val = n % 256 := by
+  simp [byte, UScalar.val]
+
+theorem jsonbVarLen_lt (n : Nat) (h : n < 128) : jsonbVarLen n = [byte n] := by
+  rw [jsonbVarLen]; simp [h]
+
+theorem jsonbVarLen_ge (n : Nat) (h : 128 ≤ n) :
+    jsonbVarLen n = byte (n % 128 + 128) :: jsonbVarLen (n / 128) := by
+  rw [jsonbVarLen]; simp [show ¬ n < 128 by omega]
+
+theorem jsonbVarLen_props (n : Nat) : ∀ (k : Nat) (t : List U8), (jsonbVarLen n).length ≤ k →
+    base128 (jsonbVarLen n) = n ∧
+    (((jsonbVarLen n ++ t).take k).findIdx? (fun b => decide (b.val < 128))) =
+      some ((jsonbVarLen n).length - 1) ∧
+    0 < (jsonbVarLen n).length := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro k t hk
+    by_cases h : n < 128
+    · rw [jsonbVarLen_lt n h] at hk ⊢
+      obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by simp at hk; omega⟩
+      simp [base128, byte_val', Nat.mod_eq_of_lt (by omega : n < 256), Nat.mod_eq_of_lt h,
+        List.findIdx?_cons, h]
+    · rw [jsonbVarLen_ge n (by omega)] at hk ⊢
+      obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by simp at hk; omega⟩
+      simp only [List.length_cons] at hk
+      obtain ⟨h1, h2, h3⟩ := ih (n / 128) (by omega) k' t (by omega)
+      have hb : (byte (n % 128 + 128)).val = n % 128 + 128 := by
+        rw [byte_val']; omega
+      refine ⟨?_, ?_, by simp⟩
+      · simp only [base128, hb, h1]; omega
+      · simp only [List.cons_append, List.take_succ_cons, List.findIdx?_cons, hb, h2]
+        simp
+        omega
+
+theorem jsonbVarLen_length_le (n m : Nat) (h : n < 128 ^ (m + 1)) : (jsonbVarLen n).length ≤ m + 1 := by
+  induction m generalizing n with
+  | zero => rw [jsonbVarLen_lt n (by simpa using h)]; simp
+  | succ m ih =>
+    by_cases h' : n < 128
+    · rw [jsonbVarLen_lt n h']; simp
+    · rw [jsonbVarLen_ge n (by omega)]
+      simp only [List.length_cons]
+      have := ih (n / 128) (by rw [Nat.div_lt_iff_lt_mul (by norm_num)]; rw [pow_succ] at h; exact h)
+      omega
+
+theorem jsonbVarLenRead_jsonbVarLen' (n : Nat) (t : List U8) (hn : n < 2 ^ 32) :
+    jsonbVarLenRead (jsonbVarLen n ++ t) = (some n, t) := by
+  have hl := jsonbVarLen_length_le n 4 (by omega)
+  obtain ⟨h1, h2, h3⟩ := jsonbVarLen_props n 5 t hl
+  unfold jsonbVarLenRead
+  rw [h2]
+  simp only [Nat.sub_add_cancel h3]
+  rw [List.take_append_of_le_length (le_refl _), List.take_length, List.drop_append_of_le_length (le_refl _),
+    List.drop_length, List.nil_append, h1]
+  simp only [hn, ↓reduceIte]
+
 /-! ## `RawInt` -/
 
 @[step]
