@@ -622,7 +622,42 @@ theorem binlog.events.query_event.StatusVar.get_value_updated_db_names (v : binl
       | c :: rest => match dbNamesCrate c.val rest with
         | some ns => ∃ x, r = .Ok x ∧ svValView x = (12, [], ns)
         | none => r = .Err v.value ⦄ := by
-  sorry
+  obtain ⟨k, val⟩ := v
+  cases k <;> simp only [statusVarKeyCode] at hk <;> try omega
+  unfold binlog.events.query_event.StatusVar.get_value
+  simp only []
+  step with io.ParseBuf.checked_eat_u8_spec as ⟨o, r1, ho⟩
+  split_ifs at ho with hl
+  · obtain ⟨h1, hr1⟩ := ho
+    cases o with
+    | none => simp at h1
+    | some x =>
+      simp only [Option.map_some, Option.some.injEq] at h1
+      obtain ⟨b, t, hbt⟩ : ∃ b t, val.val = b :: t := by
+        cases hx : val.val with
+        | nil => simp [Slice.length, hx] at hl
+        | cons b t => exact ⟨b, t, rfl⟩
+      rw [hbt] at h1 hr1
+      simp [leNat] at h1 hr1
+      simp only [lift, bind_ok]
+      have hc : (UScalar.cast .Usize x).val = b.val := by
+        rw [IntAndMisc.cast_usize_small _ (by scalar_tac), h1]
+      step with udn_spec b.val (UScalar.cast .Usize x) r1 (alloc.vec.Vec.with_capacity _ _) hc
+        (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.length]; have := b.hBounds; scalar_tac) as ⟨o1, ns, hp⟩
+      simp only [hbt, dbNamesCrate]
+      rw [hr1] at hp
+      by_cases h0 : b.val = 0
+      · simp only [h0, ite_true] at hp ⊢
+        obtain ⟨rfl, rfl⟩ := hp
+        exact (WP.spec_ok _).mpr ⟨_, rfl, by simp [svValView, alloc.vec.Vec.with_capacity]⟩
+      · simp only [h0, ite_false] at hp ⊢
+        split_ifs at hp ⊢ with hn
+        · obtain ⟨rfl, h2⟩ := hp
+          exact (WP.spec_ok _).mpr ⟨_, rfl, by simp [svValView, h2, alloc.vec.Vec.with_capacity]⟩
+        · rw [hp]; exact (WP.spec_ok _).mpr rfl
+  · obtain ⟨rfl, -⟩ := ho
+    have : val.val = [] := by simp [Slice.length] at hl; cases hx : val.val <;> simp_all
+    simp [this]
 
 /-- `get_value` of `Q_MICROSECONDS` reads a 4-byte integer (the format has 3). -/
 theorem binlog.events.query_event.StatusVar.get_value_microseconds (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 13) :
