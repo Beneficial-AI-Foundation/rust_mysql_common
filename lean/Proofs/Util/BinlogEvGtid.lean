@@ -11,6 +11,10 @@ import Proofs.Misc.Raw.Bytes.RawBytes
 import Proofs.Misc.Raw.Const.Const
 import Proofs.Misc.Raw.Int.U8
 import Proofs.Binlog.Consts.IntvarEventType
+import Proofs.Binlog.Consts.IncidentType
+import Proofs.Misc.Raw.Const.RawConst
+import Proofs.Misc.Raw.Int.LeU16
+import Proofs.Misc.Raw.Bytes.U8Bytes
 
 /-! Helper lemmas for the binlog-event proofs of group `BinlogEvGtid` (GTID, previous-GTIDs,
 rotate, intvar, rand, XID, incident, rows-query and transaction-payload events). -/
@@ -316,5 +320,87 @@ theorem intvarTypeOfCode_code (t : binlog.consts.IntvarEventType) : intvarTypeOf
 
 theorem intvarTypeCode_lt (t : binlog.consts.IntvarEventType) : intvarTypeCode t < 3 := by
   cases t <;> simp [intvarTypeCode]
+
+/-! ## `RawConst<LeU16, IncidentType>`, `RawBytes<U8Bytes>` -/
+
+@[step]
+theorem parse_rawconst_leu16 (U : Type) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple U
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () ⦃ r rest =>
+      if 2 ≤ buf.length then ∃ x, r = .Ok x ∧ x.1.val = leNat (buf.val.take 2) ∧ rest.val = buf.val.drop 2
+      else ∃ e, r = .Err e ⦄ := by
+  have hs : proto.MyDeserialize.SIZE (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple U
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) = ok (some 2#usize) := by
+    simp [misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq,
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.SIZE_eq]
+  by_cases hl : 2 ≤ buf.length
+  · have := io.ParseBuf.parse_of_size _ buf () 2#usize hs hl
+      (fun o => o.map (fun x => x.1.val) = some (leNat (buf.val.take 2)))
+    apply WP.spec_mono (this ?_)
+    · rintro ⟨r, rest⟩ ⟨h1, h2⟩
+      simp only [hl, ite_true]
+      obtain ⟨x, rfl, hx⟩ := (okPart_map_some_iff _ _ _).1 h1
+      exact ⟨x, rfl, hx, h2⟩
+    · intro sub hsub
+      have hsl : 2 ≤ sub.length := by simp [Slice.length, hsub]; scalar_tac
+      have hd := misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec U
+        misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 sub
+        (fun (o : Option U16) (rest : io.ParseBuf) => o.map (·.val) = some (leNat (sub.val.take 2)) ∧ rest.val = sub.val.drop 2)
+        (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spec sub hsl)
+      apply WP.spec_mono hd
+      rintro ⟨r, rest⟩ ⟨h1, -⟩
+      simp only [WP.uncurry']
+      have h1' : Option.map (fun x => x.1.val) (okPart r) = some (leNat (List.take 2 sub.val)) := by
+        rw [← h1, Option.map_map]; rfl
+      rw [h1', hsub]; simp [List.take_take]
+  · simp only [hl, ite_false]
+    apply WP.spec_mono (io.ParseBuf.parse_of_size_short _ buf () 2#usize hs (by scalar_tac))
+    rintro ⟨r, rest⟩ ⟨h1, -⟩
+    exact (okPart_none_iff _).1 h1
+
+@[step]
+theorem parse_u8bytes (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      ((okPart r).map (fun x => cowList x.1), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf () (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple () buf
+    (fun o rest => (o, rest.val) = checkedLenPrefixed 1 buf.val)
+    (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
+
+@[step]
+theorem rawconst_leu16_serialize {U : Type} (x : misc.raw._const.RawConst misc.raw.int.LeU16 U U16) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 2 ≤ Usize.max) :
+    misc.raw._const.RawConst.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 x buf ⦃ buf' => buf'.val = buf.val ++ leBytes 2 x.1.val ⦄ := by
+  rw [misc.raw._const.RawConst.Insts.Mysql_commonProtoMySerialize.serialize_eq]
+  exact misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec _ buf h
+
+@[step]
+theorem rawbytes_u8_serialize (x : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 1 + min (cowList x.1).length 255 ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple x buf ⦃ buf' => buf'.val = buf.val ++ u8Str (cowList x.1) ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
+    (by simp only [Slice.length, hs]; exact h))
+  intro b hb; rw [hb, u8Str, ← hs]
+
+theorem incidentRead_eq (bs : List U8) (h : 2 ≤ bs.length) (o : Option (List U8)) (rr : List U8)
+    (hc : checkedLenPrefixed 1 (bs.drop 2) = (o, rr)) :
+    incidentRead bs = o.map (fun m => ((leNat (bs.take 2), m), rr)) := by
+  cases o <;> simp [incidentRead, takeExact, h, hc, optFst]
+
+theorem checkedLenPrefixed_u8Str (s tail : List U8) (hs : s.length ≤ 255) :
+    checkedLenPrefixed 1 (u8Str s ++ tail) = (some s, tail) := by
+  have hb : (byte s.length).val = s.length := by
+    show (BitVec.ofNat 8 s.length).toNat = s.length
+    simp; omega
+  have h1 : min s.length 255 = s.length := by omega
+  simp [u8Str, h1, List.take_of_length_le hs, checkedLenPrefixed, readLE, leNat, hb]
 
 end mysql_common.BinlogEvGtid
