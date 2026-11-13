@@ -125,7 +125,36 @@ theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysq
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.format_description_event.FormatDescriptionEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (fdeEnc e).length ≤ Usize.max) :
     binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ fdeEnc e ⦄ := by
-  sorry
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMySerialize.serialize
+  have hp : (core.convert.IntoFrom U16.Insts.CoreConvertFromBinlogVersion).into e.binlog_version.1 =
+      ok (UScalar.cast .U16 (read_discriminant e.binlog_version.1)) := rfl
+  have hpv : (UScalar.cast .U16 (read_discriminant e.binlog_version.1)).val = binlogVersionCode e.binlog_version.1 := by
+    cases e.binlog_version.1 <;> rfl
+  have hfl := fixedText_length 50 (cowList e.server_version.1)
+  simp only [fdeEnc, fdeLens, List.length_append, PBUtil.length_leBytes, hfl, List.length_cons, List.length_nil] at h
+  have hbl : buf.length = buf.val.length := rfl
+  rw [misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize_eq _ _ _ _ _ hp]
+  step with misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec as ⟨b1, hb1⟩
+  apply WP.spec_bind (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec _ e.server_version b1
+    (fun b => b.val = b1.val ++ fixedText 50 (cowList e.server_version.1)) (fun s hs => by
+      apply WP.spec_mono (misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec 50#usize s b1
+        (by simp only [alloc.vec.Vec.length, hb1, List.length_append, PBUtil.length_leBytes]; scalar_tac))
+      intro b hb
+      rw [hb]
+      simp [hs, Slice.length, fixedText]))
+  intro b2 hb2
+  simp only [misc.raw.int.RawInt.serialize_eq]
+  step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b3, hb3⟩
+  · simp only [alloc.vec.Vec.length, hb2, hb1, List.length_append, PBUtil.length_leBytes, hfl]; omega
+  step with misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨b4, hb4⟩
+  · simp only [alloc.vec.Vec.length, hb3, hb2, hb1, List.length_append, PBUtil.length_leBytes, hfl]; omega
+  apply WP.spec_mono (PKUtil.eof_ser _ b4 (by
+    simp only [alloc.vec.Vec.length, hb4, hb3, hb2, hb1, List.length_append, PBUtil.length_leBytes, hfl,
+      List.length_cons, List.length_nil]; omega))
+  intro b hb
+  rw [hb, hb4, hb3, hb2, hb1, hpv]
+  simp only [fdeEnc, fdeLens, List.append_assoc]
+  rfl
 
 /-- Round trip: the fields come back, the server version padded (or truncated) to 50 bytes. -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (e : binlog.events.format_description_event.FormatDescriptionEvent) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) (h : buf.val = fdeEnc e) :
@@ -135,7 +164,21 @@ theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysq
 /-- `BinlogStruct::len`: the length of what `serialize` writes (`fdeEnc`), capped at `u32::MAX - 19`. -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.format_description_event.FormatDescriptionEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (fdeEnc e).length evLenCap ⦄ := by
-  sorry
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  have hL : binlog.events.BinlogEventHeader.LEN = 19#usize := by unfold binlog.events.BinlogEventHeader.LEN; rfl
+  have hS : binlog.events.format_description_event.FormatDescriptionEvent.SERVER_VER_LEN = 50#usize := by
+    unfold binlog.events.format_description_event.FormatDescriptionEvent.SERVER_VER_LEN
+      binlog.events.format_description_event.SERVER_VER_LEN; rfl
+  have hM : (UScalar.cast .Usize core.num.U32.MAX).val = 2 ^ 32 - 1 := by
+    rw [IntAndMisc.cast_usize_small _ (by decide)]; rfl
+  have hUM : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  simp only [lift, bind_ok, hL, hS]
+  step with misc.raw.bytes.RawBytes.len_spec misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple _ rfl as ⟨i, hi⟩
+  step*
+  have hfl := fixedText_length 50 (cowList e.server_version.1)
+  simp_all [sat_add_usize, fdeEnc, fdeLens, evLenCap, misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec]
+  have := PKUtil.cowList_length_le e.event_type_header_lengths.1
+  omega
 
 /-- `BinlogEvent::EVENT_TYPE`: `FORMAT_DESCRIPTION_EVENT` (15). -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
