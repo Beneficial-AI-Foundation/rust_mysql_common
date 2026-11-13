@@ -34,5 +34,9 @@ import Specs.DefsSqlText
 import Specs.Packets.Connection
 import Specs.Packets.CachingSha2Password
 import Specs.DefsConn
+import Specs.Packets.StmtBinlog
+import Specs.Packets.SessionStateChange
+import Specs.Packets.BinlogRequest
+import Specs.DefsStmtSession
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/

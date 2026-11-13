@@ -13,5 +13,8 @@ import Defs.RowConvert
 import Defs.Compression
 import Defs.SqlText
 import Defs.Connection
+import Defs.CmdPackets
+import Defs.SessionState
+import Defs.BinlogCmd
 
 /-! Definitions needed to state the specs (see `VERIFICATION.md` §6, §7). -/
