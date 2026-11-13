@@ -8,6 +8,8 @@ and by `split_version` in `Specs/Misc.lean`. A signer should read them. They che
 * a header reads back its fields;
 * `chunksOf` cuts a stream as described;
 * level 0 forces stored packets;
+* the crate's encoding is a stream the decoder accepts (`compEncoding_compStreamOf`);
+* `CompState.of` is injective;
 * the packet reader `compStep` reads back what the crate writes (with `Trusted.inflate_deflate`),
   waits on a prefix and keeps valid states valid;
 * `splitVersion` behaves as the crate's tests expect, including its quirks.
@@ -42,6 +44,15 @@ recall compEncoding_level_zero (n seq : Nat) (plain out : List U8) :
       out = compPackets seq (chunksOf n plain) ((chunksOf n plain).map fun _ => none)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.compEncoding_level_zero`
+/-- The crate's encoding is one of the streams the decoder accepts: with `n > 0`, its pieces are the non-empty `chunksOf n plain`, each stored or deflated by flate2 (so `PacketCodec.encode_decode_comp` follows from `CompPacketCodec.decode_compStream`). -/
+recall compEncoding_compStreamOf (level n seq : Nat) (hn : 0 < n) (plain out : List U8)
+    (h : CompEncoding level n seq plain out) : CompStreamOf seq (chunksOf n plain) out
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.compEncoding_compStreamOf`
+/-- `CompState.of` is injective: the state keeps the decoder's variant (stored vs compressed, even for a caller-built `Compressed(n, 0)`) and all its fields. -/
+recall CompState.of_injective (a b : proto.codec.CompDecoder) (h : CompState.of a = CompState.of b) : a = b
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.CompState.of_injective`
 /-- A stored packet is 7 bytes longer than its piece, and a deflated one is shorter than that (by `Trusted.deflateResult_short`, its payload is non-empty and shorter than the piece). -/
 recall compPacket_length (level seq : Nat) (chunk : List U8) (zo : Option (List U8)) (hc : CompChoice level chunk zo) :
     (compPacket seq chunk zo).length ≤ 7 + chunk.length ∧

@@ -87,24 +87,43 @@ def Deflates (chunk z : List U8) : Prop :=
   ∃ (d : flate2.mem.Compress) (c : Slice U8) (v : alloc.vec.Vec U8),
     c.val = chunk ∧ v.val = z ∧ Trusted.deflateResult d c = .Ok (some v)
 
-/-- How the crate may carry the piece `chunk` at compression level `level`: stored always;
-    deflated to `z` only when compression is on (`level ≠ 0`), the piece has at least
-    `minCompressLength` bytes, and `z` is a successful deflate of it. -/
+/-- How a piece `chunk` may be carried at compression level `level` (a necessary condition):
+    stored always; deflated to `z` only when compression is on (`level ≠ 0`), the piece has at
+    least `minCompressLength` bytes, and `z` is a successful deflate of it. -/
 def CompChoice (level : Nat) (chunk : List U8) : Option (List U8) → Prop
   | none => True
   | some z => level ≠ 0 ∧ minCompressLength ≤ chunk.length ∧ Deflates chunk z
 
-/-- `out` is a sequence of compressed packets carrying the pieces `chunks` in order, from
-    sequence id `seq`, each carried as `CompChoice level` allows. -/
+/-- How the crate's encoder carries the piece `chunk` at level `level`: as `CompChoice`, and
+    stored only if it has to be. That is the case when compression is off, the piece is shorter
+    than `minCompressLength`, or deflating it succeeded without making it shorter (flate2 gave
+    `Ok None` for some stream). -/
+def EncChoice (level : Nat) (chunk : List U8) (zo : Option (List U8)) : Prop :=
+  CompChoice level chunk zo ∧
+  (zo = none → level = 0 ∨ chunk.length < minCompressLength ∨
+    ∃ (d : flate2.mem.Compress) (c : Slice U8), c.val = chunk ∧ Trusted.deflateResult d c = .Ok none)
+
+/-- `out` is a sequence of compressed packets, as the crate's encoder writes them
+    (`EncChoice level`), carrying the pieces `chunks` in order from sequence id `seq`. -/
 def CompPacketsOf (level seq : Nat) (chunks : List (List U8)) (out : List U8) : Prop :=
-  ∃ zs : List (Option (List U8)), List.Forall₂ (CompChoice level) chunks zs ∧
+  ∃ zs : List (Option (List U8)), List.Forall₂ (EncChoice level) chunks zs ∧
     out = compPackets seq chunks zs
 
-/-- `out` is the compressed form of the byte stream `plain` cut into pieces of `n` bytes
-    (`chunksOf`), from sequence id `seq`, at compression level `level`. At level 0 it is unique
-    (every piece stored, `compEncoding_level_zero`). -/
+/-- `out` is the crate's compressed form of the byte stream `plain`: cut into pieces of `n`
+    bytes (`chunksOf`), from sequence id `seq`, at compression level `level`. At level 0 it is
+    unique: every piece is stored (`compEncoding_level_zero`). -/
 def CompEncoding (level n seq : Nat) (plain out : List U8) : Prop :=
   CompPacketsOf level seq (chunksOf n plain) out
+
+/-- `out` is any sequence of compressed packets carrying the pieces `pieces` in order, from
+    sequence id `seq`, each stored or deflated by flate2 (`Deflates`). Any cut and any choice
+    are allowed, so this is what the decode statements accept. (A deflated piece is covered only
+    when it is flate2/miniz_oxide's own output, the limit of `Trusted.inflate_deflate`; another
+    zlib implementation's stream is not.) -/
+def CompStreamOf (seq : Nat) (pieces : List (List U8)) (out : List U8) : Prop :=
+  ∃ zs : List (Option (List U8)),
+    List.Forall₂ (fun c zo => ∀ z, zo = some z → Deflates c z) pieces zs ∧
+    out = compPackets seq pieces zs
 
 /-- The size of the pieces the crate cuts the stream into, for a given `max_allowed_packet`. -/
 def compChunkSize (max : Nat) : Nat := Nat.min maxPayloadLen max
@@ -123,27 +142,33 @@ noncomputable def inflateList (i : flate2.mem.Decompress) (z : List U8) (n : Nat
 
 /-! ## The crate's incremental compressed-packet reader -/
 
-/-- The state of the crate's compressed-packet reader (`CompDecoder`): idle (waiting for a
-    header), or a header with sequence id `seq`, compressed length `compLen` and uncompressed
-    length `plainLen` (0: stored) seen but not yet consumed, waiting for the payload. -/
+/-- The state of the crate's compressed-packet reader (`CompDecoder`). It is idle (waiting for a
+    header), or a header has been seen but not yet consumed and the reader waits for the payload.
+    A pending header has sequence id `seq` and compressed length `compLen`. Its `plainLen` is
+    `none` for a stored payload (`CompData::Uncompressed`) and `some p` for a payload to inflate
+    to `p` bytes (`CompData::Compressed`). The variant is kept apart from the length because a
+    caller can build `Compressed(n, 0)` (see `CompState.Valid`), and the crate inflates such a
+    payload rather than storing it. -/
 inductive CompState where
   | idle
-  | packet (seq : U8) (compLen plainLen : Nat)
+  | packet (seq : U8) (compLen : Nat) (plainLen : Option Nat)
 deriving DecidableEq
 
-/-- The `CompState` of a `CompDecoder`. -/
+/-- The `CompState` of a `CompDecoder` (injective: `CompState.of_injective`). -/
 def CompState.of : proto.codec.CompDecoder → CompState
   | .Idle => .idle
-  | .Packet seq (.Uncompressed n) => .packet seq n.val 0
-  | .Packet seq (.Compressed n p) => .packet seq n.val p.val
+  | .Packet seq (.Uncompressed n) => .packet seq n.val none
+  | .Packet seq (.Compressed n p) => .packet seq n.val (some p.val)
 
-/-- A state the reader can be in: a pending packet has lengths below `2^24` (from 3-byte
-    fields), a non-zero compressed length (`NonZeroUsize`) and, if compressed, a non-zero
-    uncompressed length. (The fields of `CompDecoder::Packet` are public, so a caller can build
-    others; the specs ask for `compStepFits` only.) -/
+/-- A state the reader can produce. In a pending header, the compressed length is non-zero and
+    below `2^24`, and a compressed payload's length is non-zero and below `2^24`. (The 3-byte
+    fields bound the lengths; `CompData::new` gives the non-zero lengths.) In Rust the non-zero
+    lengths are also type invariants (`NonZeroUsize`). The translation's `NonZeroUsize` is a plain
+    `usize`, and the fields of `CompDecoder::Packet` are public, so other states can be built in
+    Lean; the decode specs only ask for `compStepFits`. -/
 def CompState.Valid : CompState → Prop
   | .idle => True
-  | .packet _ cl pl => 0 < cl ∧ cl < 2 ^ 24 ∧ pl < 2 ^ 24
+  | .packet _ cl pl => 0 < cl ∧ cl < 2 ^ 24 ∧ ∀ p, pl = some p → 0 < p ∧ p < 2 ^ 24
 
 /-- One call of the crate's compressed-packet reader on input `src`, appending the packet's
     plain bytes to `dst`, with size limit `max`, inflating with `inf` (see `inflateList`).
@@ -151,23 +176,26 @@ def CompState.Valid : CompState → Prop
     * Idle, a header with `max < max(compLen, plainLen)`: `PacketTooLarge`; nothing consumed.
     * Idle, a header with `compLen = 0`: if `plainLen = 0`, an empty packet (`Ok (Last seq)`),
       the header consumed; otherwise `BadCompressedPacketHeader`, nothing consumed.
-    * Idle, another header: as the pending state.
-    * Pending: if the header and the whole payload are there, a stored payload is appended to
-      `dst`, and a compressed one inflated to `plainLen` bytes and appended; both are consumed
-      and the result is `Ok (Last seq)`, idle. If inflating fails with `e`: `Err (Io e)`; the
-      crate has then consumed the 7 header bytes but stays in the pending state (see the
-      quirk in `Specs/Proto/Codec.lean`). If the payload is not all there: more input needed,
-      nothing consumed, the pending state kept. -/
+    * Idle, another header: as the pending state (`plainLen = 0`: stored).
+    * Pending, with the header and the whole payload there:
+      - a stored payload is appended to `dst`;
+      - a compressed one is inflated to its length and appended;
+      - both are consumed, and the result is `Ok (Last seq)`, idle.
+      - If inflating fails with `e`: `Err (Io e)`. The crate has then consumed the 7 header
+        bytes but stays in the pending state (see the quirk in `Specs/Proto/Codec.lean`).
+    * Pending, with the payload not all there: more input needed, nothing consumed, the pending
+      state kept. -/
 def compStep (inf : List U8 → Nat → core.result.Result (List U8) core.io.error.Error)
     (st : CompState) (src dst : List U8) (max : Nat) :
     core.result.Result (Option proto.codec.ChunkInfo) proto.codec.error.PacketCodecError
       × CompState × List U8 × List U8 :=
-  let body (seq : U8) (cl pl : Nat) :=
+  let body (seq : U8) (cl : Nat) (pl : Option Nat) :=
     if 7 + cl ≤ src.length then
       let z := (src.drop 7).take cl
-      if pl = 0 then (.Ok (some (.Last seq)), CompState.idle, src.drop (7 + cl), dst ++ z)
-      else
-        match inf z pl with
+      match pl with
+      | none => (.Ok (some (.Last seq)), CompState.idle, src.drop (7 + cl), dst ++ z)
+      | some p =>
+        match inf z p with
         | .Ok v => (.Ok (some (.Last seq)), CompState.idle, src.drop (7 + cl), dst ++ v)
         | .Err e => (.Err (.Io e), CompState.packet seq cl pl, src.drop 7, dst)
     else (.Ok none, CompState.packet seq cl pl, src, dst)
@@ -180,29 +208,34 @@ def compStep (inf : List U8 → Nat → core.result.Result (List U8) core.io.err
       else if cl = 0 then
         if pl = 0 then (.Ok (some (.Last seq)), .idle, src.drop 7, dst)
         else (.Err .BadCompressedPacketHeader, .idle, src, dst)
-      else body seq cl pl
+      else body seq cl (if pl = 0 then none else some pl)
   | .packet seq cl pl => body seq cl pl
 
 /-- The lengths one call of the compressed-packet reader computes fit in a `usize` (stronger
-    than necessary, for simplicity): idle, `dst` has room for `2^24` more bytes (a payload is
-    below `2^24`); pending, `7 + compLen` fits and `dst` has room for either length. -/
+    than necessary, for simplicity). Idle: `dst` has room for `2^24` more bytes (a payload is
+    below `2^24`). Pending: `7 + compLen` fits, and `dst` has room for either length. -/
 def compStepFits (st : CompState) (dst : List U8) : Prop :=
   match st with
   | .idle => dst.length + 2 ^ 24 ≤ Usize.max
-  | .packet _ cl pl => 7 + cl ≤ Usize.max ∧ dst.length + cl ≤ Usize.max ∧ dst.length + pl ≤ Usize.max
+  | .packet _ cl pl =>
+    7 + cl ≤ Usize.max ∧ dst.length + cl ≤ Usize.max ∧ dst.length + pl.getD 0 ≤ Usize.max
 
-/-! ## Server version strings -/
+/-! ## Server version strings (the crate's reading)
 
-/-- One numeric part of a version: the bytes are an ASCII integer (`asciiInt`: an optional `+`
-    or `-` sign, then digits) with value in `0..=255`. -/
+`split_version` has no protocol definition: the handshake's `server_version` is free text. These
+definitions describe the crate's reading of it. -/
+
+/-- One numeric part of a version, as the crate reads it with `btoi`: the bytes are an ASCII
+    integer (`asciiInt`) with value in `0..=255`. `asciiInt` accepts an optional `+` or `-` sign
+    before the digits; that is a btoi quirk, not part of any version format. -/
 def versionPart (bs : List U8) : Option U8 :=
   (asciiInt bs).bind fun v => if 0 ≤ v ∧ v < 256 then some (byte v.toNat) else none
 
-/-- The `(major, minor, patch)` of a version string `bs`: the parts before the first and the
-    second `.` (46) are the major and minor version, and the patch version is the longest run of
-    ASCII digits right after the second `.` (anything after it, such as `-log` or a fourth part,
-    is ignored). `none` if there are fewer than two `.`, or a part is not a number in
-    `0..=255`. -/
+/-- The crate's reading of a version string `bs` as `(major, minor, patch)`.
+    * The parts before the first and the second `.` (46) are the major and minor version.
+    * The patch version is the longest run of ASCII digits right after the second `.`; anything
+      after it, such as `-log` or a fourth part, is ignored.
+    * `none` if there are fewer than two `.`, or a part is not a number in `0..=255`. -/
 def splitVersion (bs : List U8) : Option (U8 × U8 × U8) :=
   let notDot : U8 → Bool := fun c => c.val ≠ 46
   match bs.dropWhile notDot with

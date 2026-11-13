@@ -23,8 +23,9 @@ import Proofs.Proto.Codec.CompPacketCodec
     The headline statements:
     * the round trips `PacketCodec.encode_decode_plain`/`_comp` (decode ∘ encode is the identity
       when the two codecs start at the same sequence ids);
-    * `CompPacketCodec.decode_compEncoding`/`_prefix`/`_resume` (decoding any compressed stream
-      of a payload's chunks, also incrementally);
+    * `CompPacketCodec.decode_compStream`/`_prefix`/`_resume` (decoding any compressed stream of
+      a payload's chunks, cut anywhere, also incrementally, with pipelined data left in
+      `in_buf`), and `decode_buffered` (a packet already in `in_buf`);
     * the exact error cases of compressed decoding;
     * the panics.
     The `_spec`/`_eq` statements are exact or total.
@@ -51,8 +52,8 @@ import Proofs.Proto.Codec.CompPacketCodec
     `ChunkState`, `ChunkState.of`, `ChunkState.Valid`, `chunkStepFits`, `chunkInfoSeq`, `chunkStep`,
     `plainDecode`),
     `Defs/Compression.lean` (`minCompressLength`, `compHeader`, `compHeaderRead`, `compPacket`,
-    `compPackets`, `chunksOf`, `compChunkSize`, `Deflates`, `CompChoice`, `CompPacketsOf`,
-    `CompEncoding`, `inflateList`, `CompState`, `CompState.of`, `CompState.Valid`, `compStep`,
+    `compPackets`, `chunksOf`, `compChunkSize`, `Deflates`, `CompChoice`, `EncChoice`,
+    `CompPacketsOf`, `CompEncoding`, `CompStreamOf`, `inflateList`, `CompState`, `CompState.of`, `CompState.Valid`, `compStep`,
     `compStepFits`),
     `Defs/Bytes.lean` (`byte`). Facts about these: `Specs/DefsCF.lean`, `Specs/DefsComp.lean`.
 
@@ -62,7 +63,8 @@ import Proofs.Proto.Codec.CompPacketCodec
       `deflateState`, `inflateResult`, `inflateState`, `vecCapacity`;
     * `Trusted.deflateResult_short` and `Trusted.inflateResult_len` (encode bounds);
     * `Trusted.inflate_deflate`, used by every round trip and by `decode_compPacket`,
-      `decode_out_of_sync`, `decode_compEncoding`/`_prefix`/`_resume` and `encode_decode_comp`.
+      `decode_out_of_sync`, `decode_compStream`/`_prefix`/`_resume` and `encode_decode_comp`.
+      Its limit: a deflated piece is covered only when it is flate2/miniz_oxide's own output.
     These axioms only say what deflate and inflate do when they succeed, so the encode statements
     allow a deflate failure (`Err(Io)`), and the decode statements for arbitrary input are total,
     not exact, except `CompDecoder.decode_spec` and `decode_inflate_error`, which are exact in
@@ -85,6 +87,9 @@ import Proofs.Proto.Codec.CompPacketCodec
     * An exact model of `CompPacketCodec::decode` on arbitrary input: its result depends on the
       opaque inflate streams the codec threads through. It is stated as total, plus the round-trip,
       streaming and error cases.
+    * Decoding deflated data from another zlib implementation (e.g. the server's). Such a
+      stream is only covered by `decode_total` and the error statements, because
+      `Trusted.inflate_deflate` speaks only of flate2's own output.
     * Memory use: the capacity-based shrinking of `in_buf`/`out_buf`.
     * `buf_model` (the translation model).
 
@@ -103,13 +108,16 @@ import Proofs.Proto.Codec.CompPacketCodec
       `max_allowed_packet` (before `BadCompressedPacketHeader`). Plain chunks inside are checked
       again by the plain reader.
     * Bugs and quirks:
-      - **Upstream bug:** `max_allowed_packet = 0` panics in `compress` on non-empty input, and in
-        a compressed codec's `encode` of an empty packet (`chunks(0)`).
-      - A compression level above 10 is accepted by `PacketCodec::compress` but panics at the
-        first deflate (flate2 miniz_oxide `debug_assert!`).
+      - **Upstream defect:** a panic instead of an error on a degenerate setting (the server's
+        minimum `max_allowed_packet` is 1024). `max_allowed_packet = 0` panics (`chunks(0)`) in
+        `compress` on non-empty input, and in a compressed codec's `encode` of an empty packet.
+      - A compression level above 10 is accepted by `PacketCodec::compress`, but the first
+        deflate panics. This is flate2's `debug_assert!(level <= 10)`
+        (`src/ffi/miniz_oxide.rs:153`): debug builds only, no panic in release.
       - `compress` on an empty `src` returns sequence id 0, not `seq_id`.
-      - After a failed deflate, `encode` leaves the chunks in `out_buf` (they are re-sent by the
-        next `encode`), with the plain sequence id advanced but the compressed one not.
+      - After a failed deflate, the pieces before the failure are already in `dst` and are also
+        still in `out_buf`. The next `encode` therefore sends them twice, with the same
+        compressed sequence ids. The plain sequence id has advanced; the compressed one has not.
       - After a failed inflate, the compressed reader has consumed the header but stays pending.
       - An out-of-sync compressed packet's data is kept in `in_buf`.
     * After `encode`, the compressed codec sets the plain sequence id to the compressed one
@@ -139,19 +147,19 @@ recall proto.codec.compress_empty (seq : U8) (lvl : flate2.Compression) (max : U
     proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl max src dst = ok (.Ok 0#u8, src, dst)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_empty`
-/-- **Upstream bug:** `compress` with `max_allowed_packet = 0` on a non-empty `src` panics (`src.chunks(0)`; the patched copy has the same `assert!`) instead of returning an error. -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress` with `max_allowed_packet = 0` on a non-empty `src` panics (`src.chunks(0)`; the patched copy has the same `assert!`) instead of returning an error. -/
 recall proto.codec.compress_max_zero (seq : U8) (lvl : flate2.Compression) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val ≠ []) :
     proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl 0#usize src dst = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_max_zero`
-/-- `compress` at a compression level above 10 panics as soon as it deflates, i.e. when the first piece has at least `minCompressLength` bytes. flate2's miniz_oxide backend has `debug_assert!(level <= 10)` in `Compress::new`; the proofs use debug semantics (see the module docstring). -/
+/-- `compress` at a compression level above 10 panics as soon as it deflates, i.e. when the first piece has at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only (the proofs use debug semantics), no panic in release. -/
 recall proto.codec.compress_level_panic (seq : U8) (lvl : flate2.Compression) (max : Usize) (src dst : proto.codec.buf_model.VecBuf)
     (hsrc : src.val ≠ []) (hmax : max.val ≠ 0) (hlvl : 10 < lvl.level.val)
     (hbig : minCompressLength ≤ Nat.min (compChunkSize max.val) src.val.length) :
     proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl max src dst = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_level_panic`
-/-- `compress(seq_id, compression, max_allowed_packet, src, dst)` on a non-empty `src`, whenever it does not panic (`max_allowed_packet ≠ 0`, and a level of at most 10 or no piece long enough to deflate). `src` is cut into pieces of `min(2^24 - 1, max_allowed_packet)` bytes (`chunksOf`, `compChunkSize`). Each piece is sent as one compressed packet (`CompEncoding`), with sequence ids counting up from `seq_id`. A piece is stored, or deflated when the level is not 0, the piece has at least 512 bytes and deflating made it shorter.
+/-- `compress(seq_id, compression, max_allowed_packet, src, dst)` on a non-empty `src`, whenever it does not panic (`max_allowed_packet ≠ 0`, and a level of at most 10 or no piece long enough to deflate). `src` is cut into pieces of `min(2^24 - 1, max_allowed_packet)` bytes (`chunksOf`, `compChunkSize`). Each piece is sent as one compressed packet (`CompEncoding`), with sequence ids counting up from `seq_id`. A piece is deflated when the level is not 0, the piece has at least 512 bytes and deflating made it shorter, and stored otherwise (`EncChoice`).
     * `Ok(s)`: `s` is `seq_id` plus the number of packets (mod 256), `src` is emptied, and the packets are appended to `dst`.
     * `Err(e)`: only when deflating a piece failed. Then `e` is an `Io` error, the level is not 0, and that piece has at least 512 bytes. `src` is unchanged, and `dst` has the packets of the pieces before it.
     The size bound only rules out `usize` overflow. -/
@@ -179,12 +187,12 @@ recall proto.codec.compress_with_empty (seq : U8) (lvl : flate2.Compression) (d 
     proto.codec.compress_with proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl d max src dst = ok (.Ok 0#u8, d, src, dst)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_with_empty`
-/-- **Upstream bug:** `compress_with` with `max_allowed_packet = 0` on a non-empty `src` panics (`chunks(0)`). -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress_with` with `max_allowed_packet = 0` on a non-empty `src` panics (`chunks(0)`). -/
 recall proto.codec.compress_with_max_zero (seq : U8) (lvl : flate2.Compression) (d : Option flate2.mem.Compress) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val ≠ []) :
     proto.codec.compress_with proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl d 0#usize src dst = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_with_max_zero`
-/-- `compress_with` with no deflate stream yet and a level above 10 panics when it creates one, i.e. when the first piece has at least `minCompressLength` bytes (the `debug_assert!` in `Compress::new`). -/
+/-- `compress_with` with no deflate stream yet and a level above 10 panics when it creates one, i.e. when the first piece has at least `minCompressLength` bytes (flate2's `debug_assert!(level <= 10)`, `src/ffi/miniz_oxide.rs:153`: debug builds only, no panic in release). -/
 recall proto.codec.compress_with_level_panic (seq : U8) (lvl : flate2.Compression) (max : Usize) (src dst : proto.codec.buf_model.VecBuf)
     (hsrc : src.val ≠ []) (hmax : max.val ≠ 0) (hlvl : 10 < lvl.level.val)
     (hbig : minCompressLength ≤ Nat.min (compChunkSize max.val) src.val.length) :
@@ -366,14 +374,16 @@ recall proto.codec.PacketCodec.encode_decode_plain (enc dec : proto.codec.Packet
             ∃ cd', dec'.inner = .Plain cd' ∧ cd'.seq_id = ce'.seq_id ∧ cd'.chunk_decoder = .Idle ⦄ ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PacketCodec.encode_decode_plain`
-/-- Headline round trip, compressed codecs. Suppose a compressed codec with an empty output buffer encodes a packet successfully, without panicking (`max_allowed_packet ≠ 0`; level at most 10 or a kept deflate stream). The bytes it wrote (followed by anything) go to a compressed codec that has nothing pending, starts at the same two sequence ids, and has at least the same `max_allowed_packet`. That codec decodes them back to exactly the packet: `Ok(true)`, with the input after them left. Its compressed sequence id then equals the encoder's, its plain sequence id is advanced by the number of chunks, and nothing is pending. (The encoder instead sets its plain sequence id to the compressed one, as the server does.) Deflated pieces are read back by `Trusted.inflate_deflate`. -/
+/-- Headline round trip, compressed codecs. Suppose a compressed codec with an empty output buffer encodes a packet successfully, without panicking (`max_allowed_packet ≠ 0`; level at most 10, a kept deflate stream, or no piece long enough to deflate). The bytes it wrote (followed by anything) go to a compressed codec that has nothing pending, starts at the same two sequence ids, and has at least the same `max_allowed_packet`. That codec decodes them back to exactly the packet: `Ok(true)`, with the input after them left. Its compressed sequence id then equals the encoder's, its plain sequence id is advanced by the number of chunks, and nothing is pending. (The encoder instead sets its plain sequence id to the compressed one, as the server does.) Deflated pieces are read back by `Trusted.inflate_deflate` (this follows from `encode_spec`, `compEncoding_compStreamOf` and `decode_compStream`). -/
 recall proto.codec.PacketCodec.encode_decode_comp (enc dec : proto.codec.PacketCodec) (ce cd : proto.codec.CompPacketCodec)
     (he : enc.inner = .Comp ce) (hd : dec.inner = .Comp cd) (hout : ce.out_buf.val = [])
     (hfresh : cd.in_buf.val = [] ∧ cd.comp_decoder = .Idle ∧ cd.plain_codec.chunk_decoder = .Idle)
     (hseq : cd.comp_seq_id = ce.comp_seq_id ∧ cd.plain_codec.seq_id = ce.plain_codec.seq_id)
     (hmax0 : enc.max_allowed_packet.val ≠ 0) (hmax : enc.max_allowed_packet.val ≤ dec.max_allowed_packet.val)
-    (hlvl : ce.deflater ≠ none ∨ ce.level.level.val ≤ 10)
-    (packet dst : proto.codec.buf_model.VecBuf) (h : dst.val.length + 8 * (frame ce.plain_codec.seq_id.val packet.val).length ≤ Usize.max) :
+    (packet dst : proto.codec.buf_model.VecBuf)
+    (hlvl : ce.deflater ≠ none ∨ ce.level.level.val ≤ 10 ∨
+      Nat.min (compChunkSize enc.max_allowed_packet.val) (frame ce.plain_codec.seq_id.val packet.val).length < minCompressLength)
+    (h : dst.val.length + 8 * (frame ce.plain_codec.seq_id.val packet.val).length ≤ Usize.max) :
     proto.codec.PacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve enc packet dst ⦃ r enc' _ dst' =>
       r = .Ok () → ∃ ce', enc'.inner = .Comp ce' ∧
         ∀ (tail : List U8) (src d0 : proto.codec.buf_model.VecBuf), src.val = dst'.val.drop dst.val.length ++ tail → d0.val = [] →
@@ -385,14 +395,14 @@ recall proto.codec.PacketCodec.encode_decode_comp (enc dec : proto.codec.PacketC
               cd'.in_buf.val = [] ∧ cd'.comp_decoder = .Idle ∧ cd'.plain_codec.chunk_decoder = .Idle ⦄ ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PacketCodec.encode_decode_comp`
-/-- **Upstream bug:** a compressed codec with `max_allowed_packet = 0` panics when encoding an empty packet (`chunks(0)` in `compress_with`), instead of returning an error. -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). A compressed codec with `max_allowed_packet = 0` panics when encoding an empty packet (`chunks(0)` in `compress_with`), instead of returning an error. -/
 recall proto.codec.PacketCodec.encode_comp_max_zero (self : proto.codec.PacketCodec) (c : proto.codec.CompPacketCodec)
     (hc : self.inner = .Comp c) (hmax : self.max_allowed_packet.val = 0) (packet dst : proto.codec.buf_model.VecBuf)
     (hp : packet.val = []) (h : c.out_buf.val.length + 4 ≤ Usize.max) :
     proto.codec.PacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PacketCodec.encode_comp_max_zero`
-/-- A compression level above 10 is accepted by `compress`, but the first `encode` that deflates then panics: one whose packet (within `max_allowed_packet`) has chunks making a first piece of at least `minCompressLength` bytes. This is flate2's miniz_oxide `debug_assert!(level <= 10)` in `Compress::new`; the default zlib backend, outside the verified configuration, instead panics above 9 in every profile. -/
+/-- A compression level above 10 is accepted by `compress`, but the first `encode` that deflates then panics: one whose packet (within `max_allowed_packet`) has chunks making a first piece of at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only, no panic in release. The default zlib backend, outside the verified configuration, instead panics above 9 in every profile. -/
 recall proto.codec.PacketCodec.compress_then_encode_panics (self : proto.codec.PacketCodec) (c : proto.codec.PlainPacketCodec)
     (hc : self.inner = .Plain c) (lvl : flate2.Compression) (hlvl : 10 < lvl.level.val)
     (packet dst : proto.codec.buf_model.VecBuf) (hp : packet.val.length ≤ self.max_allowed_packet.val)
@@ -569,51 +579,76 @@ recall proto.codec.CompPacketCodec.decode_total (self : proto.codec.CompPacketCo
       (CompState.of c'.comp_decoder).Valid ∧ (ChunkState.of c'.plain_codec.chunk_decoder).Valid ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.decode_total`
-/-- Headline round trip (decoding). Take a decoder with nothing pending (`in_buf` empty, both readers idle). Feed it a compressed stream of the chunks of a payload `p` (`CompEncoding` of `frame`, as `encode` writes them, cut into pieces of any size `n` up to `min(2^24 - 1, max_allowed_packet)`), followed by anything. It gives back exactly `p`, with `Ok(true)` and the input after the stream left. The compressed sequence id is advanced by the number of compressed packets and the plain one by the number of chunks, and nothing is pending again. The stream must start at the decoder's two sequence ids. Deflated pieces are read back by `Trusted.inflate_deflate`, with whatever inflate stream the decoder holds. -/
-recall proto.codec.CompPacketCodec.decode_compEncoding (self : proto.codec.CompPacketCodec)
+/-- Pipelined plain packets. Take a decoder whose chunk reader is idle and whose decompressed buffer `in_buf` starts with the chunks of a payload `p` (`frame`, from the plain sequence id), followed by anything (`rest`, e.g. the next packet). It returns `Ok(true)` with exactly `p` in `dst`, leaving `rest` in `in_buf`. It reads nothing from `src`. The compressed reader and sequence id are unchanged, and the plain sequence id is advanced by the number of chunks. -/
+recall proto.codec.CompPacketCodec.decode_buffered (self : proto.codec.CompPacketCodec)
+    (hidle : self.plain_codec.chunk_decoder = .Idle) (p rest : List U8)
+    (hin : self.in_buf.val = frame self.plain_codec.seq_id.val p ++ rest)
+    (src dst : proto.codec.buf_model.VecBuf) (hdst : dst.val = []) (max : Usize) (hmax : p.length ≤ max.val)
+    (h : self.in_buf.val.length + 2 ^ 24 ≤ Usize.max) :
+    proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r c' src' dst' =>
+      r = .Ok true ∧ dst'.val = p ∧ c'.in_buf.val = rest ∧ src' = src ∧
+      c'.comp_seq_id = self.comp_seq_id ∧ c'.comp_decoder = self.comp_decoder ∧
+      c'.plain_codec.seq_id = byte (self.plain_codec.seq_id.val + frameCount p.length) ∧
+      c'.plain_codec.chunk_decoder = .Idle ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.decode_buffered`
+/-- Headline round trip (decoding). Take a decoder with nothing pending (`in_buf` empty, both readers idle). Feed it any compressed stream (`CompStreamOf`) whose pieces carry the chunks of a payload `p` followed by `rest`, then anything (`tail`). The chunks are `frame`, from the decoder's plain sequence id; the packets' sequence ids start at the decoder's compressed one.
+    The pieces may be cut anywhere (non-empty, at most `min(2^24 - 1, max_allowed_packet)` bytes), each stored or deflated by flate2. The payload's chunks must end in the last piece, so `rest` is the start of what comes next.
+    The decoder gives back exactly `p` with `Ok(true)`: the whole stream is consumed (`tail` left), and `rest` stays in `in_buf`. The compressed sequence id is advanced by the number of packets, the plain one by the number of chunks, and both readers are idle.
+    Deflated pieces are read back by `Trusted.inflate_deflate`, with any inflate stream. A deflated piece is covered only when it is flate2/miniz_oxide's own output; a server's zlib stream is covered only by `decode_total` and the error statements. -/
+recall proto.codec.CompPacketCodec.decode_compStream (self : proto.codec.CompPacketCodec)
     (hfresh : self.in_buf.val = [] ∧ self.comp_decoder = .Idle ∧ self.plain_codec.chunk_decoder = .Idle)
-    (lvl n : Nat) (hn : 0 < n ∧ n ≤ maxPayloadLen) (p out tail : List U8)
-    (henc : CompEncoding lvl n self.comp_seq_id.val (frame self.plain_codec.seq_id.val p) out)
+    (p rest tail out : List U8) (pieces : List (List U8))
+    (hpieces : pieces.flatten = frame self.plain_codec.seq_id.val p ++ rest)
+    (hlast : pieces.dropLast.flatten.length < (frame self.plain_codec.seq_id.val p).length)
+    (max : Usize) (hsize : ∀ c ∈ pieces, c ≠ [] ∧ c.length ≤ Nat.min maxPayloadLen max.val)
+    (hstream : CompStreamOf self.comp_seq_id.val pieces out)
     (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val = out ++ tail) (hdst : dst.val = [])
-    (max : Usize) (hmax : p.length ≤ max.val ∧ n ≤ max.val)
+    (hmax : p.length ≤ max.val)
     (h : 2 ^ 25 * (src.val.length + 1) ≤ Usize.max) :
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r c' src' dst' =>
-      r = .Ok true ∧ dst'.val = p ∧ src'.val = tail ∧
-      c'.comp_seq_id = byte (self.comp_seq_id.val + (chunksOf n (frame self.plain_codec.seq_id.val p)).length) ∧
+      r = .Ok true ∧ dst'.val = p ∧ src'.val = tail ∧ c'.in_buf.val = rest ∧
+      c'.comp_seq_id = byte (self.comp_seq_id.val + pieces.length) ∧
       c'.plain_codec.seq_id = byte (self.plain_codec.seq_id.val + frameCount p.length) ∧
-      c'.in_buf.val = [] ∧ c'.comp_decoder = .Idle ∧ c'.plain_codec.chunk_decoder = .Idle ⦄
+      c'.comp_decoder = .Idle ∧ c'.plain_codec.chunk_decoder = .Idle ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.decode_compEncoding`
-/-- Streaming. On a strict prefix of such a compressed stream, a decoder with nothing pending reports that more input is needed (`Ok(false)`), never an error. (Plain chunks completed so far may already be in `dst`.) -/
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.decode_compStream`
+/-- Streaming. On a strict prefix of such a compressed stream (as in `decode_compStream`), a decoder with nothing pending reports that more input is needed (`Ok(false)`), never an error. Plain chunks completed so far may already be in `dst`. -/
 recall proto.codec.CompPacketCodec.decode_prefix (self : proto.codec.CompPacketCodec)
     (hfresh : self.in_buf.val = [] ∧ self.comp_decoder = .Idle ∧ self.plain_codec.chunk_decoder = .Idle)
-    (lvl n : Nat) (hn : 0 < n ∧ n ≤ maxPayloadLen) (p out : List U8)
-    (henc : CompEncoding lvl n self.comp_seq_id.val (frame self.plain_codec.seq_id.val p) out)
+    (p rest out : List U8) (pieces : List (List U8))
+    (hpieces : pieces.flatten = frame self.plain_codec.seq_id.val p ++ rest)
+    (hlast : pieces.dropLast.flatten.length < (frame self.plain_codec.seq_id.val p).length)
+    (max : Usize) (hsize : ∀ c ∈ pieces, c ≠ [] ∧ c.length ≤ Nat.min maxPayloadLen max.val)
+    (hstream : CompStreamOf self.comp_seq_id.val pieces out)
     (k : Nat) (hk : k < out.length)
     (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val = out.take k) (hdst : dst.val = [])
-    (max : Usize) (hmax : p.length ≤ max.val ∧ n ≤ max.val)
+    (hmax : p.length ≤ max.val)
     (h : 2 ^ 25 * (out.length + 1) ≤ Usize.max) :
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r _ _ _ =>
       r = .Ok false ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.decode_prefix`
-/-- Resumption. Decode a strict prefix of such a compressed stream (`Ok(false)`). Then call `decode` again with the returned codec and output, on what the first call left of the input followed by the rest of the stream (and anything after). This completes the packet: `Ok(true)`, exactly `p`, the input after the stream left, both sequence ids advanced as in `decode_compEncoding`, and nothing pending. -/
+/-- Resumption. Decode a strict prefix of such a compressed stream (`Ok(false)`). Then call `decode` again with the returned codec and output, on what the first call left of the input followed by the rest of the stream (and anything after). This completes the packet exactly as in `decode_compStream`. -/
 recall proto.codec.CompPacketCodec.decode_resume (self : proto.codec.CompPacketCodec)
     (hfresh : self.in_buf.val = [] ∧ self.comp_decoder = .Idle ∧ self.plain_codec.chunk_decoder = .Idle)
-    (lvl n : Nat) (hn : 0 < n ∧ n ≤ maxPayloadLen) (p out tail : List U8)
-    (henc : CompEncoding lvl n self.comp_seq_id.val (frame self.plain_codec.seq_id.val p) out)
+    (p rest tail out : List U8) (pieces : List (List U8))
+    (hpieces : pieces.flatten = frame self.plain_codec.seq_id.val p ++ rest)
+    (hlast : pieces.dropLast.flatten.length < (frame self.plain_codec.seq_id.val p).length)
+    (max : Usize) (hsize : ∀ c ∈ pieces, c ≠ [] ∧ c.length ≤ Nat.min maxPayloadLen max.val)
+    (hstream : CompStreamOf self.comp_seq_id.val pieces out)
     (k : Nat) (hk : k < out.length)
     (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val = out.take k) (hdst : dst.val = [])
-    (max : Usize) (hmax : p.length ≤ max.val ∧ n ≤ max.val)
+    (hmax : p.length ≤ max.val)
     (h : 2 ^ 25 * (out.length + tail.length + 1) ≤ Usize.max) :
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r1 c1 src1 dst1 =>
       r1 = .Ok false ∧
       ∀ src2 : proto.codec.buf_model.VecBuf, src2.val = src1.val ++ out.drop k ++ tail →
         (proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut c1 src2 dst1 max ⦃ r c' src' dst' =>
-          r = .Ok true ∧ dst'.val = p ∧ src'.val = tail ∧
-          c'.comp_seq_id = byte (self.comp_seq_id.val + (chunksOf n (frame self.plain_codec.seq_id.val p)).length) ∧
+          r = .Ok true ∧ dst'.val = p ∧ src'.val = tail ∧ c'.in_buf.val = rest ∧
+          c'.comp_seq_id = byte (self.comp_seq_id.val + pieces.length) ∧
           c'.plain_codec.seq_id = byte (self.plain_codec.seq_id.val + frameCount p.length) ∧
-          c'.in_buf.val = [] ∧ c'.comp_decoder = .Idle ∧ c'.plain_codec.chunk_decoder = .Idle ⦄) ⦄
+          c'.comp_decoder = .Idle ∧ c'.plain_codec.chunk_decoder = .Idle ⦄) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.decode_resume`
 /-- Out of sync. A decoder with nothing pending, given a compressed packet (as the crate writes them) whose sequence id `s` is not the expected one, fails with `PacketsOutOfSync`; the compressed sequence id is unchanged. **Quirk:** the packet has been consumed, and its plain bytes have been kept in `in_buf`, so a later call would decode them. -/
@@ -661,7 +696,7 @@ recall proto.codec.CompPacketCodec.decode_inflate_error (self : proto.codec.Comp
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r c' src' dst' =>
       r = .Err (.Io e) ∧ c'.comp_seq_id = self.comp_seq_id ∧ c'.in_buf.val = [] ∧
       CompState.of c'.comp_decoder =
-        .packet (compHeaderRead src.val).2.1 (compHeaderRead src.val).1 (compHeaderRead src.val).2.2 ∧
+        .packet (compHeaderRead src.val).2.1 (compHeaderRead src.val).1 (some (compHeaderRead src.val).2.2) ∧
       src'.val = src.val.drop 7 ∧ dst' = dst ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.decode_inflate_error`
@@ -669,7 +704,7 @@ recall proto.codec.CompPacketCodec.decode_inflate_error (self : proto.codec.Comp
     * `PacketTooLarge` if the packet is longer than `max_allowed_packet`; nothing changes.
     * Otherwise the packet's chunks (`frame`, from the plain sequence id) are appended to `out_buf`, and `out_buf` is compressed into `dst` (`CompEncoding`, from the compressed sequence id; see `compress_with_spec`). The packet is consumed.
       - On `Ok`: `out_buf` is emptied, the compressed sequence id is advanced by the number of compressed packets, and the plain sequence id is set to it (synchronised as in the server's `net_serv.cc`).
-      - On `Err`: deflating failed (an `Io` error). **Quirk:** the plain sequence id has already advanced, but the compressed one has not, and the chunks stay in `out_buf`, so the next `encode` sends them again ahead of its own packet. `dst` holds the compressed packets of the pieces before the failure.
+      - On `Err`: deflating failed (an `Io` error). **Quirk:** the plain sequence id has already advanced but the compressed one has not. The pieces before the failure are already in `dst` as compressed packets, and also still in `out_buf`. So the next `encode` sends them a second time, with the same compressed sequence ids.
     The reading side (`in_buf`, the readers, the inflate stream) and the level are untouched. The deflate stream is not described. -/
 recall proto.codec.CompPacketCodec.encode_spec (self : proto.codec.CompPacketCodec) (packet dst : proto.codec.buf_model.VecBuf) (max : Usize)
     (hmax : max.val ≠ 0 ∨ max.val < packet.val.length)
@@ -698,18 +733,19 @@ recall proto.codec.CompPacketCodec.encode_spec (self : proto.codec.CompPacketCod
           c'.out_buf.val = self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val ∧
           ∃ k out, k < (chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).length ∧
             self.level.level.val ≠ 0 ∧
+            minCompressLength ≤ ((chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).getD k []).length ∧
             CompPacketsOf self.level.level.val self.comp_seq_id.val
               ((chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).take k) out ∧
             dst'.val = dst.val ++ out ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.encode_spec`
-/-- **Upstream bug:** with `max_allowed_packet = 0`, encoding an empty packet panics. The empty packet passes the size check, its one empty chunk (4 bytes) goes to `out_buf`, and compressing it calls `chunks(0)`. (A non-empty packet gets `PacketTooLarge` instead.) -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). With `max_allowed_packet = 0`, encoding an empty packet panics. The empty packet passes the size check, its one empty chunk (4 bytes) goes to `out_buf`, and compressing it calls `chunks(0)`. (A non-empty packet gets `PacketTooLarge` instead.) -/
 recall proto.codec.CompPacketCodec.encode_max_zero (self : proto.codec.CompPacketCodec) (packet dst : proto.codec.buf_model.VecBuf)
     (hp : packet.val = []) (h : self.out_buf.val.length + 4 ≤ Usize.max) :
     proto.codec.CompPacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst 0#usize = fail .panic
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.encode_max_zero`
-/-- With no deflate stream yet and a level above 10, `encode` of a packet within `max_allowed_packet` panics when the first piece of `out_buf` (after the packet's chunks are added) has at least `minCompressLength` bytes. This is flate2's `debug_assert!` in `Compress::new`. -/
+/-- With no deflate stream yet and a level above 10, `encode` of a packet within `max_allowed_packet` panics when the first piece of `out_buf` (after the packet's chunks are added) has at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only, no panic in release. -/
 recall proto.codec.CompPacketCodec.encode_level_panic (self : proto.codec.CompPacketCodec) (packet dst : proto.codec.buf_model.VecBuf) (max : Usize)
     (hd : self.deflater = none) (hlvl : 10 < self.level.level.val) (hp : packet.val.length ≤ max.val)
     (hbig : minCompressLength ≤
