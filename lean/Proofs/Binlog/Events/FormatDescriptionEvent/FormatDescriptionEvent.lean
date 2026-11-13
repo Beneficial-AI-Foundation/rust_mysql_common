@@ -119,7 +119,82 @@ theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysq
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs fdeView (fdeRead buf.val) r rest ∧
       ∀ e, okPart r = some e → footerAlg e.footer = some 0 ∧ e.footer.checksum_enabled = true ⦄ := by
-  sorry
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  step with PKUtil.parse_usize_spec as ⟨r, b1, h1⟩
+  by_cases hl : 57 ≤ buf.length
+  · simp only [hl, ite_true] at h1
+    obtain ⟨h1, hb1⟩ := h1
+    have hlen : 57 ≤ buf.val.length := hl
+    have hfr : ¬ buf.val.length < 57 := by omega
+    cases r with
+    | Err e => simp at h1
+    | Ok pb =>
+      simp only [PKUtil.okPart_Ok, Option.map_some, Option.some.injEq] at h1
+      simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+      have lp : pb.val.length = 57 := by rw [h1]; simp; omega
+      step with pu_binlog_version as ⟨r1, s1, hv, hs1⟩
+      have t2 : pb.val.take 2 = buf.val.take 2 := by rw [h1, List.take_take]; rfl
+      rw [t2] at hv
+      cases r1 with
+      | Err e =>
+        simp only [PKUtil.okPart_Err, Option.map_none] at hv
+        simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, fdeRead, hfr, ← hv]
+      | Ok val =>
+        simp only [PKUtil.okPart_Ok, Option.map_some] at hv
+        simp only [bind_ok]
+        have ls1 : s1.val.length = 55 := by rw [hs1]; simp [lp]
+        step with pu_fixed_text as ⟨r2, s2, rb, hr2, hrb, hs2⟩
+        subst hr2
+        simp only [bind_ok]
+        have ls2 : s2.val.length = 5 := by rw [hs2]; simp [ls1]
+        step with pu_leu32 as ⟨r3, s3, v3, hr3, h3, hs3⟩
+        subst hr3
+        simp only [bind_ok]
+        have ls3 : s3.val.length = 1 := by rw [hs3]; simp [ls2]
+        step with pu_constu8 19#u8 binlog.events.format_description_event.InvalidEventHeaderLength.Insts.CoreErrorError binlog.events.format_description_event.InvalidEventHeaderLength.Insts.CoreDefaultDefault (by simp [binlog.events.format_description_event.InvalidEventHeaderLength.Insts.CoreDefaultDefault.default]) as ⟨r4, s4, h4, hs4⟩
+        have e1 : s1.val = (buf.val.drop 2).take 55 := by rw [hs1, h1, List.drop_take]
+        have e2 : s2.val = (buf.val.drop 52).take 5 := by rw [hs2, e1, List.drop_take, List.drop_drop]
+        have e3 : s3.val = (buf.val.drop 56).take 1 := by rw [hs3, e2, List.drop_take, List.drop_drop]
+        have hsv : cowList rb.1 = (buf.val.drop 2).take 50 := by rw [hrb, e1, List.take_take]; simp
+        have hts : v3.1.val = leNat ((buf.val.drop 52).take 4) := by rw [h3, e2, List.take_take]; simp
+        have h56 : leNat (s3.val.take 1) = (buf.val[56]?.map (·.val)).getD 0 := by
+          rw [e3]
+          rw [List.take_take, show min 1 1 = 1 from rfl]
+          rw [List.take_one, List.head?_drop]
+          cases buf.val[56]? <;> simp [leNat]
+        have hsome : ∃ b, buf.val[56]? = some b := ⟨buf.val[56]'(by omega), List.getElem?_eq_getElem _⟩
+        obtain ⟨b56, hb56⟩ := hsome
+        rw [hb56] at h56
+        simp only [Option.map_some, Option.getD_some] at h56
+        cases r4 with
+        | Err e =>
+          have hne : ¬ b56.val = 19 := by rw [← h56]; simpa using h4
+          simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, fdeRead, hfr, ← hv, hb56, hne]
+        | Ok val2 =>
+          have heq : b56.val = 19 := by rw [← h56]; simpa using h4
+          simp only [bind_ok]
+          step with PKUtil.parse_eof_bytes_spec as ⟨r5, b2, h5, hb2⟩
+          cases r5 with
+          | Err e => simp at h5
+          | Ok rb1 =>
+            simp only [PKUtil.okPart_Ok, Option.map_some, Option.some.injEq] at h5
+            simp only [bind_ok]
+            step with binlog.events.BinlogEventFooter.Insts.CoreDefaultDefault.default_spec as ⟨bef, hf1, hf2⟩
+            refine ⟨?_, ?_⟩
+            · simp only [ReadsAs, fdeRead, hfr, ite_false, ← hv, hb56, Option.map_some, heq, ne_eq, not_true_eq_false]
+              refine ⟨?_, hb2⟩
+              simp only [PKUtil.okPart_Ok, Option.map_some, fdeView, fdeLens, hsv, hts, h5, hb1]
+            · intro e he
+              simp only [PKUtil.okPart_Ok, Option.some.injEq] at he
+              subst he
+              exact ⟨hf1, hf2⟩
+  · simp only [hl, ite_false] at h1
+    obtain ⟨h1, -⟩ := h1
+    have hfr : buf.val.length < 57 := by simp [Slice.length] at hl; omega
+    cases r with
+    | Ok pb => simp at h1
+    | Err e =>
+      simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, fdeRead, hfr]
 
 /-- `MySerialize`: appends the layout `fdeEnc`. -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.format_description_event.FormatDescriptionEvent) (buf : alloc.vec.Vec U8)
@@ -159,7 +234,10 @@ theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysq
 /-- Round trip: the fields come back, the server version padded (or truncated) to 50 bytes. -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (e : binlog.events.format_description_event.FormatDescriptionEvent) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) (h : buf.val = fdeEnc e) :
     binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map fdeView = some { fdeView e with serverVersion := fixedText 50 (cowList e.server_version.1) } ∧ rest.val = [] ⦄ := by
-  sorry
+  apply WP.spec_mono (binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec ctx buf)
+  rintro ⟨r, rest⟩ ⟨hr, -⟩
+  rw [h, fdeRead_fdeEnc] at hr
+  simpa [ReadsAs] using hr
 
 /-- `BinlogStruct::len`: the length of what `serialize` writes (`fdeEnc`), capped at `u32::MAX - 19`. -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.format_description_event.FormatDescriptionEvent) (v : binlog.consts.BinlogVersion) :

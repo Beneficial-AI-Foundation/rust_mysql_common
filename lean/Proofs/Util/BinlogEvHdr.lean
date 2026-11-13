@@ -9,6 +9,11 @@ import Proofs.Misc.Raw.Int.LeU16
 import Proofs.Misc.Raw.Int.LeU32
 import Proofs.Misc.Raw.Const.RawConst
 import Proofs.Misc.Raw.Flags.RawFlags
+import Proofs.Misc.Raw.Const.Const
+import Proofs.Misc.Raw.Bytes.RawBytes
+import Proofs.Misc.Raw.Bytes.FixedLengthText
+import Proofs.Misc.Raw.Int.ConstU8
+import Proofs.Binlog.Consts.BinlogVersion
 
 /-! Helper lemmas for the binlog event header/footer, `Event`, FDE and query-event proofs
 (`Proofs/Binlog/Events/{Mod,FormatDescriptionEvent,QueryEvent,ExecuteLoadQueryEvent,
@@ -208,6 +213,58 @@ theorem readLE_app (k n : Nat) (r : List U8) (hn : n < 2 ^ (8 * k)) : readLE k (
 @[step] theorem constu8_default_spec {T : Type} (N : U8) (d : core.default.Default T) :
     misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
   simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
+
+/-! ## FDE pieces -/
+
+theorem pu_binlog_version (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      binlog.consts.BinlogVersion.Insts.CoreConvertTryFromU16UnknownBinlogVersion
+      binlog.consts.UnknownBinlogVersion.Insts.CoreErrorError) buf () ⦃ r rest =>
+      (okPart r).map (·.1) = binlogVersionOfCode (leNat (buf.val.take 2)) ∧ rest.val = buf.val.drop 2 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+    binlog.consts.BinlogVersion.Insts.CoreConvertTryFromU16UnknownBinlogVersion
+    binlog.consts.UnknownBinlogVersion.Insts.CoreErrorError buf
+    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 2)) ∧ rest.val = buf.val.drop 2)
+    (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spec buf h)
+    (fun p o => o = binlogVersionOfCode p.val)
+    (fun p => by
+      have hh := binlog.consts.BinlogVersion.Insts.CoreConvertTryFromU16UnknownBinlogVersion.try_from_spec p
+      simp only [hh]
+      apply (WP.spec_ok _).mpr
+      split <;> simp_all [okPart])
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ ⟨o, ⟨ho, hrest⟩, hm⟩
+  refine ⟨?_, hrest⟩
+  cases o with
+  | none => simp at ho
+  | some p =>
+    simp only [Option.map_some, Option.some.injEq] at ho hm
+    rw [hm, ho]
+
+theorem pu_fixed_text (L : Usize) (buf : io.ParseBuf) (h : L.val ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      (misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple L)) buf () ⦃ r rest =>
+      ∃ v, r = .Ok v ∧ cowList v.1 = buf.val.take L.val ∧ rest.val = buf.val.drop L.val ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    (misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple L) () buf
+    (fun o rest => o = some (buf.val.take L.val) ∧ rest.val = buf.val.drop L.val)
+    (misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec L buf h)
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ ⟨h1, h2⟩
+  cases r with
+  | Ok v => exact ⟨v, rfl, by simpa [okPart] using h1, h2⟩
+  | Err e => simp [okPart] at h1
+
+theorem pu_constu8 {T : Type} (N : U8) (e : core.error.Error T) (d : core.default.Default T)
+    (hd : d.default ⦃ _ => True ⦄) (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple N e d) buf () ⦃ r rest =>
+      ((okPart r).isSome ↔ leNat (buf.val.take 1) = N.val) ∧ rest.val = buf.val.drop 1 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  exact misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec N e d hd buf h
 
 /-! ## The readers consume everything -/
 
