@@ -708,6 +708,177 @@ theorem run_prefix (pieces : List (List U8)) (zs : List (Option (List U8)))
         · exact hvalid hvp
         · simp only [hvb1, hflat, List.length_append]; omega
 
+theorem inflateList_len (i : flate2.mem.Decompress) (z : List U8) (n : Nat) (v : List U8) (hn : n < 2 ^ 24)
+    (hz : z.length ≤ Usize.max) (h : inflateList i z n = .Ok v) : v.length = n := by
+  unfold inflateList at h
+  split at h
+  · rename_i hz
+    split at h
+    · rename_i w hw
+      simp only [core.result.Result.Ok.injEq] at h
+      subst h
+      have := Trusted.inflateResult_len _ _ _ _ hw
+      rw [this]
+      show (BitVec.ofNat _ n).toNat = n
+      have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+      have : Usize.max = 2 ^ UScalarTy.Usize.numBits - 1 := by simp [Usize.max, Usize.numBits]
+      simp only [BitVec.toNat_ofNat]; apply Nat.mod_eq_of_lt; omega
+    · simp at h
+  · contradiction
+
+theorem compStep_packet_some (i : flate2.mem.Decompress) (sq : U8) (cl : Nat) (pl : Option Nat)
+    (hv : (CompState.packet sq cl pl).Valid) (src dst : List U8) (max : Nat) (hsrc : src.length ≤ Usize.max)
+    (ci : proto.codec.ChunkInfo)
+    (h : (compStep (inflateList i) (.packet sq cl pl) src dst max).1 = .Ok (some ci)) :
+    (compStep (inflateList i) (.packet sq cl pl) src dst max).2.2.1.length + 7 ≤ src.length ∧
+    (compStep (inflateList i) (.packet sq cl pl) src dst max).2.2.2.length ≤ dst.length + 2 ^ 24 := by
+  obtain ⟨h0, h1, h2⟩ := hv
+  simp only [compStep] at h ⊢
+  by_cases h5 : 7 + cl ≤ src.length
+  · simp only [h5, ↓reduceIte] at h ⊢
+    cases pl with
+    | none => simp; omega
+    | some q =>
+      have hq := h2 q rfl
+      simp only at h ⊢
+      cases hi : inflateList i (List.take cl (List.drop 7 src)) q with
+      | Ok v =>
+        have := inflateList_len i _ q v hq.2 (by simp; omega) hi
+        simp; omega
+      | Err e => rw [hi] at h; simp at h
+  · simp [h5] at h
+
+theorem compStep_some_sizes (i : flate2.mem.Decompress) (st : CompState) (hv : st.Valid) (src dst : List U8)
+    (max : Nat) (hsrc : src.length ≤ Usize.max) (ci : proto.codec.ChunkInfo)
+    (h : (compStep (inflateList i) st src dst max).1 = .Ok (some ci)) :
+    (compStep (inflateList i) st src dst max).2.2.1.length + 7 ≤ src.length ∧
+    (compStep (inflateList i) st src dst max).2.2.2.length ≤ dst.length + 2 ^ 24 := by
+  cases st with
+  | packet sq cl pl => exact compStep_packet_some i sq cl pl hv src dst max hsrc ci h
+  | idle =>
+    by_cases h1 : src.length < 7
+    · simp [compStep, h1] at h
+    · obtain ⟨b1, b2⟩ := compHeaderRead_lt src
+      rcases hh : compHeaderRead src with ⟨cl, sq, pl⟩
+      rw [hh] at b1 b2
+      simp only at b1 b2
+      rw [compStep_idle_hdr _ _ _ _ _ _ _ (by omega) hh] at h ⊢
+      by_cases h2 : max < Nat.max cl pl
+      · simp [h2] at h
+      · by_cases h3 : cl = 0
+        · by_cases h4 : pl = 0
+          · simp [h3, h4]; omega
+          · simp only [h3, h4, ↓reduceIte] at h; split_ifs at h
+        · simp only [h2, h3, ↓reduceIte] at h ⊢
+          apply compStep_packet_some i sq cl _ _ src dst max hsrc ci h
+          refine ⟨by omega, b1, fun q hq => ?_⟩
+          split_ifs at hq; simp at hq; omega
+
+theorem total_arith (a v s s1 M : Nat) (h1 : s1 + 7 ≤ s) (h2 : v ≤ a + 2 ^ 24)
+    (hb : a + 2 ^ 24 * (s + 1) + 2 ^ 24 ≤ M) : v + 2 ^ 24 * (s1 + 1) + 2 ^ 24 ≤ M := by
+  nlinarith
+
+theorem run_total (n : Nat) : ∀ (c : proto.codec.CompPacketCodec) (src dst : VecBuf) (max : Usize),
+    src.val.length < n → (CompState.of c.comp_decoder).Valid → (ChunkState.of c.plain_codec.chunk_decoder).Valid →
+    dst.val.length + c.in_buf.val.length + 2 ^ 24 * (src.val.length + 1) + 2 ^ 24 ≤ Usize.max →
+    proto.codec.CompPacketCodec.decode VecBuf.Insts.CoreOpsDerefDerefSliceU8 VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf VecBuf.Insts.CoreConvertAsRefSliceU8 VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut c src dst max ⦃ _ c' _ _ =>
+      (CompState.of c'.comp_decoder).Valid ∧ (ChunkState.of c'.plain_codec.chunk_decoder).Valid ⦄ := by
+  induction n with
+  | zero => intros; omega
+  | succ n ih =>
+    intro c src dst max hn hvc hvp hb
+    have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+    have hsrcU : src.val.length ≤ Usize.max := by scalar_tac
+    rw [proto.codec.CompPacketCodec.decode]
+    by_cases hib : c.in_buf.val = []
+    · have he : (alloc.vec.Vec.deref c.in_buf).length = 0 := by simp [Slice.length, alloc.vec.Vec.deref, hib]
+      simp only [VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+        Std.bind_ok, he, decide_true, ↓reduceIte]
+      obtain ⟨⟨r1, cd1, src1, vb1, o1⟩, hv, hp⟩ := PBUtil.spec_eq_ok (decode_with_spec c.comp_decoder src c.in_buf max
+        c.inflater (compStepFits_of _ hvc _ (by rw [hib]; simp; omega)))
+      rw [hv]
+      simp only [WP.uncurry'_pair] at hp
+      have hval : (CompState.of cd1).Valid := by
+        have := compStep_valid (inflateList (c.inflater.getD Trusted.decompressNew)) _ src.val c.in_buf.val max.val hvc
+        rw [← hp] at this; exact this
+      rcases r1 with ((_ | ci) | e)
+      · simp [core.result.Result.Insts.CoreOpsTry.branch]; exact ⟨hval, hvp⟩
+      · have hsz := compStep_some_sizes (c.inflater.getD Trusted.decompressNew) _ hvc src.val c.in_buf.val max.val
+          hsrcU ci (by rw [← hp])
+        rw [← hp] at hsz
+        simp only at hsz
+        rw [hib] at hsz; simp only [List.length_nil, zero_add] at hsz
+        cases ci <;> simp [core.result.Result.Insts.CoreOpsTry.branch, proto.codec.ChunkInfo.seq_id, lift] <;>
+          split_ifs <;>
+          first
+          | exact (WP.spec_ok _).mpr ⟨hval, hvp⟩
+          | (refine ih _ src1 dst max (by omega) ?_ ?_ ?_
+             · exact hval
+             · exact hvp
+             · show dst.val.length + vb1.val.length + 2 ^ 24 * (src1.val.length + 1) + 2 ^ 24 ≤ Usize.max
+               have := total_arith dst.val.length (dst.val.length + vb1.val.length) src.val.length src1.val.length
+                 Usize.max hsz.1 (by have := hsz.2; omega) (by rw [hib] at hb; simpa using hb)
+               omega)
+      · simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+          core.convert.FromSame.from]
+        exact ⟨hval, hvp⟩
+    · have hne' : ¬ (alloc.vec.Vec.deref c.in_buf).length = 0 := by
+        simpa [Slice.length, alloc.vec.Vec.deref] using hib
+      simp only [VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+        Std.bind_ok, hne', decide_false, Bool.false_eq_true, ↓reduceIte, lift]
+      have hb1 : dst.val.length + c.in_buf.val.length + 2 ^ 24 ≤ Usize.max := by nlinarith
+      obtain ⟨⟨r0, ppc, vb, dst1⟩, hv, hp, hvalid⟩ := PBUtil.spec_eq_ok (proto.codec.PlainPacketCodec.decode_spec
+        c.plain_codec (chunkValid_hv _ hvp) c.in_buf dst max (some (core.num.U8.wrapping_sub c.comp_seq_id 1#u8))
+        (by simp only [alloc.vec.Vec.length]; omega))
+      rw [hv]
+      have hsz0 := plainDecodeAux_sizes (c.in_buf.val.length + 1) c.plain_codec.seq_id
+        (ChunkState.of c.plain_codec.chunk_decoder) c.in_buf.val dst.val max.val
+        (some (core.num.U8.wrapping_sub c.comp_seq_id 1#u8))
+      unfold plainDecode at hp
+      rw [← hp] at hsz0
+      simp only at hsz0
+      have hvp' := hvalid hvp
+      rcases r0 with (b | e)
+      · cases b with
+        | true =>
+          simp [core.result.Result.Insts.CoreOpsTry.branch, proto.codec.trusted.vec_capacity,
+            proto.codec.COMP_CODEC_SHRINK_THRESHOLD]
+          split_ifs
+          · step*
+          · simp [hvc, hvp']
+        | false =>
+          simp [core.result.Result.Insts.CoreOpsTry.branch]
+          obtain ⟨⟨r1, cd1, src1, vb1, o1⟩, hv2, hp2⟩ := PBUtil.spec_eq_ok (decode_with_spec c.comp_decoder src vb max
+            c.inflater (compStepFits_of _ hvc _ (by nlinarith)))
+          rw [hv2]
+          simp only [WP.uncurry'_pair] at hp2
+          have hval : (CompState.of cd1).Valid := by
+            have := compStep_valid (inflateList (c.inflater.getD Trusted.decompressNew)) _ src.val vb.val max.val hvc
+            rw [← hp2] at this; exact this
+          rcases r1 with ((_ | ci) | e)
+          · simp; exact ⟨hval, hvp'⟩
+          · have hsz := compStep_some_sizes (c.inflater.getD Trusted.decompressNew) _ hvc src.val vb.val max.val
+              hsrcU ci (by rw [← hp2])
+            rw [← hp2] at hsz
+            simp only at hsz
+            cases ci <;> simp [proto.codec.ChunkInfo.seq_id] <;>
+              split_ifs <;>
+              first
+              | exact (WP.spec_ok _).mpr ⟨hval, hvp'⟩
+              | (refine ih _ src1 dst1 max (by omega) ?_ ?_ ?_
+                 · exact hval
+                 · exact hvp'
+                 · show dst1.val.length + vb1.val.length + 2 ^ 24 * (src1.val.length + 1) + 2 ^ 24 ≤ Usize.max
+                   have := total_arith (dst.val.length + c.in_buf.val.length) (dst1.val.length + vb1.val.length)
+                     src.val.length src1.val.length Usize.max hsz.1 (by have := hsz.2; nlinarith) (by nlinarith)
+                   omega)
+          · simp [
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+            exact ⟨hval, hvp'⟩
+      · simp [core.result.Result.Insts.CoreOpsTry.branch,
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+        exact ⟨hvc, hvp'⟩
+
 end mysql_common.CompCodec
 
 namespace mysql_common
@@ -781,7 +952,7 @@ theorem proto.codec.CompPacketCodec.decode_total (self : proto.codec.CompPacketC
     (h : 2 ^ 25 * (self.in_buf.val.length + src.val.length + dst.val.length + 1) ≤ Usize.max) :
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ _ c' _ _ =>
       (CompState.of c'.comp_decoder).Valid ∧ (ChunkState.of c'.plain_codec.chunk_decoder).Valid ⦄ := by
-  sorry
+  exact CompCodec.run_total (src.val.length + 1) self src dst max (by omega) hc hp (by nlinarith)
 
 /-- Pipelined plain packets. Take a decoder whose chunk reader is idle and whose decompressed buffer `in_buf` starts with the chunks of a payload `p` (`frame`, from the plain sequence id), followed by anything (`rest`, e.g. the next packet). It returns `Ok(true)` with exactly `p` in `dst`, leaving `rest` in `in_buf`. It reads nothing from `src`. The compressed reader and sequence id, `out_buf`, both flate2 streams and the level are unchanged, and the plain sequence id is advanced by the number of chunks. -/
 theorem proto.codec.CompPacketCodec.decode_buffered (self : proto.codec.CompPacketCodec)
