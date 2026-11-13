@@ -13,13 +13,11 @@ namespace mysql_common
 theorem params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from_eq
     (e : params.MissingNamedParameterError) :
     params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from e =
-      ok (.Missing e) := by
-  sorry
+      ok (.Missing e) := rfl
 
 /-- `From<ParamsConfusionError> for ParamsError`: `ParamsError::Confusion`. -/
 theorem params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from_eq
     (e : params.ParamsConfusionError) :
-    params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from e = ok (.Confusion e) := by
-  sorry
+    params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from e = ok (.Confusion e) := rfl
 
 end mysql_common
