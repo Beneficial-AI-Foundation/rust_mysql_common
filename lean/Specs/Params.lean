@@ -55,15 +55,15 @@ recall params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from_e
     params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from e =
       ok (.Missing e)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from_eq
 /-- `From<ParamsConfusionError> for ParamsError`: `ParamsError::Confusion`. -/
 recall params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from_eq
     (e : params.ParamsConfusionError) :
     params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from e = ok (.Confusion e)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from_eq
 /-! ### `impl Params` -/
 
 /-- `into_values` of `Params::Empty`: no values, unless the statement has named parameters, in
@@ -74,8 +74,8 @@ recall params.Params.into_values_empty (ns : Option (Slice (alloc.vec.Vec U8))) 
       | some (n :: _) => ∃ e, r = .Err (.Missing e) ∧ e.val = n.val
       | _ => ∃ v, r = .Ok v ∧ v.val = [] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_empty`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_length, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_empty
 /-- `into_values` of `Params::Positional vs`: `vs` unchanged, unless the statement has named
     parameters (`PositionalParamsForNamedQuery`). -/
 recall params.Params.into_values_positional (vs : alloc.vec.Vec value.Value)
@@ -85,8 +85,8 @@ recall params.Params.into_values_positional (vs : alloc.vec.Vec value.Value)
       | some (_ :: _) => r = .Err (.Confusion .PositionalParamsForNamedQuery)
       | _ => r = .Ok vs ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_positional`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_length, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_positional
 /-- `into_values` of `Params::Named m` for a statement without named parameters (`None` or
     an empty list): `NamedParamsForPositionalQuery`. -/
 recall params.Params.into_values_named_unexpected (m : Trusted.ParamsMap)
@@ -94,8 +94,8 @@ recall params.Params.into_values_named_unexpected (m : Trusted.ParamsMap)
     params.Params.into_values (.Named m) ns ⦃ r =>
       r = .Err (.Confusion .NamedParamsForPositionalQuery) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_named_unexpected`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_length, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_named_unexpected
 /-- `into_values` of `Params::Named m` when every name of the statement has a value: the values
     in the order of the statement's names (a repeated name gets its value each time). Extra
     entries of the map are ignored. -/
@@ -105,8 +105,8 @@ recall params.Params.into_values_named_ok (m : Trusted.ParamsMap)
     params.Params.into_values (.Named m) (some s) ⦃ r => ∃ v, r = .Ok v ∧
       v.val.map some = s.val.map (fun n => Trusted.paramsMapLookup m n.val) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_named_ok`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_keys_nodup, Trusted.paramsMapEntries_length, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_named_ok
 /-- `into_values` of `Params::Named m` when some name has no value: `Missing` with the name
     `intoValuesMissing` (exact), which is always one of the statement's names without a value. -/
 recall params.Params.into_values_named_missing (m : Trusted.ParamsMap)
@@ -116,8 +116,8 @@ recall params.Params.into_values_named_missing (m : Trusted.ParamsMap)
       e.val = intoValuesMissing m (s.val.map (·.val)) ∧
       e.val ∈ s.val.map (·.val) ∧ Trusted.paramsMapLookup m e.val = none ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_named_missing`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_keys_nodup, Trusted.paramsMapEntries_length, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_named_missing
 /-- Quirk: with names `[a, b, c]` where only `a` has a value, `into_values` reports `c`, not
     the first missing name `b`. -/
 recall params.Params.into_values_quirk_last (m : Trusted.ParamsMap)
@@ -127,16 +127,16 @@ recall params.Params.into_values_quirk_last (m : Trusted.ParamsMap)
     params.Params.into_values (.Named m) (some s) ⦃ r => ∃ e, r = .Err (.Missing e) ∧
       e.val = c ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_quirk_last`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_keys_nodup, Trusted.paramsMapEntries_length, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_values_quirk_last
 /-- `into_positional` (deprecated) of `Params::Empty` or `Params::Positional`: unchanged (the
     statement's names are not checked, unlike `into_values`). -/
 recall params.Params.into_positional_not_named (p : params.Params)
     (hp : ∀ m, p ≠ .Named m) (ns : Slice (alloc.vec.Vec U8)) :
     params.Params.into_positional p ns ⦃ r => r = .Ok p ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_positional_not_named`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapRemove, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_positional_not_named
 /-- `into_positional` of `Params::Named m` when every name has a value: `Positional` with the
     values in the order of the names. -/
 recall params.Params.into_positional_named_ok (m : Trusted.ParamsMap)
@@ -145,8 +145,8 @@ recall params.Params.into_positional_named_ok (m : Trusted.ParamsMap)
     params.Params.into_positional (.Named m) ns ⦃ r => ∃ v, r = .Ok (.Positional v) ∧
       v.val.map some = ns.val.map (fun n => Trusted.paramsMapLookup m n.val) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_positional_named_ok`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_keys_nodup, Trusted.paramsMapEntries_remove, Trusted.paramsMapRemove, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_positional_named_ok
 /-- `into_positional` of `Params::Named m` when some name has no value: the **first** such name
     is reported. -/
 recall params.Params.into_positional_named_missing (m : Trusted.ParamsMap)
@@ -156,8 +156,8 @@ recall params.Params.into_positional_named_missing (m : Trusted.ParamsMap)
       (ns.val.find? (fun n => (Trusted.paramsMapLookup m n.val).isNone)).map (·.val) =
         some e.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_positional_named_missing`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEntries, Trusted.paramsMapEntries_keys_nodup, Trusted.paramsMapEntries_remove, Trusted.paramsMapRemove, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.into_positional_named_missing
 /-! ### `impl From<&T>`, `From<Vec<T>>`, `From<Vec<(N, V)>>`, `From<()>` for `Params` -/
 
 /-- `From<&T> for Params`: `x.clone().into()`. -/
@@ -166,8 +166,8 @@ recall params.Params.Insts.CoreConvertFromSharedAT.from_eq {T : Type}
     params.Params.Insts.CoreConvertFromSharedAT.from intoInst cloneInst x =
       (do let t ← cloneInst.clone x; intoInst.into t)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromSharedAT.from_eq`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromSharedAT.from_eq
 /-- `From<Vec<T>> for Params`: `Empty` for an empty vector, else `Positional` of the converted
     elements, in order (when each conversion returns). -/
 recall params.Params.Insts.CoreConvertFromVec.from_spec {T : Type}
@@ -177,8 +177,8 @@ recall params.Params.Insts.CoreConvertFromVec.from_spec {T : Type}
       (x.val = [] ∧ p = .Empty) ∨
       (x.val ≠ [] ∧ ∃ w, p = .Positional w ∧ w.val = x.val.map g) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromVec.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromVec.from_spec
 /-- `From<Vec<(N, V)>> for Params` with distinct names: `Named` of a map whose entries are the
     converted pairs (in an unspecified order). -/
 recall params.Params.Insts.CoreConvertFromVecPair.from_spec {N V : Type}
@@ -190,8 +190,8 @@ recall params.Params.Insts.CoreConvertFromVecPair.from_spec {N V : Type}
     params.Params.Insts.CoreConvertFromVecPair.from nInst vInst x ⦃ p => ∃ m, p = .Named m ∧
       (Trusted.paramsMapEntries m).Perm (x.val.map fun e => (gn e.1, gv e.2)) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromVecPair.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEmpty, Trusted.paramsMapEntries, Trusted.paramsMapEntries_empty, Trusted.paramsMapEntries_insert, Trusted.paramsMapInsert, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromVecPair.from_spec
 /-- `From<Vec<(N, V)>> for Params` panics ("Redefinition of named parameter") when two names
     are equal (translated as an assertion failure). (`hv` is stronger than needed: only the
     values before the first repeated name are converted.) -/
@@ -203,14 +203,14 @@ recall params.Params.Insts.CoreConvertFromVecPair.from_dup {N V : Type}
     (hd : ¬ (x.val.map fun e => (gn e.1).val).Nodup) :
     params.Params.Insts.CoreConvertFromVecPair.from nInst vInst x = fail .assertionFailure
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromVecPair.from_dup`
-
+/-- [propext, Classical.choice, Quot.sound, Trusted.paramsMapEmpty, Trusted.paramsMapEntries, Trusted.paramsMapEntries_empty, Trusted.paramsMapEntries_insert, Trusted.paramsMapEntries_keys_nodup, Trusted.paramsMapInsert, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromVecPair.from_dup
 /-- `From<()> for Params`: `Empty`. -/
 recall params.Params.Insts.CoreConvertFromTuple.from_eq (u : Unit) :
     params.Params.Insts.CoreConvertFromTuple.from u = ok .Empty
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTuple.from_eq`
-
+/-- [propext, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTuple.from_eq
 /-! ### `into_params_impl!`: `From<(A, ..)> for Params` -/
 
 /-- `From<(A,)> for Params`: `Positional` of the converted elements, in order (when each
@@ -221,8 +221,8 @@ recall params.Params.Insts.CoreConvertFromTupleA.from_spec {A : Type}
     (ha : instA.into a = ok va) :
     params.Params.Insts.CoreConvertFromTupleA.from instA a ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleA.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleA.from_spec
 /-- `From<(A, B)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromPair.from_spec {A : Type} {B : Type}
@@ -231,8 +231,8 @@ recall params.Params.Insts.CoreConvertFromPair.from_spec {A : Type} {B : Type}
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) :
     params.Params.Insts.CoreConvertFromPair.from instA instB (a, b) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromPair.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromPair.from_spec
 /-- `From<(A, B, C)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABC.from_spec {A : Type} {B : Type} {C : Type}
@@ -241,8 +241,8 @@ recall params.Params.Insts.CoreConvertFromTupleABC.from_spec {A : Type} {B : Typ
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) :
     params.Params.Insts.CoreConvertFromTupleABC.from instA instB instC (a, b, c) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABC.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABC.from_spec
 /-- `From<(A, B, C, D)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCD.from_spec {A : Type} {B : Type} {C : Type} {D : Type}
@@ -251,8 +251,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCD.from_spec {A : Type} {B : Ty
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) :
     params.Params.Insts.CoreConvertFromTupleABCD.from instA instB instC instD (a, b, c, d) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCD.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCD.from_spec
 /-- `From<(A, B, C, D, E)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDE.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type}
@@ -261,8 +261,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCDE.from_spec {A : Type} {B : T
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) :
     params.Params.Insts.CoreConvertFromTupleABCDE.from instA instB instC instD instE (a, b, c, d, e) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDE.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDE.from_spec
 /-- `From<(A, B, C, D, E, F)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDEF.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type} {F : Type}
@@ -271,8 +271,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCDEF.from_spec {A : Type} {B : 
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) (hf : instF.into f = ok vf) :
     params.Params.Insts.CoreConvertFromTupleABCDEF.from instA instB instC instD instE instF (a, b, c, d, e, f) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve, vf] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEF.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEF.from_spec
 /-- `From<(A, B, C, D, E, F, G)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDEFG.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type} {F : Type} {G : Type}
@@ -281,8 +281,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCDEFG.from_spec {A : Type} {B :
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) (hf : instF.into f = ok vf) (hg : instG.into g = ok vg) :
     params.Params.Insts.CoreConvertFromTupleABCDEFG.from instA instB instC instD instE instF instG (a, b, c, d, e, f, g) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve, vf, vg] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFG.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFG.from_spec
 /-- `From<(A, B, C, D, E, F, G, H)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDEFGH.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type} {F : Type} {G : Type} {H : Type}
@@ -291,8 +291,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCDEFGH.from_spec {A : Type} {B 
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) (hf : instF.into f = ok vf) (hg : instG.into g = ok vg) (hh : instH.into h = ok vh) :
     params.Params.Insts.CoreConvertFromTupleABCDEFGH.from instA instB instC instD instE instF instG instH (a, b, c, d, e, f, g, h) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve, vf, vg, vh] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGH.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGH.from_spec
 /-- `From<(A, B, C, D, E, F, G, H, I)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type} {F : Type} {G : Type} {H : Type} {I : Type}
@@ -301,8 +301,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from_spec {A : Type} {B
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) (hf : instF.into f = ok vf) (hg : instG.into g = ok vg) (hh : instH.into h = ok vh) (hi : instI.into i = ok vi) :
     params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from instA instB instC instD instE instF instG instH instI (a, b, c, d, e, f, g, h, i) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve, vf, vg, vh, vi] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from_spec
 /-- `From<(A, B, C, D, E, F, G, H, I, J)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type} {F : Type} {G : Type} {H : Type} {I : Type} {J : Type}
@@ -311,8 +311,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from_spec {A : Type} {
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) (hf : instF.into f = ok vf) (hg : instG.into g = ok vg) (hh : instH.into h = ok vh) (hi : instI.into i = ok vi) (hj : instJ.into j = ok vj) :
     params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from instA instB instC instD instE instF instG instH instI instJ (a, b, c, d, e, f, g, h, i, j) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve, vf, vg, vh, vi, vj] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from_spec
 /-- `From<(A, B, C, D, E, F, G, H, I, J, K)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type} {F : Type} {G : Type} {H : Type} {I : Type} {J : Type} {K : Type}
@@ -321,8 +321,8 @@ recall params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from_spec {A : Type} 
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) (hf : instF.into f = ok vf) (hg : instG.into g = ok vg) (hh : instH.into h = ok vh) (hi : instI.into i = ok vi) (hj : instJ.into j = ok vj) (hk : instK.into k = ok vk) :
     params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from instA instB instC instD instE instF instG instH instI instJ instK (a, b, c, d, e, f, g, h, i, j, k) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve, vf, vg, vh, vi, vj, vk] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from_spec
 /-- `From<(A, B, C, D, E, F, G, H, I, J, K, L)> for Params`: `Positional` of the converted elements, in order (when each
     conversion returns). -/
 recall params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from_spec {A : Type} {B : Type} {C : Type} {D : Type} {E : Type} {F : Type} {G : Type} {H : Type} {I : Type} {J : Type} {K : Type} {L : Type}
@@ -331,6 +331,6 @@ recall params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from_spec {A : Type}
     (ha : instA.into a = ok va) (hb : instB.into b = ok vb) (hc : instC.into c = ok vc) (hd : instD.into d = ok vd) (he : instE.into e = ok ve) (hf : instF.into f = ok vf) (hg : instG.into g = ok vg) (hh : instH.into h = ok vh) (hi : instI.into i = ok vi) (hj : instJ.into j = ok vj) (hk : instK.into k = ok vk) (hl : instL.into l = ok vl) :
     params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from instA instB instC instD instE instF instG instH instI instJ instK instL (a, b, c, d, e, f, g, h, i, j, k, l) ⦃ p => ∃ w, p = .Positional w ∧ w.val = [va, vb, vc, vd, ve, vf, vg, vh, vi, vj, vk, vl] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from_spec`
-
+/-- [propext, Classical.choice, Quot.sound, std.hash.random.RandomState, std.collections.hash.map.HashMap] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from_spec
 end mysql_common
