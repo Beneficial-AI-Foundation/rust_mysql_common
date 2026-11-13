@@ -22,8 +22,8 @@ theorem binlog.misc.my_datetime_packed_from_binary_spec (input : io.ParseBuf) (d
 /-- `my_datetime_packed_from_binary` panics (`i64` overflow) when the packed value is below `-2^63`: an integer part of five zero bytes (invalid: MySQL always sets the top bit) with a negative fraction. -/
 theorem binlog.misc.my_datetime_packed_from_binary_overflow (input : io.ParseBuf) (dec : U32)
     (h : ∃ p t, datetime2Read dec.val input.val = some (p, t) ∧ p < -2 ^ 63) :
-    binlog.misc.my_datetime_packed_from_binary input dec = fail .integerOverflow := by
-  sorry
+    binlog.misc.my_datetime_packed_from_binary input dec = fail .integerOverflow := 
+  BinlogUtil.datetime_overflow input dec h
 
 /-- Round trip: `my_datetime_packed_from_binary` reads back MySQL's encoding (`my_datetime_packed_to_binary`, `datetime2Bin`) of every non-negative packed DATETIME value below `2^63` whose fraction is a multiple of the unit of `dec` and below `10^6`. -/
 theorem binlog.misc.my_datetime_packed_from_binary_roundtrip (dec : U32) (p : Int)

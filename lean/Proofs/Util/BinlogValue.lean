@@ -1749,3 +1749,170 @@ theorem time_roundtrip (dec : U32) (p : Int)
   simp [okPart, hq]
 
 end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+
+theorem usub_underflow {ty : UScalarTy} (x y : UScalar ty) (h : x.val < y.val) :
+    x - y = fail .integerOverflow := by
+  show UScalar.sub x y = _
+  simp only [UScalar.sub]
+  split_ifs <;> first | rfl | omega
+
+theorem time_neg_frac (input : io.ParseBuf) (dec : U32) (h : time2NegFracBug dec.val input.val) :
+    binlog.misc.my_time_packed_from_binary input dec = fail .integerOverflow := by
+  obtain ⟨hd, hl, hlt, hne⟩ := h
+  obtain ⟨x, in1, e1, hx, hin1⟩ := read_u24_be_ok input (by simp only [Slice.length]; omega)
+  have hi : (UScalar.hcast .I64 x).val = x.val := by
+    have : x.val < 2 ^ 24 := by rw [hx]; omega
+    rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+    unfold Int.bmod
+    have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+    simp only [this]; split_ifs <;> omega
+  obtain ⟨intpart, es, hip⟩ := PBUtil.spec_eq_ok (I64.sub_spec (x := UScalar.hcast .I64 x) (y := binlog.misc.TIMEF_INT_OFS)
+    (by rw [hi]; simp [binlog.misc.TIMEF_INT_OFS]; scalar_tac) (by rw [hi]; simp [binlog.misc.TIMEF_INT_OFS]; scalar_tac))
+  have hip' : intpart.val < 0 := by rw [hip, hi, hx]; simp [binlog.misc.TIMEF_INT_OFS]; omega
+  have hneg : intpart < 0#i64 := by scalar_tac
+  obtain ⟨y, in2, e2, hy, hin2⟩ := read_u8_ok in1 (by simp only [Slice.length, hin1]; simp; omega)
+  have hyv : (UScalar.cast UScalarTy.U32 y).val = beNat ((input.val.drop 3).take 1) := by
+    have := u8_lt' y
+    rw [UScalar.cast_val_eq, beNat_take1, ← hin1, ← hy]; simp only [UScalarTy.numBits]; omega
+  have hpos : UScalar.cast UScalarTy.U32 y > 0#u32 := by
+    have : (UScalar.cast UScalarTy.U32 y).val > 0 := by rw [hyv]; omega
+    scalar_tac
+  obtain ⟨ip2, ea, _⟩ := PBUtil.spec_eq_ok (I64.add_spec (x := intpart) (y := 1#i64) (by scalar_tac) (by scalar_tac))
+  have hsub : UScalar.cast UScalarTy.U32 y - 256#u32 = fail .integerOverflow :=
+    usub_underflow _ _ (by have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; simp; omega)
+  have hy0 : 0 < y.val := by have := u8_lt' y; rw [UScalar.cast_val_eq] at hyv; simp only [UScalarTy.numBits] at hyv; omega
+  unfold binlog.misc.my_time_packed_from_binary
+  split
+  case h_1 => simp [e1, es, e2, ea, hsub, hneg, hpos, hip', hy0, core.result.Result.Insts.CoreOpsTry.branch, lift]
+  case h_2 => simp [e1, es, e2, ea, hsub, hneg, hpos, hip', hy0, core.result.Result.Insts.CoreOpsTry.branch, lift]
+  case h_7 h1 h2 _ _ _ _ =>
+    exfalso
+    rcases hd with hd | hd
+    · exact h1 (UScalar.eq_of_val_eq (by simpa [PBUtil.val_mk] using hd))
+    · exact h2 (UScalar.eq_of_val_eq (by simpa [PBUtil.val_mk] using hd))
+  all_goals (simp [PBUtil.val_mk] at hd)
+
+theorem datetime_overflow (input : io.ParseBuf) (dec : U32)
+    (h : ∃ p t, datetime2Read dec.val input.val = some (p, t) ∧ p < -2 ^ 63) :
+    binlog.misc.my_datetime_packed_from_binary input dec = fail .integerOverflow := by
+  obtain ⟨p, t, hr, hp⟩ := h
+  have hr' := hr
+  unfold datetime2Read at hr'
+  split_ifs at hr' with hl0
+  simp only [Option.some.injEq, Prod.mk.injEq] at hr'
+  obtain ⟨rfl, rfl⟩ := hr'
+  have hl : 5 + fracBytes dec.val ≤ input.length := by simp only [Slice.length]; omega
+  obtain ⟨x, in1, e1, hx, hin1⟩ := read_u40_be_ok input (by simp only [Slice.length]; omega)
+  have hx40 : x.val < 2 ^ 40 := by
+    have := PBUtil.leNat_lt (List.take 5 input.val).reverse
+    rw [hx, beNat]; simp only [List.length_reverse, List.length_take] at this
+    have : 2 ^ (8 * min 5 input.val.length) ≤ 2^40 := Nat.pow_le_pow_right (by norm_num) (by omega)
+    omega
+  have hi : (UScalar.hcast .I64 x).val = x.val := by
+    rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+    unfold Int.bmod
+    have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+    simp only [this]; split_ifs <;> omega
+  obtain ⟨intpart, es, hip⟩ := PBUtil.spec_eq_ok (I64.sub_spec (x := UScalar.hcast .I64 x) (y := binlog.misc.DATETIMEF_INT_OFS)
+    (by rw [hi]; simp [binlog.misc.DATETIMEF_INT_OFS]; scalar_tac) (by rw [hi]; simp [binlog.misc.DATETIMEF_INT_OFS]; scalar_tac))
+  have hip' : intpart.val = (beNat (input.val.take 5) : Int) - 549755813888 := by
+    rw [hip, hi, hx]; simp [binlog.misc.DATETIMEF_INT_OFS]
+  rw [← hip'] at hp
+  unfold binlog.misc.my_datetime_packed_from_binary
+  split
+  case h_1 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp
+    norm_num [fracBytes, temporalFracRead] at hl hp
+    obtain ⟨y, in2, e2, hy, hin2⟩ := read_i8_ok in1 (by simp only [Slice.length, hin1]; simp; omega)
+    obtain ⟨z, em, hz⟩ := PBUtil.spec_eq_ok (I32.mul_spec (x := IScalar.cast .I32 y) (y := 10000#i32) (by simp [IScalar.cast_val_eq]; scalar_tac) (by simp [IScalar.cast_val_eq]; scalar_tac))
+    have hzv : (IScalar.cast .I64 z).val = y.val * 10000 := by rw [cast64_i32, hz]; simp [IScalar.cast_val_eq]
+    have hov := make_overflow intpart (IScalar.cast .I64 z) (by
+      rw [wrapI64_mul _ (by omega), hzv]
+      rw [hy, hin1] at *
+      unfold packedMake at hp
+      try simp only [beNat_take1] at hp
+      omega)
+    simp [e1, es, e2, hov, core.result.Result.Insts.CoreOpsTry.branch, lift, em]
+  case h_2 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp
+    norm_num [fracBytes, temporalFracRead] at hl hp
+    obtain ⟨y, in2, e2, hy, hin2⟩ := read_i8_ok in1 (by simp only [Slice.length, hin1]; simp; omega)
+    obtain ⟨z, em, hz⟩ := PBUtil.spec_eq_ok (I32.mul_spec (x := IScalar.cast .I32 y) (y := 10000#i32) (by simp [IScalar.cast_val_eq]; scalar_tac) (by simp [IScalar.cast_val_eq]; scalar_tac))
+    have hzv : (IScalar.cast .I64 z).val = y.val * 10000 := by rw [cast64_i32, hz]; simp [IScalar.cast_val_eq]
+    have hov := make_overflow intpart (IScalar.cast .I64 z) (by
+      rw [wrapI64_mul _ (by omega), hzv]
+      rw [hy, hin1] at *
+      unfold packedMake at hp
+      try simp only [beNat_take1] at hp
+      omega)
+    simp [e1, es, e2, hov, core.result.Result.Insts.CoreOpsTry.branch, lift, em]
+  case h_3 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp
+    norm_num [fracBytes, temporalFracRead] at hl hp
+    obtain ⟨y, in2, e2, hy, hin2⟩ := read_i16_be_ok in1 (by simp only [Slice.length, hin1]; simp; omega)
+    obtain ⟨z, em, hz⟩ := PBUtil.spec_eq_ok (I32.mul_spec (x := IScalar.cast .I32 y) (y := 100#i32) (by simp [IScalar.cast_val_eq]; scalar_tac) (by simp [IScalar.cast_val_eq]; scalar_tac))
+    have hzv : (IScalar.cast .I64 z).val = y.val * 100 := by rw [cast64_i32, hz]; simp [IScalar.cast_val_eq]
+    have hov := make_overflow intpart (IScalar.cast .I64 z) (by
+      rw [wrapI64_mul _ (by omega), hzv]
+      rw [hy, hin1] at *
+      unfold packedMake at hp
+      try simp only [beNat_take1] at hp
+      omega)
+    simp [e1, es, e2, hov, core.result.Result.Insts.CoreOpsTry.branch, lift, em]
+  case h_4 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp
+    norm_num [fracBytes, temporalFracRead] at hl hp
+    obtain ⟨y, in2, e2, hy, hin2⟩ := read_i16_be_ok in1 (by simp only [Slice.length, hin1]; simp; omega)
+    obtain ⟨z, em, hz⟩ := PBUtil.spec_eq_ok (I32.mul_spec (x := IScalar.cast .I32 y) (y := 100#i32) (by simp [IScalar.cast_val_eq]; scalar_tac) (by simp [IScalar.cast_val_eq]; scalar_tac))
+    have hzv : (IScalar.cast .I64 z).val = y.val * 100 := by rw [cast64_i32, hz]; simp [IScalar.cast_val_eq]
+    have hov := make_overflow intpart (IScalar.cast .I64 z) (by
+      rw [wrapI64_mul _ (by omega), hzv]
+      rw [hy, hin1] at *
+      unfold packedMake at hp
+      try simp only [beNat_take1] at hp
+      omega)
+    simp [e1, es, e2, hov, core.result.Result.Insts.CoreOpsTry.branch, lift, em]
+  case h_5 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp
+    norm_num [fracBytes, temporalFracRead] at hl hp
+    obtain ⟨y, in2, e2, hy, hin2⟩ := read_i24_be_ok in1 (by simp only [Slice.length, hin1]; simp; omega)
+    have hzv : (IScalar.cast .I64 y).val = y.val := cast64_i32 y
+    have hov := make_overflow intpart (IScalar.cast .I64 y) (by
+      rw [wrapI64_mul _ (by omega), hzv]
+      rw [hy, hin1] at *
+      unfold packedMake at hp
+      try simp only [beNat_take1] at hp
+      omega)
+    simp [e1, es, e2, hov, core.result.Result.Insts.CoreOpsTry.branch, lift]
+  case h_6 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp
+    norm_num [fracBytes, temporalFracRead] at hl hp
+    obtain ⟨y, in2, e2, hy, hin2⟩ := read_i24_be_ok in1 (by simp only [Slice.length, hin1]; simp; omega)
+    have hzv : (IScalar.cast .I64 y).val = y.val := cast64_i32 y
+    have hov := make_overflow intpart (IScalar.cast .I64 y) (by
+      rw [wrapI64_mul _ (by omega), hzv]
+      rw [hy, hin1] at *
+      unfold packedMake at hp
+      try simp only [beNat_take1] at hp
+      omega)
+    simp [e1, es, e2, hov, core.result.Result.Insts.CoreOpsTry.branch, lift]
+  case h_7 h1 h2 h3 h4 h5 h6 =>
+    exfalso
+    have hd : ¬(dec.val = 1 ∨ dec.val = 2 ∨ dec.val = 3 ∨ dec.val = 4 ∨ dec.val = 5 ∨ dec.val = 6) := by
+      intro hd
+      rcases hd with hd | hd | hd | hd | hd | hd
+      · exact h1 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h2 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h3 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h4 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h5 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h6 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+    have ht : temporalFracRead dec.val ((input.val.drop 5).take (fracBytes dec.val)) = 0 := by
+      unfold temporalFracRead; split_ifs <;> omega
+    rw [ht] at hp
+    unfold packedMake at hp
+    omega
+
+end mysql_common.BinlogUtil
