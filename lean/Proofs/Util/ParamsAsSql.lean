@@ -585,4 +585,230 @@ theorem uadd_overflow {ty : UScalarTy} (x y : UScalar ty) (h : 2 ^ ty.numBits �
   | none => rfl
   | some z => rw [hc] at this; exfalso; simp [UScalar.inBounds] at this; omega
 
+/-! ## Map lookups -/
+
+
+theorem slice_u8_eq_spec (s1 s2 : Slice U8) :
+    core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s1 s2 ⦃ b => b = true ↔ s1.val = s2.val ⦄ := by
+  apply WP.spec_mono (core.slice.cmp.PartialEqSlice.eq_homo_spec _ _ _ ?_)
+  · intro b hb; rw [← Slice.eq_iff]; simpa using hb
+  · intro x y; simp
+
+theorem lookup_some_iff (m : Trusted.ParamsMap) (k : List U8) (v : value.Value) :
+    Trusted.paramsMapLookup m k = some v ↔ ∃ e ∈ Trusted.paramsMapEntries m, e.1.val = k ∧ e.2 = v := by
+  unfold Trusted.paramsMapLookup
+  constructor
+  · intro h
+    obtain ⟨e, he, rfl⟩ := Option.map_eq_some_iff.mp h
+    exact ⟨e, List.mem_of_find?_eq_some he, by simpa using List.find?_some he, rfl⟩
+  · rintro ⟨e, he, hk, rfl⟩
+    cases hf : (Trusted.paramsMapEntries m).find? (fun e => e.1.val = k) with
+    | none =>
+      rw [List.find?_eq_none] at hf
+      exact absurd (by simpa using hk) (hf e he)
+    | some e' =>
+      have he' := List.mem_of_find?_eq_some hf
+      have hk' : e'.1.val = k := by simpa using List.find?_some hf
+      have := List.inj_on_of_nodup_map (Trusted.paramsMapEntries_keys_nodup m) he' he (hk'.trans hk.symm)
+      simp [this]
+
+theorem lookup_ext (m m' : Trusted.ParamsMap) (k : List U8)
+    (h : ∀ e, (e ∈ Trusted.paramsMapEntries m ∧ e.1.val = k) ↔ (e ∈ Trusted.paramsMapEntries m' ∧ e.1.val = k)) :
+    Trusted.paramsMapLookup m k = Trusted.paramsMapLookup m' k := by
+  apply Option.ext
+  intro v
+  rw [lookup_some_iff, lookup_some_iff]
+  constructor
+  · rintro ⟨e, he, hk, hv⟩; exact ⟨e, ((h e).mp ⟨he, hk⟩).1, hk, hv⟩
+  · rintro ⟨e, he, hk, hv⟩; exact ⟨e, ((h e).mpr ⟨he, hk⟩).1, hk, hv⟩
+
+theorem lookup_remove (m : Trusted.ParamsMap) (k k' : List U8) (hne : k' ≠ k) :
+    Trusted.paramsMapLookup (Trusted.paramsMapRemove m k) k' = Trusted.paramsMapLookup m k' := by
+  apply lookup_ext
+  intro e
+  rw [(Trusted.paramsMapEntries_remove m k).mem_iff, List.mem_filter]
+  constructor
+  · rintro ⟨h1, h2⟩; exact ⟨h1.1, h2⟩
+  · rintro ⟨h1, h2⟩; exact ⟨⟨h1, by rw [h2]; simpa using hne⟩, h2⟩
+
+/-! ## `into_positional` -/
+
+theorem ip_inner_true (ns : Slice (alloc.vec.Vec U8)) (i : Usize) (nm : alloc.vec.Vec U8) (x : Usize) :
+    params.Params.into_positional_loop0_loop0 ns i nm true x ⦃ b => b = true ⦄ := by
+  unfold params.Params.into_positional_loop0_loop0
+  rw [loop]
+  simp only
+  rw [params.Params.into_positional_loop0_loop0.body]
+  split <;> simp
+
+theorem ip_inner_spec (ns : Slice (alloc.vec.Vec U8)) (i : Usize) (nm : alloc.vec.Vec U8) :
+    ∀ (n : Nat) (x : Usize), x.val - i.val = n → x.val < ns.length →
+    params.Params.into_positional_loop0_loop0 ns i nm false x ⦃ b =>
+      b = true ↔ ∃ j, i.val < j ∧ j ≤ x.val ∧ ∃ w, ns.val[j]? = some w ∧ w.val = nm.val ⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro x hn hx
+    unfold params.Params.into_positional_loop0_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_positional_loop0_loop0.body]
+    have : ¬ x > i := by scalar_tac
+    simp only [this, ↓reduceIte, Std.bind_ok, WP.spec_ok, Bool.false_eq_true, false_iff, not_exists,
+      not_and]
+    intro j h1 h2; omega
+  | succ n ih =>
+    intro x hn hx
+    unfold params.Params.into_positional_loop0_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_positional_loop0_loop0.body]
+    have hgt : x > i := by scalar_tac
+    simp only [hgt, ↓reduceIte, Bool.false_eq_true]
+    step as ⟨v, hv⟩
+    step with slice_u8_eq_spec (alloc.vec.Vec.deref nm) (alloc.vec.Vec.deref v) as ⟨b, hb⟩
+    rw [CBTUtil.vec_deref_val, CBTUtil.vec_deref_val] at hb
+    split
+    · rename_i hbt
+      simp only [Std.bind_ok]
+      have := ip_inner_true ns i nm x
+      unfold params.Params.into_positional_loop0_loop0 at this
+      refine WP.spec_mono this ?_
+      intro r hr
+      simp only [hr, true_iff]
+      exact ⟨x.val, by scalar_tac, le_refl _, v, by simp [hv], (hb.mp hbt).symm⟩
+    · rename_i hbf
+      step as ⟨x1, hx1⟩
+      have := ih x1 (by omega) (by omega)
+      unfold params.Params.into_positional_loop0_loop0 at this
+      refine WP.spec_mono this ?_
+      intro r hr
+      rw [hr]
+      constructor
+      · rintro ⟨j, h1, h2, w, hw1, hw2⟩; exact ⟨j, h1, by omega, w, hw1, hw2⟩
+      · rintro ⟨j, h1, h2, w, hw1, hw2⟩
+        refine ⟨j, h1, ?_, w, hw1, hw2⟩
+        rcases Nat.lt_or_ge j x.val with h | h
+        · omega
+        · exfalso
+          have hj : j = x.val := by omega
+          subst hj
+          apply hbf
+          rw [hb]
+          have : ns.val[x.val]? = some v := by simp [hv]
+          rw [this] at hw1
+          cases hw1
+          exact hw2.symm
+
+theorem ip_outer_spec (ns : Slice (alloc.vec.Vec U8)) (m : Trusted.ParamsMap) :
+    ∀ (n : Nat) (mp : Trusted.ParamsMap) (pos : alloc.vec.Vec value.Value) (i : Usize),
+    ns.length - i.val = n → i.val ≤ ns.length → pos.length = i.val →
+    (∀ j (w : alloc.vec.Vec U8), i.val ≤ j → ns.val[j]? = some w →
+      Trusted.paramsMapLookup mp w.val = Trusted.paramsMapLookup m w.val) →
+    pos.val.map some = (ns.val.take i.val).map (fun n => Trusted.paramsMapLookup m n.val) →
+    params.Params.into_positional_loop0 ns mp pos i ⦃ r => match r with
+      | .Ok p => ∃ v, p = .Positional v ∧
+          v.val.map some = ns.val.map (fun n => Trusted.paramsMapLookup m n.val)
+      | .Err e => ((ns.val.drop i.val).find? (fun n => (Trusted.paramsMapLookup m n.val).isNone)).map
+          (·.val) = some e.val ⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro mp pos i hn hi hpos hmp hpv
+    unfold params.Params.into_positional_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_positional_loop0.body]
+    have : ¬ i.val < ns.length := by omega
+    have ht : ns.val.take i.val = ns.val := by
+      apply List.take_of_length_le; simp only [Slice.length] at this; omega
+    split
+    · exfalso; scalar_tac
+    · simp only [Std.bind_ok, WP.spec_ok]
+      exact ⟨pos, rfl, by rw [hpv, ht]⟩
+  | succ n ih =>
+    intro mp pos i hn hi hpos hmp hpv
+    unfold params.Params.into_positional_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_positional_loop0.body]
+    have hlt : i.val < ns.length := by omega
+    rw [ite_eq_left_of_eq_true _ _ (eq_true (by simp only [Slice.len]; exact hlt))]
+    step as ⟨nm, hnm⟩
+    step as ⟨x, hx⟩
+    step with ip_inner_spec ns i nm _ x rfl (by scalar_tac) as ⟨rep, hrep⟩
+    have hgi : ns.val[i.val]? = some nm := by simp [hnm]
+    have hlk : Trusted.paramsMapLookup mp nm.val = Trusted.paramsMapLookup m nm.val :=
+      hmp i.val nm (le_refl _) hgi
+    have hdrop : ns.val.drop i.val = nm :: ns.val.drop (i.val + 1) := by
+      rw [hnm]; exact List.drop_eq_getElem_cons _
+    have htake : ns.val.take (i.val + 1) = ns.val.take i.val ++ [nm] := by
+      rw [hnm]; exact List.take_succ_eq_append_getElem _
+    have herr : ((ns.val.drop i.val).find? (fun n => (Trusted.paramsMapLookup m n.val).isNone)).map
+        (·.val) = some nm.val ∨ Trusted.paramsMapLookup m nm.val ≠ none := by
+      cases h : Trusted.paramsMapLookup m nm.val
+      · left; rw [hdrop]; simp [h]
+      · right; simp
+    have hfind : ∀ v, Trusted.paramsMapLookup m nm.val = some v →
+        (ns.val.drop i.val).find? (fun n => (Trusted.paramsMapLookup m n.val).isNone) =
+        (ns.val.drop (i.val + 1)).find? (fun n => (Trusted.paramsMapLookup m n.val).isNone) := by
+      intro v hv; rw [hdrop]; simp [hv]
+    split
+    · -- repeated
+      simp only [sql_trusted.params_map_get, Std.bind_ok, CBTUtil.vec_deref_val, hlk]
+      cases hv : Trusted.paramsMapLookup m nm.val with
+      | none =>
+        simp only [vec_u8_clone_eq, Std.bind_ok, WP.spec_ok]
+        rw [hdrop]; simp [hv]
+      | some val =>
+        simp only [value_clone_eq, Std.bind_ok]
+        step with alloc.vec.Vec.push_spec pos val (by scalar_tac) as ⟨pos1, hpos1⟩
+        step as ⟨i3, hi3⟩
+        have hn3 : ns.length - i3.val = n := by rw [hi3, Nat.sub_add_eq, hn, Nat.add_sub_cancel]
+        have hi3' : i3.val ≤ ns.length := by rw [hi3]; exact Nat.succ_le_of_lt hlt
+        have := ih mp pos1 i3 hn3 hi3' (by simp [hpos1, hi3]; omega)
+          (fun j w hj hw => hmp j w (by omega) hw) (by rw [hi3, htake, hpos1]; simp [hpv, hv])
+        unfold params.Params.into_positional_loop0 at this
+        refine WP.spec_mono this ?_
+        intro r hr
+        split at hr
+        · exact hr
+        · rw [hfind val hv, ← hi3]; exact hr
+    · -- not repeated
+      rename_i hrf
+      have hnot : ∀ j (w : alloc.vec.Vec U8), i.val + 1 ≤ j → ns.val[j]? = some w → w.val ≠ nm.val := by
+        intro j w hj hw heq
+        apply hrf
+        rw [hrep]
+        refine ⟨j, by omega, ?_, w, hw, heq⟩
+        have : j < ns.val.length := by
+          rcases List.getElem?_eq_some_iff.mp hw with ⟨h, _⟩; exact h
+        scalar_tac
+      step with (show sql_trusted.params_map_remove mp (alloc.vec.Vec.deref nm) ⦃ o mp1 =>
+          o = Trusted.paramsMapLookup m nm.val ∧ mp1 = Trusted.paramsMapRemove mp nm.val ⦄ by
+        simp [sql_trusted.params_map_remove, CBTUtil.vec_deref_val, hlk]) as ⟨p, hp1, hp2⟩
+      obtain ⟨o, mp1⟩ := p
+      simp only at hp1 hp2 ⊢
+      subst hp1 hp2
+      cases hv : Trusted.paramsMapLookup m nm.val with
+      | none =>
+        simp only [vec_u8_clone_eq, Std.bind_ok]
+        rw [hdrop]; simp [hv]
+      | some val =>
+        step with alloc.vec.Vec.push_spec pos val (by scalar_tac) as ⟨pos1, hpos1⟩
+        step as ⟨i3, hi3⟩
+        have hn3 : ns.length - i3.val = n := by rw [hi3, Nat.sub_add_eq, hn, Nat.add_sub_cancel]
+        have hi3' : i3.val ≤ ns.length := by rw [hi3]; exact Nat.succ_le_of_lt hlt
+        have := ih (Trusted.paramsMapRemove mp nm.val) pos1 i3 hn3 hi3'
+          (by simp [hpos1, hi3]; omega)
+          (fun j w hj hw => by
+            rw [lookup_remove _ _ _ (hnot j w (by omega) hw)]; exact hmp j w (by omega) hw)
+          (by rw [hi3, htake, hpos1]; simp [hpv, hv])
+        unfold params.Params.into_positional_loop0 at this
+        refine WP.spec_mono this ?_
+        intro r hr
+        split at hr
+        · exact hr
+        · rw [hfind val hv, ← hi3]; exact hr
+
 end mysql_common.PASUtil
