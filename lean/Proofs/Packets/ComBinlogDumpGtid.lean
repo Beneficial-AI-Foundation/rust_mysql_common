@@ -733,6 +733,87 @@ theorem tagged_loop (h64 : Target64) (n : Nat) : ∀ (buf : io.ParseBuf) (nn : U
       · simp [sidsRead, hs] at h
       · simp [sidsRead, hs] at h
 
+theorem parse_unchecked_leu32_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
+      (okPart r).map (·.1.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 buf
+    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4)
+    (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec buf h)
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ hr
+  simpa [Option.map_map] using hr
+
+theorem flags_try_from_spec (p : U16) :
+    packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags.try_from p ⦃ r =>
+      (okPart r).map (fun f : packets.BinlogDumpFlags => f.val) =
+        if p.val &&& binlogDumpFlagsAll = p.val then some p.val else none ⦄ := by
+  unfold packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags.try_from
+    packets.BinlogDumpFlags.from_bits packets.BinlogDumpFlags.from_bits_truncate packets.BinlogDumpFlags.all
+  step as ⟨i, hi⟩
+  step as ⟨i1, hi1⟩
+  step as ⟨i2, hi2⟩
+  step as ⟨i3, hi3⟩
+  have hv : i3.val = p.val &&& binlogDumpFlagsAll := by
+    have h7 : i2 = 7#u16 := by apply UScalar.eq_of_val_eq; simp_all [UScalar.val_or]
+    subst h7; rw [hi3]; simp [UScalar.val_and]; rfl
+  split_ifs with h1 h2 h2
+  · simp
+  · exfalso; apply h2; rw [← hv, h1]
+  · exfalso; apply h1; apply UScalar.eq_of_val_eq; rw [hv, h2]
+  · simp
+
+theorem parse_unchecked_flags_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags
+      packets.UnknownBinlogDumpFlags.Insts.CoreErrorError) buf () ⦃ r rest =>
+      (okPart r).map (fun c => c.1.val) =
+        (if leNat (buf.val.take 2) &&& binlogDumpFlagsAll = leNat (buf.val.take 2)
+         then some (leNat (buf.val.take 2)) else none) ∧ rest.val = buf.val.drop 2 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+    packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags
+    packets.UnknownBinlogDumpFlags.Insts.CoreErrorError buf
+    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 2)) ∧ rest.val = buf.val.drop 2)
+    (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spec buf h)
+    (fun p o => o.map (fun c : packets.BinlogDumpFlags => c.val) =
+        if p.val &&& binlogDumpFlagsAll = p.val then some p.val else none)
+    flags_try_from_spec
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ ⟨o, ⟨ho, hrest⟩, hm⟩
+  refine ⟨?_, hrest⟩
+  cases o with
+  | none => simp at ho
+  | some p =>
+    simp at ho hm
+    rw [← ho]
+    simpa [Option.map_map, Function.comp_def] using hm
+
+theorem parse_unchecked_hdr_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        30#u8 packets.InvalidComBinlogDumpGtidHeader.Insts.CoreErrorError
+        packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault) buf () ⦃ r rest =>
+      ((okPart r).isSome ↔ leNat (buf.val.take 1) = 30) ∧ rest.val = buf.val.drop 1 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  exact misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec 30#u8
+    packets.InvalidComBinlogDumpGtidHeader.Insts.CoreErrorError
+    packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault
+    ((WP.spec_ok _).mpr trivial) buf h
+
+theorem parse_u32bytes_spec (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      ((okPart r).map (fun rb => cowList rb.1), rest.val) = checkedLenPrefixed 4 buf.val ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
+      misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
+    (fun o rest => (o, rest.val) = checkedLenPrefixed 4 buf.val)
+    (misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
+
 end GtidUtil
 
 open GtidUtil
