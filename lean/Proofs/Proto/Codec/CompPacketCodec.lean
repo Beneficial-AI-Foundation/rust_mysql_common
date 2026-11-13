@@ -32,7 +32,7 @@ theorem proto.codec.CompPacketCodec.decode_total (self : proto.codec.CompPacketC
       (CompState.of c'.comp_decoder).Valid ∧ (ChunkState.of c'.plain_codec.chunk_decoder).Valid ⦄ := by
   sorry
 
-/-- Pipelined plain packets. Take a decoder whose chunk reader is idle and whose decompressed buffer `in_buf` starts with the chunks of a payload `p` (`frame`, from the plain sequence id), followed by anything (`rest`, e.g. the next packet). It returns `Ok(true)` with exactly `p` in `dst`, leaving `rest` in `in_buf`. It reads nothing from `src`. The compressed reader and sequence id are unchanged, and the plain sequence id is advanced by the number of chunks. -/
+/-- Pipelined plain packets. Take a decoder whose chunk reader is idle and whose decompressed buffer `in_buf` starts with the chunks of a payload `p` (`frame`, from the plain sequence id), followed by anything (`rest`, e.g. the next packet). It returns `Ok(true)` with exactly `p` in `dst`, leaving `rest` in `in_buf`. It reads nothing from `src`. The compressed reader and sequence id, `out_buf`, both flate2 streams and the level are unchanged, and the plain sequence id is advanced by the number of chunks. -/
 theorem proto.codec.CompPacketCodec.decode_buffered (self : proto.codec.CompPacketCodec)
     (hidle : self.plain_codec.chunk_decoder = .Idle) (p rest : List U8)
     (hin : self.in_buf.val = frame self.plain_codec.seq_id.val p ++ rest)
@@ -42,7 +42,8 @@ theorem proto.codec.CompPacketCodec.decode_buffered (self : proto.codec.CompPack
       r = .Ok true ∧ dst'.val = p ∧ c'.in_buf.val = rest ∧ src' = src ∧
       c'.comp_seq_id = self.comp_seq_id ∧ c'.comp_decoder = self.comp_decoder ∧
       c'.plain_codec.seq_id = byte (self.plain_codec.seq_id.val + frameCount p.length) ∧
-      c'.plain_codec.chunk_decoder = .Idle ⦄ := by
+      c'.plain_codec.chunk_decoder = .Idle ∧ c'.out_buf = self.out_buf ∧ c'.deflater = self.deflater ∧
+      c'.inflater = self.inflater ∧ c'.level = self.level ⦄ := by
   sorry
 
 /-- Headline round trip (decoding). Take a decoder with nothing pending (`in_buf` empty, both readers idle). Feed it any compressed stream (`CompStreamOf`) whose pieces carry the chunks of a payload `p` followed by `rest`, then anything (`tail`). The chunks are `frame`, from the decoder's plain sequence id; the packets' sequence ids start at the decoder's compressed one.
@@ -177,7 +178,7 @@ theorem proto.codec.CompPacketCodec.encode_spec (self : proto.codec.CompPacketCo
           c'.comp_seq_id = byte (self.comp_seq_id.val +
             (chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).length) ∧
           c'.plain_codec.seq_id = c'.comp_seq_id ∧ c'.out_buf.val = [] ∧
-          ∃ out, CompEncoding self.level.level.val (compChunkSize max.val) self.comp_seq_id.val
+          ∃ out, CompEncoding (self.deflater.getD (Trusted.compressNew self.level)) self.level.level.val (compChunkSize max.val) self.comp_seq_id.val
               (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val) out ∧
             dst'.val = dst.val ++ out
         | .Err e =>
@@ -187,7 +188,7 @@ theorem proto.codec.CompPacketCodec.encode_spec (self : proto.codec.CompPacketCo
           ∃ k out, k < (chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).length ∧
             self.level.level.val ≠ 0 ∧
             minCompressLength ≤ ((chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).getD k []).length ∧
-            CompPacketsOf self.level.level.val self.comp_seq_id.val
+            CompPacketsOf (self.deflater.getD (Trusted.compressNew self.level)) self.level.level.val self.comp_seq_id.val
               ((chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).take k) out ∧
             dst'.val = dst.val ++ out ⦄ := by
   sorry

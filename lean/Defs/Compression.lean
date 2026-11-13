@@ -94,26 +94,36 @@ def CompChoice (level : Nat) (chunk : List U8) : Option (List U8) → Prop
   | none => True
   | some z => level ≠ 0 ∧ minCompressLength ≤ chunk.length ∧ Deflates chunk z
 
-/-- How the crate's encoder carries the piece `chunk` at level `level`: as `CompChoice`, and
-    stored only if it has to be. That is the case when compression is off, the piece is shorter
-    than `minCompressLength`, or deflating it succeeded without making it shorter (flate2 gave
-    `Ok None` for some stream). -/
-def EncChoice (level : Nat) (chunk : List U8) (zo : Option (List U8)) : Prop :=
+/-- `d'` is a deflate stream reachable from `d` by deflating zero or more slices
+    (`Trusted.deflateState`): the streams an encoder that starts with `d` can be using. -/
+inductive DeflateReach : flate2.mem.Compress → flate2.mem.Compress → Prop
+  | refl (d : flate2.mem.Compress) : DeflateReach d d
+  | step (d d' : flate2.mem.Compress) (c : Slice U8) :
+      DeflateReach (Trusted.deflateState d c) d' → DeflateReach d d'
+
+/-- How the crate's encoder, starting with the deflate stream `d0`, carries the piece `chunk` at
+    level `level`: as `CompChoice`, and stored only if it has to be. That is the case when
+    compression is off, when the piece is shorter than `minCompressLength`, or when deflating it
+    succeeded without making it shorter (flate2 gave `Ok None` with a stream reachable from
+    `d0`, i.e. the one the encoder holds then). -/
+def EncChoice (d0 : flate2.mem.Compress) (level : Nat) (chunk : List U8) (zo : Option (List U8)) : Prop :=
   CompChoice level chunk zo ∧
   (zo = none → level = 0 ∨ chunk.length < minCompressLength ∨
-    ∃ (d : flate2.mem.Compress) (c : Slice U8), c.val = chunk ∧ Trusted.deflateResult d c = .Ok none)
+    ∃ (d : flate2.mem.Compress) (c : Slice U8),
+      DeflateReach d0 d ∧ c.val = chunk ∧ Trusted.deflateResult d c = .Ok none)
 
-/-- `out` is a sequence of compressed packets, as the crate's encoder writes them
-    (`EncChoice level`), carrying the pieces `chunks` in order from sequence id `seq`. -/
-def CompPacketsOf (level seq : Nat) (chunks : List (List U8)) (out : List U8) : Prop :=
-  ∃ zs : List (Option (List U8)), List.Forall₂ (EncChoice level) chunks zs ∧
+/-- `out` is a sequence of compressed packets carrying the pieces `chunks` in order from sequence
+    id `seq`, as the crate's encoder starting with stream `d0` writes them (`EncChoice d0 level`). -/
+def CompPacketsOf (d0 : flate2.mem.Compress) (level seq : Nat) (chunks : List (List U8))
+    (out : List U8) : Prop :=
+  ∃ zs : List (Option (List U8)), List.Forall₂ (EncChoice d0 level) chunks zs ∧
     out = compPackets seq chunks zs
 
-/-- `out` is the crate's compressed form of the byte stream `plain`: cut into pieces of `n`
-    bytes (`chunksOf`), from sequence id `seq`, at compression level `level`. At level 0 it is
-    unique: every piece is stored (`compEncoding_level_zero`). -/
-def CompEncoding (level n seq : Nat) (plain out : List U8) : Prop :=
-  CompPacketsOf level seq (chunksOf n plain) out
+/-- `out` is the crate's compressed form of the byte stream `plain`, by an encoder starting with
+    stream `d0`: cut into pieces of `n` bytes (`chunksOf`), from sequence id `seq`, at compression
+    level `level`. At level 0 it is unique: every piece is stored (`compEncoding_level_zero`). -/
+def CompEncoding (d0 : flate2.mem.Compress) (level n seq : Nat) (plain out : List U8) : Prop :=
+  CompPacketsOf d0 level seq (chunksOf n plain) out
 
 /-- `out` is any sequence of compressed packets carrying the pieces `pieces` in order, from
     sequence id `seq`, each stored or deflated by flate2 (`Deflates`). Any cut and any choice

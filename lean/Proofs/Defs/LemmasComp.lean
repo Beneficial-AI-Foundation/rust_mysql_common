@@ -21,14 +21,19 @@ theorem chunksOf_spec (n : Nat) (hn : 0 < n) (bs : List U8) :
   sorry
 
 /-- At compression level 0 the compressed form is unique: every piece is stored. -/
-theorem compEncoding_level_zero (n seq : Nat) (plain out : List U8) :
-    CompEncoding 0 n seq plain out ↔
+theorem compEncoding_level_zero (d0 : flate2.mem.Compress) (n seq : Nat) (plain out : List U8) :
+    CompEncoding d0 0 n seq plain out ↔
       out = compPackets seq (chunksOf n plain) ((chunksOf n plain).map fun _ => none) := by
   sorry
 
-/-- The crate's encoding is one of the streams the decoder accepts: with `n > 0`, its pieces are the non-empty `chunksOf n plain`, each stored or deflated by flate2 (so `PacketCodec.encode_decode_comp` follows from `CompPacketCodec.decode_compStream`). -/
-theorem compEncoding_compStreamOf (level n seq : Nat) (hn : 0 < n) (plain out : List U8)
-    (h : CompEncoding level n seq plain out) : CompStreamOf seq (chunksOf n plain) out := by
+/-- The crate's encoding is one of the streams the decoder accepts: its pieces are `chunksOf n plain`, each stored or deflated by flate2. Together with `chunksOf_spec` (pieces non-empty and at most `n` bytes) and `chunksOf_dropLast_length`, this gives `decode_compStream`'s hypotheses, so `PacketCodec.encode_decode_comp` follows from it. -/
+theorem compEncoding_compStreamOf (d0 : flate2.mem.Compress) (level n seq : Nat) (plain out : List U8)
+    (h : CompEncoding d0 level n seq plain out) : CompStreamOf seq (chunksOf n plain) out := by
+  sorry
+
+/-- All pieces of `chunksOf n bs` but the last hold fewer bytes than `bs` (for `n > 0` and non-empty `bs`): the stream ends in the last piece (`decode_compStream`'s `hlast`, with `rest = []`). -/
+theorem chunksOf_dropLast_length (n : Nat) (hn : 0 < n) (bs : List U8) (hbs : bs ≠ []) :
+    (chunksOf n bs).dropLast.flatten.length < bs.length := by
   sorry
 
 /-- `CompState.of` is injective: the state keeps the decoder's variant (stored vs compressed, even for a caller-built `Compressed(n, 0)`) and all its fields. -/

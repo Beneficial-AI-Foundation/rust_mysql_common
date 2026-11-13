@@ -34,12 +34,12 @@ theorem proto.codec.compress_with_spec (seq : U8) (lvl : flate2.Compression) (d 
       match r with
       | .Ok s =>
         s = byte (seq.val + (chunksOf (compChunkSize max.val) src.val).length) ∧ src'.val = [] ∧
-        ∃ out, CompEncoding lvl.level.val (compChunkSize max.val) seq.val src.val out ∧ dst'.val = dst.val ++ out
+        ∃ out, CompEncoding (d.getD (Trusted.compressNew lvl)) lvl.level.val (compChunkSize max.val) seq.val src.val out ∧ dst'.val = dst.val ++ out
       | .Err e =>
         (∃ ioe, e = .Io ioe) ∧ src' = src ∧
         ∃ k out, k < (chunksOf (compChunkSize max.val) src.val).length ∧ lvl.level.val ≠ 0 ∧
           minCompressLength ≤ ((chunksOf (compChunkSize max.val) src.val).getD k []).length ∧
-          CompPacketsOf lvl.level.val seq.val ((chunksOf (compChunkSize max.val) src.val).take k) out ∧
+          CompPacketsOf (d.getD (Trusted.compressNew lvl)) lvl.level.val seq.val ((chunksOf (compChunkSize max.val) src.val).take k) out ∧
           dst'.val = dst.val ++ out ⦄ := by
   sorry
 
