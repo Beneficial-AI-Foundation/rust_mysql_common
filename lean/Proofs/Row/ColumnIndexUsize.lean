@@ -12,6 +12,7 @@ namespace mysql_common
 theorem Usize.Insts.Mysql_commonRowColumnIndex.idx_eq (self : Usize) (columns : Slice packets.Column) :
     Usize.Insts.Mysql_commonRowColumnIndex.idx self columns =
       ok (if self.val < columns.length then some self else none) := by
-  sorry
+  simp only [Usize.Insts.Mysql_commonRowColumnIndex.idx]
+  split_ifs <;> first | rfl | (exfalso; scalar_tac)
 
 end mysql_common
