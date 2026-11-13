@@ -199,6 +199,16 @@ theorem takeExact_app' (l : List U8) (k : Nat) (hk : l.length = k) : takeExact k
 theorem readLE_app (k n : Nat) (r : List U8) (hn : n < 2 ^ (8 * k)) : readLE k (leBytes k n ++ r) = some (n, r) :=
   PBUtil.readLE_leBytes k n r hn
 
+@[step] theorem rawint_default_u32_spec :
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU32.Insts.CoreDefaultDefault
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 core.default.DefaultU32 ⦃ r => r.1.val = 0 ⦄ := by
+  simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
+  exact (WP.spec_ok _).mpr rfl
+
+@[step] theorem constu8_default_spec {T : Type} (N : U8) (d : core.default.Default T) :
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
+  simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
+
 /-! ## The readers consume everything -/
 
 theorem queryRead_tail (p : Nat) (bs : List U8) (v : QueryView) (t : List U8) (ht : queryRead p bs = some (v, t)) : t = [] := by
