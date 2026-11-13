@@ -613,4 +613,59 @@ theorem handshakeRead_enc (hs : Handshake) (hc : hs.Compatible) (tail : List U8)
     rw [ConnHS.getD_app _ _ _ _ (by omega), hlb, byte_val] at h5
     omega
 
+/-! ## Handshake response round trip (pure) -/
+
+theorem scrambleRead_enc (caps : Nat) (k : ScrambleKind) (s r : List U8) (hk : k = scrambleKindFor caps)
+    (hu8 : k = .u8 → s.length ≤ 255) (hnul : k = .nul → NoNul s) (h64 : k = .lenenc → s.length < 2 ^ 64) :
+    scrambleRead caps (scrambleEnc k s ++ r) = (some (k, s), r) := by
+  unfold scrambleRead
+  rw [← hk]
+  cases k with
+  | lenenc => simp [scrambleEnc, Defs.checkedLenencStr_lenencStr _ _ (h64 rfl)]
+  | u8 =>
+    have hl := hu8 rfl
+    simp only [scrambleEnc, List.cons_append, checkedLenPrefixed, readLE, List.length_cons]
+    simp [List.take_of_length_le hl, leNat, byte_val, Nat.min_eq_left hl, Nat.mod_eq_of_lt (show s.length < 256 by omega)]
+  | nul => simp [scrambleEnc, ConnHS.nulStrRead_nulStr _ _ (hnul rfl)]
+
+theorem hsRespRead_enc (v : HsResp) (kvs : Option (List (List U8 × List U8))) (hc : v.Compatible kvs)
+    (tail : List U8) (h64 : (hsRespEnc v kvs ++ tail).length < 2 ^ 64) :
+    hsRespRead (hsRespEnc v kvs ++ tail) = (some (v, kvs), tail) := by
+  obtain ⟨hcaps, hmp, hcoll, hmc, hu, hk, hu8, hnul, hdb, hdbn, hpn, hpnn, hkv⟩ := hc
+  have hP : ¬ ((hsRespEnc v kvs ++ tail).length < 32) := by
+    simp [hsRespEnc, PBUtil.length_leBytes]; omega
+  have hm64 : v.mariadbCaps < 2 ^ 32 := by
+    have : v.mariadbCaps &&& mariadbCapabilitiesAll ≤ mariadbCapabilitiesAll := Nat.and_le_right
+    rw [hmc] at this; simp [mariadbCapabilitiesAll] at this; omega
+  unfold hsRespRead
+  simp only [hP, ↓reduceIte]
+  unfold hsRespEnc
+  simp only [leBytes, List.replicate, List.cons_append, List.nil_append, List.append_assoc]
+  simp only [List.drop_succ_cons, List.drop_zero, List.take_succ_cons, List.take_zero]
+  rw [leNat_bytes4, leNat_bytes4, leNat_bytes4, leNat_bytes1, Nat.mod_eq_of_lt hcaps, Nat.mod_eq_of_lt hmp,
+    Nat.mod_eq_of_lt hcoll, Nat.mod_eq_of_lt hm64, hmc]
+  rw [ConnHS.nulStrRead_nulStr _ _ hu]
+  simp only
+  have hlen := h64
+  simp only [hsRespEnc, List.length_append] at hlen
+  rw [scrambleRead_enc v.caps v.scrambleKind v.scramble _ hk hu8 hnul (by
+    intro hl; rw [hl] at hlen; simp [scrambleEnc, lenencStr] at hlen; omega)]
+  simp only
+  have hA : ∀ kv, kvs = some kv → (attrsEnc kv).length < 2 ^ 64 := by
+    intro kv hkv; subst hkv; simp [hsRespEnc] at h64; omega
+  have hdz : ∀ (n r : List U8), (n ++ [byte 0] ++ r).drop (n.length + 1) = r := by
+    intro n r; simp [List.drop_append]
+  have hbz : ∀ n r, NoNul n → beforeZero (n ++ [byte 0] ++ r) = n := by
+    intro n r hn; rw [List.append_assoc, List.singleton_append]; exact beforeZero_append_zero n r hn
+  rcases hD : v.db with _ | d <;> rcases hPn : v.pluginName with _ | n <;> rcases hK : kvs with _ | kv <;>
+    simp only [hD, hPn, hK, Option.isSome_none, Option.isSome_some] at hdb hpn hkv hlen ⊢
+  all_goals
+    simp only [← hdb, ← hpn, ← hkv, Bool.false_eq_true, ↓reduceIte, List.nil_append]
+    (try rw [ConnHS.nulStrRead_nulStr _ _ (hdbn _ hD)])
+    (try simp only)
+    (try simp only [hbz _ _ (hpnn _ hPn), hdz])
+    (try rw [Defs.connectAttrsRead_attrsEnc _ _ (hA _ hK)])
+    cases v
+    simp_all
+
 end mysql_common.ConnHSUtil
