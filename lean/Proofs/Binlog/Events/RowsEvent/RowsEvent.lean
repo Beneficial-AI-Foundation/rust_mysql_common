@@ -41,10 +41,10 @@ theorem binlog.events.rows_event.RowsEvent.flags_raw_eq (e : binlog.events.rows_
     binlog.events.rows_event.RowsEvent.flags_raw e = ok e.flags.1 := by
   rfl
 
-/-- `len`: `rowsLenCrate`. -/
-theorem binlog.events.rows_event.RowsEvent.len_spec (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
+/-- `len`: `rowsLenCrate`. (64-bit target, as configured). -/
+theorem binlog.events.rows_event.RowsEvent.len_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.rows_event.RowsEvent.len e v ⦃ n => n.val = rowsLenCrate e ⦄ := by
-  sorry
+  exact BERUtil.rows_len64 h64 e v
 
 /-- `len` of a consistent v2 event: the length `serialize` writes, capped. -/
 theorem binlog.events.rows_event.RowsEvent.len_v2 (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (h2 : rowsIsV2 e.event_type = true) (v : binlog.consts.BinlogVersion) :
@@ -81,18 +81,18 @@ theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeD
     binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE = none := by
   unfold binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE; rfl
 
-/-- `MyDeserialize` with the context's event type and FDE: total; `rowsRead`. -/
-theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize_spec (h64 : Target64) (ctx : binlog.events.rows_event.RowsEventCtx) (buf : io.ParseBuf) :
+/-- `MyDeserialize` with the context's event type and FDE: total; `rowsRead`. `RawFlags::SIZE` is `size_of::<u16>()`, which is 2 in Rust; the Lean `size_of` is deliberately unspecified (FunsExternal.lean), so this is a hypothesis, not an axiom. -/
+theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize_spec (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (ctx : binlog.events.rows_event.RowsEventCtx) (buf : io.ParseBuf) :
     binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize ctx buf ⦃ r rest => ReadsAs rowsView (rowsRead ctx.event_type (postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type) (postHeaderLen (fdeLens ctx.binlog_ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄ := by
   sorry
 
-/-- `MySerialize`: appends `rowsEnc`. -/
-theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
+/-- `MySerialize`: appends `rowsEnc`. (64-bit target, as configured). -/
+theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
     binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ rowsEnc e ⦄ := by
-  sorry
+  exact BERUtil.rows_serialize64 h64 e buf h
 
-/-- Round trip, for a consistent event of the context's type with a table id below `2^48`, read with an FDE whose post-header lengths agree with the type (6 bytes excluded; equal to `WRITE_ROWS_EVENT`'s iff v2). -/
-theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.roundtrip (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
+/-- Round trip, for a consistent event of the context's type with a table id below `2^48`, read with an FDE whose post-header lengths agree with the type (6 bytes excluded; equal to `WRITE_ROWS_EVENT`'s iff v2). `RawFlags::SIZE` is `size_of::<u16>()`, which is 2 in Rust; the Lean `size_of` is deliberately unspecified (FunsExternal.lean), so this is a hypothesis, not an axiom. -/
+theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.roundtrip (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
     (ctx : binlog.events.rows_event.RowsEventCtx) (he : eventTypeCode ctx.event_type = eventTypeCode e.event_type)
     (hp : postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type ≠ 6) (hv : postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type = postHeaderLen (fdeLens ctx.binlog_ctx.fde) .WRITE_ROWS_EVENT ↔ rowsIsV2 e.event_type = true)
     (buf : io.ParseBuf) (h : buf.val = rowsEnc e) :

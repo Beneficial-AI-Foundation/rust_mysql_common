@@ -56,20 +56,22 @@ theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mys
   unfold binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE
   exact binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE_eq
 
-/-- `MyDeserialize`: total; `rowsRead` with type `PARTIAL_UPDATE_ROWS_EVENT` and the FDE's post-header lengths. -/
-theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
+/-- `MyDeserialize`: total; `rowsRead` with type `PARTIAL_UPDATE_ROWS_EVENT` and the FDE's post-header lengths. `RawFlags::SIZE` is `size_of::<u16>()`, which is 2 in Rust; the Lean `size_of` is deliberately unspecified (FunsExternal.lean), so this is a hypothesis, not an axiom. -/
+theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs rowsView (rowsRead .PARTIAL_UPDATE_ROWS_EVENT (postHeaderLen (fdeLens ctx.fde) .PARTIAL_UPDATE_ROWS_EVENT) (postHeaderLen (fdeLens ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄ := by
   sorry
 
-/-- `MySerialize`: appends `rowsEnc`. -/
-theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
+/-- `MySerialize`: appends `rowsEnc`. (64-bit target, as configured). -/
+theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
     binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ rowsEnc e ⦄ := by
-  sorry
+  unfold binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize
+  exact BERUtil.rows_serialize64 h64 e buf h
 
-/-- `BinlogStruct::len`: `rowsLenCrate` (see `RowsEvent::len`). -/
-theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
+/-- `BinlogStruct::len`: `rowsLenCrate` (see `RowsEvent::len`). (64-bit target, as configured). -/
+theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = rowsLenCrate e ⦄ := by
-  sorry
+  unfold binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  exact BERUtil.rows_len64 h64 e v
 
 /-- `BinlogEvent::EVENT_TYPE`: `PARTIAL_UPDATE_ROWS_EVENT` (39). -/
 theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :

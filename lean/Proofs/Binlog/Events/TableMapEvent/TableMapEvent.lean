@@ -135,11 +135,11 @@ theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDes
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs tmView (tmRead (postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT) buf.val) r rest ⦄ := by
   sorry
 
-/-- `MySerialize`: appends the layout `tmEnc`. -/
-theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
+/-- `MySerialize`: appends the layout `tmEnc`. (64-bit target, as configured). -/
+theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (tmEnc e).length ≤ Usize.max) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ tmEnc e ⦄ := by
-  sorry
+  exact BERUtil.tm_serialize64 h64 e buf h
 
 /-- Round trip, for a consistent event (`TmConsistent`) with a table id below `2^48`, read with a post-header other than 6 bytes. -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
@@ -152,10 +152,11 @@ theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinl
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .TABLE_MAP_EVENT := by
   unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
 
-/-- `BinlogStruct::len`: `tmLenCrate` (with the bitmap counted as `(n + 8) / 7` bytes: a bug). -/
-theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64) :
+/-- `BinlogStruct::len`: `tmLenCrate` (with the bitmap counted as `(n + 8) / 7` bytes: a bug). The metadata block is assumed to have a length-encoded length below `2^64`: `lenenc_str_len` is computed in `u64` and overflows (panics) otherwise. -/
+theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64)
+    (hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = tmLenCrate e ⦄ := by
-  sorry
+  exact BERUtil.tm_len_gen h64 e v hn hm
 
 /-- **Upstream bug:** for a consistent event, `len` differs from the length `serialize` writes by `(n + 8) / 7 - (n + 7) / 8` (when under the cap). -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_bug (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64)

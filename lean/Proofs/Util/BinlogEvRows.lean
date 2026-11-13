@@ -936,4 +936,60 @@ theorem pBare (len : Usize) (buf : io.ParseBuf) :
   simp only [WP.uncurry', Option.map_map] at h ⊢
   exact h
 
+/-! ## 64-bit lengths and table map serialization -/
+
+theorem rows_len64 (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
+    binlog.events.rows_event.RowsEvent.len e v ⦃ n => n.val = rowsLenCrate e ⦄ := by
+  apply rows_len_gen e v
+  intro _
+  have := bl_le e.num_columns.1
+  have hmax : Usize.max = 2 ^ 64 - 1 := by simp [Target64] at h64; simp [Usize.max, Usize.numBits, h64]
+  omega
+
+theorem u8b_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 1 + min (cowList rb.1).length 255 ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb buf
+      ⦃ b => b.val = buf.val ++ u8Str (cowList rb.1) ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
+    (by simp [Slice.length, hs]; omega))
+  intro b hb
+  rw [hb, u8Str, ← hs]
+
+set_option linter.unusedSimpArgs false in
+set_option linter.unusedTactic false in
+set_option linter.unreachableTactic false in
+theorem tm_serialize64 (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (tmEnc e).length ≤ Usize.max) :
+    binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ tmEnc e ⦄ := by
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize
+  have hb : buf.length = buf.val.length := rfl
+  simp only [tmEnc, u8Str, List.length_append, List.length_cons, length_leBytes, List.length_take, List.length_singleton, List.length_nil] at h
+  step with leu48_ser as ⟨ b1, hb1 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with PCSUtil.rawint_u16_serialize as ⟨ b2, hb2 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with u8b_ser as ⟨ b3, hb3 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b4, hb4 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with u8b_ser as ⟨ b5, hb5 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b6, hb6 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with lenenc_rawint_ser as ⟨ b7, hb7 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b8, hb8 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with PCSUtil.lenenc_raw_serialize as ⟨ b9, hb9 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with bitmap_ser h64 as ⟨ b10, hb10 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  step with eof_ser as ⟨ b11, hb11 ⟩
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  rw [hb11, hb10, hb9, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1]
+  simp [tmEnc, u8Str]
+
 end mysql_common.BERUtil
