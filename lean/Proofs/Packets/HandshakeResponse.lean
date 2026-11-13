@@ -14,6 +14,30 @@ namespace mysql_common
 
 attribute [local step] packets.AuthPlugin.Insts.Mysql_commonProtoMySerialize.serialize_spec CAUtil.serialize_connect_attrs_spec
 
+private theorem new_scramble_buf_spec (caps : constants.CapabilityFlags)
+    (sb : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
+    packets.new_scramble_buf caps sb ⦃ e => scrambleView e = (scrambleKindFor caps.val, cowList sb) ⦄ := by
+  unfold packets.new_scramble_buf
+  step with PKUtil.caps_contains_spec as ⟨b, hb⟩
+  have h1 : (constants.CapabilityFlags.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA).val = CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA := by
+    simp [constants.CapabilityFlags.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA, CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA]
+  have h2 : (constants.CapabilityFlags.CLIENT_SECURE_CONNECTION).val = CLIENT_SECURE_CONNECTION := by
+    simp [constants.CapabilityFlags.CLIENT_SECURE_CONNECTION, CLIENT_SECURE_CONNECTION]
+  rw [h1] at hb
+  split
+  · step*
+    simp_all [scrambleView, scrambleKindFor]
+  · step with PKUtil.caps_contains_spec as ⟨b1, hb1⟩
+    rw [h2] at hb1
+    split
+    · step*
+      simp_all [scrambleView, scrambleKindFor]
+    · step*
+      simp_all [scrambleView, scrambleKindFor]
+
+attribute [local step] new_scramble_buf_spec
+
+set_option maxHeartbeats 8000000 in
 /-- `new`: the auth response framed as the given flags prescribe; `CLIENT_CONNECT_WITH_DB`, `CLIENT_PLUGIN_AUTH` and `CLIENT_CONNECT_ATTRS` set or cleared by whether a database, plugin and attributes are given (overriding the caller's flags); collation `utf8mb4_general_ci` (45) for a server version from 5.5.3, else `utf8mb3_general_ci` (33); user and auth response empty for `None`; MariaDB's capabilities empty; the attributes converted (`Trusted.connectAttrsFromStrings`). -/
 theorem packets.HandshakeResponse.new_spec {T1 T2 T3 : Type} (into1 : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into2 : core.convert.Into T2 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into3 : core.convert.Into T3 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
     (scramble_buf : Option T1) (server_version : U16 × U16 × U16) (user : Option T2) (db_name : Option T3)
@@ -35,7 +59,28 @@ theorem packets.HandshakeResponse.new_spec {T1 T2 T3 : Type} (into1 : core.conve
           db := db_name.map (fun _ => cowList cd), pluginName := auth_plugin.map authPluginName } ∧
         p.auth_plugin = auth_plugin ∧
         p.connect_attributes = connect_attributes.map Trusted.connectAttrsFromStrings ⦄ := by
-  sorry
+  unfold packets.HandshakeResponse.new packets.opt_connect_attrs_from_strings
+  obtain ⟨maj, mn, pt⟩ := server_version
+  have hs2 : ∀ x, scramble_buf = some x → into1.into x ⦃ c => c = cs ⦄ := by
+    intro x hx; rw [hs x hx]; simp
+  have e1 : (constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB).val = CLIENT_CONNECT_WITH_DB := by
+    simp [constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB, CLIENT_CONNECT_WITH_DB]
+  have e2 : (constants.CapabilityFlags.CLIENT_PLUGIN_AUTH).val = CLIENT_PLUGIN_AUTH := by
+    simp [constants.CapabilityFlags.CLIENT_PLUGIN_AUTH, CLIENT_PLUGIN_AUTH]
+  have e3 : (constants.CapabilityFlags.CLIENT_CONNECT_ATTRS).val = CLIENT_CONNECT_ATTRS := by
+    simp [constants.CapabilityFlags.CLIENT_CONNECT_ATTRS, CLIENT_CONNECT_ATTRS]
+  rcases scramble_buf with _ | x1 <;> rcases user with _ | x2 <;> rcases db_name with _ | x3 <;>
+    rcases auth_plugin with _ | ap <;> rcases connect_attributes with _ | ca <;>
+    simp only [alloc.borrow.Cow.Insts.CoreDefaultDefault.default, alloc.vec.Vec.Insts.CoreDefaultDefault.default, bind_tc_ok, core.option.Option.is_some, Option.isSome_some,
+      Option.isSome_none, Bool.false_eq_true, ↓reduceIte, misc.trusted.connect_attrs_from_strings]
+  all_goals
+    try have hs' := hs2 _ rfl
+    try have hu0 := hu _ rfl
+    try have hd0 := hd _ rfl
+    repeat' (first | step | split | (simp only [↓reduceIte, constants.MariadbCapabilities.empty, bind_ok]))
+  all_goals simp_all [HsResp.of, setFlag, atLeast553]
+  all_goals omega
+  all_goals sorry
 
 /-- `with_mariadb_ext_capabilities`: replaces MariaDB's capabilities. -/
 theorem packets.HandshakeResponse.with_mariadb_ext_capabilities_spec (self : packets.HandshakeResponse) (mariadb_ext_capabilities : constants.MariadbCapabilities) :

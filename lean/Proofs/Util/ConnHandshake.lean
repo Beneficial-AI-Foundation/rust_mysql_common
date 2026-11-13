@@ -501,4 +501,15 @@ theorem scramble_len_val (lb : U8) (i4 i5 i6 : I8) (len : Usize) (h4 : i4 = USca
   rw [h6, h5, h4']
   split_ifs <;> omega
 
+theorem setflag_spec (x bit : constants.CapabilityFlags) (c : Prop) (d : Decidable c) :
+    (@ite _ c d (constants.CapabilityFlags.insert x bit) (constants.CapabilityFlags.remove x bit))
+      ⦃ r => r.val = setFlag x.val bit.val (@decide c d) ⦄ := by
+  by_cases hc : c
+  · simp only [hc, ite_true]
+    apply WP.spec_mono (constants.CapabilityFlags.insert_spec x bit)
+    intro r hr; simp [hr, setFlag]
+  · simp only [hc, ite_false]
+    apply WP.spec_mono (constants.CapabilityFlags.remove_spec x bit)
+    intro r hr; simp [hr, setFlag]
+
 end mysql_common.ConnHSUtil
