@@ -545,3 +545,259 @@ theorem timestamp_ok (input : io.ParseBuf) (dec : U8) (hl : 4 + fracBytes dec.va
     omega
 
 end mysql_common.BinlogUtil
+
+namespace Defs
+
+theorem timeFromPacked_timePack' (neg : Bool) (d h m s us : Nat)
+    (hr : h < 24 ∧ m < 60 ∧ s < 60 ∧ d * 24 + h < 1024 ∧ us < 2 ^ 24)
+    (hz : ¬(neg = true ∧ d = 0 ∧ h = 0 ∧ m = 0 ∧ s = 0 ∧ us = 0)) :
+    timeFromPacked (timePack neg d h m s us) = .time neg d h m s us := by
+  obtain ⟨h1, h2, h3, h4, h5⟩ := hr
+  have hA : packedMake (((d * 24 + h) * 2 ^ 12 + m * 2 ^ 6 + s : Nat) : Int) (us : Int) =
+      ((((d * 24 + h) * 2 ^ 12 + m * 2 ^ 6 + s) * 2 ^ 24 + us : Nat) : Int) := by
+    unfold packedMake; push_cast; ring
+  obtain ⟨A, hAd⟩ : ∃ A, ((d * 24 + h) * 2 ^ 12 + m * 2 ^ 6 + s) * 2 ^ 24 + us = A := ⟨_, rfl⟩
+  rw [hAd] at hA
+  have key : A / 2 ^ 24 / 2 ^ 12 % 2 ^ 10 / 24 = d ∧ A / 2 ^ 24 / 2 ^ 12 % 2 ^ 10 % 24 = h ∧
+      A / 2 ^ 24 / 2 ^ 6 % 2 ^ 6 = m ∧ A / 2 ^ 24 % 2 ^ 6 = s ∧ A % 2 ^ 24 = us := by
+    subst hAd; simp only [Nat.reducePow]; omega
+  unfold timeFromPacked timePack
+  simp only [hA]
+  cases neg
+  · simp only [Bool.false_eq_true, ite_false, Int.natAbs_natCast, Val.time.injEq]
+    exact ⟨by simp, key⟩
+  · simp only [ite_true, Int.natAbs_neg, Int.natAbs_natCast, Val.time.injEq]
+    refine ⟨?_, key⟩
+    simp only [true_and] at hz
+    simp only [decide_eq_true_eq]
+    have : 0 < A := by subst hAd; simp only [Nat.reducePow]; omega
+    omega
+
+theorem datetimeFromPacked_datetimePack' (y mo d h mi s us : Nat)
+    (hr : y ≤ 9999 ∧ mo ≤ 12 ∧ d < 32 ∧ h < 24 ∧ mi < 60 ∧ s < 60 ∧ us < 2 ^ 24) :
+    datetimeFromPacked (datetimePack y mo d h mi s us) = .date y mo d h mi s us := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := hr
+  have hA : datetimePack y mo d h mi s us =
+      (((((y * 13 + mo) * 2 ^ 5 + d) * 2 ^ 17 + (h * 2 ^ 12 + mi * 2 ^ 6 + s)) * 2 ^ 24 + us : Nat) : Int) := by
+    unfold datetimePack packedMake; push_cast; ring
+  obtain ⟨A, hAd⟩ : ∃ A, (((y * 13 + mo) * 2 ^ 5 + d) * 2 ^ 17 + (h * 2 ^ 12 + mi * 2 ^ 6 + s)) * 2 ^ 24 + us = A := ⟨_, rfl⟩
+  rw [hAd] at hA
+  rw [hA]
+  unfold datetimeFromPacked
+  simp only [Int.natAbs_natCast, Val.date.injEq]
+  subst hAd; simp only [Nat.reducePow]; omega
+
+@[simp] theorem length_beBytesI' (k : Nat) (x : Int) : (beBytesI k x).length = k := by
+  simp [beBytesI]
+
+theorem beNat_beBytesI (k : Nat) (x : Int) : beNat (beBytesI k x) = (x % (2 ^ (8 * k) : Int)).toNat := by
+  simp [beNat, beBytesI, IntAndMisc.leNat_leBytesI]
+
+theorem packed_facts (p : Int) :
+    (0 ≤ p → 0 ≤ packedFracPart p ∧ packedFracPart p < 2 ^ 24 ∧ p = packedIntPart p * 2 ^ 24 + packedFracPart p) ∧
+    (p < 0 → -2 ^ 24 < packedFracPart p ∧ packedFracPart p ≤ 0 ∧
+      (packedFracPart p = 0 → p = packedIntPart p * 2 ^ 24) ∧
+      (packedFracPart p ≠ 0 → p = (packedIntPart p + 1) * 2 ^ 24 + packedFracPart p)) := by
+  unfold packedFracPart packedIntPart
+  rw [Int.fdiv_eq_ediv_of_nonneg _ (by norm_num), Int.tmod_eq_emod]
+  simp only [Int.dvd_iff_emod_eq_zero]
+  split_ifs <;> simp <;> omega
+
+theorem time2Read_time2Bin' (dec : Nat) (p : Int) (tail : List U8) (hp : -2 ^ 47 ≤ p ∧ p < 2 ^ 47)
+    (hf : packedFracPart p % (fracUnit dec : Int) = 0 ∧ (packedFracPart p).natAbs < 10 ^ 6) :
+    time2Read dec (time2Bin dec p ++ tail) = some (p, tail) := by
+  have hPF := packed_facts p
+  unfold time2Read time2Bin fracUnit fracBytes at *
+  by_cases h12 : dec = 1 ∨ dec = 2
+  · simp only [h12, ite_true] at hf ⊢
+    rw [List.append_assoc]
+    have h1 : List.take 3 (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail)) = beBytesI 3 (packedIntPart p + 8388608) := List.take_left' (by simp)
+    have h2 : List.drop 3 (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail)) = beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail := List.drop_left' (by simp)
+    have h3 : List.take 1 (beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail) = beBytesI 1 ((packedFracPart p).tdiv 10000) := List.take_left' (by simp)
+    have h4 : List.drop (3 + 1) (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail)) = tail := by
+      rw [← List.drop_drop, h2]; exact List.drop_left' (by simp)
+    simp only [h1, h2, h3, h4, beNat_beBytesI, List.length_append, length_beBytesI']
+    rw [Int.tdiv_eq_ediv_of_dvd (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf.1))]
+    have hq := Int.ediv_mul_cancel (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf.1) : (10000:Int) ∣ packedFracPart p)
+    obtain ⟨hf1, hf2⟩ := hf
+    generalize packedIntPart p = I at *
+    generalize packedFracPart p = F at *
+    unfold packedMake
+    simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*3) ≠ 0)), Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*1) ≠ 0))]
+    norm_num at hf1 ⊢
+    refine ⟨by omega, ?_⟩
+    by_cases hpn : p < 0
+    · obtain ⟨a1, a2, a3, a4⟩ := hPF.2 hpn
+      by_cases hF0 : F = 0
+      · have := a3 hF0; split_ifs <;> omega
+      · have := a4 hF0
+        have hI : (I + 8388608) / 16777216 = 0 := by omega
+        have hd : F / 10000 / 256 = -1 := by omega
+        split_ifs <;> omega
+    · obtain ⟨a1, a2, a3⟩ := hPF.1 (by omega)
+      have hI : (I + 8388608) / 16777216 = 0 := by omega
+      have hd : F / 10000 / 256 = 0 := by omega
+      split_ifs <;> omega
+  · by_cases h34 : dec = 3 ∨ dec = 4
+    · simp only [h12, h34, ite_true, ite_false] at hf ⊢
+      rw [List.append_assoc]
+      have h1 : List.take 3 (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 2 ((packedFracPart p).tdiv 100) ++ tail)) = beBytesI 3 (packedIntPart p + 8388608) := List.take_left' (by simp)
+      have h2 : List.drop 3 (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 2 ((packedFracPart p).tdiv 100) ++ tail)) = beBytesI 2 ((packedFracPart p).tdiv 100) ++ tail := List.drop_left' (by simp)
+      have h3 : List.take 2 (beBytesI 2 ((packedFracPart p).tdiv 100) ++ tail) = beBytesI 2 ((packedFracPart p).tdiv 100) := List.take_left' (by simp)
+      have h4 : List.drop (3 + 2) (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 2 ((packedFracPart p).tdiv 100) ++ tail)) = tail := by
+        rw [← List.drop_drop, h2]; exact List.drop_left' (by simp)
+      simp only [h1, h2, h3, h4, beNat_beBytesI, List.length_append, length_beBytesI']
+      rw [Int.tdiv_eq_ediv_of_dvd (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf.1))]
+      have hq := Int.ediv_mul_cancel (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf.1) : (100:Int) ∣ packedFracPart p)
+      obtain ⟨hf1, hf2⟩ := hf
+      generalize packedIntPart p = I at *
+      generalize packedFracPart p = F at *
+      unfold packedMake
+      simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*3) ≠ 0)), Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*2) ≠ 0))]
+      norm_num at hf1 ⊢
+      refine ⟨by omega, ?_⟩
+      by_cases hpn : p < 0
+      · obtain ⟨a1, a2, a3, a4⟩ := hPF.2 hpn
+        by_cases hF0 : F = 0
+        · have := a3 hF0; split_ifs <;> omega
+        · have := a4 hF0
+          have hI : (I + 8388608) / 16777216 = 0 := by omega
+          have hd : F / 100 / 65536 = -1 := by omega
+          split_ifs <;> omega
+      · obtain ⟨a1, a2, a3⟩ := hPF.1 (by omega)
+        have hI : (I + 8388608) / 16777216 = 0 := by omega
+        have hd : F / 100 / 65536 = 0 := by omega
+        split_ifs <;> omega
+    · by_cases h56 : dec = 5 ∨ dec = 6
+      · simp only [h12, h34, h56, ite_true, ite_false] at hf ⊢
+        have h4 : List.take 6 (beBytesI 6 (p + 140737488355328) ++ tail) = beBytesI 6 (p + 140737488355328) := List.take_left' (by simp)
+        have h5 : List.drop (3 + 3) (beBytesI 6 (p + 140737488355328) ++ tail) = tail := List.drop_left' (by simp)
+        simp only [h4, h5, beNat_beBytesI, List.length_append, length_beBytesI']
+        simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*6) ≠ 0))]
+        norm_num
+        omega
+      · simp only [h12, h34, h56, ite_true, ite_false] at hf ⊢
+        have h4 : List.take 3 (beBytesI 3 (packedIntPart p + 8388608) ++ tail) = beBytesI 3 (packedIntPart p + 8388608) := List.take_left' (by simp)
+        have h5 : List.drop (3 + 0) (beBytesI 3 (packedIntPart p + 8388608) ++ tail) = tail := List.drop_left' (by simp)
+        simp only [h4, h5, beNat_beBytesI, List.length_append, length_beBytesI']
+        obtain ⟨hf1, hf2⟩ := hf
+        generalize packedIntPart p = I at *
+        generalize packedFracPart p = F at *
+        unfold packedMake
+        simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*3) ≠ 0))]
+        norm_num at hf1 ⊢
+        have hF : F = 0 := by omega
+        by_cases hpn : p < 0
+        · obtain ⟨a1, a2, a3, a4⟩ := hPF.2 hpn
+          have := a3 hF
+          have hI : (I + 8388608) / 16777216 = 0 := by omega
+          omega
+        · obtain ⟨a1, a2, a3⟩ := hPF.1 (by omega)
+          have hI : (I + 8388608) / 16777216 = 0 := by omega
+          omega
+
+theorem length_temporalFracBin (dec : Nat) (f : Int) : (temporalFracBin dec f).length = fracBytes dec := by
+  unfold temporalFracBin fracBytes; split_ifs <;> simp
+
+theorem temporalFracRead_temporalFracBin (dec : Nat) (f : Int)
+    (hf : f % (fracUnit dec : Int) = 0 ∧ f.natAbs < 10 ^ 6) :
+    temporalFracRead dec (temporalFracBin dec f) = f := by
+  obtain ⟨hf1, hf2⟩ := hf
+  unfold temporalFracRead temporalFracBin fracUnit at *
+  by_cases h12 : dec = 1 ∨ dec = 2
+  · simp only [h12, ite_true] at hf1 ⊢
+    rw [Int.tdiv_eq_ediv_of_dvd (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf1)), beNat_beBytesI, toSigned]
+    simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*1) ≠ 0))]
+    norm_num at hf1 ⊢
+    split_ifs <;> omega
+  · by_cases h34 : dec = 3 ∨ dec = 4
+    · simp only [h12, h34, ite_true, ite_false] at hf1 ⊢
+      rw [Int.tdiv_eq_ediv_of_dvd (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf1)), beNat_beBytesI, toSigned]
+      simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*2) ≠ 0))]
+      norm_num at hf1 ⊢
+      split_ifs <;> omega
+    · by_cases h56 : dec = 5 ∨ dec = 6
+      · simp only [h12, h34, h56, ite_true, ite_false] at hf1 ⊢
+        rw [beNat_beBytesI, toSigned]
+        simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*3) ≠ 0))]
+        norm_num
+        split_ifs <;> omega
+      · simp only [h12, h34, h56, ite_false] at hf1 ⊢
+        norm_num at hf1
+        omega
+
+theorem datetime2Read_datetime2Bin' (dec : Nat) (p : Int) (tail : List U8) (hp : 0 ≤ p ∧ p < 2 ^ 63)
+    (hf : packedFracPart p % (fracUnit dec : Int) = 0 ∧ packedFracPart p < 10 ^ 6) :
+    datetime2Read dec (datetime2Bin dec p ++ tail) = some (p, tail) := by
+  have hPF := (packed_facts p).1 hp.1
+  have hfr := temporalFracRead_temporalFracBin dec (packedFracPart p) ⟨hf.1, by omega⟩
+  have hlf := length_temporalFracBin dec (packedFracPart p)
+  unfold datetime2Read datetime2Bin
+  rw [List.append_assoc]
+  have h1 : List.take 5 (beBytesI 5 (packedIntPart p + 549755813888) ++ (temporalFracBin dec (packedFracPart p) ++ tail)) = beBytesI 5 (packedIntPart p + 549755813888) := List.take_left' (by simp)
+  have h2 : List.drop 5 (beBytesI 5 (packedIntPart p + 549755813888) ++ (temporalFracBin dec (packedFracPart p) ++ tail)) = temporalFracBin dec (packedFracPart p) ++ tail := List.drop_left' (by simp)
+  have h3 : List.take (fracBytes dec) (temporalFracBin dec (packedFracPart p) ++ tail) = temporalFracBin dec (packedFracPart p) := List.take_left' hlf
+  have h4 : List.drop (5 + fracBytes dec) (beBytesI 5 (packedIntPart p + 549755813888) ++ (temporalFracBin dec (packedFracPart p) ++ tail)) = tail := by
+    rw [← List.drop_drop, h2]; exact List.drop_left' hlf
+  simp only [h1, h2, h3, h4, hfr, beNat_beBytesI, List.length_append, length_beBytesI', hlf]
+  generalize packedIntPart p = I at *
+  generalize packedFracPart p = F at *
+  unfold packedMake
+  simp only [Int.toNat_of_nonneg (Int.emod_nonneg _ (by norm_num : (2:Int)^(8*5) ≠ 0))]
+  norm_num
+  have hI : (I + 549755813888) / 1099511627776 = 0 := by omega
+  omega
+
+theorem timestamp2Read_timestamp2Bin' (dec sec usec : Nat) (tail : List U8) (hs : sec < 2 ^ 31)
+    (hu : usec < 10 ^ 6 ∧ usec % fracUnit dec = 0) :
+    timestamp2Read dec (timestamp2Bin dec sec usec ++ tail) = some (((sec : Int), (usec : Int)), tail) := by
+  have hfr := temporalFracRead_temporalFracBin dec (usec : Int) ⟨by exact_mod_cast hu.2, by omega⟩
+  have hlf := length_temporalFracBin dec (usec : Int)
+  have hlb : (beBytes 4 sec).length = 4 := by simp [beBytes, PBUtil.length_leBytes]
+  unfold timestamp2Read timestamp2Bin
+  rw [List.append_assoc]
+  have h1 : List.take 4 (beBytes 4 sec ++ (temporalFracBin dec usec ++ tail)) = beBytes 4 sec := List.take_left' hlb
+  have h2 : List.drop 4 (beBytes 4 sec ++ (temporalFracBin dec usec ++ tail)) = temporalFracBin dec usec ++ tail := List.drop_left' hlb
+  have h3 : List.take (fracBytes dec) (temporalFracBin dec usec ++ tail) = temporalFracBin dec usec := List.take_left' hlf
+  have h4 : List.drop (4 + fracBytes dec) (beBytes 4 sec ++ (temporalFracBin dec usec ++ tail)) = tail := by
+    rw [← List.drop_drop, h2]; exact List.drop_left' hlf
+  have hb : beNat (beBytes 4 sec) = sec := by
+    simp only [beNat, beBytes, List.reverse_reverse, PBUtil.leNat_leBytes]; omega
+  simp only [h1, h2, h3, h4, hfr, hb, List.length_append, hlb, hlf, toSigned]
+  norm_num
+  omega
+
+theorem time2NegFracBug_time2Bin' (dec : Nat) (p : Int) (tail : List U8) (hd : dec = 1 ∨ dec = 2)
+    (hp : -2 ^ 47 ≤ p ∧ p < 2 ^ 47)
+    (hf : packedFracPart p % (fracUnit dec : Int) = 0 ∧ (packedFracPart p).natAbs < 10 ^ 6) :
+    time2NegFracBug dec (time2Bin dec p ++ tail) ↔ p < 0 ∧ packedFracPart p ≠ 0 := by
+  have hPF := packed_facts p
+  unfold time2NegFracBug time2Bin fracUnit at *
+  simp only [hd, ite_true, true_and] at hf ⊢
+  rw [List.append_assoc]
+  have h1 : List.take 3 (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail)) = beBytesI 3 (packedIntPart p + 8388608) := List.take_left' (by simp)
+  have h2 : List.drop 3 (beBytesI 3 (packedIntPart p + 8388608) ++ (beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail)) = beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail := List.drop_left' (by simp)
+  have h3 : List.take 1 (beBytesI 1 ((packedFracPart p).tdiv 10000) ++ tail) = beBytesI 1 ((packedFracPart p).tdiv 10000) := List.take_left' (by simp)
+  simp only [h1, h2, h3, beNat_beBytesI, List.length_append, length_beBytesI']
+  rw [Int.tdiv_eq_ediv_of_dvd (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf.1))]
+  have hq := Int.ediv_mul_cancel (Int.dvd_of_emod_eq_zero (by exact_mod_cast hf.1) : (10000:Int) ∣ packedFracPart p)
+  obtain ⟨hf1, hf2⟩ := hf
+  generalize packedIntPart p = I at *
+  generalize packedFracPart p = F at *
+  norm_num at hf1 ⊢
+  by_cases hpn : p < 0
+  · obtain ⟨a1, a2, a3, a4⟩ := hPF.2 hpn
+    by_cases hF0 : F = 0
+    · have := a3 hF0
+      have hI : (I + 8388608) / 16777216 = 0 := by omega
+      omega
+    · have := a4 hF0
+      have hI : (I + 8388608) / 16777216 = 0 := by omega
+      have hd : F / 10000 / 256 = -1 := by omega
+      omega
+  · obtain ⟨a1, a2, a3⟩ := hPF.1 (by omega)
+    have hI : (I + 8388608) / 16777216 = 0 := by omega
+    have hd : F / 10000 / 256 = 0 := by omega
+    omega
+
+end Defs
