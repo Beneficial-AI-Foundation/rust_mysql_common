@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.BinlogValue
+import Proofs.Util.BinlogDeser
 
 /-! Statements for `enum BinlogValue and its impls` (spec file: `Specs/Binlog/Value.lean`). -/
 
@@ -30,15 +31,15 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
     (v : Val) (rest' : List U8) (hr : binlogRead ct md.val uns buf.val = .ok v rest')
     (hb : ¬ binlogBug ct md.val uns buf.val) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest =>
-      (okPart r).map binlogValView = some (some v) ∧ rest.val = rest' ⦄ := by
-  sorry
+      (okPart r).map binlogValView = some (some v) ∧ rest.val = rest' ⦄ := 
+  BinlogUtil.deser_ok h64 ct md uns part buf v rest' hr hb
 
 /-- `deserialize`: when `binlogRead` gives an error, the crate returns an error and leaves the same rest. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_err (h64 : Target64)
     (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
     (rest' : List U8) (hr : binlogRead ct md.val uns buf.val = .err rest') :
-    binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest => okPart r = none ∧ rest.val = rest' ⦄ := by
-  sorry
+    binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest => okPart r = none ∧ rest.val = rest' ⦄ := 
+  BinlogUtil.deser_err h64 ct md uns part buf rest' hr
 
 /-- **Crash paths.** `deserialize` panics when `binlogRead` says so: metadata too short for the column type (index out of bounds), and the invalid DATETIME2 integer part 0 with a non-positive fraction (`i64` overflow). -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_panics
@@ -111,8 +112,8 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
     (v : Val) (bs tail : List U8) (he : binlogEnc ct md.val uns v = some bs)
     (hb : ¬ binlogEncBug ct md.val uns v) (h : buf.val = bs ++ tail) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest =>
-      (okPart r).map binlogValView = some (some v) ∧ rest.val = tail ⦄ := by
-  sorry
+      (okPart r).map binlogValView = some (some v) ∧ rest.val = tail ⦄ := 
+  BinlogUtil.deser_roundtrip h64 ct md uns part buf v bs tail he hb h
 
 /-- **Bug** (signed MEDIUMINT, `value.rs:96`). A signed INT24 is the 3 bytes zero-extended (`RawInt<LeI24>` does not sign-extend), where MySQL (`sint3korr`) sign-extends: a negative value comes back as itself plus `2^24`. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_int24_signed (h64 : Target64)

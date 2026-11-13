@@ -830,4 +830,66 @@ theorem deser_rel (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (
     · have := deser_MYSQL_TYPE_TYPED_ARRAY md uns part buf b l hmd (by rw [hmd] at hT; exact hT)
       rw [hmd] at this; exact this
 
+theorem ne_ta_nil_of_not_panic (ct : constants.ColumnType) (md : List U8) (uns : Bool) (bs : List U8)
+    (h : ∀ e, binlogRead ct md uns bs ≠ .panic e) : ¬(ct = MYSQL_TYPE_TYPED_ARRAY ∧ md = []) := by
+  rintro ⟨rfl, rfl⟩; exact h .arrayOutOfBounds rfl
+
+theorem deser_ok (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (v : Val) (rest' : List U8) (hr : binlogRead ct md.val uns buf.val = .ok v rest')
+    (hb : ¬ binlogBug ct md.val uns buf.val) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest => (okPart r).map binlogValView = some (some v) ∧ rest.val = rest' ⦄ := by
+  have hp : ∀ e, binlogRead ct md.val uns buf.val ≠ .panic e := by intro e; rw [hr]; simp
+  apply WP.spec_mono (deser_rel h64 ct md uns part buf (ne_ta_nil_of_not_panic _ _ _ _ hp) hb hp (by rw [hr]; simp))
+  rintro ⟨r, rest⟩ h
+  rw [hr] at h; exact h
+
+theorem bug_not_err (ct : constants.ColumnType) (md : List U8) (uns : Bool) (bs rest' : List U8)
+    (hr : binlogRead ct md uns bs = .err rest') : ¬ binlogBug ct md uns bs := by
+  intro hb
+  by_cases hne : ct = MYSQL_TYPE_TYPED_ARRAY ∧ md = []
+  · obtain ⟨rfl, rfl⟩ := hne; simp [binlogBug, binlogEffType] at hb
+  rw [binlogRead_eff _ _ _ _ hne] at hr
+  unfold binlogBug at hb
+  generalize binlogEffType ct md = t at *
+  cases t <;> simp only at hb
+  case MYSQL_TYPE_INT24 =>
+    obtain ⟨-, h3, -⟩ := hb
+    simp [binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, h3] at hr
+  case MYSQL_TYPE_TIME =>
+    obtain ⟨h3, -⟩ := hb
+    simp [binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, h3] at hr
+  case MYSQL_TYPE_YEAR =>
+    rcases h : bs with _ | ⟨c, l⟩
+    · simp [h] at hb
+    · simp [h, binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE] at hr
+  case MYSQL_TYPE_TIME2 =>
+    obtain ⟨hd, h4, -⟩ := hb
+    have hfb : fracBytes (md.getD 0 (byte 0)).val = 1 := by unfold fracBytes; rw [if_pos hd]
+    have : time2Read ((md.getD 0 (byte 0)).val) bs ≠ none := by
+      unfold time2Read; rw [if_neg (by rw [hfb]; omega)]; simp
+    unfold binlogRead at hr
+    simp only [binlogEffType, binlogMetaLen] at hr
+    by_cases hml : md.length < 1
+    · simp only [hml, ite_true] at hr; simp at hr
+    · simp only [hml, ite_false] at hr
+      revert hr this; cases time2Read ((md.getD 0 (byte 0)).val) bs <;> simp
+
+theorem deser_err (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (rest' : List U8) (hr : binlogRead ct md.val uns buf.val = .err rest') :
+    BVdes (ct, md, uns, part) buf ⦃ r rest => okPart r = none ∧ rest.val = rest' ⦄ := by
+  have hp : ∀ e, binlogRead ct md.val uns buf.val ≠ .panic e := by intro e; rw [hr]; simp
+  apply WP.spec_mono (deser_rel h64 ct md uns part buf (ne_ta_nil_of_not_panic _ _ _ _ hp)
+    (bug_not_err _ _ _ _ _ hr) hp (by rw [hr]; simp))
+  rintro ⟨r, rest⟩ h
+  rw [hr] at h; exact h
+
+theorem deser_roundtrip (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (v : Val) (bs tail : List U8) (he : binlogEnc ct md.val uns v = some bs)
+    (hb : ¬ binlogEncBug ct md.val uns v) (h : buf.val = bs ++ tail) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest => (okPart r).map binlogValView = some (some v) ∧ rest.val = tail ⦄ := by
+  have hr := binlogRead_binlogEnc' ct md.val uns v bs tail he
+  have hnb := not_binlogBug_of_binlogEnc' ct md.val uns v bs tail he hb
+  rw [← h] at hr hnb
+  exact deser_ok h64 ct md uns part buf v tail hr hnb
+
 end mysql_common.BinlogUtil
