@@ -814,9 +814,28 @@ theorem parse_u32bytes_spec (buf : io.ParseBuf) :
     (fun o rest => (o, rest.val) = checkedLenPrefixed 4 buf.val)
     (misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
 
+theorem branch_ok_eq {T E : Type} (v : T) :
+    CoreOpsTry.branch (core.result.Result.Ok v : core.result.Result T E) =
+      ok (core.ops.control_flow.ControlFlow.Continue v) := rfl
+
+theorem branch_err_eq {T E : Type} (e : E) :
+    CoreOpsTry.branch (core.result.Result.Err e : core.result.Result T E) =
+      ok (core.ops.control_flow.ControlFlow.Break (core.result.Result.Err e)) := rfl
+
+theorem from_residual_eq {T E : Type} (e : E) :
+    CoreOpsTry_traitFromResidualResult.from_residual T (core.convert.FromSame E)
+      (core.result.Result.Err e : core.result.Result Never E) = ok (core.result.Result.Err e) := by
+  simp [CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+
 end GtidUtil
 
 open GtidUtil
+
+/-- `?` on an `Ok`: continue with the value. -/
+local macro "gtid_ok_br" : tactic => `(tactic| (rw [branch_ok_eq]; apply spec_bind_ok; dsimp only))
+/-- `?` on an `Err`: return it. -/
+local macro "gtid_err_br" : tactic =>
+  `(tactic| (rw [branch_err_eq]; apply spec_bind_ok; dsimp only; rw [from_residual_eq]; apply spec_bind_ok; apply (WP.spec_ok _).mpr))
 
 /-- `ComBinlogDumpGtid::new(server_id)`: no flags, the server id, an empty file name, position
     0, no SIDs. -/
@@ -1048,6 +1067,137 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
     (h : gtidDumpRead buf.val = .done r0 rest0) :
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (okPart r).map GtidDump.of = r0 ∧ rest.val = rest0 ⦄ := by
+  unfold packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  unfold gtidDumpRead at h
+  step with parse_usize_spec as ⟨r, buf1, h1⟩
+  split_ifs at h1 with hl
+  swap
+  · obtain ⟨h1a, h1b⟩ := h1
+    have hc : buf.val.length < 7 := by simp only [Slice.length] at hl; omega
+    simp only [hc, ↓reduceIte, ReadOut.done.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    rw [h1b]
+    cases r with
+    | Ok _ => simp at h1a
+    | Err e =>
+      rw [branch_err_eq]
+      apply spec_bind_ok
+      dsimp only
+      rw [from_residual_eq]
+      apply spec_bind_ok
+      exact (WP.spec_ok _).mpr ⟨by simp [okPart], rfl⟩
+  obtain ⟨h1a, h1b⟩ := h1
+  have hl' : 7 ≤ buf.val.length := hl
+  simp only [show ¬ buf.val.length < 7 by omega, ↓reduceIte] at h
+  cases r with
+  | Err e => simp at h1a
+  | Ok pb =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h1a
+  rw [show CoreOpsTry.branch (core.result.Result.Ok pb : core.result.Result io.ParseBuf core.io.error.Error) =
+    ok (core.ops.control_flow.ControlFlow.Continue pb) from rfl]
+  apply spec_bind_ok
+  obtain ⟨a0, a1, a2, a3, a4, a5, a6, rest, hbuf⟩ :
+      ∃ a0 a1 a2 a3 a4 a5 a6 rest, (↑buf : List U8) = a0 :: a1 :: a2 :: a3 :: a4 :: a5 :: a6 :: rest := by
+    match hb : (↑buf : List U8), hl' with
+    | a0 :: a1 :: a2 :: a3 :: a4 :: a5 :: a6 :: rest, _ => exact ⟨a0, a1, a2, a3, a4, a5, a6, rest, rfl⟩
+  rw [hbuf] at h1a h1b h
+  simp only [List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero, List.getD_cons_zero] at h1a h1b h
+  step with parse_unchecked_hdr_spec as ⟨r1, sbuf, h2a, h2b⟩
+  rw [h1a] at h2a h2b
+  simp only [List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero, leNat] at h2a h2b
+  cases r1 with
+  | Err e =>
+    have ha : ¬ (a0.val = 30) := by intro hh; simp [okPart, hh] at h2a
+    simp only [ha, ne_eq, not_false_eq_true, true_or, ↓reduceIte, ReadOut.done.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    gtid_err_br
+    exact ⟨by simp [okPart], h1b⟩
+  | Ok hd =>
+  have ha : a0.val = 30 := by simpa [okPart] using h2a
+  gtid_ok_br
+  step with parse_unchecked_flags_spec as ⟨r2, sbuf2, h3a, h3b⟩
+  simp only [h2b, List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero] at h3a h3b
+  cases r2 with
+  | Err e =>
+    have hf : leNat [a1, a2] &&& binlogDumpFlagsAll ≠ leNat [a1, a2] := by
+      intro hh; simp [hh, okPart] at h3a
+    simp only [hf, ne_eq, not_false_eq_true, or_true, ↓reduceIte, ReadOut.done.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    gtid_err_br
+    exact ⟨by simp [okPart], h1b⟩
+  | Ok flv =>
+  have hf : leNat [a1, a2] &&& binlogDumpFlagsAll = leNat [a1, a2] := by
+    by_contra hh; simp [hh, okPart] at h3a
+  simp only [hf, ↓reduceIte, okPart, Option.map_some, Option.some.injEq] at h3a
+  simp only [ha, hf, ne_eq, not_true_eq_false, or_self, ↓reduceIte] at h
+  gtid_ok_br
+  step with parse_unchecked_leu32_spec as ⟨r3, sbuf3, h4a, h4b⟩
+  · simp [Slice.length, h3b]
+  cases r3 with
+  | Err e => simp [okPart] at h4a
+  | Ok sidv =>
+  simp only [h3b, List.take_succ_cons, List.take_zero, okPart, Option.map_some, Option.some.injEq] at h4a
+  gtid_ok_br
+  step with parse_u32bytes_spec as ⟨r4, buf2, h5⟩
+  rw [h1b] at h5
+  rcases hc : checkedLenPrefixed 4 rest with ⟨_ | fname, r⟩
+  · rw [hc] at h5 h
+    simp only [ReadOut.done.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [Prod.mk.injEq] at h5
+    cases r4 with
+    | Ok _ => simp [okPart] at h5
+    | Err e =>
+      gtid_err_br
+      exact ⟨by simp [okPart], h5.2⟩
+  rw [hc] at h5 h
+  simp only [Prod.mk.injEq] at h5 h
+  cases r4 with
+  | Err e => simp [okPart] at h5
+  | Ok rb =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h5
+  obtain ⟨hrb, hb2⟩ := h5
+  gtid_ok_br
+  step with misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec as ⟨r5, buf3, h6⟩
+  simp only [Slice.length, hb2] at h6
+  by_cases h8 : 8 ≤ r.length
+  swap
+  · simp only [readLE, h8, ↓reduceIte, ReadOut.done.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [h8, ↓reduceIte] at h6
+    cases r5 with
+    | Ok _ => simp [okPart] at h6
+    | Err e =>
+      gtid_err_br
+      exact ⟨by simp [okPart], by rw [h6.2, hb2]⟩
+  simp only [readLE, h8, ↓reduceIte] at h
+  simp only [h8, ↓reduceIte] at h6
+  cases r5 with
+  | Err e => simp [okPart] at h6
+  | Ok posv =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h6
+  obtain ⟨hpos, hb3⟩ := h6
+  gtid_ok_br
+  step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec as ⟨r6, buf4, h7⟩
+  simp only [Slice.length, hb3] at h7
+  by_cases h4 : 4 ≤ (r.drop 8).length
+  swap
+  · simp only [h4, ↓reduceIte, ReadOut.done.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [h4, ↓reduceIte] at h7
+    cases r6 with
+    | Ok _ => simp [okPart] at h7
+    | Err e =>
+      gtid_err_br
+      exact ⟨by simp [okPart], by rw [h7.2, hb3]⟩
+  simp only [h4, ↓reduceIte] at h
+  simp only [h4, ↓reduceIte] at h7
+  cases r6 with
+  | Err e => simp [okPart] at h7
+  | Ok lenv =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h7
+  obtain ⟨hlen, hb4⟩ := h7
+  gtid_ok_br
   sorry
 
 /-- **Crash path.** `MyDeserialize for ComBinlogDumpGtid` panics where `gtidDumpRead` does: a SID
