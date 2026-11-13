@@ -753,4 +753,81 @@ theorem deser_MYSQL_TYPE_TIME2 (h64 : Target64) (md : Slice U8) (uns part : Bool
       step with mysql_common.binlog.misc.time_from_packed_spec pk (by omega) as ⟨v, hv⟩
       simp only [binRel, okPart, Option.map, binlogValView, hv, h1, h2, and_true]
 
+theorem deser_MYSQL_TYPE_TYPED_ARRAY (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf) (b : U8) (l : List U8)
+    (hm : md.val = b :: l) (hcode : (columnTypeOfCode b.val).getD MYSQL_TYPE_TYPED_ARRAY = MYSQL_TYPE_TYPED_ARRAY) :
+    BVdes (MYSQL_TYPE_TYPED_ARRAY, md, uns, part) buf ⦃ r rest => binRel (binlogRead MYSQL_TYPE_TYPED_ARRAY md.val uns buf.val) r rest ⦄ := by
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  simp only [Std.uncurry_apply_pair, ct_eq_ta_true, Std.bind_ok, ite_true, index0 md b l hm,
+    mysql_common.constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec]
+  have hbr : binlogRead MYSQL_TYPE_TYPED_ARRAY md.val uns buf.val = .err buf.val := by
+    rw [hm]; unfold binlogRead; simp only [binlogEffType]; rw [← hm, hcode]; simp [binlogMetaLen]
+  rw [hbr]
+  rcases h : columnTypeOfCode b.val with _ | x
+  · simp only [Std.bind_ok, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TYPED_ARRAY MYSQL_TYPE_STRING = ok false from rfl,
+      Bool.false_eq_true, ite_false]
+    step with IntAndMisc.io_error_msg_spec as ⟨e⟩
+    simp [binRel, okPart]
+  · rw [h] at hcode; simp only [Option.getD_some] at hcode; subst hcode
+    simp only [Std.bind_ok, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TYPED_ARRAY MYSQL_TYPE_STRING = ok false from rfl,
+      Bool.false_eq_true, ite_false]
+    step with IntAndMisc.io_error_msg_spec as ⟨e⟩
+    simp [binRel, okPart]
+
+theorem deser_rel (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hne : ¬(ct = MYSQL_TYPE_TYPED_ARRAY ∧ md.val = []))
+    (hb : ¬ binlogBug ct md.val uns buf.val) (hp : ∀ e, binlogRead ct md.val uns buf.val ≠ .panic e)
+    (hno : binlogRead ct md.val uns buf.val ≠ .opaque) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest => binRel (binlogRead ct md.val uns buf.val) r rest ⦄ := by
+  have hmeta := meta_of_nopanic ct md.val uns buf.val hne hp
+  rw [binlogRead_eff _ _ _ _ hne] at hp hno ⊢
+  rw [deser_eff ct md uns part buf hne]
+  rw [binlogBug_eff] at hb
+  generalize hT : binlogEffType ct md.val = t at *
+  cases t
+  case MYSQL_TYPE_DECIMAL => exact deser_MYSQL_TYPE_DECIMAL h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_NULL => exact deser_MYSQL_TYPE_NULL h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_DATE => exact deser_MYSQL_TYPE_DATE h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_UNKNOWN => exact deser_MYSQL_TYPE_UNKNOWN h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_TINY => exact deser_MYSQL_TYPE_TINY h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_SHORT => exact deser_MYSQL_TYPE_SHORT h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_LONG => exact deser_MYSQL_TYPE_LONG h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_LONGLONG => exact deser_MYSQL_TYPE_LONGLONG h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_FLOAT => exact deser_MYSQL_TYPE_FLOAT h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_DOUBLE => exact deser_MYSQL_TYPE_DOUBLE h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_TIMESTAMP => exact deser_MYSQL_TYPE_TIMESTAMP h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_INT24 => exact deser_MYSQL_TYPE_INT24 h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_TIME => exact deser_MYSQL_TYPE_TIME h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_DATETIME => exact deser_MYSQL_TYPE_DATETIME h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_YEAR => exact deser_MYSQL_TYPE_YEAR h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_NEWDATE => exact deser_MYSQL_TYPE_NEWDATE h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_BIT => exact deser_MYSQL_TYPE_BIT h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_TINY_BLOB => exact deser_MYSQL_TYPE_TINY_BLOB h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_MEDIUM_BLOB => exact deser_MYSQL_TYPE_MEDIUM_BLOB h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_LONG_BLOB => exact deser_MYSQL_TYPE_LONG_BLOB h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_BLOB => exact deser_MYSQL_TYPE_BLOB h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_GEOMETRY => exact deser_MYSQL_TYPE_GEOMETRY h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_VECTOR => exact deser_MYSQL_TYPE_VECTOR h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_SET => exact deser_MYSQL_TYPE_SET h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_ENUM => exact deser_MYSQL_TYPE_ENUM h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_VARCHAR => exact deser_MYSQL_TYPE_VARCHAR h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_VAR_STRING => exact deser_MYSQL_TYPE_VAR_STRING h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_STRING => exact deser_MYSQL_TYPE_STRING h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_TIME2 => exact deser_MYSQL_TYPE_TIME2 h64 md uns part buf hmeta hb
+  case MYSQL_TYPE_TIMESTAMP2 => exact deser_MYSQL_TYPE_TIMESTAMP2 h64 md uns part buf hmeta hno
+  case MYSQL_TYPE_DATETIME2 => exact deser_MYSQL_TYPE_DATETIME2 h64 md uns part buf hmeta hp
+  case MYSQL_TYPE_JSON =>
+    exfalso; apply hno; simp [binlogRead, binlogEffType, binlogMetaLen]
+  case MYSQL_TYPE_NEWDECIMAL =>
+    exfalso; apply hno
+    have : ¬ md.val.length < 2 := by simp [binlogMetaLen] at hmeta; omega
+    simp only [binlogRead, binlogEffType, binlogMetaLen, this, ite_false]
+  case MYSQL_TYPE_TYPED_ARRAY =>
+    have hc : ct = MYSQL_TYPE_TYPED_ARRAY := by
+      by_contra hc; rw [effType_ne ct md.val hc] at hT; exact hc hT
+    subst hc
+    rcases hmd : md.val with _ | ⟨b, l⟩
+    · exact absurd ⟨rfl, hmd⟩ hne
+    · have := deser_MYSQL_TYPE_TYPED_ARRAY md uns part buf b l hmd (by rw [hmd] at hT; exact hT)
+      rw [hmd] at this; exact this
+
 end mysql_common.BinlogUtil
