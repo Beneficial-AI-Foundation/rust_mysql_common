@@ -8,7 +8,10 @@ import Proofs.Defs.LemmasStmtSession
     `COM_BINLOG_DUMP_GTID`); the crate's tagged `n_sids` word is recognised by its reader; the
     bulk builder's bookkeeping keeps requests within the packet limit; and concrete examples of
     the bulk-execute bugs and quirks (types read from 3 bytes, only the first row read, type
-    merging). Proofs: `Proofs/Defs/LemmasStmtSession.lean`.
+    merging). Totality: the bulk and untagged SID readers never give `unknown`, the GTID reader
+    only through a tagged SID with a 1–32-byte valid UTF-8 tag. Proofs:
+    `Proofs/Defs/LemmasStmtSession.lean` (the totality lemmas and `bulkNew_indicators` are
+    proved; the rest are `sorry`).
 
     **Trusted axioms:** none.
 -/
@@ -115,5 +118,83 @@ recall nSidsHeader_tagged (n : Nat) (hn : n < 2 ^ 48) :
     (leNat (nSidsHeader true n) / 2 ^ 8) % 2 ^ 48 = n
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.nSidsHeader_tagged`
+
+/-- Totality of the bulk value reader: it returns or panics, never `unknown`. -/
+recall bulkValueRead_ne_unknown (ct : constants.ColumnType) (u : Bool) (bs : List U8) :
+    bulkValueRead ct u bs ≠ .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.bulkValueRead_ne_unknown`
+
+/-- Totality of the bulk row reader: it returns or panics, never `unknown`. -/
+recall bulkValuesRead_ne_unknown (ps : List (constants.ColumnType × Bool)) (bs : List U8) :
+    bulkValuesRead ps bs ≠ .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.bulkValuesRead_ne_unknown`
+
+/-- Totality of the bulk request reader: it returns or panics, never `unknown` (so `deserialize_spec` and `deserialize_panics` of `ComStmtBulkExecuteRequest` cover every input). -/
+recall bulkReqRead_ne_unknown (ps : List (constants.ColumnType × Bool)) (bs : List U8) :
+    bulkReqRead ps bs ≠ .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.bulkReqRead_ne_unknown`
+
+/-- The interval reader returns or panics, never `unknown`. -/
+recall intervalsRead_ne_unknown (bs : List U8) : intervalsRead bs ≠ .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.intervalsRead_ne_unknown`
+
+/-- Totality of the untagged SID reader: it returns or panics, never `unknown`. -/
+recall sidRead_ne_unknown (bs : List U8) : sidRead bs ≠ .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidRead_ne_unknown`
+
+/-- Untagged SIDs are read totally: returned or panicked, never `unknown`. -/
+recall sidsRead_untagged_ne_unknown (n : Nat) (bs : List U8) : sidsRead false n bs ≠ .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidsRead_untagged_ne_unknown`
+
+/-- The tagged SID reader is `unknown` exactly for a SID with a tag of 1 to 32 bytes that is present and valid UTF-8 (where `Tag::new` would check its characters). -/
+recall sidTaggedRead_unknown_iff (bs : List U8) :
+    sidTaggedRead bs = .unknown ↔
+      16 ≤ bs.length ∧ ∃ tl r, varlenUintDecode (bs.drop 16) = some (tl, r) ∧ 0 < tl ∧ tl ≤ 32 ∧
+        tl ≤ r.length ∧ (Trusted.bytesOf (r.take tl)).IsValidUTF8
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidTaggedRead_unknown_iff`
+
+/-- Untagged SID lists are read totally, and a tagged one is `unknown` only through a SID whose
+    reading is `unknown` (`sidTaggedRead_unknown_iff`), read from a suffix of the input. -/
+recall sidsRead_unknown (tagged : Bool) (n : Nat) (bs : List U8)
+    (h : sidsRead tagged n bs = .unknown) :
+    tagged = true ∧ ∃ bs', bs' <:+ bs ∧ sidTaggedRead bs' = .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidsRead_unknown`
+
+/-- `gtidDumpRead` is `unknown` only through a tagged SID, inside the input, whose tag has 1 to
+    32 bytes and is valid UTF-8 (`sidTaggedRead_unknown_iff`); every other input is returned or
+    panics. -/
+recall gtidDumpRead_unknown (bs : List U8) (h : gtidDumpRead bs = .unknown) :
+    ∃ bs', bs' <:+: bs ∧ sidTaggedRead bs' = .unknown
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.gtidDumpRead_unknown`
+
+/-- The values of a request made by `ComStmtBulkExecuteRequest::new` carry the indicators the
+    protocol defines: `NULL` (1) exactly for `NULL`, else `NONE` (0). -/
+recall bulkNew_indicators (stmtId flags : Nat) (rows : List (List Val)) :
+    ∀ iv ∈ (bulkNew stmtId flags rows).values, (iv.1 = 0 ∨ iv.1 = 1) ∧ (iv.1 = 1 ↔ iv.2 = .null)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.bulkNew_indicators`
+
+/-- The one case the bulk request reader reads correctly: without `SEND_TYPES_TO_SERVER`, a
+    single row of values whose types the reader is given (each value `NULL` or compatible with
+    its parameter's column type), is read back, up to the binary decoder's normalisation
+    `binNorm`. -/
+recall bulkReqRead_one_row (sid f : Nat) (hsid : sid < 2 ^ 32) (hf : f = 0 ∨ f = SEND_UNIT_RESULTS)
+    (ps : List (constants.ColumnType × Bool)) (row : List value.Value) (hlen : ps.length = row.length)
+    (hc : ∀ p ∈ ps.zip row, Val.ofValue p.2 = .null ∨ binCompatible (Val.ofValue p.2) p.1.1)
+    (tail : List U8) :
+    bulkReqRead ps (bulkReqEnc ⟨sid, f, [], row.map (fun v => (bulkInd (Val.ofValue v), Val.ofValue v))⟩ ++ tail) =
+      .done (some ⟨sid, f, [], (ps.zip row).map (fun p =>
+        (bulkInd (Val.ofValue p.2), binNorm p.1.2 (Val.ofValue p.2)))⟩) tail
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.bulkReqRead_one_row`
 
 end Defs

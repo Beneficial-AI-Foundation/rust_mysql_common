@@ -41,11 +41,16 @@ import Proofs.Packets.SemiSyncAckPacket
     and of counts cast `u64 as usize` take `Target64`.
 
     **Allocation caveat.** "Does not panic" assumes allocation succeeds (Aeneas' model).
-    Two readers allocate from a count in the input before reading the items, which the model
-    treats as free: `Seq<GnoInterval, LeU64>` (in `Sid`), see `Sid::deserialize_overflow`, and
-    **`ComBinlogDumpGtid::deserialize`, whose `Vec::with_capacity(n_sids)` with `n_sids` up to
-    `2^56` from a ~30-byte packet aborts real Rust (out of memory)** where the model returns an
-    error (`deserialize_spec`). These readers parse packets sent *to* a server (by a replica).
+    Two readers call `Vec::with_capacity` with a count taken from the input before checking it
+    against the input's length, which the model treats as free:
+    * **`Seq<GnoInterval, LeU64>` (the intervals of a `Sid`)**: for a large count, real Rust
+      aborts (out of memory), or panics (capacity overflow) for `count ≥ 2^59`, on a ~24-byte
+      input, where the model returns an error (or, for `count ≥ 2^60`, panics later, at
+      `16 * count`, a point real Rust never reaches); see `Sid::deserialize_overflow`;
+    * **`ComBinlogDumpGtid::deserialize`, whose `Vec::with_capacity(n_sids)` with `n_sids` up to
+      `2^56` from a 31-byte packet aborts real Rust (out of memory; observed at `2^56` SIDs)**,
+      where the model returns an error (`deserialize_spec`).
+    These readers parse packets sent *to* a server (by a replica).
 
     **Definitions used.** `Defs/CmdPackets.lean` (`ReadOut`, `strCowBytes`, `LossyUtf8`,
     `StmtOk`, `stmtOkEnc`, `stmtOkRead`, `sendLongDataEnc`, `stmtCloseEnc`, `SEND_UNIT_RESULTS`,
@@ -83,7 +88,10 @@ import Proofs.Packets.SemiSyncAckPacket
     `any_sid_tagged`, `sid_block_len_from`, `n_sids_header`, `serialize_sids_from`,
     `deserialize_tagged_sids`/`deserialize_untagged_sids`, `ComBinlogDumpGtid::is_tagged_format`/
     `sid_block_len`) are covered through their callers. Which 1–32-byte tags `Tag::new` accepts
-    (see above). The connection-phase packets of this file (handshake, auth, change user,
+    (see above), and hence the tagged `ComBinlogDumpGtid` reading of a SID whose tag has 1–32
+    valid UTF-8 bytes (`unknown` in `gtidDumpRead`; it needs a model of `Chars::next`, or a
+    translation patch checking the tag bytewise). Every other input of the readers is covered:
+    `Defs.bulkReqRead_ne_unknown`, `Defs.sidRead_ne_unknown`, `Defs.gtidDumpRead_unknown`. The connection-phase packets of this file (handshake, auth, change user,
     SSL request, local infile) are in their own spec file.
 
     **Behaviour to note (bugs first).**
@@ -102,10 +110,14 @@ import Proofs.Packets.SemiSyncAckPacket
       types, so the server keeps the first request's.
     * `Sid::serialize` and `Sid::deserialize` drop the tag; `ComBinlogDumpGtid` uses the tagged
       format as soon as one SID has a tag; its reader treats every format byte other than `1`
-      as untagged and ignores bytes left in the SID block; `data_size` and the block are sent
-      and read whatever `BINLOG_THROUGH_GTID` says; `data_size` saturates for blocks of `2^32`
-      bytes or more.
-    * Unchecked `16 * count` in the interval reader (`Sid::deserialize_overflow`).
+      as untagged (MySQL rejects it) and ignores bytes left in the SID block; the tagged
+      `n_sids` word has `0` in bits 0–7 where MySQL writes `1` (harmless: MySQL's decoder ignores
+      them); MySQL accepts uppercase tags (lowercasing them), the crate rejects them; `data_size` and the block are sent
+      and read whatever `BINLOG_THROUGH_GTID` says; `data_size` is computed with saturating (and
+      truncating `as u32`) arithmetic and is wrong for blocks of `2^32` bytes or more.
+    * The interval reader allocates `count` intervals from the input's count before checking it
+      (crash in real Rust, see the allocation caveat; in the model an error, or a panic at the
+      unchecked `16 * count` for `count ≥ 2^60`: `Sid::deserialize_overflow`).
     * The `u8`/`u32`-length strings are truncated on serialization (documented); the `*_raw`
       accessors return the truncated (effective) bytes. `ComBinlogDump` accepts all three
       binlog flags. `StmtPacket` ignores its filler byte and anything after 12 bytes.
@@ -728,7 +740,9 @@ recall packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMyDeserializeDeV
 
 /-- `MySerialize for ComStmtBulkExecuteRequest`: appends `bulkReqEnc` (header, statement id,
     flags, the types only with `SEND_TYPES_TO_SERVER`, the values). For a request made by `new`
-    this is the protocol's packet. -/
+    this is the protocol's packet when every parameter's values have one type (or are `NULL`);
+    otherwise each value is encoded in its own type under the merged type (`bulkTypes`, the
+    first row's type for conflicting types: the `TODO`), which the server misreads. -/
 recall packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize_spec
     (self : packets.ComStmtBulkExecuteRequest) (buf : alloc.vec.Vec U8)
     (h : buf.length + (bulkReqEnc (BulkReq.of self)).length ≤ Usize.max) :
@@ -1263,11 +1277,13 @@ recall packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec 
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec`
 
-/-- **Crash path.** `MyDeserialize for Sid` panics where `sidRead` does: an interval count `n`
-    from the input with `16 * n` above `usize::MAX` (unchecked multiplication). In real Rust a
-    count of `2^59` or more already panics (capacity overflow) or aborts (out of memory) in
-    `Vec::with_capacity(n)`, which the model treats as free (allocation caveat): for such counts
-    below `2^60` the model returns an error where Rust crashes. -/
+/-- **Crash path.** In the model, `MyDeserialize for Sid` panics where `sidRead` does: an
+    interval count `n` from the input with `16 * n` above `usize::MAX` (`n ≥ 2^60`, unchecked
+    multiplication). **Real Rust crashes earlier and more often**: `Vec::with_capacity(n)` runs
+    first, before the count is checked against the input, so a large count aborts the process
+    (out of memory), and `n ≥ 2^59` panics (capacity overflow), on a ~24-byte input; the model
+    treats the allocation as free (allocation caveat) and returns an error for `n < 2^60`. The
+    model's `16 * n` overflow is never reached in real Rust. -/
 recall packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_overflow (h64 : Target64)
     (buf : io.ParseBuf) (e : Error) (h : sidRead buf.val = .panic e) :
     packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail e
@@ -1416,10 +1432,14 @@ recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZ
 /-- `MyDeserialize for ComBinlogDumpGtid`: exactly `gtidDumpRead` whenever that reader returns.
     It does in the untagged format, and in the tagged format until it meets a non-empty tag
     (`unknown`: the tag's character check is not modelled, see `sidTaggedRead`).
+    It is never `unknown` in the untagged format (`Defs.sidsRead_untagged_ne_unknown`), and in
+    the tagged format only through a tag of 1–32 valid UTF-8 bytes
+    (`Defs.gtidDumpRead_unknown`, `Defs.sidTaggedRead_unknown_iff`).
     **Allocation caveat (GTID).** The SID count comes from the input (up to `2^56`) and is passed
     to `Vec::with_capacity` before any SID is read, which the model treats as free: in real Rust
-    a 30-byte packet announcing `2^56` SIDs makes the reader try to allocate `2^56` SIDs and
-    abort the process (out of memory), where the model returns an error. -/
+    a 31-byte packet announcing `2^56` SIDs makes the reader try to allocate `2^56` SIDs and
+    abort the process (out of memory, observed), where the model returns an error. The same
+    holds for each SID's interval count (`Sid::deserialize_overflow`). -/
 recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
     (h64 : Target64) (buf : io.ParseBuf) (r0 : Option GtidDump) (rest0 : List U8)
     (h : gtidDumpRead buf.val = .done r0 rest0) :
@@ -1429,8 +1449,8 @@ recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.des
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec`
 
 /-- **Crash path.** `MyDeserialize for ComBinlogDumpGtid` panics where `gtidDumpRead` does: a SID
-    whose interval count `n` has `16 * n` above `usize::MAX` (see `Sid::deserialize_overflow`
-    for the earlier crash of real Rust). -/
+    whose interval count `n` has `16 * n` above `usize::MAX` (see `Sid::deserialize_overflow`:
+    real Rust crashes earlier, in `Vec::with_capacity`). -/
 recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
     (h64 : Target64) (buf : io.ParseBuf) (e : Error) (h : gtidDumpRead buf.val = .panic e) :
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail e

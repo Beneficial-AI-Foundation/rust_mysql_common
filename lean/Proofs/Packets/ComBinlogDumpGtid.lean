@@ -126,10 +126,14 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SI
 /-- `MyDeserialize for ComBinlogDumpGtid`: exactly `gtidDumpRead` whenever that reader returns.
     It does in the untagged format, and in the tagged format until it meets a non-empty tag
     (`unknown`: the tag's character check is not modelled, see `sidTaggedRead`).
+    It is never `unknown` in the untagged format (`Defs.sidsRead_untagged_ne_unknown`), and in
+    the tagged format only through a tag of 1–32 valid UTF-8 bytes
+    (`Defs.gtidDumpRead_unknown`, `Defs.sidTaggedRead_unknown_iff`).
     **Allocation caveat (GTID).** The SID count comes from the input (up to `2^56`) and is passed
     to `Vec::with_capacity` before any SID is read, which the model treats as free: in real Rust
-    a 30-byte packet announcing `2^56` SIDs makes the reader try to allocate `2^56` SIDs and
-    abort the process (out of memory), where the model returns an error. -/
+    a 31-byte packet announcing `2^56` SIDs makes the reader try to allocate `2^56` SIDs and
+    abort the process (out of memory, observed), where the model returns an error. The same
+    holds for each SID's interval count (`Sid::deserialize_overflow`). -/
 theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
     (h64 : Target64) (buf : io.ParseBuf) (r0 : Option GtidDump) (rest0 : List U8)
     (h : gtidDumpRead buf.val = .done r0 rest0) :
@@ -138,8 +142,8 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
   sorry
 
 /-- **Crash path.** `MyDeserialize for ComBinlogDumpGtid` panics where `gtidDumpRead` does: a SID
-    whose interval count `n` has `16 * n` above `usize::MAX` (see `Sid::deserialize_overflow`
-    for the earlier crash of real Rust). -/
+    whose interval count `n` has `16 * n` above `usize::MAX` (see `Sid::deserialize_overflow`:
+    real Rust crashes earlier, in `Vec::with_capacity`). -/
 theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
     (h64 : Target64) (buf : io.ParseBuf) (e : Error) (h : gtidDumpRead buf.val = .panic e) :
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail e := by

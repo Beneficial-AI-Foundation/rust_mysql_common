@@ -154,8 +154,8 @@ def lenencAs (k : List U8 → SsChange) (bs : List U8) : Option SsChange × List
 /-- The crate's reader of the `data` of a change of type `ty` (`SessionStateChange::
     deserialize`), per the table above, with what it leaves of the input. **Crate behaviour**:
     system variables are read as pairs until the input is exhausted (several per entry);
-    `STATE_CHANGE` gives `true` exactly for the string `"1"` (any other string, `"0"` or not,
-    gives `false`); the GTID encoding byte is skipped without being checked (`none`, nothing
+    `STATE_CHANGE` gives `true` exactly for the string `"1"` (any other well-formed string, `"0"`
+    or not, gives `false`; a malformed length-encoded string is an error); the GTID encoding byte is skipped without being checked (`none`, nothing
     consumed, on an empty input); `Unsupported` is never produced. -/
 def ssChangeRead (ty : constants.SessionStateType) (bs : List U8) : Option SsChange × List U8 :=
   match ty with

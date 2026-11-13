@@ -39,7 +39,8 @@ import Proofs.Packets.SessionStateChange.Unsupported
     * A system-variable entry is read as name/value pairs until the data is exhausted (MySQL sends
       one per entry), so the reader does not stop after one pair.
     * `SESSION_TRACK_STATE_CHANGE` gives `IsTracked(true)` exactly for the string `"1"`; any other
-      string (including malformed ones) is `false`.
+      well-formed string (`"0"` or not) is `false`; a malformed length-encoded string is an
+      error.
     * The GTID encoding-specification byte is skipped without being checked (only `0` is
       defined).
     * `Unsupported` is never produced by the reader (every type code it accepts has a variant);

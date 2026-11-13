@@ -72,7 +72,9 @@ theorem packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMyDeserializeDe
 
 /-- `MySerialize for ComStmtBulkExecuteRequest`: appends `bulkReqEnc` (header, statement id,
     flags, the types only with `SEND_TYPES_TO_SERVER`, the values). For a request made by `new`
-    this is the protocol's packet. -/
+    this is the protocol's packet when every parameter's values have one type (or are `NULL`);
+    otherwise each value is encoded in its own type under the merged type (`bulkTypes`, the
+    first row's type for conflicting types: the `TODO`), which the server misreads. -/
 theorem packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize_spec
     (self : packets.ComStmtBulkExecuteRequest) (buf : alloc.vec.Vec U8)
     (h : buf.length + (bulkReqEnc (BulkReq.of self)).length ≤ Usize.max) :

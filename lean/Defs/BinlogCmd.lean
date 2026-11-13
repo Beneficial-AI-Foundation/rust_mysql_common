@@ -25,9 +25,12 @@ From the protocol pages:
   intervals, each `start` (8, inclusive) and `end` (8, exclusive) (`Gtid_set::encode`).
   MySQL 8.4 adds a tagged format (`Gtid_format::tagged`): the 8-byte `n_sids` word carries a
   format marker in its top byte (`1`) and the count in bits 8–55, and each SID is followed by its
-  tag (a serialization-library varlen length, then the tag bytes; length 0 for no tag). The
-  crate's tagged layout is the one in the comments of `n_sids_header`; that the low byte of the
-  word is `0` (not `1`) is the crate's choice, see `nSidsHeader`.
+  tag (a serialization-library varlen length, then the tag bytes; length 0 for no tag), as
+  MySQL's `Tag::encode_tag` writes it. MySQL's `encode_nsids_format` (`sql/rpl_gtid_set.cc`)
+  writes the format byte also in bits 0–7 of the word; the crate writes `0` there (see
+  `nSidsHeader`), which MySQL's decoder ignores. MySQL rejects an unknown format byte, the crate
+  reads it as untagged (`gtidDumpRead`); MySQL accepts uppercase tags (it lowercases them), the
+  crate rejects them.
 * The semi-sync ACK (<https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_replication_semi_sync.html>,
   MySQL's `ReplSemiSyncSlave`): `0xEF`, the binlog position (8), the binlog file name (the rest).
 
@@ -181,8 +184,9 @@ def sidTaggedEnc (s : SidV) : List U8 :=
 def gtidTagged (ss : List SidV) : Bool := ss.any (fun s => s.tag.isSome)
 
 /-- The 8-byte `n_sids` word of `n` SIDs: untagged, `n` (bits 0–55, format byte 0); tagged, `n` in
-    bits 8–55 and the format byte `1` in bits 56–63. **Crate choice** (unsure against MySQL):
-    bits 0–7 of the tagged word are `0` ("reserved" in the crate's comment). -/
+    bits 8–55 and the format byte `1` in bits 56–63. **Crate choice**: bits 0–7 of the tagged
+    word are `0`, where MySQL (`sql/rpl_gtid_set.cc`, `encode_nsids_format`) writes the format
+    byte `1`; MySQL's decoder ignores them, so the packet is accepted. -/
 def nSidsHeader (tagged : Bool) (n : Nat) : List U8 :=
   if tagged then byte 0 :: leBytes 6 n ++ [byte 1] else leBytes 8 n
 
@@ -248,8 +252,9 @@ def sidRead (bs : List U8) : ReadOut SidV :=
     if malformed); for length 0, no tag; otherwise `none`, nothing more consumed, if fewer bytes
     follow or they are not valid UTF-8, and `none`, the tag consumed, for a tag longer than 32
     bytes (`InvalidTag::TooLong`); then `intervalsRead`. For a valid UTF-8 tag of 1–32 bytes the
-    result is `unknown`: `Tag::new` checks its characters through `Chars::next`, an Aeneas-library
-    function without a model. -/
+    result is `unknown` (`Defs.sidTaggedRead_unknown_iff`): `Tag::new` checks its characters
+    through `Chars::next`, an Aeneas-library function without a model. (The crate accepts
+    `[a-z_][a-z0-9_]*`; MySQL also accepts uppercase letters, lowercasing them.) -/
 def sidTaggedRead (bs : List U8) : ReadOut SidV :=
   if bs.length < 16 then .done none bs
   else
@@ -292,8 +297,10 @@ def sidsRead (tagged : Bool) : Nat → List U8 → ReadOut (List SidV)
     * the SID block, `data_size` bytes (`none`, nothing more consumed, if fewer), consumed
       whatever happens inside it: the `n_sids` word (8 bytes, `none` if fewer); its top byte is
       the format: `1` tagged, with the count in bits 8–55; **any other value** untagged, with the
-      count in bits 0–55; then that many SIDs (`sidsRead`). Bytes left in the block are ignored.
-    **Crate behaviour**: `data_size` and the block are read whatever the flags say. -/
+      count in bits 0–55 (MySQL rejects an unknown format byte); then that many SIDs
+      (`sidsRead`). Bytes left in the block are ignored.
+    **Crate behaviour**: `data_size` and the block are read whatever the flags say. The result is
+    `unknown` only through `sidTaggedRead` (`Defs.gtidDumpRead_unknown`). -/
 def gtidDumpRead (bs : List U8) : ReadOut GtidDump :=
   if bs.length < 7 then .done none bs
   else

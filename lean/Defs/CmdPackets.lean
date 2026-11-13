@@ -87,7 +87,7 @@ def stmtOkEnc (s : StmtOk) : List U8 :=
 /-- The crate's reader of a `COM_STMT_PREPARE_OK` packet (`StmtPacket::deserialize`): 12 bytes
     (`none`, nothing consumed, if fewer), consumed whatever they hold; `none` if the status byte
     is not `0x00`. **Crate behaviour**: `reserved_1` is not checked; bytes after the 12 (such as
-    `metadata_follows`) are left unread; a packet without `warning_count` (11 bytes, allowed by
+    `metadata_follows`) are left unread; a packet without `warning_count` (10 bytes, allowed by
     the protocol page) is rejected. -/
 def stmtOkRead (bs : List U8) : Option StmtOk × List U8 :=
   if bs.length < 12 then (none, bs)

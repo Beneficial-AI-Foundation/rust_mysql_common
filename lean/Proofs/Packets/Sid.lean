@@ -71,11 +71,13 @@ theorem packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
       (okPart r).map SidV.of = r0 ∧ rest.val = rest0 ⦄ := by
   sorry
 
-/-- **Crash path.** `MyDeserialize for Sid` panics where `sidRead` does: an interval count `n`
-    from the input with `16 * n` above `usize::MAX` (unchecked multiplication). In real Rust a
-    count of `2^59` or more already panics (capacity overflow) or aborts (out of memory) in
-    `Vec::with_capacity(n)`, which the model treats as free (allocation caveat): for such counts
-    below `2^60` the model returns an error where Rust crashes. -/
+/-- **Crash path.** In the model, `MyDeserialize for Sid` panics where `sidRead` does: an
+    interval count `n` from the input with `16 * n` above `usize::MAX` (`n ≥ 2^60`, unchecked
+    multiplication). **Real Rust crashes earlier and more often**: `Vec::with_capacity(n)` runs
+    first, before the count is checked against the input, so a large count aborts the process
+    (out of memory), and `n ≥ 2^59` panics (capacity overflow), on a ~24-byte input; the model
+    treats the allocation as free (allocation caveat) and returns an error for `n < 2^60`. The
+    model's `16 * n` overflow is never reached in real Rust. -/
 theorem packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_overflow (h64 : Target64)
     (buf : io.ParseBuf) (e : Error) (h : sidRead buf.val = .panic e) :
     packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail e := by
