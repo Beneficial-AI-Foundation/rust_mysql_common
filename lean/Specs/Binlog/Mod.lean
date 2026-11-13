@@ -30,5 +30,6 @@ recall binlog.BinlogCtx.new_eq (event_size : Usize)
     (fde : binlog.events.format_description_event.FormatDescriptionEvent) (event_type_raw : U8) :
     binlog.BinlogCtx.new event_size fde event_type_raw = ok { event_size, fde, event_type_raw }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.BinlogCtx.new_eq`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.BinlogCtx.new_eq
 end mysql_common

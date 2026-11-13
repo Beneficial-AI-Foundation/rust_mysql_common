@@ -46,8 +46,9 @@ namespace Defs
     * `done r rest`: it returns, with the result (`none` for an error) and what is left of the
       input;
     * `panic e`: it panics (`e` is the Aeneas label of the panic);
-    * `unknown`: the translation does not determine it (used only where the crate reaches an
-      Aeneas-library function without a model, see the docstrings that use it). -/
+    * `unknown`: the translation does not determine it (meant for where the crate reaches an
+      Aeneas-library function without a model). Since translation-patches/156 no reader of
+      these files gives it (the `*_ne_unknown` lemmas); the readers only pass it on. -/
 inductive ReadOut (α : Type) where
   | done (r : Option α) (rest : List U8)
   | panic (e : Error)

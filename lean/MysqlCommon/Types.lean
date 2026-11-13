@@ -1714,13 +1714,13 @@ structure packets.binlog_request.BinlogRequest where
   sids : alloc.vec.Vec packets.Sid
 
 /-- [mysql_common::packets::InvalidComBinlogDumpGtidHeader]
-    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1
     Visibility: public -/
 @[reducible]
 def packets.InvalidComBinlogDumpGtidHeader := Unit
 
 /-- [mysql_common::packets::ComBinlogDumpGtid]
-    Source: 'src/packets/mod.rs', lines 4609:0-4628:1
+    Source: 'src/packets/mod.rs', lines 4637:0-4656:1
     Visibility: public -/
 structure packets.ComBinlogDumpGtid where
   header : misc.raw.int.ConstU8 packets.InvalidComBinlogDumpGtidHeader 30#u8
@@ -2346,13 +2346,13 @@ inductive packets.InvalidTag where
 | InvalidChar : Char → packets.InvalidTag
 
 /-- [mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader]
-    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1
     Visibility: public -/
 @[reducible]
 def packets.InvalidSemiSyncAckPacketPacketHeader := Unit
 
 /-- [mysql_common::packets::SemiSyncAckPacket]
-    Source: 'src/packets/mod.rs', lines 4913:0-4917:1
+    Source: 'src/packets/mod.rs', lines 4941:0-4945:1
     Visibility: public -/
 structure packets.SemiSyncAckPacket where
   header : misc.raw.int.ConstU8 packets.InvalidSemiSyncAckPacketPacketHeader

@@ -83,20 +83,20 @@ recall binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonPr
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq`
 
-/-- `MyDeserialize`: total; `rowsRead` with type `DELETE_ROWS_EVENT_V1` and the FDE's post-header lengths. -/
-recall binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
+/-- `MyDeserialize`: total; `rowsRead` with type `DELETE_ROWS_EVENT_V1` and the FDE's post-header lengths. `RawFlags::SIZE` is `size_of::<u16>()`, which is 2 in Rust; the Lean `size_of` is deliberately unspecified (FunsExternal.lean), so this is a hypothesis, not an axiom. -/
+recall binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs rowsView (rowsRead .DELETE_ROWS_EVENT_V1 (postHeaderLen (fdeLens ctx.fde) .DELETE_ROWS_EVENT_V1) (postHeaderLen (fdeLens ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec`
 
-/-- `MySerialize`: appends `rowsEnc`. -/
-recall binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
+/-- `MySerialize`: appends `rowsEnc`. (64-bit target, as configured). -/
+recall binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
     binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ rowsEnc e ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec`
 
-/-- `BinlogStruct::len`: `rowsLenCrate` (see `RowsEvent::len`). -/
-recall binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
+/-- `BinlogStruct::len`: `rowsLenCrate` (see `RowsEvent::len`). (64-bit target, as configured). -/
+recall binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = rowsLenCrate e ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len_spec`

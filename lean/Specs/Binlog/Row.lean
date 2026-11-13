@@ -42,7 +42,8 @@ recall binlog.row.BinlogRowValueOptions.Insts.CoreConvertTryFromU64UnknownBinlog
         | some o => .Ok o
         | none => .Err value)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRowValueOptions.Insts.CoreConvertTryFromU64UnknownBinlogRowValueOptions.try_from_spec`
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRowValueOptions.Insts.CoreConvertTryFromU64UnknownBinlogRowValueOptions.try_from_spec
 /-! ### `struct BinlogRow and its impls` -/
 
 /-- `new`: the row of the given cells and columns (no length check, unlike `Row`'s `new_row`). -/
@@ -50,61 +51,72 @@ recall binlog.row.BinlogRow.new_eq (values : alloc.vec.Vec (Option binlog.value.
     (columns : alloc.sync.Arc (Slice packets.Column)) :
     binlog.row.BinlogRow.new values columns = ok { values, columns }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.new_eq`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.new_eq
 /-- `len`: the number of cells. -/
 recall binlog.row.BinlogRow.len_spec (self : binlog.row.BinlogRow) :
     binlog.row.BinlogRow.len self ⦃ n => n.val = self.values.length ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.len_spec`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.len_spec
 /-- `is_empty`: no cells. -/
 recall binlog.row.BinlogRow.is_empty_spec (self : binlog.row.BinlogRow) :
     binlog.row.BinlogRow.is_empty self ⦃ b => (b ↔ self.values.val = []) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.is_empty_spec`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.is_empty_spec
 /-- `columns_ref`: the columns. -/
 recall binlog.row.BinlogRow.columns_ref_eq (self : binlog.row.BinlogRow) :
     binlog.row.BinlogRow.columns_ref self = ok self.columns
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.columns_ref_eq`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.columns_ref_eq
 /-- `columns`: (another `Arc` to) the columns. -/
 recall binlog.row.BinlogRow.impl.columns_eq (self : binlog.row.BinlogRow) :
     binlog.row.BinlogRow.impl.columns self = ok self.columns
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.impl.columns_eq`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.impl.columns_eq
 /-- `as_ref`: the value in cell `index`, or `None` when there is no such cell or its value was taken. Never panics. -/
 recall binlog.row.BinlogRow.as_ref_eq (self : binlog.row.BinlogRow) (index : Usize) :
     binlog.row.BinlogRow.as_ref self index = ok (binlogCellAt self.values.val index.val)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.as_ref_eq`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.as_ref_eq
 /-- `take`: the value in cell `index` (as `as_ref`), moved out: the cell is left empty (a missing cell: nothing changes), the columns unchanged. Never panics. -/
 recall binlog.row.BinlogRow.take_spec (self : binlog.row.BinlogRow) (index : Usize) :
     binlog.row.BinlogRow.take self index ⦃ o r =>
       o = binlogCellAt self.values.val index.val ∧
         r.values.val = self.values.val.set index.val none ∧ r.columns = self.columns ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.take_spec`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.take_spec
 /-- `unwrap`: the values, in order, when no value was taken. -/
 recall binlog.row.BinlogRow.unwrap_spec (self : binlog.row.BinlogRow) (vs : List binlog.value.BinlogValue)
     (h : allCells self.values.val = some vs) :
     binlog.row.BinlogRow.unwrap self ⦃ out => out.val = vs ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.unwrap_spec`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.unwrap_spec
 /-- `unwrap` panics when some value was taken (documented). -/
 recall binlog.row.BinlogRow.unwrap_panics (self : binlog.row.BinlogRow) (h : allCells self.values.val = none) :
     binlog.row.BinlogRow.unwrap self = fail .panic
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.unwrap_panics`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.unwrap_panics
 /-- `place`: puts `value` in cell `index` (whether or not it was taken), the other cells and the columns unchanged. -/
 recall binlog.row.BinlogRow.place_spec (self : binlog.row.BinlogRow) (index : Usize)
     (value : binlog.value.BinlogValue) (h : index.val < self.values.length) :
     binlog.row.BinlogRow.place self index value ⦃ r =>
       r.values.val = self.values.val.set index.val (some value) ∧ r.columns = self.columns ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.place_spec`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.place_spec
 /-- `place` panics (index out of bounds) when there is no cell `index`. -/
 recall binlog.row.BinlogRow.place_panics (self : binlog.row.BinlogRow) (index : Usize)
     (value : binlog.value.BinlogValue) (h : self.values.length ≤ index.val) :
     binlog.row.BinlogRow.place self index value = fail .arrayOutOfBounds
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.place_panics`
+/-- [propext, Classical.choice, Quot.sound, binlog.jsonb.Value, binlog.jsondiff.JsonDiff] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.row.BinlogRow.place_panics
 end mysql_common
