@@ -11,7 +11,7 @@ open core.result.Result.Insts
 
 namespace mysql_common
 
-attribute [local step] barebytes_len
+attribute [local step] barebytes_len parse_barebytes_spec io.ParseBuf.eat_all_spec
 
 local macro "lenTac" : tactic => `(tactic| (simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega))
 
@@ -20,6 +20,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
   unfold packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE; rfl
 
+set_option maxHeartbeats 4000000 in
 /-- `MyDeserialize for HandshakePacket`: on any input where it does not panic, exactly `handshakeRead` (fields, errors, and what is left of the buffer). -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : io.ParseBuf) (h : ¬ handshakePanics buf.val) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
@@ -152,14 +153,116 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   have e7 : s7.val = (r2v.take 31).drop 20 := by rw [k7b, e6, List.drop_drop]
   have e8 : s8.val = (r2v.take 31).drop 21 := by rw [k8b, e7, List.drop_drop]
   have e9 : s9.val = (r2v.take 31).drop 27 := by rw [k9b, e8, List.drop_drop]
-  obtain ⟨i0, ph0⟩ := w4
-  obtain ⟨i7, ph7⟩ := w7
-  obtain ⟨i8, ph8⟩ := w8
-  obtain ⟨i10, ph10⟩ := w10
+  obtain ⟨cl, ph0⟩ := w4
+  obtain ⟨cu, ph7⟩ := w7
+  obtain ⟨lb, ph8⟩ := w8
+  obtain ⟨mcv, ph10⟩ := w10
   simp only [okPart, Option.map_some, Option.some.injEq] at k1a k2a k4a k5a k6a k7a k8a k10a
   rw [e1] at k2a; rw [e3] at k4a; rw [e4] at k5a; rw [e5] at k6a; rw [e6] at k7a; rw [e7] at k8a; rw [e9] at k10a
   rw [hpb] at k1a
+  have v0e : cl.val = leNat ((r2v.drop 13).take 2) := by
+    rw [← field_take31 _ _ _ (by norm_num)]; exact Option.some.inj k4a
+  have v7e : cu.val = leNat ((r2v.drop 18).take 2) * 2 ^ 16 := by
+    rw [← field_take31 _ _ _ (by norm_num)]; exact Option.some.inj k7a
+  have v8e : lb.val = (r2v.getD 20 (byte 0)).val := by
+    rw [← leNat_take1_drop _ _ (by omega), ← field_take31 _ _ _ (by norm_num)]; exact Option.some.inj k8a
+  have v6 : statusRead (leNat ((r2v.drop 16).take 2)) ≠ none := by
+    intro hn; rw [field_take31 _ _ _ (by norm_num), hn] at k6a; simp at k6a
+  have hnp : hasFlag cl.val CLIENT_SECURE_CONNECTION = true → ¬ (128 ≤ lb.val ∧ lb.val < 136) := by
+    intro hs hb; apply h; rw [v0e] at hs; rw [v8e] at hb; exact ⟨hr2, v6, hs, hb⟩
+  have hsecv : (constants.CapabilityFlags.CLIENT_SECURE_CONNECTION).val = 2 ^ 15 := by
+    simp [constants.CapabilityFlags.CLIENT_SECURE_CONNECTION]
+  have hpav : (constants.CapabilityFlags.CLIENT_PLUGIN_AUTH).val = 2 ^ 19 := by
+    simp [constants.CapabilityFlags.CLIENT_PLUGIN_AUTH]
+  have hc13 : leNat (List.take 2 (List.drop 13 (List.take 31 r2v))) = cl.val := by
+    rw [v0e, field_take31 _ _ _ (by norm_num)]
+  have hc16 : statusRead (leNat (List.take 2 (List.drop 16 (List.take 31 r2v)))) = some w6.1.val := k6a.symm
+  have hc18 : leNat (List.take 2 (List.drop 18 (List.take 31 r2v))) * 2 ^ 16 = cu.val := by
+    rw [v7e, field_take31 _ _ _ (by norm_num)]
+  have hc20 : leNat (List.take 1 (List.drop 20 (List.take 31 r2v))) = lb.val := (Option.some.inj k8a).symm
+  have hsec_iff : ∀ i1 i2 : U32, i1 = constants.CapabilityFlags.CLIENT_SECURE_CONNECTION →
+      i2.val = (cl &&& i1).val → (i2 > 0#u32 ↔ hasFlag cl.val CLIENT_SECURE_CONNECTION = true) := by
+    intro i1 i2 h1 h2
+    have hi2 : i2 = cl &&& i1 := UScalar.eq_of_val_eq h2
+    rw [hi2, u32_and_pos_iff cl i1 15 (by rw [h1, hsecv])]; rfl
+  have hpa_iff : ∀ i8 i9 : U32, i8 = constants.CapabilityFlags.CLIENT_PLUGIN_AUTH →
+      i9.val = (cu &&& i8).val → (i9 > 0#u32 ↔ hasFlag cu.val CLIENT_PLUGIN_AUTH = true) := by
+    intro i8 i9 h1 h2
+    have hi9 : i9 = cu &&& i8 := UScalar.eq_of_val_eq h2
+    rw [hi9, u32_and_pos_iff cu i8 19 (by rw [h1, hpav])]; rfl
+  have hpv : v0.1.val = pv.val := by simpa [okPart, leNat] using h1a
+  have hsv : cowList rb.1 = sv := Option.some.inj h2a
+  have hstat : w6.1.val = leNat (List.take 2 (List.drop 16 (List.take 31 r2v))) := by
+    have := hc16; unfold statusRead at this; split_ifs at this; simp at this; exact this.symm
+  have hmc : mcv.val = leNat (List.take 4 (List.drop 27 (List.take 31 r2v))) := Option.some.inj k10a
+  have hcl : cl.val &&& capabilityFlagsAll = cl.val := and_all32 _ (by scalar_tac)
+  have hcu : cu.val &&& capabilityFlagsAll = cu.val := and_all32 _ (by scalar_tac)
   step*
+  case hmin =>
+    have hs : i2 > 0#u32 := by assumption
+    have hi2 : i2 = cl &&& i1 := UScalar.eq_of_val_eq i2_post
+    rw [hi2] at hs
+    have hf := (u32_and_pos_iff cl i1 15 (by rw [i1_post, hsecv])).1 hs
+    have hb := hnp (by simpa [CLIENT_SECURE_CONNECTION] using hf)
+    rw [i4_post, hcast_i8_val]
+    have : lb.val < 256 := by scalar_tac
+    simp only [I8.min]
+    split_ifs <;> simp [I8.numBits] <;> omega
+  on_goal 2 =>
+    have hs : i2 > 0#u32 := by assumption
+    have hsf := (hsec_iff i1 i2 i1_post i2_post).1 hs
+    have hl := scramble_len_val lb i4 i5 i6 len i4_post i5_post i6_post len_post
+    rename_i hr13
+    subst hr13
+    simp only [okPart] at r13_post
+    split_ifs at r13_post with hle
+    · simp at r13_post
+    · obtain ⟨-, hb4⟩ := r13_post
+      have hlt : r2v.length - 31 < len.val := by
+        simp only [Slice.length, h3b, List.length_drop] at hle; omega
+      rw [hb4, h3b, hc13, hc20, ← hl]
+      simp [hr2', hc16, hsf, hlt, okPart]
+  all_goals try split
+  on_goal 2 =>
+    step as ⟨f1, hf1⟩
+    step as ⟨c1, hc1⟩
+    step as ⟨f2, hf2⟩
+    step as ⟨c2, hc2⟩
+    step as ⟨f3, hf3⟩
+    step as ⟨c3, hc3⟩
+    have hs : i2 > 0#u32 := by assumption
+    have hsf := (hsec_iff i1 i2 i1_post i2_post).1 hs
+    have hl := scramble_len_val lb i4 i5 i6 len i4_post i5_post i6_post len_post
+    have hpf : hasFlag cu.val CLIENT_PLUGIN_AUTH = false := by
+      have := (hpa_iff i8 i9 i8_post i9_post).not.1 (by assumption); simpa using this
+    have hr13 : r13 = core.result.Result.Ok rb1 := by assumption
+    subst hr13
+    simp only [okPart] at r13_post
+    split_ifs at r13_post with hle
+    · obtain ⟨hrb1, hb4⟩ := r13_post
+      have hle' : ¬ r2v.length - 31 < len.val := by
+        simp only [Slice.length, h3b, List.length_drop] at hle; omega
+      rw [hb4, h3b, hc13, hc20, ← hl]
+      have hc18' : leNat (List.take 2 (List.drop 18 (List.take 31 r2v))) * 65536 = cu.val := hc18
+      simp [hc18', hc16, hsf, hle', hpf, okPart, Handshake.of, hf1, hf2, hf3, hc1, hc2, hc3, hpv, hsv, hstat, hmc, k1a, k2a, k5a,
+        hcl, hcu, Option.some.inj hrb1, h3b]
+      rfl
+    · simp at r13_post
+  on_goal 3 =>
+    step as ⟨f1, hf1⟩
+    step as ⟨c1, hc1⟩
+    step as ⟨f2, hf2⟩
+    step as ⟨c2, hc2⟩
+    step as ⟨f3, hf3⟩
+    step as ⟨c3, hc3⟩
+    have hsf : hasFlag cl.val CLIENT_SECURE_CONNECTION = false := by
+      have := (hsec_iff i1 i2 i1_post i2_post).not.1 (by assumption); simpa using this
+    have hpf : hasFlag cu.val CLIENT_PLUGIN_AUTH = false := by
+      have := (hpa_iff i4 i5 i4_post i5_post).not.1 (by assumption); simpa using this
+    rw [h3b, hc13]
+    have hc18' : leNat (List.take 2 (List.drop 18 (List.take 31 r2v))) * 65536 = cu.val := hc18
+    simp [hc18', hc16, hsf, hpf, okPart, Handshake.of, hf1, hf2, hf3, hc1, hc2, hc3, hpv, hsv, hstat, hmc, k1a, k2a, k5a,
+      hcl, hcu, ← hc20]
   all_goals sorry
 
 /-- **Bug: `MyDeserialize for HandshakePacket` panics on a server-supplied length byte in `128..135`** (with `CLIENT_SECURE_CONNECTION`): `auth_plugin_data_len as i8 - 8` overflows (`handshakePanics`). A server, or anyone in the middle before TLS, can crash a client built with overflow checks (e.g. a debug build) with the first packet. (Without overflow checks the subtraction wraps to exactly `b - 8`, the protocol's value, and the packet is read correctly.) -/

@@ -437,4 +437,68 @@ theorem u32_and_pos_iff (x c : U32) (k : Nat) (hc : c.val = 2 ^ k) :
   · intro h; have : (0#u32).val < (x &&& c).val := h; simp_all
   · intro h; show (0#u32).val < (x &&& c).val; simp_all
 
+theorem leNat_take1_drop (l : List U8) (i : Nat) (h : i < l.length) :
+    leNat ((l.drop i).take 1) = (l.getD i (byte 0)).val := by
+  induction l generalizing i with
+  | nil => simp at h
+  | cons b l ih =>
+    cases i with
+    | zero => simp [leNat]
+    | succ i => simp only [List.drop_succ_cons, List.getD_cons_succ]; exact ih i (by simp at h; omega)
+
+theorem field_take31 (l : List U8) (i k : Nat) (h : i + k ≤ 31) :
+    ((l.take 31).drop i).take k = (l.drop i).take k := by
+  rw [List.drop_take, List.take_take]; congr 1; omega
+
+theorem hcast_i8_val (x : U8) :
+    ((UScalar.hcast .I8 x).val : Int) = if x.val < 128 then (x.val : Int) else (x.val : Int) - 256 := by
+  rw [UScalar.hcast_val_eq]
+  have hx : x.val < 256 := by scalar_tac
+  simp only [IScalarTy.numBits, Int.bmod]
+  split_ifs <;> omega
+
+@[step]
+theorem max_i8_spec (x y : I8) :
+    core.cmp.max core.cmp.OrdI8 x y ⦃ r => r.val = max x.val y.val ⦄ := by
+  simp [core.cmp.max]
+
+theorem parse_barebytes_spec (buf : io.ParseBuf) (len : Usize) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 247#usize)) buf len ⦃ r rest =>
+      if len.val ≤ buf.length then
+        (okPart r).map (fun rb => cowList rb.1) = some (buf.val.take len.val) ∧ rest.val = buf.val.drop len.val
+      else okPart r = none ∧ rest = buf ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
+      misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.SIZE_eq])]
+  have H := misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 247#usize) len buf
+    (fun o rest => if len.val ≤ buf.length then o = some (buf.val.take len.val) ∧ rest.val = buf.val.drop len.val
+      else o = none ∧ rest = buf) (by
+    apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize_spec 247#usize len buf)
+    rintro ⟨r, rest⟩ hr
+    simp only [WP.uncurry'_pair] at hr ⊢
+    split_ifs at hr ⊢ with hc
+    · exact hr
+    · rw [hr.1]; exact ⟨rfl, hr.2⟩)
+  apply WP.spec_mono H
+  rintro ⟨r, rest⟩ hr
+  simp only [WP.uncurry'_pair] at hr ⊢
+  split_ifs at hr ⊢
+  · exact hr
+  · exact ⟨by simpa using hr.1, hr.2⟩
+
+theorem scramble_len_val (lb : U8) (i4 i5 i6 : I8) (len : Usize) (h4 : i4 = UScalar.hcast .I8 lb)
+    (h5 : i5.val = i4.val - 8) (h6 : i6.val = max 13 i5.val) (hl : len = IScalar.hcast .Usize i6) : len.val = scramble2LenCrate lb.val := by
+  have hb : lb.val < 256 := by scalar_tac
+  have h4' := hcast_i8_val lb
+  rw [← h4] at h4'
+  have hi6 : 13 ≤ i6.val ∧ i6.val ≤ 127 := by
+    rw [h6, h5, h4']; split_ifs <;> omega
+  have hp : (2 : Int) ^ 32 ≤ 2 ^ UScalarTy.Usize.numBits := by
+    have := IntAndMisc.usize_pow_ge; exact_mod_cast this
+  rw [hl, IScalar.hcast_val_eq, Int.emod_eq_of_lt (by omega) (by omega), scramble2LenCrate]
+  rw [h6, h5, h4']
+  split_ifs <;> omega
+
 end mysql_common.ConnHSUtil
