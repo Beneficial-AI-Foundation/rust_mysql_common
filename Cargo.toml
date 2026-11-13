@@ -364,6 +364,19 @@ start_from = [
   "mysql_common::proto::codec::packet_to_chunks",
   "mysql_common::proto::codec::ChunkDecoder::decode",
   "mysql_common::proto::codec::PlainPacketCodec::_",
+  # src/proto/codec/mod.rs: the compressed codec (`compress`, `CompDecoder`, `CompData`,
+  # `CompPacketCodec`, reached from these) and the public `PacketCodec` (translation-patches/
+  # 120-124; flate2 goes through the opaque `proto::codec::trusted`, see below). `VecBuf`'s
+  # `Clear` impl is marked `#[verify::start_from]`. Out of scope: `sync_framed` (I/O), and the
+  # `Debug` derives.
+  "mysql_common::proto::codec::compress",
+  "mysql_common::proto::codec::CompDecoder::decode",
+  "mysql_common::proto::codec::PacketCodec::_",
+  "{impl core::default::Default for mysql_common::proto::codec::PacketCodec}",
+  # src/proto/codec/error.rs: `From<io::Error>` (`Display`/`Error` (formatting) are out of scope).
+  "{impl core::convert::From for mysql_common::proto::codec::error::PacketCodecError}",
+  # src/misc/mod.rs: `split_version` (translation-patches/125).
+  "mysql_common::misc::split_version",
   # src/value/convert/ (mod.rs, uuid.rs, chrono.rs, time.rs, bigint.rs, decimal.rs,
   # bigdecimal.rs): every item, minus the exclusions below. `mysql_common::value::convert::trusted` (added by
   # translation-patches/40) is opaque, see below.
@@ -424,6 +437,9 @@ opaque = [
   # The trust boundary of the value conversions (translation-patches/40): one function per
   # dependency operation; each has a Lean model or axiom in FunsExternal.lean.
   "mysql_common::value::convert::trusted",
+  # The trust boundary of the compressed codec (translation-patches/120): flate2 and
+  # `Vec::capacity`, one function per operation, each with a Lean model or axiom.
+  "mysql_common::proto::codec::trusted",
   # `serde_json::Value` is only passed to/from `trusted`; its `Object(Map<String, Value>)` variant
   # nests the type in an opaque map, which a Lean inductive cannot express.
   "serde_json::value::Value",

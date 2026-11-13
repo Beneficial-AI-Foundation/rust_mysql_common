@@ -2,7 +2,8 @@
 # Translates the verified configuration of mysql_common to Lean with Charon + Aeneas.
 #
 #  1. checks that .aeneas/ matches the aeneas rev in lakefile.toml;
-#  2. copies the crate into .llbc/work/ and applies translation-patches/*.patch in order;
+#  2. copies the crate into .llbc/work/ and applies translation-patches/*.patch in the
+#     numeric order of their number prefix (so 120-* comes after 60-*);
 #  3. runs charon on the patched copy (settings: [package.metadata.charon] in Cargo.toml);
 #  4. runs aeneas, writing lean/MysqlCommon/ and translation.json.
 #
@@ -36,7 +37,9 @@ rsync -a --delete \
   ./ "$WORK/"
 ( cd "$WORK" && git init -q . 2>/dev/null || true )
 shopt -s nullglob
-for patch in "$ROOT"/translation-patches/*.patch; do
+# Numeric order of the leading number (`sort -n`), not glob order, which would put 120-* before 13-*.
+for name in $(cd "$ROOT/translation-patches" && ls -- *.patch | sort -n); do
+  patch="$ROOT/translation-patches/$name"
   echo "applying $(basename "$patch")"
   if ! git -C "$WORK" apply --whitespace=nowarn "$patch"; then
     echo "error: $(basename "$patch") does not apply; regenerate it against the current code" >&2

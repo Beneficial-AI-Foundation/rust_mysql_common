@@ -123,3 +123,22 @@ axiom bigdecimal.BigDecimal : Type
     inductive cannot do). -/
 @[rust_type "serde_json::value::Value"]
 axiom serde_json.value.Value : Type
+
+/-! ## flate2 (the compressed codec)
+
+The compressed codec (`src/proto/codec/mod.rs`) only reaches these types through the opaque
+helpers of `mysql_common::proto::codec::trusted` (translation-patches/120, see
+`FunsExternal.lean`). -/
+
+/-- [flate2::Compression]: exact (flate2 1.1.11: `pub struct Compression(u32)`, the level). -/
+@[rust_type "flate2::Compression"]
+structure flate2.Compression where
+  level : Std.U32
+
+/-- [flate2::mem::Compress]: a zlib deflate stream; opaque (flate2 1.1.11). -/
+@[rust_type "flate2::mem::Compress"]
+axiom flate2.mem.Compress : Type
+
+/-- [flate2::mem::Decompress]: a zlib inflate stream; opaque (flate2 1.1.11). -/
+@[rust_type "flate2::mem::Decompress"]
+axiom flate2.mem.Decompress : Type
