@@ -200,6 +200,33 @@ theorem tmRead_tail (p : Nat) (bs : List U8) (v : TmView) (t : List U8) (ht : tm
   unfold tmRead at ht
   split at ht <;> (simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq, Prod.mk.injEq] at ht; aesop)
 
+/-- `e` never succeeds with leftover bytes. -/
+def NoTail {β : Type} (e : Option (β × List U8)) : Prop := ∀ v t, e = some (v, t) → t = []
+
+theorem noTail_bind {α β : Type} (x : Option α) (f : α → Option (β × List U8)) (h : ∀ a, NoTail (f a)) :
+    NoTail (x.bind f) := by
+  intro v t ht
+  cases x with
+  | none => simp at ht
+  | some a => exact h a v t ht
+
+theorem noTail_ite {β : Type} (c : Prop) [Decidable c] (a b : Option (β × List U8)) (ha : NoTail a) (hb : NoTail b) :
+    NoTail (if c then a else b) := by
+  split
+  · exact ha
+  · exact hb
+
+theorem noTail_some {β : Type} (x : β) : NoTail (some (x, ([] : List U8))) := by
+  intro v t ht; simp only [Option.some.injEq, Prod.mk.injEq] at ht; exact ht.2.symm
+
+theorem rowsRead_tail (ty : binlog.consts.EventType) (p pw : Nat) (bs : List U8) (v : RowsView) (t : List U8)
+    (ht : rowsRead ty p pw bs = some (v, t)) : t = [] := by
+  revert v t
+  show NoTail _
+  unfold rowsRead
+  simp only [Option.bind_eq_bind]
+  repeat' (first | exact noTail_some _ | (apply noTail_bind; intro) | apply noTail_ite)
+
 theorem fdeRead_tail (bs : List U8) (v : FdeView) (t : List U8) (ht : fdeRead bs = some (v, t)) : t = [] := by
   unfold fdeRead at ht
   split at ht

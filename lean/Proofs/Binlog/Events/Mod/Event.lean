@@ -729,7 +729,164 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
     binlog.events.Event.read_data self ⦃ r => match rowsRead t (postHeaderLen (fdeLens self.fde) t) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
       | some (v, _) => ∃ x, r = .Ok (some (.RowsEvent x)) ∧ rowsVariantCode x = eventTypeCode t ∧ rowsView (rowsInner x) = v
       | none => okPart r = none ⦄ := by
-  sorry
+  have hcode : eventTypeCode t = self.header.event_type.1.val := by
+    unfold eventTypeOfCode at ht
+    simpa using List.find?_some ht
+  cases t <;> simp [eventTypeCode] at hr
+  · have h : self.header.event_type.1.val = 23 := hcode.symm
+    rw [binlog.events.Event.read_data_code23 self h]
+    apply WP.spec_bind (read_event_wire _ self hlen rowsView
+      (rowsRead .WRITE_ROWS_EVENT_V1 (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT_V1) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val)
+      (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
+      (fun ctx buf hf _ hb => by
+        rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+        apply WP.spec_mono (binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        rintro ⟨r, rest⟩ hr
+        rw [hb, hf] at hr
+        exact ⟨hr, fun _ _ => trivial⟩))
+    intro r ⟨hs, hn⟩
+    cases hsp : rowsRead .WRITE_ROWS_EVENT_V1 (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT_V1) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
+    | none =>
+      have := hn hsp
+      cases r with
+      | Ok x => simp [okPart] at this
+      | Err e => exact (WP.spec_ok _).mpr rfl
+    | some vt =>
+      obtain ⟨v, t⟩ := vt
+      obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+      exact (WP.spec_ok _).mpr ⟨_, rfl, rfl, hx⟩
+  · have h : self.header.event_type.1.val = 24 := hcode.symm
+    rw [binlog.events.Event.read_data_code24 self h]
+    apply WP.spec_bind (read_event_wire _ self hlen rowsView
+      (rowsRead .UPDATE_ROWS_EVENT_V1 (postHeaderLen (fdeLens self.fde) .UPDATE_ROWS_EVENT_V1) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val)
+      (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
+      (fun ctx buf hf _ hb => by
+        rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+        apply WP.spec_mono (binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        rintro ⟨r, rest⟩ hr
+        rw [hb, hf] at hr
+        exact ⟨hr, fun _ _ => trivial⟩))
+    intro r ⟨hs, hn⟩
+    cases hsp : rowsRead .UPDATE_ROWS_EVENT_V1 (postHeaderLen (fdeLens self.fde) .UPDATE_ROWS_EVENT_V1) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
+    | none =>
+      have := hn hsp
+      cases r with
+      | Ok x => simp [okPart] at this
+      | Err e => exact (WP.spec_ok _).mpr rfl
+    | some vt =>
+      obtain ⟨v, t⟩ := vt
+      obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+      exact (WP.spec_ok _).mpr ⟨_, rfl, rfl, hx⟩
+  · have h : self.header.event_type.1.val = 25 := hcode.symm
+    rw [binlog.events.Event.read_data_code25 self h]
+    apply WP.spec_bind (read_event_wire _ self hlen rowsView
+      (rowsRead .DELETE_ROWS_EVENT_V1 (postHeaderLen (fdeLens self.fde) .DELETE_ROWS_EVENT_V1) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val)
+      (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
+      (fun ctx buf hf _ hb => by
+        rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+        apply WP.spec_mono (binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        rintro ⟨r, rest⟩ hr
+        rw [hb, hf] at hr
+        exact ⟨hr, fun _ _ => trivial⟩))
+    intro r ⟨hs, hn⟩
+    cases hsp : rowsRead .DELETE_ROWS_EVENT_V1 (postHeaderLen (fdeLens self.fde) .DELETE_ROWS_EVENT_V1) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
+    | none =>
+      have := hn hsp
+      cases r with
+      | Ok x => simp [okPart] at this
+      | Err e => exact (WP.spec_ok _).mpr rfl
+    | some vt =>
+      obtain ⟨v, t⟩ := vt
+      obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+      exact (WP.spec_ok _).mpr ⟨_, rfl, rfl, hx⟩
+  · have h : self.header.event_type.1.val = 30 := hcode.symm
+    rw [binlog.events.Event.read_data_code30 self h]
+    apply WP.spec_bind (read_event_wire _ self hlen rowsView
+      (rowsRead .WRITE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val)
+      (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
+      (fun ctx buf hf _ hb => by
+        rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+        apply WP.spec_mono (binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        rintro ⟨r, rest⟩ hr
+        rw [hb, hf] at hr
+        exact ⟨hr, fun _ _ => trivial⟩))
+    intro r ⟨hs, hn⟩
+    cases hsp : rowsRead .WRITE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
+    | none =>
+      have := hn hsp
+      cases r with
+      | Ok x => simp [okPart] at this
+      | Err e => exact (WP.spec_ok _).mpr rfl
+    | some vt =>
+      obtain ⟨v, t⟩ := vt
+      obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+      exact (WP.spec_ok _).mpr ⟨_, rfl, rfl, hx⟩
+  · have h : self.header.event_type.1.val = 31 := hcode.symm
+    rw [binlog.events.Event.read_data_code31 self h]
+    apply WP.spec_bind (read_event_wire _ self hlen rowsView
+      (rowsRead .UPDATE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .UPDATE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val)
+      (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
+      (fun ctx buf hf _ hb => by
+        rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.update_rows_event.UpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+        apply WP.spec_mono (binlog.events.update_rows_event.UpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        rintro ⟨r, rest⟩ hr
+        rw [hb, hf] at hr
+        exact ⟨hr, fun _ _ => trivial⟩))
+    intro r ⟨hs, hn⟩
+    cases hsp : rowsRead .UPDATE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .UPDATE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
+    | none =>
+      have := hn hsp
+      cases r with
+      | Ok x => simp [okPart] at this
+      | Err e => exact (WP.spec_ok _).mpr rfl
+    | some vt =>
+      obtain ⟨v, t⟩ := vt
+      obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+      exact (WP.spec_ok _).mpr ⟨_, rfl, rfl, hx⟩
+  · have h : self.header.event_type.1.val = 32 := hcode.symm
+    rw [binlog.events.Event.read_data_code32 self h]
+    apply WP.spec_bind (read_event_wire _ self hlen rowsView
+      (rowsRead .DELETE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .DELETE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val)
+      (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
+      (fun ctx buf hf _ hb => by
+        rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.delete_rows_event.DeleteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+        apply WP.spec_mono (binlog.events.delete_rows_event.DeleteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        rintro ⟨r, rest⟩ hr
+        rw [hb, hf] at hr
+        exact ⟨hr, fun _ _ => trivial⟩))
+    intro r ⟨hs, hn⟩
+    cases hsp : rowsRead .DELETE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .DELETE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
+    | none =>
+      have := hn hsp
+      cases r with
+      | Ok x => simp [okPart] at this
+      | Err e => exact (WP.spec_ok _).mpr rfl
+    | some vt =>
+      obtain ⟨v, t⟩ := vt
+      obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+      exact (WP.spec_ok _).mpr ⟨_, rfl, rfl, hx⟩
+  · have h : self.header.event_type.1.val = 39 := hcode.symm
+    rw [binlog.events.Event.read_data_code39 self h]
+    apply WP.spec_bind (read_event_wire _ self hlen rowsView
+      (rowsRead .PARTIAL_UPDATE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .PARTIAL_UPDATE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val)
+      (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
+      (fun ctx buf hf _ hb => by
+        rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+        apply WP.spec_mono (binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        rintro ⟨r, rest⟩ hr
+        rw [hb, hf] at hr
+        exact ⟨hr, fun _ _ => trivial⟩))
+    intro r ⟨hs, hn⟩
+    cases hsp : rowsRead .PARTIAL_UPDATE_ROWS_EVENT (postHeaderLen (fdeLens self.fde) .PARTIAL_UPDATE_ROWS_EVENT) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
+    | none =>
+      have := hn hsp
+      cases r with
+      | Ok x => simp [okPart] at this
+      | Err e => exact (WP.spec_ok _).mpr rfl
+    | some vt =>
+      obtain ⟨v, t⟩ := vt
+      obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+      exact (WP.spec_ok _).mpr ⟨_, rfl, rfl, hx⟩
 
 /-- End to end: the `EventData` of a GTID event (33) whose data the untagged GTID reader consumes entirely: `gtidRead`; an error iff that fails. -/
 theorem binlog.events.Event.read_data_gtid_wire (self : binlog.events.Event) (h : self.header.event_type.1.val = 33) (hlen : self.data.length + 19 ≤ Usize.max)
