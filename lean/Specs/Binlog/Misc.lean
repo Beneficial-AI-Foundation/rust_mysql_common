@@ -70,28 +70,32 @@ namespace mysql_common
 recall binlog.misc.TIMEF_INT_OFS_val :
     binlog.misc.TIMEF_INT_OFS.val = 0x800000
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.TIMEF_INT_OFS_val`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.TIMEF_INT_OFS_val
 /-! ### `const TIMEF_OFS` -/
 
 /-- `TIMEF_OFS` = `0x800000000000` (MySQL's). -/
 recall binlog.misc.TIMEF_OFS_val :
     binlog.misc.TIMEF_OFS.val = 0x800000000000
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.TIMEF_OFS_val`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.TIMEF_OFS_val
 /-! ### `const DATETIMEF_INT_OFS` -/
 
 /-- `DATETIMEF_INT_OFS` = `0x8000000000` (MySQL's). -/
 recall binlog.misc.DATETIMEF_INT_OFS_val :
     binlog.misc.DATETIMEF_INT_OFS.val = 0x8000000000
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.DATETIMEF_INT_OFS_val`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.DATETIMEF_INT_OFS_val
 /-! ### `fn my_packed_time_make_int` -/
 
 /-- `my_packed_time_make_int(i)`: total; `MY_PACKED_TIME_MAKE_INT(i)` = `(i as u64) << 24`, reinterpreted as `i64` (wraps; exact, `packedMake i 0`, for `-2^39 ≤ i < 2^39`). -/
 recall binlog.misc.my_packed_time_make_int_spec (i : I64) :
     binlog.misc.my_packed_time_make_int i ⦃ r => r.val = wrapI64 (i.val * 2 ^ 24) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_make_int_spec`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_make_int_spec
 /-! ### `fn my_packed_time_make` -/
 
 /-- `my_packed_time_make(i, f)`: `MY_PACKED_TIME_MAKE(i, f)`: `my_packed_time_make_int(i) + f`, when the sum fits in `i64`. -/
@@ -99,13 +103,15 @@ recall binlog.misc.my_packed_time_make_spec (i f : I64)
     (h : -2 ^ 63 ≤ wrapI64 (i.val * 2 ^ 24) + f.val ∧ wrapI64 (i.val * 2 ^ 24) + f.val < 2 ^ 63) :
     binlog.misc.my_packed_time_make i f ⦃ r => r.val = wrapI64 (i.val * 2 ^ 24) + f.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_make_spec`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_make_spec
 /-- `my_packed_time_make(i, f)` panics (`i64` overflow of the addition) otherwise. -/
 recall binlog.misc.my_packed_time_make_overflow (i f : I64)
     (h : ¬(-2 ^ 63 ≤ wrapI64 (i.val * 2 ^ 24) + f.val ∧ wrapI64 (i.val * 2 ^ 24) + f.val < 2 ^ 63)) :
     binlog.misc.my_packed_time_make i f = fail .integerOverflow
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_make_overflow`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_make_overflow
 /-! ### `fn my_time_packed_from_binary` -/
 
 /-- `my_time_packed_from_binary(input, dec)`: exact on any input outside the bug below: MySQL's packed TIME2 value (`time2Read`) and the rest of the input, or an error with the input emptied when it is shorter than `3 + fracBytes dec` bytes. -/
@@ -117,13 +123,15 @@ recall binlog.misc.my_time_packed_from_binary_spec (input : io.ParseBuf) (dec : 
          | some (p, t) => (some p, t)
          | none => (none, [])) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_time_packed_from_binary_spec`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_time_packed_from_binary_spec
 /-- **Bug (crash path).** With 1 or 2 fractional digits, a negative integer part and a non-zero fraction byte (`time2NegFracBug`: every negative TIME(1)/TIME(2) value with a fraction, see `Defs.time2NegFracBug_time2Bin`), the crate computes MySQL's `frac -= 0x100` (an `int` in MySQL) in `u32` and panics: in debug builds only; release builds wrap and return a wrong value (e.g. `42949672460000` as the fraction term). -/
 recall binlog.misc.my_time_packed_from_binary_neg_frac (input : io.ParseBuf) (dec : U32)
     (h : time2NegFracBug dec.val input.val) :
     binlog.misc.my_time_packed_from_binary input dec = fail .integerOverflow
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_time_packed_from_binary_neg_frac`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_time_packed_from_binary_neg_frac
 /-- Round trip: `my_time_packed_from_binary` reads back MySQL's encoding (`my_time_packed_to_binary`, `time2Bin`) of every packed TIME value in range (integer part in 23 bits plus sign, fraction a multiple of the unit of `dec` and below `10^6`), except the bug's: negative values with a fraction at 1–2 digits. -/
 recall binlog.misc.my_time_packed_from_binary_roundtrip (dec : U32) (p : Int)
     (hp : -2 ^ 47 ≤ p ∧ p < 2 ^ 47)
@@ -133,33 +141,38 @@ recall binlog.misc.my_time_packed_from_binary_roundtrip (dec : U32) (p : Int)
     binlog.misc.my_time_packed_from_binary input dec ⦃ r rest =>
       (okPart r).map (·.val) = some p ∧ rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_time_packed_from_binary_roundtrip`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_time_packed_from_binary_roundtrip
 /-! ### `fn my_packed_time_get_int_part` -/
 
 /-- `my_packed_time_get_int_part(i)`: total; `i >> 24` (arithmetic). -/
 recall binlog.misc.my_packed_time_get_int_part_spec (i : I64) :
     binlog.misc.my_packed_time_get_int_part i ⦃ r => r.val = packedIntPart i.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_get_int_part_spec`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_get_int_part_spec
 /-! ### `fn my_packed_time_get_frac_part` -/
 
 /-- `my_packed_time_get_frac_part(i)`: total; `i % 2^24` with the sign of `i` (C's and Rust's `%`). -/
 recall binlog.misc.my_packed_time_get_frac_part_spec (i : I64) :
     binlog.misc.my_packed_time_get_frac_part i ⦃ r => r.val = packedFracPart i.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_get_frac_part_spec`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_packed_time_get_frac_part_spec
 /-! ### `fn time_from_packed` -/
 
 /-- `time_from_packed(tmp)`: MySQL's `TIME_from_longlong_time_packed` (`timeFromPacked`: sign, hours from 10 bits split into days and hours, minutes, seconds, microseconds), for every `tmp` but `i64::MIN`. -/
 recall binlog.misc.time_from_packed_spec (tmp : I64) (h : tmp.val ≠ -2 ^ 63) :
     binlog.misc.time_from_packed tmp ⦃ v => Val.ofValue v = timeFromPacked tmp.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.time_from_packed_spec`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.time_from_packed_spec
 /-- `time_from_packed(i64::MIN)` panics (negation overflow; no TIME2 encoding gives it). -/
 recall binlog.misc.time_from_packed_min (tmp : I64) (h : tmp.val = -2 ^ 63) :
     binlog.misc.time_from_packed tmp = fail .integerOverflow
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.time_from_packed_min`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.time_from_packed_min
 /-! ### `fn my_datetime_packed_from_binary` -/
 
 /-- `my_datetime_packed_from_binary(input, dec)`: exact when the packed value fits in `i64`: MySQL's packed DATETIME2 value (`datetime2Read`) and the rest, or an error with the input emptied when it is shorter than `5 + fracBytes dec` bytes. -/
@@ -171,13 +184,15 @@ recall binlog.misc.my_datetime_packed_from_binary_spec (input : io.ParseBuf) (de
          | some (p, t) => (some p, t)
          | none => (none, [])) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_datetime_packed_from_binary_spec`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_datetime_packed_from_binary_spec
 /-- `my_datetime_packed_from_binary` panics (`i64` overflow) when the packed value is below `-2^63`: an integer part of five zero bytes (invalid: MySQL always sets the top bit) with a negative fraction. -/
 recall binlog.misc.my_datetime_packed_from_binary_overflow (input : io.ParseBuf) (dec : U32)
     (h : ∃ p t, datetime2Read dec.val input.val = some (p, t) ∧ p < -2 ^ 63) :
     binlog.misc.my_datetime_packed_from_binary input dec = fail .integerOverflow
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_datetime_packed_from_binary_overflow`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_datetime_packed_from_binary_overflow
 /-- Round trip: `my_datetime_packed_from_binary` reads back MySQL's encoding (`my_datetime_packed_to_binary`, `datetime2Bin`) of every non-negative packed DATETIME value below `2^63` whose fraction is a multiple of the unit of `dec` and below `10^6`. -/
 recall binlog.misc.my_datetime_packed_from_binary_roundtrip (dec : U32) (p : Int)
     (hp : 0 ≤ p ∧ p < 2 ^ 63)
@@ -186,19 +201,22 @@ recall binlog.misc.my_datetime_packed_from_binary_roundtrip (dec : U32) (p : Int
     binlog.misc.my_datetime_packed_from_binary input dec ⦃ r rest =>
       (okPart r).map (·.val) = some p ∧ rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_datetime_packed_from_binary_roundtrip`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_datetime_packed_from_binary_roundtrip
 /-! ### `fn datetime_from_packed` -/
 
 /-- `datetime_from_packed(tmp)`: MySQL's `TIME_from_longlong_datetime_packed` of `|tmp|` (`datetimeFromPacked`), for every `tmp` but `i64::MIN`. The sign MySQL records is dropped. -/
 recall binlog.misc.datetime_from_packed_spec (tmp : I64) (h : tmp.val ≠ -2 ^ 63) :
     binlog.misc.datetime_from_packed tmp ⦃ v => Val.ofValue v = datetimeFromPacked tmp.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.datetime_from_packed_spec`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.datetime_from_packed_spec
 /-- `datetime_from_packed(i64::MIN)` panics (negation overflow). `my_datetime_packed_from_binary` returns `i64::MIN` for an integer part of five zero bytes with zero fraction (any `dec`), so the invalid DATETIME2 `00 00 00 00 00` crashes `BinlogValue` decoding. -/
 recall binlog.misc.datetime_from_packed_min (tmp : I64) (h : tmp.val = -2 ^ 63) :
     binlog.misc.datetime_from_packed tmp = fail .integerOverflow
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.datetime_from_packed_min`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.datetime_from_packed_min
 /-! ### `fn my_timestamp_from_binary` -/
 
 /-- `my_timestamp_from_binary(input, dec)`: total; the seconds and microseconds (`timestamp2Read`) and the rest, or an error with the input emptied when it is shorter than `4 + fracBytes dec` bytes. -/
@@ -209,7 +227,8 @@ recall binlog.misc.my_timestamp_from_binary_spec (input : io.ParseBuf) (dec : U8
          | some (x, t) => (some x, t)
          | none => (none, [])) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_timestamp_from_binary_spec`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_timestamp_from_binary_spec
 /-- Round trip: `my_timestamp_from_binary` reads back MySQL's encoding (`my_timestamp_to_binary`, `timestamp2Bin`) of every TIMESTAMP in range (seconds below `2^31`, MySQL's 2038 limit; fraction a multiple of the unit of `dec` and below `10^6`). -/
 recall binlog.misc.my_timestamp_from_binary_roundtrip (dec : U8) (sec usec : Nat) (hs : sec < 2 ^ 31)
     (hu : usec < 10 ^ 6 ∧ usec % fracUnit dec.val = 0)
@@ -218,5 +237,6 @@ recall binlog.misc.my_timestamp_from_binary_roundtrip (dec : U8) (sec usec : Nat
       (okPart r).map (fun x => (x.1.val, x.2.val)) = some ((sec : Int), (usec : Int)) ∧
         rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_timestamp_from_binary_roundtrip`
+/-- [propext, Classical.choice, Quot.sound, Trusted.readExactEofError, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_timestamp_from_binary_roundtrip
 end mysql_common
