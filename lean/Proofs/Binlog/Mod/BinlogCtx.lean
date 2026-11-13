@@ -12,6 +12,6 @@ namespace mysql_common
 theorem binlog.BinlogCtx.new_eq (event_size : Usize)
     (fde : binlog.events.format_description_event.FormatDescriptionEvent) (event_type_raw : U8) :
     binlog.BinlogCtx.new event_size fde event_type_raw = ok { event_size, fde, event_type_raw } := by
-  sorry
+  rfl
 
 end mysql_common
