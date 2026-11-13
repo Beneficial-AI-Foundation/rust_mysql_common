@@ -1260,3 +1260,721 @@ noncomputable def sql_trusted.params_map_remove (m : Trusted.ParamsMap) (k : Sli
 noncomputable def sql_trusted.params_map_into_entries (m : Trusted.ParamsMap) :
     Result (alloc.vec.Vec (alloc.vec.Vec Std.U8 × value.Value)) :=
   ok (alloc.vec.Vec.from (Trusted.paramsMapEntries m) (Trusted.paramsMapEntries_length m))
+
+/-! ## The binlog translation (translation-patches/140-154)
+
+### Models of std and dependency items (exact) -/
+
+/-- `impl TryFrom<u64> for u8`: `Ok` iff the value fits. -/
+@[rust_fun
+  "core::convert::num::{core::convert::TryFrom<u8, u64, core::num::error::TryFromIntError>}::try_from"]
+def U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from (x : Std.U64) :
+    Result (core.result.Result Std.U8 core.num.error.TryFromIntError) :=
+  core.num.tryFromUScalar .U8 x
+
+/-- `impl PartialEq for PhantomData<T>`: always `true`. -/
+@[rust_fun
+  "core::marker::{core::cmp::PartialEq<core::marker::PhantomData<@T>, core::marker::PhantomData<@T>>}::eq"]
+def core.marker.PhantomData.Insts.CoreCmpPartialEqPhantomData.eq {T : Type _}
+    (_ _ : core.marker.PhantomData T) : Result Bool := ok true
+
+/-- `impl Clone for PhantomData<T>`. -/
+@[rust_fun "core::marker::{core::clone::Clone<core::marker::PhantomData<@T>>}::clone"]
+def core.marker.PhantomData.Insts.CoreCloneClone.clone {T : Type _}
+    (x : core.marker.PhantomData T) : Result (core.marker.PhantomData T) := ok x
+
+/-- `impl Default for PhantomData<T>`. -/
+@[rust_fun "core::marker::{core::default::Default<core::marker::PhantomData<@T>>}::default"]
+def core.marker.PhantomData.Insts.CoreDefaultDefault.default (T : Type _) :
+    Result (core.marker.PhantomData T) := ok ()
+
+/-- `impl Not for u16`: bitwise complement. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::Not<u16, u16>}::not"]
+def U16.Insts.CoreOpsBitNotU16.not (x : Std.U16) : Result Std.U16 := ok (~~~ x)
+
+/-- `impl Not for u8`: bitwise complement. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::Not<u8, u8>}::not"]
+def U8.Insts.CoreOpsBitNotU8.not (x : Std.U8) : Result Std.U8 := ok (~~~ x)
+
+/-- `impl Not for u32`: bitwise complement. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::Not<u32, u32>}::not"]
+def U32.Insts.CoreOpsBitNotU32.not (x : Std.U32) : Result Std.U32 := ok (~~~ x)
+
+/-- `impl Not for u64`: bitwise complement. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::Not<u64, u64>}::not"]
+def U64.Insts.CoreOpsBitNotU64.not (x : Std.U64) : Result Std.U64 := ok (~~~ x)
+
+/-- `impl BitAnd for u16`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitAnd<u16, u16, u16>}::bitand"]
+def U16.Insts.CoreOpsBitBitAndU16U16.bitand (x y : Std.U16) : Result Std.U16 := ok (x &&& y)
+
+/-- `impl BitAnd for u8`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitAnd<u8, u8, u8>}::bitand"]
+def U8.Insts.CoreOpsBitBitAndU8U8.bitand (x y : Std.U8) : Result Std.U8 := ok (x &&& y)
+
+/-- `impl BitAnd for u32`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitAnd<u32, u32, u32>}::bitand"]
+def U32.Insts.CoreOpsBitBitAndU32U32.bitand (x y : Std.U32) : Result Std.U32 := ok (x &&& y)
+
+/-- `impl BitAnd for u64`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitAnd<u64, u64, u64>}::bitand"]
+def U64.Insts.CoreOpsBitBitAndU64U64.bitand (x y : Std.U64) : Result Std.U64 := ok (x &&& y)
+
+/-- `impl BitOr for u16`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitOr<u16, u16, u16>}::bitor"]
+def U16.Insts.CoreOpsBitBitOrU16U16.bitor (x y : Std.U16) : Result Std.U16 := ok (x ||| y)
+
+/-- `impl BitOr for u8`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitOr<u8, u8, u8>}::bitor"]
+def U8.Insts.CoreOpsBitBitOrU8U8.bitor (x y : Std.U8) : Result Std.U8 := ok (x ||| y)
+
+/-- `impl BitOr for u32`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitOr<u32, u32, u32>}::bitor"]
+def U32.Insts.CoreOpsBitBitOrU32U32.bitor (x y : Std.U32) : Result Std.U32 := ok (x ||| y)
+
+/-- `impl BitOr for u64`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitOr<u64, u64, u64>}::bitor"]
+def U64.Insts.CoreOpsBitBitOrU64U64.bitor (x y : Std.U64) : Result Std.U64 := ok (x ||| y)
+
+/-- `impl BitXor for u16`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitXor<u16, u16, u16>}::bitxor"]
+def U16.Insts.CoreOpsBitBitXorU16U16.bitxor (x y : Std.U16) : Result Std.U16 := ok (x ^^^ y)
+
+/-- `impl BitXor for u8`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitXor<u8, u8, u8>}::bitxor"]
+def U8.Insts.CoreOpsBitBitXorU8U8.bitxor (x y : Std.U8) : Result Std.U8 := ok (x ^^^ y)
+
+/-- `impl BitXor for u32`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitXor<u32, u32, u32>}::bitxor"]
+def U32.Insts.CoreOpsBitBitXorU32U32.bitxor (x y : Std.U32) : Result Std.U32 := ok (x ^^^ y)
+
+/-- `impl BitXor for u64`. -/
+@[rust_fun "core::ops::bit::{core::ops::bit::BitXor<u64, u64, u64>}::bitxor"]
+def U64.Insts.CoreOpsBitBitXorU64U64.bitxor (x y : Std.U64) : Result Std.U64 := ok (x ^^^ y)
+
+/-- `impl Clone for Option<T>`. -/
+@[rust_fun "core::option::{core::clone::Clone<core::option::Option<@T>>}::clone"]
+def core.option.Option.Insts.CoreCloneClone.clone {T : Type _} (cloneCloneInst : core.clone.Clone T) :
+    Option T → Result (Option T)
+  | none => ok none
+  | some x => do let y ← cloneCloneInst.clone x; ok (some y)
+
+/-- `impl PartialEq for Option<T>`. -/
+@[rust_fun
+  "core::option::{core::cmp::PartialEq<core::option::Option<@T>, core::option::Option<@T>>}::eq"]
+def core.option.Option.Insts.CoreCmpPartialEqOption.eq {T : Type _}
+    (cmpPartialEqInst : core.cmp.PartialEq T T) : Option T → Option T → Result Bool
+  | none, none => ok true
+  | some x, some y => cmpPartialEqInst.eq x y
+  | _, _ => ok false
+
+/-- `<[T]>::first`. -/
+@[rust_fun "core::slice::{[@T]}::first"]
+def core.slice.Slice.first {T : Type _} (s : Slice T) : Result (Option T) := ok s.val.head?
+
+/-- `impl PartialEq for str`: byte equality (`Str = Slice U8`). -/
+@[rust_fun "core::str::traits::{core::cmp::PartialEq<str, str>}::eq"]
+def Str.Insts.CoreCmpPartialEqStr.eq (a b : Str) : Result Bool := ok (decide (a.val = b.val))
+
+/-- `impl Clone for Cow`: `Borrowed(b) => Borrowed(b)`, `Owned(o) => Owned(o.borrow().to_owned())`. -/
+@[rust_fun "alloc::borrow::{core::clone::Clone<alloc::borrow::Cow<'0, @B, @Clause0_Owned>>}::clone"]
+def alloc.borrow.Cow.Insts.CoreCloneClone.clone {B : Type _} {Clause0_Owned : Type _}
+    (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned) :
+    alloc.borrow.Cow B Clause0_Owned → Result (alloc.borrow.Cow B Clause0_Owned)
+  | .Borrowed b => ok (.Borrowed b)
+  | .Owned o => do
+    let b ← ToOwnedInst.coreborrowBorrowInst.borrow o
+    let o' ← ToOwnedInst.to_owned b
+    ok (.Owned o')
+
+/-- `Cow::into_owned`: `Borrowed(b) => b.to_owned()`, `Owned(o) => o`. -/
+@[rust_fun "alloc::borrow::{alloc::borrow::Cow<'0, @B, @Clause0_Owned>}::into_owned"]
+def alloc.borrow.Cow.into_owned {B : Type _} {Clause0_Owned : Type _}
+    (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned) :
+    alloc.borrow.Cow B Clause0_Owned → Result Clause0_Owned
+  | .Borrowed b => ToOwnedInst.to_owned b
+  | .Owned o => ok o
+
+/-- `impl PartialEq<Cow<C>> for Cow<B>`: `PartialEq::eq(&**self, &**other)`. -/
+@[rust_fun
+  "alloc::borrow::{core::cmp::PartialEq<alloc::borrow::Cow<'a, @B, @Clause1_Owned>, alloc::borrow::Cow<'b, @C, @Clause2_Owned>>}::eq"]
+def alloc.borrow.Cow.Insts.CoreCmpPartialEqCow.eq {B : Type _} {C : Type _} {Clause1_Owned : Type _}
+    {Clause2_Owned : Type _} (corecmpPartialEqInst : core.cmp.PartialEq B C)
+    (ToOwnedInst : alloc.borrow.ToOwned B Clause1_Owned)
+    (ToOwnedInst1 : alloc.borrow.ToOwned C Clause2_Owned)
+    (x : alloc.borrow.Cow B Clause1_Owned) (y : alloc.borrow.Cow C Clause2_Owned) :
+    Result Bool := do
+  let a ← alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref ToOwnedInst x
+  let b ← alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref ToOwnedInst1 y
+  corecmpPartialEqInst.eq a b
+
+/-- `impl From<&[T]> for Cow<[T]>`: `Cow::Borrowed`. -/
+@[rust_fun
+  "alloc::vec::cow::{core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, &'a [@T]>}::from"]
+def alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice.from {T : Type _}
+    (corecloneCloneInst : core.clone.Clone T) (s : Slice T) :
+    Result (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T)) := ok (.Borrowed s)
+
+/-- `Vec::pop`: the last element (if any) and the vector without it. -/
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::pop"]
+def alloc.vec.Vec.pop {T : Type _} (A : Type _) (v : alloc.vec.Vec T) :
+    Result ((Option T) × (alloc.vec.Vec T)) :=
+  ok (v.val.getLast?, alloc.vec.Vec.from v.val.dropLast
+    (by have := v.property; simp only [List.length_dropLast]; omega))
+
+/-- `bitflags::Flag::new(name, value)`. -/
+@[rust_fun "bitflags::traits::{bitflags::traits::Flag<@B>}::new"]
+def bitflags.traits.Flag.new {B : Type _} (flagName : Str) (value : B) :
+    Result (bitflags.traits.Flag B) := ok { flagName := flagName, flagValue := value }
+
+/-- `bitflags::Flags::from_bits_truncate` (provided method, bitflags 2.13.2 `src/traits.rs`):
+    `Self::from_bits_retain(bits & Self::all().bits())`, where the provided `all()` is
+    `Self::from_bits_retain` of the OR of `FLAGS[i].value().bits()` over `FLAGS`, from
+    `Bits::EMPTY`. -/
+@[trait_default, rust_fun "bitflags::traits::Flags::from_bits_truncate"]
+def bitflags.traits.Flags.from_bits_truncate.default {Self : Type _} {Clause0_Bits : Type _}
+    (FlagsInst : bitflags.traits.Flags Self Clause0_Bits) (bits : Clause0_Bits) :
+    Result Self := do
+  let flags ← FlagsInst.FLAGS
+  let empty ← FlagsInst.BitsInst.EMPTY
+  let union ← flags.val.foldlM (fun (acc : Clause0_Bits) (f : bitflags.traits.Flag Self) => do
+    let b ← FlagsInst.bits f.flagValue
+    FlagsInst.BitsInst.coreopsbitBitOrInst.bitor acc b) empty
+  let all ← FlagsInst.from_bits_retain union
+  let allBits ← FlagsInst.bits all
+  let truncated ← FlagsInst.BitsInst.coreopsbitBitAndInst.bitand bits allBits
+  FlagsInst.from_bits_retain truncated
+
+/-- `<u16 as bitflags::Bits>::ALL`: `u16::MAX`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u16>}::ALL"]
+def U16.Insts.BitflagsTraitsBits.ALL : Result Std.U16 := ok 65535#u16
+
+/-- `<u16 as bitflags::Bits>::EMPTY`: `0`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u16>}::EMPTY"]
+def U16.Insts.BitflagsTraitsBits.EMPTY : Result Std.U16 := ok 0#u16
+
+/-- `<u8 as bitflags::Bits>::ALL`: `u8::MAX`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u8>}::ALL"]
+def U8.Insts.BitflagsTraitsBits.ALL : Result Std.U8 := ok 255#u8
+
+/-- `<u8 as bitflags::Bits>::EMPTY`: `0`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u8>}::EMPTY"]
+def U8.Insts.BitflagsTraitsBits.EMPTY : Result Std.U8 := ok 0#u8
+
+/-- `<u32 as bitflags::Bits>::ALL`: `u32::MAX`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u32>}::ALL"]
+def U32.Insts.BitflagsTraitsBits.ALL : Result Std.U32 := ok 4294967295#u32
+
+/-- `<u32 as bitflags::Bits>::EMPTY`: `0`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u32>}::EMPTY"]
+def U32.Insts.BitflagsTraitsBits.EMPTY : Result Std.U32 := ok 0#u32
+
+/-- `<u64 as bitflags::Bits>::ALL`: `u64::MAX`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u64>}::ALL"]
+def U64.Insts.BitflagsTraitsBits.ALL : Result Std.U64 := ok 18446744073709551615#u64
+
+/-- `<u64 as bitflags::Bits>::EMPTY`: `0`. -/
+@[rust_const "bitflags::traits::{bitflags::traits::Bits<u64>}::EMPTY"]
+def U64.Insts.BitflagsTraitsBits.EMPTY : Result Std.U64 := ok 0#u64
+
+/-- `<TransactionPayloadEvent as MyDeserialize>::SIZE`: `None`. (Its `deserialize` is opaque, so
+    Aeneas also leaves this associated constant to us.) -/
+def binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE : Result (Option Std.Usize) := ok none
+
+
+/-! ### Opaque std items: nothing is assumed about them -/
+
+/-- [core::num::error::{impl core::fmt::Debug for core::num::error::TryFromIntError}::fmt]:
+    Source: '/rustc/library/core/src/num/error.rs', lines 8:9-8:14
+    Name pattern: [core::num::error::{core::fmt::Debug<core::num::error::TryFromIntError>}::fmt]
+    Visibility: public -/
+@[rust_fun
+  "core::num::error::{core::fmt::Debug<core::num::error::TryFromIntError>}::fmt"]
+axiom core.num.error.TryFromIntError.Insts.CoreFmtDebug.fmt
+  :
+  core.num.error.TryFromIntError → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [alloc::str::{impl core::borrow::Borrow<str> for alloc::string::String}::borrow]:
+    Source: '/rustc/library/alloc/src/str.rs', lines 233:4-233:28
+    Name pattern: [alloc::str::{core::borrow::Borrow<alloc::string::String, str>}::borrow]
+    Visibility: public -/
+@[rust_fun
+  "alloc::str::{core::borrow::Borrow<alloc::string::String, str>}::borrow"]
+axiom alloc.string.String.Insts.CoreBorrowBorrowStr.borrow
+  : String → Result Str
+
+/-- [alloc::str::{impl alloc::borrow::ToOwned<alloc::string::String> for str}::to_owned]:
+    Source: '/rustc/library/alloc/src/str.rs', lines 252:4-252:32
+    Name pattern: [alloc::str::{alloc::borrow::ToOwned<str, alloc::string::String>}::to_owned]
+    Visibility: public -/
+@[rust_fun
+  "alloc::str::{alloc::borrow::ToOwned<str, alloc::string::String>}::to_owned"]
+axiom Str.Insts.AllocBorrowToOwnedString.to_owned : Str → Result String
+
+
+/-! ### Opaque binlog items: nothing is assumed about them
+
+The trust boundary of the binlog code (`binlog::trusted`, opaque in Cargo.toml) and the
+out-of-scope helpers in the opaque modules `binlog::{jsonb, jsondiff, decimal}`, the tagged GTID
+format and `TransactionPayloadEvent::deserialize` (opaque in Cargo.toml). Only their signatures
+are declared, so the specs can only say that these calls return *some* value of their type. -/
+
+/-- [mysql_common::binlog::decimal::read_bin_to_string_bytes]:
+    Source: 'src/binlog/decimal/mod.rs', lines 438:0-445:1 -/
+axiom binlog.decimal.read_bin_to_string_bytes
+  :
+  io.ParseBuf → Std.Usize → Std.Usize → Result ((core.result.Result
+    (alloc.vec.Vec Std.U8) core.io.error.Error) × io.ParseBuf)
+
+/-- [mysql_common::binlog::events::gtid_event::{mysql_common::binlog::events::gtid_event::GtidEvent}::deserialize_tagged]:
+    Source: 'src/binlog/events/gtid_event.rs', lines 605:4-624:5 -/
+axiom binlog.events.gtid_event.GtidEvent.deserialize_tagged
+  :
+  io.ParseBuf → Result ((core.result.Result
+    binlog.events.gtid_event.GtidEvent core.io.error.Error) × io.ParseBuf)
+
+/-- [mysql_common::binlog::events::gtid_event::{mysql_common::binlog::events::gtid_event::GtidEvent}::serialize_tagged]:
+    Source: 'src/binlog/events/gtid_event.rs', lines 944:4-954:5 -/
+axiom binlog.events.gtid_event.GtidEvent.serialize_tagged
+  :
+  binlog.events.gtid_event.GtidEvent → alloc.vec.Vec Std.U8 → Result
+    (alloc.vec.Vec Std.U8)
+
+/-- [mysql_common::binlog::events::gtid_event::{mysql_common::binlog::events::gtid_event::GtidEvent}::len_tagged]:
+    Source: 'src/binlog/events/gtid_event.rs', lines 1083:4-1093:5 -/
+axiom binlog.events.gtid_event.GtidEvent.len_tagged
+  : binlog.events.gtid_event.GtidEvent → Result Std.Usize
+
+/-- [mysql_common::binlog::trusted::bytes_remaining_error]:
+    Source: 'src/binlog/trusted.rs', lines 16:0-21:1 -/
+axiom binlog.trusted.bytes_remaining_error
+  (T : Type _) : Result core.io.error.Error
+
+/-- [mysql_common::binlog::events::user_var_event::{impl mysql_common::binlog::BinlogStruct<'a> for mysql_common::binlog::events::user_var_event::UserVarEvent<'a>}::len]:
+    Source: 'src/binlog/events/user_var_event.rs', lines 168:4-170:5
+    Visibility: public -/
+axiom
+  binlog.events.user_var_event.UserVarEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  :
+  binlog.events.user_var_event.UserVarEvent → binlog.consts.BinlogVersion →
+    Result Std.Usize
+
+/-- [mysql_common::binlog::events::user_var_event::{impl mysql_common::proto::MySerialize for mysql_common::binlog::events::user_var_event::UserVarEvent<'_0>}::serialize]:
+    Source: 'src/binlog/events/user_var_event.rs', lines 151:4-160:5
+    Visibility: public -/
+axiom
+  binlog.events.user_var_event.UserVarEvent.Insts.Mysql_commonProtoMySerialize.serialize
+  :
+  binlog.events.user_var_event.UserVarEvent → alloc.vec.Vec Std.U8 → Result
+    (alloc.vec.Vec Std.U8)
+
+/-- [mysql_common::binlog::events::user_var_event::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::binlog::BinlogCtx<'de>> for mysql_common::binlog::events::user_var_event::UserVarEvent<'de>}::deserialize]:
+    Source: 'src/binlog/events/user_var_event.rs', lines 111:4-147:5
+    Visibility: public -/
+axiom
+  binlog.events.user_var_event.UserVarEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  :
+  binlog.BinlogCtx → io.ParseBuf → Result ((core.result.Result
+    binlog.events.user_var_event.UserVarEvent core.io.error.Error) ×
+    io.ParseBuf)
+
+/-- [mysql_common::binlog::events::user_var_event::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::binlog::BinlogCtx<'de>> for mysql_common::binlog::events::user_var_event::UserVarEvent<'de>}::SIZE]
+    Source: 'src/binlog/events/user_var_event.rs', lines 108:4-108:37
+    Visibility: public -/
+axiom
+  binlog.events.user_var_event.UserVarEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE
+  : Result (Option Std.Usize)
+
+/-- [mysql_common::binlog::events::user_var_event::{impl mysql_common::binlog::BinlogEvent<'a> for mysql_common::binlog::events::user_var_event::UserVarEvent<'a>}::EVENT_TYPE]
+    Source: 'src/binlog/events/user_var_event.rs', lines 164:4-164:60
+    Visibility: public -/
+axiom
+  binlog.events.user_var_event.UserVarEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE
+  : Result binlog.consts.EventType
+
+/-- [mysql_common::binlog::events::transaction_payload_event::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::binlog::BinlogCtx<'de>> for mysql_common::binlog::events::transaction_payload_event::TransactionPayloadEvent<'de>}::deserialize]:
+    Source: 'src/binlog/events/transaction_payload_event.rs', lines 257:4-325:5
+    Visibility: public -/
+axiom
+  binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  :
+  binlog.BinlogCtx → io.ParseBuf → Result ((core.result.Result
+    binlog.events.transaction_payload_event.TransactionPayloadEvent
+    core.io.error.Error) × io.ParseBuf)
+
+/-- [mysql_common::binlog::trusted::tag_as_bytes]:
+    Source: 'src/binlog/trusted.rs', lines 50:0-52:1 -/
+axiom binlog.trusted.tag_as_bytes : packets.Tag → Result (Slice Std.U8)
+
+/-- [mysql_common::binlog::trusted::previous_gtids_tag]:
+    Source: 'src/binlog/trusted.rs', lines 56:0-69:1 -/
+axiom binlog.trusted.previous_gtids_tag
+  :
+  Slice Std.U8 → Result (core.result.Result packets.Tag core.io.error.Error)
+
+/-- [mysql_common::binlog::events::user_var_event::{mysql_common::binlog::events::user_var_event::UserVarEvent<'a>}::into_owned]:
+    Source: 'src/binlog/events/user_var_event.rs', lines 95:4-104:5
+    Visibility: public -/
+axiom binlog.events.user_var_event.UserVarEvent.into_owned
+  :
+  binlog.events.user_var_event.UserVarEvent → Result
+    binlog.events.user_var_event.UserVarEvent
+
+/-- [mysql_common::binlog::trusted::tag_into_owned]:
+    Source: 'src/binlog/trusted.rs', lines 45:0-47:1 -/
+axiom binlog.trusted.tag_into_owned : packets.Tag → Result packets.Tag
+
+/-- [mysql_common::binlog::jsonb::{mysql_common::binlog::jsonb::Value<'a>}::into_owned]:
+    Source: 'src/binlog/jsonb.rs', lines 585:4-603:5
+    Visibility: public -/
+axiom binlog.jsonb.Value.into_owned
+  : binlog.jsonb.Value → Result binlog.jsonb.Value
+
+/-- [mysql_common::binlog::jsonb::parse_jsonb_value]:
+    Source: 'src/binlog/jsonb.rs', lines 1073:0-1075:1 -/
+axiom binlog.jsonb.parse_jsonb_value
+  :
+  io.ParseBuf → Result ((core.result.Result binlog.jsonb.Value
+    core.io.error.Error) × io.ParseBuf)
+
+/-- [mysql_common::binlog::jsondiff::json_diffs_into_owned]:
+    Source: 'src/binlog/jsondiff.rs', lines 123:0-125:1 -/
+axiom binlog.jsondiff.json_diffs_into_owned
+  :
+  alloc.vec.Vec binlog.jsondiff.JsonDiff → Result (alloc.vec.Vec
+    binlog.jsondiff.JsonDiff)
+
+/-- [mysql_common::binlog::jsondiff::parse_json_diffs]:
+    Source: 'src/binlog/jsondiff.rs', lines 129:0-135:1 -/
+axiom binlog.jsondiff.parse_json_diffs
+  :
+  io.ParseBuf → Result (core.result.Result (alloc.vec.Vec
+    binlog.jsondiff.JsonDiff) core.io.error.Error)
+
+/-- [mysql_common::binlog::trusted::read_exact_eof]:
+    Source: 'src/binlog/trusted.rs', lines 30:0-37:1 -/
+axiom binlog.trusted.read_exact_eof : Result core.io.error.Error
+
+/-- [mysql_common::binlog::trusted::timestamp2_frac_bytes]:
+    Source: 'src/binlog/trusted.rs', lines 24:0-26:1 -/
+axiom binlog.trusted.timestamp2_frac_bytes
+  : Std.I32 → Std.I32 → Result (alloc.vec.Vec Std.U8)
+
+
+/-! ### Formatting impls of the binlog types (`Debug`/`Display`, opaque in Cargo.toml) -/
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Debug for mysql_common::binlog::consts::UnknownBinlogVersion}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 31:9-31:14
+    Visibility: public -/
+axiom binlog.consts.UnknownBinlogVersion.Insts.CoreFmtDebug.fmt
+  :
+  binlog.consts.UnknownBinlogVersion → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Display for mysql_common::binlog::consts::UnknownBinlogVersion}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 31:50-31:66
+    Visibility: public -/
+axiom binlog.consts.UnknownBinlogVersion.Insts.CoreFmtDisplay.fmt
+  :
+  binlog.consts.UnknownBinlogVersion → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Debug for mysql_common::binlog::consts::UnknownEventType}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 130:9-130:14
+    Visibility: public -/
+axiom binlog.consts.UnknownEventType.Insts.CoreFmtDebug.fmt
+  :
+  binlog.consts.UnknownEventType → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Display for mysql_common::binlog::consts::UnknownEventType}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 130:50-130:66
+    Visibility: public -/
+axiom binlog.consts.UnknownEventType.Insts.CoreFmtDisplay.fmt
+  :
+  binlog.consts.UnknownEventType → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Debug for mysql_common::binlog::consts::UnknownDuplicateHandling}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 430:9-430:14
+    Visibility: public -/
+axiom binlog.consts.UnknownDuplicateHandling.Insts.CoreFmtDebug.fmt
+  :
+  binlog.consts.UnknownDuplicateHandling → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Display for mysql_common::binlog::consts::UnknownDuplicateHandling}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 430:50-430:66
+    Visibility: public -/
+axiom binlog.consts.UnknownDuplicateHandling.Insts.CoreFmtDisplay.fmt
+  :
+  binlog.consts.UnknownDuplicateHandling → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Debug for mysql_common::binlog::consts::UnknownIntvarEventType}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 681:9-681:14
+    Visibility: public -/
+axiom binlog.consts.UnknownIntvarEventType.Insts.CoreFmtDebug.fmt
+  :
+  binlog.consts.UnknownIntvarEventType → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::consts::{impl core::fmt::Display for mysql_common::binlog::consts::UnknownIntvarEventType}::fmt]:
+    Source: 'src/binlog/consts.rs', lines 681:50-681:66
+    Visibility: public -/
+axiom binlog.consts.UnknownIntvarEventType.Insts.CoreFmtDisplay.fmt
+  :
+  binlog.consts.UnknownIntvarEventType → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::anonymous_gtid_event::{impl core::fmt::Debug for mysql_common::binlog::events::anonymous_gtid_event::AnonymousGtidEvent}::fmt]:
+    Source: 'src/binlog/events/anonymous_gtid_event.rs', lines 24:9-24:14
+    Visibility: public -/
+axiom
+  binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.anonymous_gtid_event.AnonymousGtidEvent → core.fmt.Formatter
+    → Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::gtid_event::{impl core::fmt::Display for mysql_common::binlog::events::gtid_event::InvalidLogicalTimestampTypecode}::fmt]:
+    Source: 'src/packets/mod.rs', lines 78:67-78:83; this code is generated from a macro invocation at: 'src/binlog/events/gtid_event.rs', lines 48:0-53:1
+    Visibility: public -/
+axiom
+  binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDisplay.fmt
+  :
+  binlog.events.gtid_event.InvalidLogicalTimestampTypecode →
+    core.fmt.Formatter → Result ((core.result.Result Unit core.fmt.Error) ×
+    core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::gtid_event::{impl core::fmt::Debug for mysql_common::binlog::events::gtid_event::InvalidLogicalTimestampTypecode}::fmt]:
+    Source: 'src/packets/mod.rs', lines 78:17-78:22; this code is generated from a macro invocation at: 'src/binlog/events/gtid_event.rs', lines 48:0-53:1
+    Visibility: public -/
+axiom
+  binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.gtid_event.InvalidLogicalTimestampTypecode →
+    core.fmt.Formatter → Result ((core.result.Result Unit core.fmt.Error) ×
+    core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::begin_load_query_event::{impl core::fmt::Debug for mysql_common::binlog::events::begin_load_query_event::BeginLoadQueryEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/begin_load_query_event.rs', lines 30:9-30:14
+    Visibility: public -/
+axiom
+  binlog.events.begin_load_query_event.BeginLoadQueryEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.begin_load_query_event.BeginLoadQueryEvent →
+    core.fmt.Formatter → Result ((core.result.Result Unit core.fmt.Error) ×
+    core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::delete_rows_event::{impl core::fmt::Debug for mysql_common::binlog::events::delete_rows_event::DeleteRowsEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/delete_rows_event.rs', lines 27:9-27:14
+    Visibility: public -/
+axiom binlog.events.delete_rows_event.DeleteRowsEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.delete_rows_event.DeleteRowsEvent → core.fmt.Formatter →
+    Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::delete_rows_event_v1::{impl core::fmt::Debug for mysql_common::binlog::events::delete_rows_event_v1::DeleteRowsEventV1<'a>}::fmt]:
+    Source: 'src/binlog/events/delete_rows_event_v1.rs', lines 25:9-25:14
+    Visibility: public -/
+axiom
+  binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.delete_rows_event_v1.DeleteRowsEventV1 → core.fmt.Formatter
+    → Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::execute_load_query_event::{impl core::fmt::Debug for mysql_common::binlog::events::execute_load_query_event::ExecuteLoadQueryEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/execute_load_query_event.rs', lines 33:9-33:14
+    Visibility: public -/
+axiom
+  binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.execute_load_query_event.ExecuteLoadQueryEvent →
+    core.fmt.Formatter → Result ((core.result.Result Unit core.fmt.Error) ×
+    core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::format_description_event::{impl core::fmt::Display for mysql_common::binlog::events::format_description_event::InvalidEventHeaderLength}::fmt]:
+    Source: 'src/packets/mod.rs', lines 78:67-78:83; this code is generated from a macro invocation at: 'src/binlog/events/format_description_event.rs', lines 30:0-35:1
+    Visibility: public -/
+axiom
+  binlog.events.format_description_event.InvalidEventHeaderLength.Insts.CoreFmtDisplay.fmt
+  :
+  binlog.events.format_description_event.InvalidEventHeaderLength →
+    core.fmt.Formatter → Result ((core.result.Result Unit core.fmt.Error) ×
+    core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::format_description_event::{impl core::fmt::Debug for mysql_common::binlog::events::format_description_event::InvalidEventHeaderLength}::fmt]:
+    Source: 'src/packets/mod.rs', lines 78:17-78:22; this code is generated from a macro invocation at: 'src/binlog/events/format_description_event.rs', lines 30:0-35:1
+    Visibility: public -/
+axiom
+  binlog.events.format_description_event.InvalidEventHeaderLength.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.format_description_event.InvalidEventHeaderLength →
+    core.fmt.Formatter → Result ((core.result.Result Unit core.fmt.Error) ×
+    core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::incident_event::{impl core::fmt::Debug for mysql_common::binlog::events::incident_event::IncidentEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/incident_event.rs', lines 31:9-31:14
+    Visibility: public -/
+axiom binlog.events.incident_event.IncidentEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.incident_event.IncidentEvent → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::intvar_event::{impl core::fmt::Debug for mysql_common::binlog::events::intvar_event::IntvarEvent}::fmt]:
+    Source: 'src/binlog/events/intvar_event.rs', lines 27:9-27:14
+    Visibility: public -/
+axiom binlog.events.intvar_event.IntvarEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.intvar_event.IntvarEvent → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::partial_update_rows_event::{impl core::fmt::Debug for mysql_common::binlog::events::partial_update_rows_event::PartialUpdateRowsEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/partial_update_rows_event.rs', lines 27:9-27:14
+    Visibility: public -/
+axiom
+  binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.partial_update_rows_event.PartialUpdateRowsEvent →
+    core.fmt.Formatter → Result ((core.result.Result Unit core.fmt.Error) ×
+    core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::previous_gtids_event::{impl core::fmt::Debug for mysql_common::binlog::events::previous_gtids_event::PreviousGtidsSid<'a>}::fmt]:
+    Source: 'src/binlog/events/previous_gtids_event.rs', lines 40:9-40:14
+    Visibility: public -/
+axiom
+  binlog.events.previous_gtids_event.PreviousGtidsSid.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.previous_gtids_event.PreviousGtidsSid → core.fmt.Formatter
+    → Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::previous_gtids_event::{impl core::fmt::Debug for mysql_common::binlog::events::previous_gtids_event::PreviousGtidsEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/previous_gtids_event.rs', lines 92:9-92:14
+    Visibility: public -/
+axiom
+  binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.previous_gtids_event.PreviousGtidsEvent → core.fmt.Formatter
+    → Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::query_event::{impl core::fmt::Debug for mysql_common::binlog::events::query_event::QueryEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/query_event.rs', lines 39:9-39:14
+    Visibility: public -/
+axiom binlog.events.query_event.QueryEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.query_event.QueryEvent → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::query_event::{impl core::fmt::Debug for mysql_common::binlog::events::query_event::StatusVarVal<'a>}::fmt]:
+    Source: 'src/binlog/events/query_event.rs', lines 272:9-272:14
+    Visibility: public -/
+axiom binlog.events.query_event.StatusVarVal.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.query_event.StatusVarVal → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::query_event::{impl core::fmt::Debug for mysql_common::binlog::events::query_event::StatusVar<'_0>}::fmt]:
+    Source: 'src/binlog/events/query_event.rs', lines 506:4-511:5
+    Visibility: public -/
+axiom binlog.events.query_event.StatusVar.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.query_event.StatusVar → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::query_event::{impl core::fmt::Debug for mysql_common::binlog::events::query_event::StatusVars<'_0>}::fmt]:
+    Source: 'src/binlog/events/query_event.rs', lines 567:4-569:5
+    Visibility: public -/
+axiom binlog.events.query_event.StatusVars.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.query_event.StatusVars → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::query_event::{impl core::fmt::Debug for mysql_common::binlog::events::query_event::StatusVarsIterator<'_0>}::fmt]:
+    Source: 'src/binlog/events/query_event.rs', lines 592:4-594:5
+    Visibility: public -/
+axiom binlog.events.query_event.StatusVarsIterator.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.query_event.StatusVarsIterator → core.fmt.Formatter →
+    Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::rand_event::{impl core::fmt::Debug for mysql_common::binlog::events::rand_event::RandEvent}::fmt]:
+    Source: 'src/binlog/events/rand_event.rs', lines 29:9-29:14
+    Visibility: public -/
+axiom binlog.events.rand_event.RandEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.rand_event.RandEvent → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::rotate_event::{impl core::fmt::Debug for mysql_common::binlog::events::rotate_event::RotateEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/rotate_event.rs', lines 25:9-25:14
+    Visibility: public -/
+axiom binlog.events.rotate_event.RotateEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.rotate_event.RotateEvent → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::rows_event::{impl core::fmt::Debug for mysql_common::binlog::events::rows_event::RowsEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/rows_event.rs', lines 34:9-34:14
+    Visibility: public -/
+axiom binlog.events.rows_event.RowsEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.rows_event.RowsEvent → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::rows_event::{impl core::fmt::Debug for mysql_common::binlog::events::rows_event::RowsEventRows<'_0>}::fmt]:
+    Source: 'src/binlog/events/rows_event.rs', lines 410:4-412:5
+    Visibility: public -/
+axiom binlog.events.rows_event.RowsEventRows.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.rows_event.RowsEventRows → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::rows_query_event::{impl core::fmt::Debug for mysql_common::binlog::events::rows_query_event::RowsQueryEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/rows_query_event.rs', lines 27:9-27:14
+    Visibility: public -/
+axiom binlog.events.rows_query_event.RowsQueryEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.rows_query_event.RowsQueryEvent → core.fmt.Formatter →
+    Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::update_rows_event::{impl core::fmt::Debug for mysql_common::binlog::events::update_rows_event::UpdateRowsEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/update_rows_event.rs', lines 28:9-28:14
+    Visibility: public -/
+axiom binlog.events.update_rows_event.UpdateRowsEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.update_rows_event.UpdateRowsEvent → core.fmt.Formatter →
+    Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::update_rows_event_v1::{impl core::fmt::Debug for mysql_common::binlog::events::update_rows_event_v1::UpdateRowsEventV1<'a>}::fmt]:
+    Source: 'src/binlog/events/update_rows_event_v1.rs', lines 25:9-25:14
+    Visibility: public -/
+axiom
+  binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.update_rows_event_v1.UpdateRowsEventV1 → core.fmt.Formatter
+    → Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::write_rows_event::{impl core::fmt::Debug for mysql_common::binlog::events::write_rows_event::WriteRowsEvent<'a>}::fmt]:
+    Source: 'src/binlog/events/write_rows_event.rs', lines 27:9-27:14
+    Visibility: public -/
+axiom binlog.events.write_rows_event.WriteRowsEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.write_rows_event.WriteRowsEvent → core.fmt.Formatter →
+    Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::write_rows_event_v1::{impl core::fmt::Debug for mysql_common::binlog::events::write_rows_event_v1::WriteRowsEventV1<'a>}::fmt]:
+    Source: 'src/binlog/events/write_rows_event_v1.rs', lines 25:9-25:14
+    Visibility: public -/
+axiom binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.write_rows_event_v1.WriteRowsEventV1 → core.fmt.Formatter →
+    Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-- [mysql_common::binlog::events::xid_event::{impl core::fmt::Debug for mysql_common::binlog::events::xid_event::XidEvent}::fmt]:
+    Source: 'src/binlog/events/xid_event.rs', lines 27:9-27:14
+    Visibility: public -/
+axiom binlog.events.xid_event.XidEvent.Insts.CoreFmtDebug.fmt
+  :
+  binlog.events.xid_event.XidEvent → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)

@@ -53,6 +53,14 @@ little-endian), `--no-default-features --features derive,flate2/rust_backend,chr
 backend, which does not cross-compile from macOS. Compression is out of scope, so the verified
 code is the same either way. Aeneas is pinned in `../lakefile.toml`.
 
+The binlog code is translated (no specs yet) with the feature `binlog_core`, which exists only
+in the patched copy (translation-patches/140): there `binlog = ["binlog_core", "dep:zstd"]`, and
+the three `zstd` uses (C library, no cross-compilation) go through the opaque module
+`binlog::trusted`, which fails without `zstd`. Only the zstd decompression API of
+`TransactionPayloadEvent` differs, and it is not translated. Patches 140-155 adapt the binlog
+code; `binlog::trusted`, `jsonb`, `jsondiff`, `decimal`, `UserVarEvent`, the tagged GTID format
+and `TransactionPayloadEvent::deserialize` are opaque (see Cargo.toml and FunsExternal.lean).
+
 ## What must be trusted
 
 1. **Tools:** Charon and Aeneas translate the Rust faithfully, and Lean's kernel checks the

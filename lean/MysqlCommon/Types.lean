@@ -236,6 +236,1208 @@ inductive time.month.Month where
 @[reducible, rust_type "uuid::Uuid"]
 def uuid.Uuid := Array Std.U8 16#usize
 
+/-- [mysql_common::binlog::consts::BinlogVersion]
+    Source: 'src/binlog/consts.rs', lines 14:0-23:1
+    Visibility: public -/
+@[discriminant u16 [1,2,3,4]]
+inductive binlog.consts.BinlogVersion where
+| Version1 : binlog.consts.BinlogVersion
+| Version2 : binlog.consts.BinlogVersion
+| Version3 : binlog.consts.BinlogVersion
+| Version4 : binlog.consts.BinlogVersion
+
+/-- [mysql_common::binlog::consts::UnknownBinlogVersion]
+    Source: 'src/binlog/consts.rs', lines 34:0-34:41
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownBinlogVersion := Std.U16
+
+/-- [mysql_common::binlog::consts::EventType]
+    Source: 'src/binlog/consts.rs', lines 60:0-128:1
+    Visibility: public -/
+@[discriminant u8 [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,42,43]]
+inductive binlog.consts.EventType where
+| UNKNOWN_EVENT : binlog.consts.EventType
+| START_EVENT_V3 : binlog.consts.EventType
+| QUERY_EVENT : binlog.consts.EventType
+| STOP_EVENT : binlog.consts.EventType
+| ROTATE_EVENT : binlog.consts.EventType
+| INTVAR_EVENT : binlog.consts.EventType
+| LOAD_EVENT : binlog.consts.EventType
+| SLAVE_EVENT : binlog.consts.EventType
+| CREATE_FILE_EVENT : binlog.consts.EventType
+| APPEND_BLOCK_EVENT : binlog.consts.EventType
+| EXEC_LOAD_EVENT : binlog.consts.EventType
+| DELETE_FILE_EVENT : binlog.consts.EventType
+| NEW_LOAD_EVENT : binlog.consts.EventType
+| RAND_EVENT : binlog.consts.EventType
+| USER_VAR_EVENT : binlog.consts.EventType
+| FORMAT_DESCRIPTION_EVENT : binlog.consts.EventType
+| XID_EVENT : binlog.consts.EventType
+| BEGIN_LOAD_QUERY_EVENT : binlog.consts.EventType
+| EXECUTE_LOAD_QUERY_EVENT : binlog.consts.EventType
+| TABLE_MAP_EVENT : binlog.consts.EventType
+| PRE_GA_WRITE_ROWS_EVENT : binlog.consts.EventType
+| PRE_GA_UPDATE_ROWS_EVENT : binlog.consts.EventType
+| PRE_GA_DELETE_ROWS_EVENT : binlog.consts.EventType
+| WRITE_ROWS_EVENT_V1 : binlog.consts.EventType
+| UPDATE_ROWS_EVENT_V1 : binlog.consts.EventType
+| DELETE_ROWS_EVENT_V1 : binlog.consts.EventType
+| INCIDENT_EVENT : binlog.consts.EventType
+| HEARTBEAT_EVENT : binlog.consts.EventType
+| IGNORABLE_EVENT : binlog.consts.EventType
+| ROWS_QUERY_EVENT : binlog.consts.EventType
+| WRITE_ROWS_EVENT : binlog.consts.EventType
+| UPDATE_ROWS_EVENT : binlog.consts.EventType
+| DELETE_ROWS_EVENT : binlog.consts.EventType
+| GTID_EVENT : binlog.consts.EventType
+| ANONYMOUS_GTID_EVENT : binlog.consts.EventType
+| PREVIOUS_GTIDS_EVENT : binlog.consts.EventType
+| TRANSACTION_CONTEXT_EVENT : binlog.consts.EventType
+| VIEW_CHANGE_EVENT : binlog.consts.EventType
+| XA_PREPARE_LOG_EVENT : binlog.consts.EventType
+| PARTIAL_UPDATE_ROWS_EVENT : binlog.consts.EventType
+| TRANSACTION_PAYLOAD_EVENT : binlog.consts.EventType
+| GTID_TAGGED_LOG_EVENT : binlog.consts.EventType
+| ENUM_END_EVENT : binlog.consts.EventType
+
+/-- [mysql_common::binlog::consts::UnknownEventType]
+    Source: 'src/binlog/consts.rs', lines 133:0-133:36
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownEventType := Std.U8
+
+/-- [mysql_common::binlog::consts::EventFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 193:0-236:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.EventFlags := Std.U16
+
+/-- [mysql_common::binlog::consts::UnknownEventFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 193:0-236:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownEventFlags := Std.U16
+
+/-- [mysql_common::binlog::consts::BinlogChecksumAlg]
+    Source: 'src/binlog/consts.rs', lines 242:0-247:1
+    Visibility: public -/
+@[discriminant u8]
+inductive binlog.consts.BinlogChecksumAlg where
+| BINLOG_CHECKSUM_ALG_OFF : binlog.consts.BinlogChecksumAlg
+| BINLOG_CHECKSUM_ALG_CRC32 : binlog.consts.BinlogChecksumAlg
+
+/-- [mysql_common::binlog::consts::UnknownChecksumAlg]
+    Source: 'src/binlog/consts.rs', lines 252:0-252:38
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownChecksumAlg := Std.U8
+
+/-- [mysql_common::binlog::consts::StatusVarKey]
+    Source: 'src/binlog/consts.rs', lines 276:0-362:1
+    Visibility: public -/
+@[discriminant u8]
+inductive binlog.consts.StatusVarKey where
+| Flags2 : binlog.consts.StatusVarKey
+| SqlMode : binlog.consts.StatusVarKey
+| Catalog : binlog.consts.StatusVarKey
+| AutoIncrement : binlog.consts.StatusVarKey
+| Charset : binlog.consts.StatusVarKey
+| TimeZone : binlog.consts.StatusVarKey
+| CatalogNz : binlog.consts.StatusVarKey
+| LcTimeNames : binlog.consts.StatusVarKey
+| CharsetDatabase : binlog.consts.StatusVarKey
+| TableMapForUpdate : binlog.consts.StatusVarKey
+| MasterDataWritten : binlog.consts.StatusVarKey
+| Invoker : binlog.consts.StatusVarKey
+| UpdatedDbNames : binlog.consts.StatusVarKey
+| Microseconds : binlog.consts.StatusVarKey
+| CommitTs : binlog.consts.StatusVarKey
+| CommitTs2 : binlog.consts.StatusVarKey
+| ExplicitDefaultsForTimestamp : binlog.consts.StatusVarKey
+| DdlLoggedWithXid : binlog.consts.StatusVarKey
+| DefaultCollationForUtf8mb4 : binlog.consts.StatusVarKey
+| SqlRequirePrimaryKey : binlog.consts.StatusVarKey
+| DefaultTableEncryption : binlog.consts.StatusVarKey
+
+/-- [mysql_common::binlog::consts::UnknownStatusVarKey]
+    Source: 'src/binlog/consts.rs', lines 367:0-367:39
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownStatusVarKey := Std.U8
+
+/-- [mysql_common::binlog::consts::SemiSyncFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 399:0-412:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.SemiSyncFlags := Std.U8
+
+/-- [mysql_common::binlog::consts::UnknownSemiSyncFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 399:0-412:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownSemiSyncFlags := Std.U8
+
+/-- [mysql_common::binlog::consts::LoadDuplicateHandling]
+    Source: 'src/binlog/consts.rs', lines 418:0-422:1
+    Visibility: public -/
+@[discriminant u8]
+inductive binlog.consts.LoadDuplicateHandling where
+| LOAD_DUP_ERROR : binlog.consts.LoadDuplicateHandling
+| LOAD_DUP_IGNORE : binlog.consts.LoadDuplicateHandling
+| LOAD_DUP_REPLACE : binlog.consts.LoadDuplicateHandling
+
+/-- [mysql_common::binlog::consts::UnknownDuplicateHandling]
+    Source: 'src/binlog/consts.rs', lines 433:0-433:44
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownDuplicateHandling := Std.U8
+
+/-- [mysql_common::binlog::consts::OptionalMetadataFieldType]
+    Source: 'src/binlog/consts.rs', lines 458:0-588:1
+    Visibility: public -/
+@[discriminant u8 [1,2,3,4,5,6,7,8,9,10,11,12,13]]
+inductive binlog.consts.OptionalMetadataFieldType where
+| SIGNEDNESS : binlog.consts.OptionalMetadataFieldType
+| DEFAULT_CHARSET : binlog.consts.OptionalMetadataFieldType
+| COLUMN_CHARSET : binlog.consts.OptionalMetadataFieldType
+| COLUMN_NAME : binlog.consts.OptionalMetadataFieldType
+| SET_STR_VALUE : binlog.consts.OptionalMetadataFieldType
+| ENUM_STR_VALUE : binlog.consts.OptionalMetadataFieldType
+| GEOMETRY_TYPE : binlog.consts.OptionalMetadataFieldType
+| SIMPLE_PRIMARY_KEY : binlog.consts.OptionalMetadataFieldType
+| PRIMARY_KEY_WITH_PREFIX : binlog.consts.OptionalMetadataFieldType
+| ENUM_AND_SET_DEFAULT_CHARSET : binlog.consts.OptionalMetadataFieldType
+| ENUM_AND_SET_COLUMN_CHARSET : binlog.consts.OptionalMetadataFieldType
+| COLUMN_VISIBILITY : binlog.consts.OptionalMetadataFieldType
+| VECTOR_DIMENSIONALITY : binlog.consts.OptionalMetadataFieldType
+
+/-- [mysql_common::binlog::consts::UnknownOptionalMetadataFieldType]
+    Source: 'src/binlog/consts.rs', lines 592:0-592:52
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownOptionalMetadataFieldType := Std.U8
+
+/-- [mysql_common::binlog::consts::IncidentType]
+    Source: 'src/binlog/consts.rs', lines 627:0-632:1
+    Visibility: public -/
+@[discriminant u16]
+inductive binlog.consts.IncidentType where
+| INCIDENT_NONE : binlog.consts.IncidentType
+| INCIDENT_LOST_EVENTS : binlog.consts.IncidentType
+
+/-- [mysql_common::binlog::consts::UnknownIncidentType]
+    Source: 'src/binlog/consts.rs', lines 643:0-643:40
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownIncidentType := Std.U16
+
+/-- [mysql_common::binlog::consts::IntvarEventType]
+    Source: 'src/binlog/consts.rs', lines 667:0-673:1
+    Visibility: public -/
+@[discriminant u8]
+inductive binlog.consts.IntvarEventType where
+| INVALID_INT_EVENT : binlog.consts.IntvarEventType
+| LAST_INSERT_ID_EVENT : binlog.consts.IntvarEventType
+| INSERT_ID_EVENT : binlog.consts.IntvarEventType
+
+/-- [mysql_common::binlog::consts::UnknownIntvarEventType]
+    Source: 'src/binlog/consts.rs', lines 684:0-684:42
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownIntvarEventType := Std.U8
+
+/-- [mysql_common::binlog::consts::GtidFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 705:0-722:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.GtidFlags := Std.U8
+
+/-- [mysql_common::binlog::consts::UnknownGtidFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 705:0-722:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownGtidFlags := Std.U8
+
+/-- [mysql_common::binlog::consts::Gno]
+    Source: 'src/binlog/consts.rs', lines 729:0-729:20
+    Visibility: public -/
+@[reducible]
+def binlog.consts.Gno := Std.U64
+
+/-- [mysql_common::binlog::consts::InvalidGno]
+    Source: 'src/binlog/consts.rs', lines 739:0-739:31
+    Visibility: public -/
+@[reducible]
+def binlog.consts.InvalidGno := Std.U64
+
+/-- [mysql_common::binlog::consts::RowsEventFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 759:0-778:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.RowsEventFlags := Std.U16
+
+/-- [mysql_common::binlog::consts::UnknownRowsEventFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 759:0-778:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownRowsEventFlags := Std.U16
+
+/-- [mysql_common::binlog::consts::UserVarFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 780:0-791:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UserVarFlags := Std.U8
+
+/-- [mysql_common::binlog::consts::UnknownUserVarFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/binlog/consts.rs', lines 780:0-791:1
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownUserVarFlags := Std.U8
+
+/-- [mysql_common::binlog::consts::TransactionPayloadFields]
+    Source: 'src/binlog/consts.rs', lines 797:0-810:1
+    Visibility: public -/
+@[discriminant u8]
+inductive binlog.consts.TransactionPayloadFields where
+| OTW_PAYLOAD_HEADER_END_MARK : binlog.consts.TransactionPayloadFields
+| OTW_PAYLOAD_SIZE_FIELD : binlog.consts.TransactionPayloadFields
+| OTW_PAYLOAD_COMPRESSION_TYPE_FIELD : binlog.consts.TransactionPayloadFields
+| OTW_PAYLOAD_UNCOMPRESSED_SIZE_FIELD : binlog.consts.TransactionPayloadFields
+
+/-- [mysql_common::binlog::consts::UnknownTransactionPayloadFields]
+    Source: 'src/binlog/consts.rs', lines 815:0-815:51
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownTransactionPayloadFields := Std.U8
+
+/-- [mysql_common::binlog::consts::TransactionPayloadCompressionType]
+    Source: 'src/binlog/consts.rs', lines 860:0-866:1
+    Visibility: public -/
+@[discriminant u8 [0,255]]
+inductive binlog.consts.TransactionPayloadCompressionType where
+| ZSTD : binlog.consts.TransactionPayloadCompressionType
+| NONE : binlog.consts.TransactionPayloadCompressionType
+
+/-- [mysql_common::binlog::consts::UnknownTransactionPayloadCompressionType]
+    Source: 'src/binlog/consts.rs', lines 871:0-871:60
+    Visibility: public -/
+@[reducible]
+def binlog.consts.UnknownTransactionPayloadCompressionType := Std.U8
+
+/-- [mysql_common::io::ParseBuf]
+    Source: 'src/io.rs', lines 170:0-170:38
+    Visibility: public -/
+@[reducible]
+def io.ParseBuf := Slice Std.U8
+
+/-- [mysql_common::packets::Tag]
+    Source: 'src/packets/mod.rs', lines 3873:0-3873:33
+    Visibility: public -/
+@[reducible]
+def packets.Tag := alloc.borrow.Cow Str String
+
+/-- [mysql_common::misc::raw::int::ConstU8]
+    Source: 'src/misc/raw/int.rs', lines 236:0-236:51
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.ConstU8 (T : Type _) (N : Std.U8) := core.marker.PhantomData T
+
+/-- [mysql_common::misc::raw::int::LenEnc]
+    Source: 'src/misc/raw/int.rs', lines 141:12-141:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 187:0-190:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LenEnc := Unit
+
+/-- [mysql_common::misc::raw::int::LeU64]
+    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LeU64 := Unit
+
+/-- [mysql_common::misc::raw::int::LeU56]
+    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LeU56 := Unit
+
+/-- [mysql_common::misc::raw::int::LeU32]
+    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LeU32 := Unit
+
+/-- [mysql_common::misc::raw::int::RawInt]
+    Source: 'src/misc/raw/int.rs', lines 28:0-28:64
+    Visibility: public -/
+def misc.raw.int.RawInt (T : Type _) (Clause0_Primitive : Type _) :=
+  Clause0_Primitive × core.marker.PhantomData T
+
+/-- [mysql_common::misc::raw::flags::RawFlags]
+    Source: 'src/misc/raw/flags.rs', lines 26:0-26:62
+    Visibility: public -/
+def misc.raw.flags.RawFlags (T : Type _) (U : Type _) (Clause0_Bits : Type _)
+  :=
+  Clause0_Bits × core.marker.PhantomData U
+
+/-- [mysql_common::misc::raw::_const::RawConst]
+    Source: 'src/misc/raw/_const.rs', lines 88:0-88:69
+    Visibility: public -/
+def misc.raw._const.RawConst (T : Type _) (U : Type _) (Clause0_Primitive :
+  Type _) :=
+  Clause0_Primitive × core.marker.PhantomData U
+
+/-- [mysql_common::binlog::events::gtid_event::InvalidLogicalTimestampTypecode]
+    Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/binlog/events/gtid_event.rs', lines 48:0-53:1
+    Visibility: public -/
+@[reducible]
+def binlog.events.gtid_event.InvalidLogicalTimestampTypecode := Unit
+
+/-- [mysql_common::binlog::events::gtid_event::GtidEvent]
+    Source: 'src/binlog/events/gtid_event.rs', lines 82:0-119:1
+    Visibility: public -/
+structure binlog.events.gtid_event.GtidEvent where
+  flags : misc.raw.flags.RawFlags binlog.consts.GtidFlags Std.U8 Std.U8
+  sid : Array Std.U8 16#usize
+  gno : misc.raw._const.RawConst misc.raw.int.LeU64 binlog.consts.Gno Std.U64
+  tag : Option packets.Tag
+  lc_typecode : Option (misc.raw.int.ConstU8
+    binlog.events.gtid_event.InvalidLogicalTimestampTypecode 2#u8)
+  last_committed : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  sequence_number : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  immediate_commit_timestamp : misc.raw.int.RawInt misc.raw.int.LeU56 Std.U64
+  original_commit_timestamp : misc.raw.int.RawInt misc.raw.int.LeU56 Std.U64
+  tx_length : misc.raw.int.RawInt misc.raw.int.LenEnc Std.U64
+  original_server_version : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  immediate_server_version : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  serialization_version : Std.U8
+  commit_group_ticket : Std.U64
+
+/-- [mysql_common::binlog::events::anonymous_gtid_event::AnonymousGtidEvent]
+    Source: 'src/binlog/events/anonymous_gtid_event.rs', lines 25:0-25:45
+    Visibility: public -/
+@[reducible]
+def binlog.events.anonymous_gtid_event.AnonymousGtidEvent :=
+  binlog.events.gtid_event.GtidEvent
+
+/-- Trait declaration: [mysql_common::io::BufMut]
+    Source: 'src/io.rs', lines 16:0-30:1
+    Visibility: public -/
+structure io.BufMut (Self : Type _) where
+  put_slice : Self → Slice Std.U8 → Result Self
+  put_u8 : Self → Std.U8 → Result Self
+  put_i8 : Self → Std.I8 → Result Self
+  put_u16_le : Self → Std.U16 → Result Self
+  put_i16_le : Self → Std.I16 → Result Self
+  put_u32_le : Self → Std.U32 → Result Self
+  put_i32_le : Self → Std.I32 → Result Self
+  put_u64_le : Self → Std.U64 → Result Self
+  put_i64_le : Self → Std.I64 → Result Self
+  put_uint_le : Self → Std.U64 → Std.Usize → Result Self
+  put_int_le : Self → Std.I64 → Std.Usize → Result Self
+  put_f32_le : Self → F32 → Result Self
+  put_f64_le : Self → F64 → Result Self
+
+/-- Trait declaration: [mysql_common::io::BufMutExt]
+    Source: 'src/io.rs', lines 92:0-153:1
+    Visibility: public -/
+structure io.BufMutExt (Self : Type _) where
+  BufMutInst : io.BufMut Self
+  put_lenenc_int : Self → Std.U64 → Result Self
+  put_lenenc_str : Self → Slice Std.U8 → Result Self
+  put_u24_le : Self → Std.U32 → Result Self
+  put_i24_le : Self → Std.I32 → Result Self
+  put_u48_le : Self → Std.U64 → Result Self
+  put_u56_le : Self → Std.U64 → Result Self
+  put_i56_le : Self → Std.I64 → Result Self
+  put_u8_str : Self → Slice Std.U8 → Result Self
+  put_u32_str : Self → Slice Std.U8 → Result Self
+
+/-- Trait declaration: [mysql_common::misc::raw::int::IntRepr]
+    Source: 'src/misc/raw/int.rs', lines 78:0-84:1
+    Visibility: public -/
+structure misc.raw.int.IntRepr (Self : Type _) (Self_Primitive : Type _) where
+  SIZE : Result (Option Std.Usize)
+  corefmtDebugInst : core.fmt.Debug Self_Primitive
+  coredefaultDefaultInst : core.default.Default Self_Primitive
+  coremarkerCopyInst : core.marker.Copy Self_Primitive
+  corecmpEqInst : core.cmp.Eq Self_Primitive
+  corecmpOrdInst : core.cmp.Ord Self_Primitive
+  serialize : Self_Primitive → alloc.vec.Vec Std.U8 → Result (alloc.vec.Vec
+    Std.U8)
+  deserialize : io.ParseBuf → Result ((core.result.Result Self_Primitive
+    core.io.error.Error) × io.ParseBuf)
+
+/-- Trait declaration: [mysql_common::proto::MyDeserialize]
+    Source: 'src/proto/mod.rs', lines 31:0-49:1
+    Visibility: public -/
+structure proto.MyDeserialize (Self : Type _) (Self_Ctx : Type _) where
+  SIZE : Result (Option Std.Usize)
+  deserialize : Self_Ctx → io.ParseBuf → Result ((core.result.Result Self
+    core.io.error.Error) × io.ParseBuf)
+
+/-- [mysql_common::misc::raw::int::LeU16]
+    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LeU16 := Unit
+
+/-- [mysql_common::misc::raw::bytes::FixedLengthText]
+    Source: 'src/misc/raw/bytes.rs', lines 280:0-280:45
+    Visibility: public -/
+@[reducible]
+def misc.raw.bytes.FixedLengthText (LEN : Std.Usize) := Unit
+
+/-- [mysql_common::misc::raw::bytes::EofBytes]
+    Source: 'src/misc/raw/bytes.rs', lines 230:0-230:20
+    Visibility: public -/
+@[reducible]
+def misc.raw.bytes.EofBytes := Unit
+
+/-- [mysql_common::misc::raw::bytes::RawBytes]
+    Source: 'src/misc/raw/bytes.rs', lines 28:0-28:73
+    Visibility: public -/
+def misc.raw.bytes.RawBytes (T : Type _) (Clause0_Ctx : Type _) :=
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) ×
+  core.marker.PhantomData T
+
+/-- [mysql_common::misc::raw::_const::Const]
+    Source: 'src/misc/raw/_const.rs', lines 30:0-30:46
+    Visibility: public -/
+def misc.raw._const.Const (T : Type _) (U : Type _) :=
+  T × core.marker.PhantomData U
+
+/-- [mysql_common::binlog::events::BinlogEventFooter]
+    Source: 'src/binlog/events/mod.rs', lines 506:0-512:1
+    Visibility: public -/
+structure binlog.events.BinlogEventFooter where
+  checksum_alg : Option (misc.raw._const.RawConst Std.U8
+    binlog.consts.BinlogChecksumAlg Std.U8)
+  checksum_enabled : Bool
+
+/-- [mysql_common::binlog::events::format_description_event::InvalidEventHeaderLength]
+    Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/binlog/events/format_description_event.rs', lines 30:0-35:1
+    Visibility: public -/
+@[reducible]
+def binlog.events.format_description_event.InvalidEventHeaderLength := Unit
+
+/-- [mysql_common::binlog::events::format_description_event::FormatDescriptionEvent]
+    Source: 'src/binlog/events/format_description_event.rs', lines 41:0-63:1
+    Visibility: public -/
+structure binlog.events.format_description_event.FormatDescriptionEvent where
+  binlog_version : misc.raw._const.Const binlog.consts.BinlogVersion
+    misc.raw.int.LeU16
+  server_version : misc.raw.bytes.RawBytes (misc.raw.bytes.FixedLengthText
+    50#usize) Unit
+  create_timestamp : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  event_header_length : misc.raw.int.ConstU8
+    binlog.events.format_description_event.InvalidEventHeaderLength 19#u8
+  event_type_header_lengths : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes
+    Unit
+  footer : binlog.events.BinlogEventFooter
+
+/-- [mysql_common::binlog::BinlogCtx]
+    Source: 'src/binlog/mod.rs', lines 52:0-61:1
+    Visibility: public -/
+structure binlog.BinlogCtx where
+  event_size : Std.Usize
+  fde : binlog.events.format_description_event.FormatDescriptionEvent
+  event_type_raw : Std.U8
+
+/-- Trait declaration: [mysql_common::proto::MySerialize]
+    Source: 'src/proto/mod.rs', lines 25:0-28:1
+    Visibility: public -/
+structure proto.MySerialize (Self : Type _) where
+  serialize : Self → alloc.vec.Vec Std.U8 → Result (alloc.vec.Vec Std.U8)
+
+/-- [mysql_common::binlog::events::gtid_event::LogicalClockFields]
+    Source: 'src/binlog/events/gtid_event.rs', lines 872:0-880:1 -/
+structure binlog.events.gtid_event.LogicalClockFields where
+  last_committed : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  sequence_number : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  immediate_commit_timestamp : misc.raw.int.RawInt misc.raw.int.LeU56 Std.U64
+  original_commit_timestamp : misc.raw.int.RawInt misc.raw.int.LeU56 Std.U64
+  tx_length : misc.raw.int.RawInt misc.raw.int.LenEnc Std.U64
+  original_server_version : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  immediate_server_version : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+
+/-- Trait declaration: [mysql_common::binlog::BinlogStruct]
+    Source: 'src/binlog/mod.rs', lines 74:0-79:1
+    Visibility: public -/
+structure binlog.BinlogStruct (Self : Type _) where
+  protoMySerializeInst : proto.MySerialize Self
+  protoMyDeserializeASelfBinlogCtxInst : proto.MyDeserialize Self
+    binlog.BinlogCtx
+  len : Self → binlog.consts.BinlogVersion → Result Std.Usize
+
+/-- Trait declaration: [mysql_common::binlog::BinlogEvent]
+    Source: 'src/binlog/mod.rs', lines 81:0-84:1
+    Visibility: public -/
+structure binlog.BinlogEvent (Self : Type _) where
+  EVENT_TYPE : Result binlog.consts.EventType
+  BinlogStructInst : binlog.BinlogStruct Self
+
+/-- [mysql_common::binlog::events::begin_load_query_event::BeginLoadQueryEvent]
+    Source: 'src/binlog/events/begin_load_query_event.rs', lines 31:0-34:1
+    Visibility: public -/
+structure binlog.events.begin_load_query_event.BeginLoadQueryEvent where
+  file_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  block_data : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- Trait declaration: [mysql_common::misc::raw::bytes::BytesRepr]
+    Source: 'src/misc/raw/bytes.rs', lines 115:0-125:1
+    Visibility: public -/
+structure misc.raw.bytes.BytesRepr (Self : Type _) (Self_Ctx : Type _) where
+  MAX_LEN : Result Std.Usize
+  SIZE : Result (Option Std.Usize)
+  serialize : Slice Std.U8 → alloc.vec.Vec Std.U8 → Result (alloc.vec.Vec
+    Std.U8)
+  deserialize : Self_Ctx → io.ParseBuf → Result ((core.result.Result
+    (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))
+    core.io.error.Error) × io.ParseBuf)
+
+/-- [mysql_common::misc::raw::int::LeU48]
+    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LeU48 := Unit
+
+/-- [mysql_common::misc::raw::bytes::BareBitmapBytes]
+    Source: 'src/misc/raw/bytes.rs', lines 367:0-367:27
+    Visibility: public -/
+@[reducible]
+def misc.raw.bytes.BareBitmapBytes := Unit
+
+/-- [mysql_common::misc::raw::bytes::BareBytes]
+    Source: 'src/misc/raw/bytes.rs', lines 250:0-250:43
+    Visibility: public -/
+@[reducible]
+def misc.raw.bytes.BareBytes (MAX_LEN : Std.Usize) := Unit
+
+/-- [mysql_common::binlog::events::rows_event::RowsEvent]
+    Source: 'src/binlog/events/rows_event.rs', lines 35:0-76:1
+    Visibility: public -/
+structure binlog.events.rows_event.RowsEvent where
+  event_type : binlog.consts.EventType
+  table_id : misc.raw.int.RawInt misc.raw.int.LeU48 Std.U64
+  flags : misc.raw.flags.RawFlags binlog.consts.RowsEventFlags
+    misc.raw.int.LeU16 Std.U16
+  extra_data : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 65533#usize)
+    Std.Usize
+  num_columns : misc.raw.int.RawInt misc.raw.int.LenEnc Std.U64
+  columns_before_image : Option (misc.raw.bytes.RawBytes
+    misc.raw.bytes.BareBitmapBytes Std.Usize)
+  columns_after_image : Option (misc.raw.bytes.RawBytes
+    misc.raw.bytes.BareBitmapBytes Std.Usize)
+  rows_data : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::binlog::events::delete_rows_event::DeleteRowsEvent]
+    Source: 'src/binlog/events/delete_rows_event.rs', lines 28:0-28:46
+    Visibility: public -/
+@[reducible]
+def binlog.events.delete_rows_event.DeleteRowsEvent :=
+  binlog.events.rows_event.RowsEvent
+
+/-- [mysql_common::misc::raw::seq::RawSeq]
+    Source: 'src/misc/raw/seq.rs', lines 213:0-213:82
+    Visibility: public -/
+def misc.raw.seq.RawSeq (T : Type _) (U : Type _) (Clause0_Primitive : Type _)
+  :=
+  alloc.borrow.Cow (Slice Clause0_Primitive) (alloc.vec.Vec Clause0_Primitive)
+  × core.marker.PhantomData U
+
+/-- [mysql_common::misc::raw::Skip]
+    Source: 'src/misc/raw/mod.rs', lines 85:0-85:34
+    Visibility: public -/
+@[reducible]
+def misc.raw.Skip (LEN : Std.Usize) := Unit
+
+/-- [mysql_common::misc::raw::bytes::U8Bytes]
+    Source: 'src/misc/raw/bytes.rs', lines 150:0-150:19
+    Visibility: public -/
+@[reducible]
+def misc.raw.bytes.U8Bytes := Unit
+
+/-- [mysql_common::constants::ColumnType]
+    Source: 'src/constants.rs', lines 679:0-714:1
+    Visibility: public -/
+@[discriminant u8 [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,242,243,245,246,247,248,249,250,251,252,253,254,255]]
+inductive constants.ColumnType where
+| MYSQL_TYPE_DECIMAL : constants.ColumnType
+| MYSQL_TYPE_TINY : constants.ColumnType
+| MYSQL_TYPE_SHORT : constants.ColumnType
+| MYSQL_TYPE_LONG : constants.ColumnType
+| MYSQL_TYPE_FLOAT : constants.ColumnType
+| MYSQL_TYPE_DOUBLE : constants.ColumnType
+| MYSQL_TYPE_NULL : constants.ColumnType
+| MYSQL_TYPE_TIMESTAMP : constants.ColumnType
+| MYSQL_TYPE_LONGLONG : constants.ColumnType
+| MYSQL_TYPE_INT24 : constants.ColumnType
+| MYSQL_TYPE_DATE : constants.ColumnType
+| MYSQL_TYPE_TIME : constants.ColumnType
+| MYSQL_TYPE_DATETIME : constants.ColumnType
+| MYSQL_TYPE_YEAR : constants.ColumnType
+| MYSQL_TYPE_NEWDATE : constants.ColumnType
+| MYSQL_TYPE_VARCHAR : constants.ColumnType
+| MYSQL_TYPE_BIT : constants.ColumnType
+| MYSQL_TYPE_TIMESTAMP2 : constants.ColumnType
+| MYSQL_TYPE_DATETIME2 : constants.ColumnType
+| MYSQL_TYPE_TIME2 : constants.ColumnType
+| MYSQL_TYPE_TYPED_ARRAY : constants.ColumnType
+| MYSQL_TYPE_VECTOR : constants.ColumnType
+| MYSQL_TYPE_UNKNOWN : constants.ColumnType
+| MYSQL_TYPE_JSON : constants.ColumnType
+| MYSQL_TYPE_NEWDECIMAL : constants.ColumnType
+| MYSQL_TYPE_ENUM : constants.ColumnType
+| MYSQL_TYPE_SET : constants.ColumnType
+| MYSQL_TYPE_TINY_BLOB : constants.ColumnType
+| MYSQL_TYPE_MEDIUM_BLOB : constants.ColumnType
+| MYSQL_TYPE_LONG_BLOB : constants.ColumnType
+| MYSQL_TYPE_BLOB : constants.ColumnType
+| MYSQL_TYPE_VAR_STRING : constants.ColumnType
+| MYSQL_TYPE_STRING : constants.ColumnType
+| MYSQL_TYPE_GEOMETRY : constants.ColumnType
+
+/-- [mysql_common::binlog::events::table_map_event::TableMapEvent]
+    Source: 'src/binlog/events/table_map_event.rs', lines 43:0-81:1
+    Visibility: public -/
+structure binlog.events.table_map_event.TableMapEvent where
+  table_id : misc.raw.int.RawInt misc.raw.int.LeU48 Std.U64
+  flags : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  database_name : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+  __null_1 : misc.raw.Skip 1#usize
+  table_name : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+  __null_2 : misc.raw.Skip 1#usize
+  columns_count : misc.raw.int.RawInt misc.raw.int.LenEnc Std.U64
+  columns_type : misc.raw.seq.RawSeq Std.U8 constants.ColumnType Std.U8
+  columns_metadata : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+  null_bitmask : misc.raw.bytes.RawBytes misc.raw.bytes.BareBitmapBytes
+    Std.Usize
+  optional_metadata : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::binlog::events::rows_event::RowsEventRows]
+    Source: 'src/binlog/events/rows_event.rs', lines 348:0-352:1
+    Visibility: public -/
+structure binlog.events.rows_event.RowsEventRows where
+  rows_event : binlog.events.rows_event.RowsEvent
+  table_map_event : binlog.events.table_map_event.TableMapEvent
+  rows_data : io.ParseBuf
+
+/-- [mysql_common::binlog::events::rows_event::RowsEventCtx]
+    Source: 'src/binlog/events/rows_event.rs', lines 210:0-215:1
+    Visibility: public -/
+structure binlog.events.rows_event.RowsEventCtx where
+  event_type : binlog.consts.EventType
+  binlog_ctx : binlog.BinlogCtx
+
+/-- [mysql_common::binlog::events::delete_rows_event_v1::DeleteRowsEventV1]
+    Source: 'src/binlog/events/delete_rows_event_v1.rs', lines 27:0-27:48
+    Visibility: public -/
+@[reducible]
+def binlog.events.delete_rows_event_v1.DeleteRowsEventV1 :=
+  binlog.events.rows_event.RowsEvent
+
+/-- [mysql_common::binlog::events::query_event::StatusVars]
+    Source: 'src/binlog/events/query_event.rs', lines 516:0-516:58
+    Visibility: public -/
+@[reducible]
+def binlog.events.query_event.StatusVars :=
+  misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 65535#usize) Std.Usize
+
+/-- [mysql_common::binlog::events::execute_load_query_event::ExecuteLoadQueryEvent]
+    Source: 'src/binlog/events/execute_load_query_event.rs', lines 34:0-56:1
+    Visibility: public -/
+structure binlog.events.execute_load_query_event.ExecuteLoadQueryEvent where
+  thread_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  execution_time : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  schema_len : misc.raw.int.RawInt Std.U8 Std.U8
+  error_code : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  status_vars_len : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  file_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  start_pos : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  end_pos : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  dup_handling : misc.raw._const.Const binlog.consts.LoadDuplicateHandling
+    Std.U8
+  status_vars : binlog.events.query_event.StatusVars
+  schema : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 255#usize)
+    Std.Usize
+  __skip : misc.raw.Skip 1#usize
+  query : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::binlog::events::incident_event::IncidentEvent]
+    Source: 'src/binlog/events/incident_event.rs', lines 32:0-35:1
+    Visibility: public -/
+structure binlog.events.incident_event.IncidentEvent where
+  incident_type : misc.raw._const.RawConst misc.raw.int.LeU16
+    binlog.consts.IncidentType Std.U16
+  message : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+
+/-- [mysql_common::binlog::events::intvar_event::IntvarEvent]
+    Source: 'src/binlog/events/intvar_event.rs', lines 28:0-33:1
+    Visibility: public -/
+structure binlog.events.intvar_event.IntvarEvent where
+  subtype : misc.raw._const.Const binlog.consts.IntvarEventType Std.U8
+  value : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+
+/-- [mysql_common::binlog::events::BinlogEventHeader]
+    Source: 'src/binlog/events/mod.rs', lines 389:0-406:1
+    Visibility: public -/
+structure binlog.events.BinlogEventHeader where
+  timestamp : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  event_type : misc.raw._const.RawConst Std.U8 binlog.consts.EventType Std.U8
+  server_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  event_size : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  log_pos : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  flags : misc.raw.flags.RawFlags binlog.consts.EventFlags misc.raw.int.LeU16
+    Std.U16
+
+/-- [mysql_common::binlog::events::Event]
+    Source: 'src/binlog/events/mod.rs', lines 93:0-111:1
+    Visibility: public -/
+structure binlog.events.Event where
+  fde : binlog.events.format_description_event.FormatDescriptionEvent
+  header : binlog.events.BinlogEventHeader
+  data : alloc.vec.Vec Std.U8
+  footer : binlog.events.BinlogEventFooter
+  checksum : Array Std.U8 4#usize
+
+/-- [mysql_common::binlog::events::xid_event::XidEvent]
+    Source: 'src/binlog/events/xid_event.rs', lines 28:0-30:1
+    Visibility: public -/
+structure binlog.events.xid_event.XidEvent where
+  xid : Std.U64
+
+/-- [mysql_common::binlog::events::write_rows_event_v1::WriteRowsEventV1]
+    Source: 'src/binlog/events/write_rows_event_v1.rs', lines 27:0-27:47
+    Visibility: public -/
+@[reducible]
+def binlog.events.write_rows_event_v1.WriteRowsEventV1 :=
+  binlog.events.rows_event.RowsEvent
+
+/-- [mysql_common::binlog::events::write_rows_event::WriteRowsEvent]
+    Source: 'src/binlog/events/write_rows_event.rs', lines 29:0-29:45
+    Visibility: public -/
+@[reducible]
+def binlog.events.write_rows_event.WriteRowsEvent :=
+  binlog.events.rows_event.RowsEvent
+
+/-- [mysql_common::binlog::events::update_rows_event_v1::UpdateRowsEventV1]
+    Source: 'src/binlog/events/update_rows_event_v1.rs', lines 27:0-27:48
+    Visibility: public -/
+@[reducible]
+def binlog.events.update_rows_event_v1.UpdateRowsEventV1 :=
+  binlog.events.rows_event.RowsEvent
+
+/-- [mysql_common::binlog::events::update_rows_event::UpdateRowsEvent]
+    Source: 'src/binlog/events/update_rows_event.rs', lines 30:0-30:46
+    Visibility: public -/
+@[reducible]
+def binlog.events.update_rows_event.UpdateRowsEvent :=
+  binlog.events.rows_event.RowsEvent
+
+/-- [mysql_common::binlog::events::transaction_payload_event::TransactionPayloadEvent]
+    Source: 'src/binlog/events/transaction_payload_event.rs', lines 135:0-150:1
+    Visibility: public -/
+structure binlog.events.transaction_payload_event.TransactionPayloadEvent where
+  payload_size : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  algorithm : binlog.consts.TransactionPayloadCompressionType
+  uncompressed_size : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  payload : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+  header_size : Std.Usize
+
+/-- [mysql_common::binlog::events::rows_query_event::RowsQueryEvent]
+    Source: 'src/binlog/events/rows_query_event.rs', lines 28:0-32:1
+    Visibility: public -/
+structure binlog.events.rows_query_event.RowsQueryEvent where
+  length : misc.raw.Skip 1#usize
+  query : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::binlog::events::rotate_event::RotateEvent]
+    Source: 'src/binlog/events/rotate_event.rs', lines 26:0-34:1
+    Visibility: public -/
+structure binlog.events.rotate_event.RotateEvent where
+  position : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  «name» : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::binlog::events::rand_event::RandEvent]
+    Source: 'src/binlog/events/rand_event.rs', lines 30:0-33:1
+    Visibility: public -/
+structure binlog.events.rand_event.RandEvent where
+  seed1 : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  seed2 : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+
+/-- [mysql_common::binlog::events::query_event::QueryEvent]
+    Source: 'src/binlog/events/query_event.rs', lines 40:0-65:1
+    Visibility: public -/
+structure binlog.events.query_event.QueryEvent where
+  thread_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  execution_time : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  schema_len : misc.raw.int.RawInt Std.U8 Std.U8
+  error_code : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  status_vars_len : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  status_vars : binlog.events.query_event.StatusVars
+  schema : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 255#usize)
+    Std.Usize
+  __skip : misc.raw.Skip 1#usize
+  query : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::packets::GnoInterval]
+    Source: 'src/packets/mod.rs', lines 3802:0-3805:1
+    Visibility: public -/
+structure packets.GnoInterval where
+  start : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  «end» : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+
+/-- [mysql_common::binlog::events::previous_gtids_event::PreviousGtidsSid]
+    Source: 'src/binlog/events/previous_gtids_event.rs', lines 41:0-45:1
+    Visibility: public -/
+structure binlog.events.previous_gtids_event.PreviousGtidsSid where
+  uuid : Array Std.U8 16#usize
+  tag : Option packets.Tag
+  intervals : alloc.vec.Vec packets.GnoInterval
+
+/-- [mysql_common::binlog::events::previous_gtids_event::PreviousGtidsEvent]
+    Source: 'src/binlog/events/previous_gtids_event.rs', lines 93:0-95:1
+    Visibility: public -/
+structure binlog.events.previous_gtids_event.PreviousGtidsEvent where
+  sids : alloc.vec.Vec binlog.events.previous_gtids_event.PreviousGtidsSid
+
+/-- [mysql_common::binlog::events::partial_update_rows_event::PartialUpdateRowsEvent]
+    Source: 'src/binlog/events/partial_update_rows_event.rs', lines 29:0-29:53
+    Visibility: public -/
+@[reducible]
+def binlog.events.partial_update_rows_event.PartialUpdateRowsEvent :=
+  binlog.events.rows_event.RowsEvent
+
+/-- [mysql_common::binlog::events::RowsEventData]
+    Source: 'src/binlog/events/mod.rs', lines 745:0-753:1
+    Visibility: public -/
+@[discriminant isize]
+inductive binlog.events.RowsEventData where
+| WriteRowsEventV1 :
+  binlog.events.write_rows_event_v1.WriteRowsEventV1 →
+  binlog.events.RowsEventData
+| UpdateRowsEventV1 :
+  binlog.events.update_rows_event_v1.UpdateRowsEventV1 →
+  binlog.events.RowsEventData
+| DeleteRowsEventV1 :
+  binlog.events.delete_rows_event_v1.DeleteRowsEventV1 →
+  binlog.events.RowsEventData
+| WriteRowsEvent :
+  binlog.events.write_rows_event.WriteRowsEvent →
+  binlog.events.RowsEventData
+| UpdateRowsEvent :
+  binlog.events.update_rows_event.UpdateRowsEvent →
+  binlog.events.RowsEventData
+| DeleteRowsEvent :
+  binlog.events.delete_rows_event.DeleteRowsEvent →
+  binlog.events.RowsEventData
+| PartialUpdateRowsEvent :
+  binlog.events.partial_update_rows_event.PartialUpdateRowsEvent →
+  binlog.events.RowsEventData
+
+/-- [mysql_common::binlog::events::EventData]
+    Source: 'src/binlog/events/mod.rs', lines 596:0-645:1
+    Visibility: public -/
+@[discriminant isize]
+inductive binlog.events.EventData where
+| UnknownEvent : binlog.events.EventData
+| StartEventV3 :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| QueryEvent : binlog.events.query_event.QueryEvent → binlog.events.EventData
+| StopEvent : binlog.events.EventData
+| RotateEvent :
+  binlog.events.rotate_event.RotateEvent →
+  binlog.events.EventData
+| IntvarEvent :
+  binlog.events.intvar_event.IntvarEvent →
+  binlog.events.EventData
+| LoadEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| SlaveEvent : binlog.events.EventData
+| CreateFileEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| AppendBlockEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| ExecLoadEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| DeleteFileEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| NewLoadEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| RandEvent : binlog.events.rand_event.RandEvent → binlog.events.EventData
+| UserVarEvent :
+  binlog.events.user_var_event.UserVarEvent →
+  binlog.events.EventData
+| FormatDescriptionEvent :
+  binlog.events.format_description_event.FormatDescriptionEvent →
+  binlog.events.EventData
+| XidEvent : binlog.events.xid_event.XidEvent → binlog.events.EventData
+| BeginLoadQueryEvent :
+  binlog.events.begin_load_query_event.BeginLoadQueryEvent →
+  binlog.events.EventData
+| ExecuteLoadQueryEvent :
+  binlog.events.execute_load_query_event.ExecuteLoadQueryEvent →
+  binlog.events.EventData
+| TableMapEvent :
+  binlog.events.table_map_event.TableMapEvent →
+  binlog.events.EventData
+| PreGaWriteRowsEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| PreGaUpdateRowsEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| PreGaDeleteRowsEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| IncidentEvent :
+  binlog.events.incident_event.IncidentEvent →
+  binlog.events.EventData
+| HeartbeatEvent : binlog.events.EventData
+| IgnorableEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| RowsQueryEvent :
+  binlog.events.rows_query_event.RowsQueryEvent →
+  binlog.events.EventData
+| GtidEvent : binlog.events.gtid_event.GtidEvent → binlog.events.EventData
+| AnonymousGtidEvent :
+  binlog.events.anonymous_gtid_event.AnonymousGtidEvent →
+  binlog.events.EventData
+| PreviousGtidsEvent :
+  binlog.events.previous_gtids_event.PreviousGtidsEvent →
+  binlog.events.EventData
+| TransactionContextEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| ViewChangeEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| XaPrepareLogEvent :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  binlog.events.EventData
+| RowsEvent : binlog.events.RowsEventData → binlog.events.EventData
+| TransactionPayloadEvent :
+  binlog.events.transaction_payload_event.TransactionPayloadEvent →
+  binlog.events.EventData
+
+/-- [mysql_common::misc::raw::bytes::NullBytes]
+    Source: 'src/misc/raw/bytes.rs', lines 197:0-197:21
+    Visibility: public -/
+@[reducible]
+def misc.raw.bytes.NullBytes := Unit
+
+/-- [mysql_common::constants::SqlMode]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 830:0-874:1
+    Visibility: public -/
+@[reducible]
+def constants.SqlMode := Std.U64
+
+/-- [mysql_common::constants::Flags2]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 814:0-828:1
+    Visibility: public -/
+@[reducible]
+def constants.Flags2 := Std.U32
+
+/-- [mysql_common::binlog::events::query_event::StatusVarVal]
+    Source: 'src/binlog/events/query_event.rs', lines 273:0-311:1
+    Visibility: public -/
+@[discriminant isize]
+inductive binlog.events.query_event.StatusVarVal where
+| Flags2 :
+  misc.raw.flags.RawFlags constants.Flags2 misc.raw.int.LeU32 Std.U32 →
+  binlog.events.query_event.StatusVarVal
+| SqlMode :
+  misc.raw.flags.RawFlags constants.SqlMode misc.raw.int.LeU64 Std.U64 →
+  binlog.events.query_event.StatusVarVal
+| Catalog : Slice Std.U8 → binlog.events.query_event.StatusVarVal
+| AutoIncrement :
+  Std.U16 →
+  Std.U16 →
+  binlog.events.query_event.StatusVarVal
+| Charset :
+  Std.U16 →
+  Std.U16 →
+  Std.U16 →
+  binlog.events.query_event.StatusVarVal
+| TimeZone :
+  misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit →
+  binlog.events.query_event.StatusVarVal
+| CatalogNz :
+  misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit →
+  binlog.events.query_event.StatusVarVal
+| LcTimeNames : Std.U16 → binlog.events.query_event.StatusVarVal
+| CharsetDatabase : Std.U16 → binlog.events.query_event.StatusVarVal
+| TableMapForUpdate : Std.U64 → binlog.events.query_event.StatusVarVal
+| MasterDataWritten :
+  Array Std.U8 4#usize →
+  binlog.events.query_event.StatusVarVal
+| Invoker :
+  misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit →
+  misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit →
+  binlog.events.query_event.StatusVarVal
+| UpdatedDbNames :
+  alloc.vec.Vec (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit) →
+  binlog.events.query_event.StatusVarVal
+| Microseconds : Std.U32 → binlog.events.query_event.StatusVarVal
+| CommitTs : Slice Std.U8 → binlog.events.query_event.StatusVarVal
+| CommitTs2 : Slice Std.U8 → binlog.events.query_event.StatusVarVal
+| ExplicitDefaultsForTimestamp :
+  Bool →
+  binlog.events.query_event.StatusVarVal
+| DdlLoggedWithXid : Std.U64 → binlog.events.query_event.StatusVarVal
+| DefaultCollationForUtf8mb4 :
+  Std.U16 →
+  binlog.events.query_event.StatusVarVal
+| SqlRequirePrimaryKey : Std.U8 → binlog.events.query_event.StatusVarVal
+| DefaultTableEncryption : Std.U8 → binlog.events.query_event.StatusVarVal
+
+/-- [mysql_common::binlog::events::query_event::StatusVar]
+    Source: 'src/binlog/events/query_event.rs', lines 315:0-320:1
+    Visibility: public -/
+structure binlog.events.query_event.StatusVar where
+  key : binlog.consts.StatusVarKey
+  value : Slice Std.U8
+
+/-- [mysql_common::binlog::events::query_event::StatusVarsIterator]
+    Source: 'src/binlog/events/query_event.rs', lines 576:0-579:1
+    Visibility: public -/
+structure binlog.events.query_event.StatusVarsIterator where
+  pos : Std.Usize
+  status_vars : Slice Std.U8
+
+/-- [mysql_common::constants::UnknownColumnType]
+    Source: 'src/constants.rs', lines 923:0-923:37
+    Visibility: public -/
+@[reducible]
+def constants.UnknownColumnType := Std.U8
+
+/-- [mysql_common::binlog::events::table_map_event::BadColumnType]
+    Source: 'src/binlog/events/table_map_event.rs', lines 31:0-36:1
+    Visibility: public -/
+@[discriminant isize]
+inductive binlog.events.table_map_event.BadColumnType where
+| Unknown :
+  constants.UnknownColumnType →
+  binlog.events.table_map_event.BadColumnType
+| Unexpected : Std.U8 → binlog.events.table_map_event.BadColumnType
+
+/-- [mysql_common::value::Value]
+    Source: 'src/value/mod.rs', lines 62:0-73:1
+    Visibility: public -/
+@[discriminant isize]
+inductive value.Value where
+| NULL : value.Value
+| Bytes : alloc.vec.Vec Std.U8 → value.Value
+| Int : Std.I64 → value.Value
+| UInt : Std.U64 → value.Value
+| Float : F32 → value.Value
+| Double : F64 → value.Value
+| Date :
+  Std.U16 →
+  Std.U8 →
+  Std.U8 →
+  Std.U8 →
+  Std.U8 →
+  Std.U8 →
+  Std.U32 →
+  value.Value
+| Time :
+  Bool →
+  Std.U32 →
+  Std.U8 →
+  Std.U8 →
+  Std.U8 →
+  Std.U32 →
+  value.Value
+
+/-- [mysql_common::binlog::row::BinlogRowValueOptions]
+    Source: 'src/binlog/row.rs', lines 37:0-40:1
+    Visibility: public -/
+@[discriminant u64 [1]]
+inductive binlog.row.BinlogRowValueOptions where
+| PARTIAL_JSON_UPDATES : binlog.row.BinlogRowValueOptions
+
+/-- [mysql_common::binlog::row::UnknownBinlogRowValueOptions]
+    Source: 'src/binlog/row.rs', lines 45:0-45:49
+    Visibility: public -/
+@[reducible]
+def binlog.row.UnknownBinlogRowValueOptions := Std.U64
+
+/-- [mysql_common::packets::ColumnMeta]
+    Source: 'src/packets/mod.rs', lines 124:0-131:1 -/
+structure packets.ColumnMeta where
+  catalog : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+  schema : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+  table : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+  org_table : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+  «name» : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+  org_name : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::InvalidFixedLengthFieldsLen]
+    Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidFixedLengthFieldsLen := Unit
+
+/-- [mysql_common::constants::ColumnFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
+    Visibility: public -/
+@[reducible]
+def constants.ColumnFlags := Std.U16
+
+/-- [mysql_common::packets::Column]
+    Source: 'src/packets/mod.rs', lines 263:0-273:1
+    Visibility: public -/
+structure packets.Column where
+  «meta» : alloc.sync.Arc packets.ColumnMeta
+  fixed_length_fields_len : misc.raw.int.ConstU8
+    packets.InvalidFixedLengthFieldsLen 12#u8
+  column_length : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  character_set : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  column_type : misc.raw._const.Const constants.ColumnType Std.U8
+  flags : misc.raw._const.Const constants.ColumnFlags misc.raw.int.LeU16
+  decimals : misc.raw.int.RawInt Std.U8 Std.U8
+  __filler : misc.raw.Skip 2#usize
+
+/-- [mysql_common::binlog::value::BinlogValue]
+    Source: 'src/binlog/value.rs', lines 27:0-34:1
+    Visibility: public -/
+@[discriminant isize]
+inductive binlog.value.BinlogValue where
+| Value : value.Value → binlog.value.BinlogValue
+| Jsonb : binlog.jsonb.Value → binlog.value.BinlogValue
+| JsonDiff :
+  alloc.vec.Vec binlog.jsondiff.JsonDiff →
+  binlog.value.BinlogValue
+
+/-- [mysql_common::binlog::row::BinlogRow]
+    Source: 'src/binlog/row.rs', lines 66:0-69:1
+    Visibility: public -/
+structure binlog.row.BinlogRow where
+  values : alloc.vec.Vec (Option binlog.value.BinlogValue)
+  columns : alloc.sync.Arc (Slice packets.Column)
+
+/-- [mysql_common::misc::raw::int::LeI24]
+    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LeI24 := Unit
+
+/-- [mysql_common::misc::raw::int::LeU24]
+    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+@[reducible]
+def misc.raw.int.LeU24 := Unit
+
 /-- [mysql_common::constants::StatusFlags]
     Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
     Visibility: public -/
@@ -278,211 +1480,17 @@ def constants.StmtExecuteParamsFlags := Std.U8
 @[reducible]
 def constants.StmtExecuteParamFlags := Std.U8
 
-/-- [mysql_common::constants::ColumnFlags]
-    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
-    Visibility: public -/
-@[reducible]
-def constants.ColumnFlags := Std.U16
-
 /-- [mysql_common::constants::UnknownColumnFlags]
     Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
     Visibility: public -/
 @[reducible]
 def constants.UnknownColumnFlags := Std.U16
 
-/-- [mysql_common::constants::ColumnType]
-    Source: 'src/constants.rs', lines 679:0-714:1
-    Visibility: public -/
-@[discriminant u8 [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,242,243,245,246,247,248,249,250,251,252,253,254,255]]
-inductive constants.ColumnType where
-| MYSQL_TYPE_DECIMAL : constants.ColumnType
-| MYSQL_TYPE_TINY : constants.ColumnType
-| MYSQL_TYPE_SHORT : constants.ColumnType
-| MYSQL_TYPE_LONG : constants.ColumnType
-| MYSQL_TYPE_FLOAT : constants.ColumnType
-| MYSQL_TYPE_DOUBLE : constants.ColumnType
-| MYSQL_TYPE_NULL : constants.ColumnType
-| MYSQL_TYPE_TIMESTAMP : constants.ColumnType
-| MYSQL_TYPE_LONGLONG : constants.ColumnType
-| MYSQL_TYPE_INT24 : constants.ColumnType
-| MYSQL_TYPE_DATE : constants.ColumnType
-| MYSQL_TYPE_TIME : constants.ColumnType
-| MYSQL_TYPE_DATETIME : constants.ColumnType
-| MYSQL_TYPE_YEAR : constants.ColumnType
-| MYSQL_TYPE_NEWDATE : constants.ColumnType
-| MYSQL_TYPE_VARCHAR : constants.ColumnType
-| MYSQL_TYPE_BIT : constants.ColumnType
-| MYSQL_TYPE_TIMESTAMP2 : constants.ColumnType
-| MYSQL_TYPE_DATETIME2 : constants.ColumnType
-| MYSQL_TYPE_TIME2 : constants.ColumnType
-| MYSQL_TYPE_TYPED_ARRAY : constants.ColumnType
-| MYSQL_TYPE_VECTOR : constants.ColumnType
-| MYSQL_TYPE_UNKNOWN : constants.ColumnType
-| MYSQL_TYPE_JSON : constants.ColumnType
-| MYSQL_TYPE_NEWDECIMAL : constants.ColumnType
-| MYSQL_TYPE_ENUM : constants.ColumnType
-| MYSQL_TYPE_SET : constants.ColumnType
-| MYSQL_TYPE_TINY_BLOB : constants.ColumnType
-| MYSQL_TYPE_MEDIUM_BLOB : constants.ColumnType
-| MYSQL_TYPE_LONG_BLOB : constants.ColumnType
-| MYSQL_TYPE_BLOB : constants.ColumnType
-| MYSQL_TYPE_VAR_STRING : constants.ColumnType
-| MYSQL_TYPE_STRING : constants.ColumnType
-| MYSQL_TYPE_GEOMETRY : constants.ColumnType
-
-/-- [mysql_common::constants::UnknownColumnType]
-    Source: 'src/constants.rs', lines 923:0-923:37
-    Visibility: public -/
-@[reducible]
-def constants.UnknownColumnType := Std.U8
-
-/-- Trait declaration: [mysql_common::io::BufMut]
-    Source: 'src/io.rs', lines 16:0-30:1
-    Visibility: public -/
-structure io.BufMut (Self : Type _) where
-  put_slice : Self → Slice Std.U8 → Result Self
-  put_u8 : Self → Std.U8 → Result Self
-  put_i8 : Self → Std.I8 → Result Self
-  put_u16_le : Self → Std.U16 → Result Self
-  put_i16_le : Self → Std.I16 → Result Self
-  put_u32_le : Self → Std.U32 → Result Self
-  put_i32_le : Self → Std.I32 → Result Self
-  put_u64_le : Self → Std.U64 → Result Self
-  put_i64_le : Self → Std.I64 → Result Self
-  put_uint_le : Self → Std.U64 → Std.Usize → Result Self
-  put_int_le : Self → Std.I64 → Std.Usize → Result Self
-  put_f32_le : Self → F32 → Result Self
-  put_f64_le : Self → F64 → Result Self
-
-/-- Trait declaration: [mysql_common::io::BufMutExt]
-    Source: 'src/io.rs', lines 92:0-153:1
-    Visibility: public -/
-structure io.BufMutExt (Self : Type _) where
-  BufMutInst : io.BufMut Self
-  put_lenenc_int : Self → Std.U64 → Result Self
-  put_lenenc_str : Self → Slice Std.U8 → Result Self
-  put_u24_le : Self → Std.U32 → Result Self
-  put_i24_le : Self → Std.I32 → Result Self
-  put_u48_le : Self → Std.U64 → Result Self
-  put_u56_le : Self → Std.U64 → Result Self
-  put_i56_le : Self → Std.I64 → Result Self
-  put_u8_str : Self → Slice Std.U8 → Result Self
-  put_u32_str : Self → Slice Std.U8 → Result Self
-
-/-- [mysql_common::io::ParseBuf]
-    Source: 'src/io.rs', lines 170:0-170:38
-    Visibility: public -/
-@[reducible]
-def io.ParseBuf := Slice Std.U8
-
-/-- Trait declaration: [mysql_common::proto::MyDeserialize]
-    Source: 'src/proto/mod.rs', lines 31:0-49:1
-    Visibility: public -/
-structure proto.MyDeserialize (Self : Type _) (Self_Ctx : Type _) where
-  SIZE : Result (Option Std.Usize)
-  deserialize : Self_Ctx → io.ParseBuf → Result ((core.result.Result Self
-    core.io.error.Error) × io.ParseBuf)
-
-/-- [mysql_common::misc::raw::_const::Const]
-    Source: 'src/misc/raw/_const.rs', lines 30:0-30:46
-    Visibility: public -/
-def misc.raw._const.Const (T : Type _) (U : Type _) :=
-  T × core.marker.PhantomData U
-
-/-- Trait declaration: [mysql_common::misc::raw::int::IntRepr]
-    Source: 'src/misc/raw/int.rs', lines 78:0-84:1
-    Visibility: public -/
-structure misc.raw.int.IntRepr (Self : Type _) (Self_Primitive : Type _) where
-  SIZE : Result (Option Std.Usize)
-  corefmtDebugInst : core.fmt.Debug Self_Primitive
-  coredefaultDefaultInst : core.default.Default Self_Primitive
-  coremarkerCopyInst : core.marker.Copy Self_Primitive
-  corecmpEqInst : core.cmp.Eq Self_Primitive
-  corecmpOrdInst : core.cmp.Ord Self_Primitive
-  serialize : Self_Primitive → alloc.vec.Vec Std.U8 → Result (alloc.vec.Vec
-    Std.U8)
-  deserialize : io.ParseBuf → Result ((core.result.Result Self_Primitive
-    core.io.error.Error) × io.ParseBuf)
-
-/-- [mysql_common::misc::raw::int::RawInt]
-    Source: 'src/misc/raw/int.rs', lines 28:0-28:64
-    Visibility: public -/
-def misc.raw.int.RawInt (T : Type _) (Clause0_Primitive : Type _) :=
-  Clause0_Primitive × core.marker.PhantomData T
-
-/-- Trait declaration: [mysql_common::proto::MySerialize]
-    Source: 'src/proto/mod.rs', lines 25:0-28:1
-    Visibility: public -/
-structure proto.MySerialize (Self : Type _) where
-  serialize : Self → alloc.vec.Vec Std.U8 → Result (alloc.vec.Vec Std.U8)
-
-/-- [mysql_common::misc::raw::_const::RawConst]
-    Source: 'src/misc/raw/_const.rs', lines 88:0-88:69
-    Visibility: public -/
-def misc.raw._const.RawConst (T : Type _) (U : Type _) (Clause0_Primitive :
-  Type _) :=
-  Clause0_Primitive × core.marker.PhantomData U
-
-/-- [mysql_common::misc::raw::bytes::RawBytes]
-    Source: 'src/misc/raw/bytes.rs', lines 28:0-28:73
-    Visibility: public -/
-def misc.raw.bytes.RawBytes (T : Type _) (Clause0_Ctx : Type _) :=
-  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) ×
-  core.marker.PhantomData T
-
-/-- Trait declaration: [mysql_common::misc::raw::bytes::BytesRepr]
-    Source: 'src/misc/raw/bytes.rs', lines 115:0-125:1
-    Visibility: public -/
-structure misc.raw.bytes.BytesRepr (Self : Type _) (Self_Ctx : Type _) where
-  MAX_LEN : Result Std.Usize
-  SIZE : Result (Option Std.Usize)
-  serialize : Slice Std.U8 → alloc.vec.Vec Std.U8 → Result (alloc.vec.Vec
-    Std.U8)
-  deserialize : Self_Ctx → io.ParseBuf → Result ((core.result.Result
-    (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))
-    core.io.error.Error) × io.ParseBuf)
-
-/-- [mysql_common::misc::raw::int::LenEnc]
-    Source: 'src/misc/raw/int.rs', lines 141:12-141:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 187:0-190:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LenEnc := Unit
-
-/-- [mysql_common::misc::raw::bytes::U8Bytes]
-    Source: 'src/misc/raw/bytes.rs', lines 150:0-150:19
-    Visibility: public -/
-@[reducible]
-def misc.raw.bytes.U8Bytes := Unit
-
 /-- [mysql_common::misc::raw::bytes::U32Bytes]
     Source: 'src/misc/raw/bytes.rs', lines 174:0-174:20
     Visibility: public -/
 @[reducible]
 def misc.raw.bytes.U32Bytes := Unit
-
-/-- [mysql_common::misc::raw::bytes::NullBytes]
-    Source: 'src/misc/raw/bytes.rs', lines 197:0-197:21
-    Visibility: public -/
-@[reducible]
-def misc.raw.bytes.NullBytes := Unit
-
-/-- [mysql_common::misc::raw::bytes::EofBytes]
-    Source: 'src/misc/raw/bytes.rs', lines 230:0-230:20
-    Visibility: public -/
-@[reducible]
-def misc.raw.bytes.EofBytes := Unit
-
-/-- [mysql_common::misc::raw::bytes::BareBytes]
-    Source: 'src/misc/raw/bytes.rs', lines 250:0-250:43
-    Visibility: public -/
-@[reducible]
-def misc.raw.bytes.BareBytes (MAX_LEN : Std.Usize) := Unit
-
-/-- [mysql_common::misc::raw::bytes::FixedLengthText]
-    Source: 'src/misc/raw/bytes.rs', lines 280:0-280:45
-    Visibility: public -/
-@[reducible]
-def misc.raw.bytes.FixedLengthText (LEN : Std.Usize) := Unit
 
 /-- [mysql_common::misc::raw::int::VarLen]
     Source: 'src/misc/raw/int.rs', lines 308:0-308:18
@@ -506,60 +1514,11 @@ structure misc.raw.bytes.ConstBytesValue (Self : Type _) (Self_Error : Type _)
   coredefaultDefaultInst : core.default.Default Self_Error
   coreerrorErrorInst : core.error.Error Self_Error
 
-/-- [mysql_common::misc::raw::flags::RawFlags]
-    Source: 'src/misc/raw/flags.rs', lines 26:0-26:62
-    Visibility: public -/
-def misc.raw.flags.RawFlags (T : Type _) (U : Type _) (Clause0_Bits : Type _)
-  :=
-  Clause0_Bits × core.marker.PhantomData U
-
-/-- [mysql_common::misc::raw::int::LeU16]
-    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LeU16 := Unit
-
-/-- [mysql_common::misc::raw::int::LeU24]
-    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LeU24 := Unit
-
-/-- [mysql_common::misc::raw::int::LeU32]
-    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LeU32 := Unit
-
-/-- [mysql_common::misc::raw::int::LeU48]
-    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LeU48 := Unit
-
-/-- [mysql_common::misc::raw::int::LeU56]
-    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LeU56 := Unit
-
-/-- [mysql_common::misc::raw::int::LeU64]
-    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LeU64 := Unit
-
 /-- [mysql_common::misc::raw::int::LeI16]
     Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
     Visibility: public -/
 @[reducible]
 def misc.raw.int.LeI16 := Unit
-
-/-- [mysql_common::misc::raw::int::LeI24]
-    Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.LeI24 := Unit
 
 /-- [mysql_common::misc::raw::int::LeI32]
     Source: 'src/misc/raw/int.rs', lines 121:12-121:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
@@ -591,24 +1550,12 @@ def misc.raw.int.LeU32LowerHalf := Unit
 @[reducible]
 def misc.raw.int.LeU32UpperHalf := Unit
 
-/-- [mysql_common::misc::raw::int::ConstU8]
-    Source: 'src/misc/raw/int.rs', lines 236:0-236:51
-    Visibility: public -/
-@[reducible]
-def misc.raw.int.ConstU8 (T : Type _) (N : Std.U8) := core.marker.PhantomData T
-
 /-- [mysql_common::misc::raw::int::ConstU32]
     Source: 'src/misc/raw/int.rs', lines 275:0-275:53
     Visibility: public -/
 @[reducible]
 def misc.raw.int.ConstU32 (T : Type _) (N : Std.U32) :=
   core.marker.PhantomData T
-
-/-- [mysql_common::misc::raw::Skip]
-    Source: 'src/misc/raw/mod.rs', lines 85:0-85:34
-    Visibility: public -/
-@[reducible]
-def misc.raw.Skip (LEN : Std.Usize) := Unit
 
 /-- [mysql_common::misc::raw::Either]
     Source: 'src/misc/raw/mod.rs', lines 116:0-119:1
@@ -643,14 +1590,6 @@ structure misc.raw.seq.SeqRepr (Self : Type _) (Self_Ctx : Type _) where
 @[reducible]
 def misc.raw.seq.Unknown := Unit
 
-/-- [mysql_common::misc::raw::seq::RawSeq]
-    Source: 'src/misc/raw/seq.rs', lines 213:0-213:82
-    Visibility: public -/
-def misc.raw.seq.RawSeq (T : Type _) (U : Type _) (Clause0_Primitive : Type _)
-  :=
-  alloc.borrow.Cow (Slice Clause0_Primitive) (alloc.vec.Vec Clause0_Primitive)
-  × core.marker.PhantomData U
-
 /-- [mysql_common::named_params::MixedParamsError]
     Source: 'src/named_params.rs', lines 13:0-13:28
     Visibility: public -/
@@ -682,36 +1621,6 @@ structure named_params.ParsedNamedParams where
   query : alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)
   params : alloc.vec.Vec (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
     Std.U8))
-
-/-- [mysql_common::packets::InvalidFixedLengthFieldsLen]
-    Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
-    Visibility: public -/
-@[reducible]
-def packets.InvalidFixedLengthFieldsLen := Unit
-
-/-- [mysql_common::packets::ColumnMeta]
-    Source: 'src/packets/mod.rs', lines 124:0-131:1 -/
-structure packets.ColumnMeta where
-  catalog : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
-  schema : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
-  table : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
-  org_table : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
-  «name» : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
-  org_name : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
-
-/-- [mysql_common::packets::Column]
-    Source: 'src/packets/mod.rs', lines 263:0-273:1
-    Visibility: public -/
-structure packets.Column where
-  «meta» : alloc.sync.Arc packets.ColumnMeta
-  fixed_length_fields_len : misc.raw.int.ConstU8
-    packets.InvalidFixedLengthFieldsLen 12#u8
-  column_length : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
-  character_set : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
-  column_type : misc.raw._const.Const constants.ColumnType Std.U8
-  flags : misc.raw._const.Const constants.ColumnFlags misc.raw.int.LeU16
-  decimals : misc.raw.int.RawInt Std.U8 Std.U8
-  __filler : misc.raw.Skip 2#usize
 
 /-- [mysql_common::packets::OkPacketBody]
     Source: 'src/packets/mod.rs', lines 536:0-543:1
@@ -842,35 +1751,6 @@ structure value.SerializationSide (Self : Type _) where
     Visibility: public -/
 structure packets.ComStmtExecuteRequestBuilder where
   stmt_id : Std.U32
-
-/-- [mysql_common::value::Value]
-    Source: 'src/value/mod.rs', lines 62:0-73:1
-    Visibility: public -/
-@[discriminant isize]
-inductive value.Value where
-| NULL : value.Value
-| Bytes : alloc.vec.Vec Std.U8 → value.Value
-| Int : Std.I64 → value.Value
-| UInt : Std.U64 → value.Value
-| Float : F32 → value.Value
-| Double : F64 → value.Value
-| Date :
-  Std.U16 →
-  Std.U8 →
-  Std.U8 →
-  Std.U8 →
-  Std.U8 →
-  Std.U8 →
-  Std.U32 →
-  value.Value
-| Time :
-  Bool →
-  Std.U32 →
-  Std.U8 →
-  Std.U8 →
-  Std.U8 →
-  Std.U32 →
-  value.Value
 
 /-- [mysql_common::value::ClientSide]
     Source: 'src/value/mod.rs', lines 46:0-46:22

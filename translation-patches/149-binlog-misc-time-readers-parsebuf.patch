@@ -1,0 +1,202 @@
+Translation patch: `binlog::misc` packed-time readers on `ParseBuf`
+
+Change: `my_time_packed_from_binary`, `my_datetime_packed_from_binary` and `my_timestamp_from_binary` take `input: &mut ParseBuf<'_>` instead of a generic `T: io::Read` (their only callers, in `binlog/value.rs`, pass `&mut ParseBuf`). Each byteorder read (`read_u8`, `read_i8`, `read_u16/i16/u24/i24/u32/u48::<BigEndian>`, `read_uint::<BigEndian>(5)`) becomes a private helper using `ParseBuf::checked_eat_*_be` (`read_i24` sign-extends the 24-bit value, as byteorder does); when the buffer is too short the helper empties it and returns `binlog::trusted::read_exact_eof()`, the error of `read_exact` on an empty slice (opaque).
+Why: byteorder's `ReadBytesExt` goes through `io::Read` on a generic reader, which Aeneas does not model.
+Behaviour: Identical for `ParseBuf` inputs: byteorder reads with `read_exact`, which on `ParseBuf` (whose `read` copies what is left) succeeds with the same big-endian value and advance, or consumes the rest of the buffer and fails with std's `READ_EXACT_EOF` error, which is what `read_exact_eof` returns. Public-API narrowing in the patched copy: the three functions no longer accept other readers.
+
+diff --git a/src/binlog/misc.rs b/src/binlog/misc.rs
+index 35cdd5a..c074a2b 100644
+--- a/src/binlog/misc.rs
++++ b/src/binlog/misc.rs
+@@ -6,7 +6,6 @@
+ // option. All files in the project carrying such notice may not be copied,
+ // modified, or distributed except according to those terms.
+ 
+-use byteorder::{BigEndian as BE, ReadBytesExt};
+ use saturating::Saturating as S;
+ 
+ use std::{
+@@ -14,7 +13,87 @@ use std::{
+     io::{self, Write},
+ };
+ 
+-use crate::value::Value;
++use crate::{io::ParseBuf, value::Value};
++
++/// The error of `byteorder::ReadBytesExt::read_*` on a `ParseBuf` that is too short: the reader
++/// consumed what was left (`Read::read_exact` reads until the buffer is empty) and failed with
++/// `read_exact`'s error.
++fn read_eof(input: &mut ParseBuf<'_>) -> io::Error {
++    input.0 = &input.0[input.0.len()..];
++    crate::binlog::trusted::read_exact_eof()
++}
++
++/// `input.read_u8()` (byteorder).
++fn read_u8(input: &mut ParseBuf<'_>) -> io::Result<u8> {
++    match input.checked_eat_u8() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_i8()` (byteorder).
++fn read_i8(input: &mut ParseBuf<'_>) -> io::Result<i8> {
++    match input.checked_eat_i8() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_u16::<BigEndian>()` (byteorder).
++fn read_u16_be(input: &mut ParseBuf<'_>) -> io::Result<u16> {
++    match input.checked_eat_u16_be() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_i16::<BigEndian>()` (byteorder).
++fn read_i16_be(input: &mut ParseBuf<'_>) -> io::Result<i16> {
++    match input.checked_eat_i16_be() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_u24::<BigEndian>()` (byteorder).
++fn read_u24_be(input: &mut ParseBuf<'_>) -> io::Result<u32> {
++    match input.checked_eat_u24_be() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_i24::<BigEndian>()` (byteorder): the 24-bit value, sign-extended.
++fn read_i24_be(input: &mut ParseBuf<'_>) -> io::Result<i32> {
++    match input.checked_eat_u24_be() {
++        Some(x) => Ok(((x << 8) as i32) >> 8),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_u32::<BigEndian>()` (byteorder).
++fn read_u32_be(input: &mut ParseBuf<'_>) -> io::Result<u32> {
++    match input.checked_eat_u32_be() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_uint::<BigEndian>(5)` (byteorder).
++fn read_u40_be(input: &mut ParseBuf<'_>) -> io::Result<u64> {
++    match input.checked_eat_u40_be() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
++
++/// `input.read_u48::<BigEndian>()` (byteorder).
++fn read_u48_be(input: &mut ParseBuf<'_>) -> io::Result<u64> {
++    match input.checked_eat_u48_be() {
++        Some(x) => Ok(x),
++        None => Err(read_eof(input)),
++    }
++}
+ 
+ pub const TIMEF_INT_OFS: i64 = 0x800000;
+ pub const TIMEF_OFS: i64 = 0x800000000000;
+@@ -28,11 +107,11 @@ pub fn my_packed_time_make(i: i64, f: i64) -> i64 {
+     ((i as u64) << 24) as i64 + f
+ }
+ 
+-pub fn my_time_packed_from_binary<T: io::Read>(mut input: T, dec: u32) -> io::Result<i64> {
++pub fn my_time_packed_from_binary(input: &mut ParseBuf<'_>, dec: u32) -> io::Result<i64> {
+     match dec {
+         1 | 2 => {
+-            let mut intpart = input.read_u24::<BE>()? as i64 - TIMEF_INT_OFS;
+-            let mut frac = input.read_u8()? as u32;
++            let mut intpart = read_u24_be(input)? as i64 - TIMEF_INT_OFS;
++            let mut frac = read_u8(input)? as u32;
+             if intpart < 0 && frac > 0 {
+                 intpart += 1;
+                 frac -= 0x100;
+@@ -40,17 +119,17 @@ pub fn my_time_packed_from_binary<T: io::Read>(mut input: T, dec: u32) -> io::Re
+             Ok(my_packed_time_make(intpart, (frac as i64) * 10_000))
+         }
+         3 | 4 => {
+-            let mut intpart = input.read_u24::<BE>()? as i64 - TIMEF_INT_OFS;
+-            let mut frac = input.read_u16::<BE>()? as i32;
++            let mut intpart = read_u24_be(input)? as i64 - TIMEF_INT_OFS;
++            let mut frac = read_u16_be(input)? as i32;
+             if intpart < 0 && frac > 0 {
+                 intpart += 1;
+                 frac -= 0x10000;
+             }
+             Ok(my_packed_time_make(intpart, (frac * 100) as i64))
+         }
+-        5 | 6 => Ok((input.read_u48::<BE>()? as i64) - TIMEF_OFS),
++        5 | 6 => Ok((read_u48_be(input)? as i64) - TIMEF_OFS),
+         _ => {
+-            let i = input.read_u24::<BE>()? as i64 - TIMEF_INT_OFS;
++            let i = read_u24_be(input)? as i64 - TIMEF_INT_OFS;
+             Ok(my_packed_time_make_int(i))
+         }
+     }
+@@ -81,12 +160,12 @@ pub fn time_from_packed(mut tmp: i64) -> Value {
+     Value::Time(neg, d, h as u8, m as u8, s as u8, u as u32)
+ }
+ 
+-pub fn my_datetime_packed_from_binary<T: io::Read>(mut input: T, dec: u32) -> io::Result<i64> {
+-    let intpart = (input.read_uint::<BE>(5)? as i64) - DATETIMEF_INT_OFS;
++pub fn my_datetime_packed_from_binary(input: &mut ParseBuf<'_>, dec: u32) -> io::Result<i64> {
++    let intpart = (read_u40_be(input)? as i64) - DATETIMEF_INT_OFS;
+     let frac = match dec {
+-        1 | 2 => (input.read_i8()? as i32) * 10_000,
+-        3 | 4 => (input.read_i16::<BE>()? as i32) * 100,
+-        5 | 6 => input.read_i24::<BE>()?,
++        1 | 2 => (read_i8(input)? as i32) * 10_000,
++        3 | 4 => (read_i16_be(input)? as i32) * 100,
++        5 | 6 => read_i24_be(input)?,
+         _ => return Ok(my_packed_time_make_int(intpart)),
+     };
+     Ok(my_packed_time_make(intpart, frac as i64))
+@@ -122,12 +201,12 @@ pub fn datetime_from_packed(mut tmp: i64) -> Value {
+     )
+ }
+ 
+-pub fn my_timestamp_from_binary<T: io::Read>(mut input: T, dec: u8) -> io::Result<(i32, i32)> {
+-    let sec = input.read_u32::<BE>()? as i32;
++pub fn my_timestamp_from_binary(input: &mut ParseBuf<'_>, dec: u8) -> io::Result<(i32, i32)> {
++    let sec = read_u32_be(input)? as i32;
+     let usec = match dec {
+-        1 | 2 => input.read_i8()? as i32 * 10000,
+-        3 | 4 => input.read_i16::<BE>()? as i32 * 100,
+-        5 | 6 => input.read_i24::<BE>()?,
++        1 | 2 => read_i8(input)? as i32 * 10000,
++        3 | 4 => read_i16_be(input)? as i32 * 100,
++        5 | 6 => read_i24_be(input)?,
+         _ => 0,
+     };
+     Ok((sec, usec))
+diff --git a/src/binlog/trusted.rs b/src/binlog/trusted.rs
+index 8b64c77..e0560d1 100644
+--- a/src/binlog/trusted.rs
++++ b/src/binlog/trusted.rs
+@@ -25,6 +25,17 @@ pub(crate) fn timestamp2_frac_bytes(sec: i32, usec: i32) -> Vec<u8> {
+     format!("{}.{:06}", sec, usec).into_bytes()
+ }
+ 
++/// The error of `Read::read_exact` on a reader that ends early (std's `READ_EXACT_EOF`, of kind
++/// `UnexpectedEof`), obtained from `read_exact` on an empty slice.
++pub(crate) fn read_exact_eof() -> io::Error {
++    use std::io::Read;
++    let mut empty: &[u8] = &[];
++    match empty.read_exact(&mut [0_u8]) {
++        Ok(()) => unreachable!(),
++        Err(e) => e,
++    }
++}
++
+ // ---- GTID tags (`packets::Tag`) ------------------------------------------------------------------
+ //
+ // `Tag` wraps a `Cow<str>`: its validation iterates over `str::chars`, and converting it to an
