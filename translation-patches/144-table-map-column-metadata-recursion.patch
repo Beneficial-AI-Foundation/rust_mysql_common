@@ -1,0 +1,54 @@
+Translation patch: `TableMapEvent::get_column_metadata`
+
+Change: The loop `for i in 0..=col_idx { .. ? .. return Some(metadata) .. offset += len }` becomes a recursive helper `get_column_metadata_from(i, offset, col_idx)` called with `(0, 0, col_idx)`; the `?`s on `Option` become `match`es returning `None`.
+Why: Aeneas does not support early returns inside loops, nor `?` on `Option`.
+Behaviour: Identical: the helper performs iteration `i` and recurses on `(i + 1, offset + len)`, returning where the loop returned (the loop never exits normally since `0..=col_idx` is non-empty and its last iteration returns).
+
+diff --git a/src/binlog/events/table_map_event.rs b/src/binlog/events/table_map_event.rs
+index 5487904..312b433 100644
+--- a/src/binlog/events/table_map_event.rs
++++ b/src/binlog/events/table_map_event.rs
+@@ -178,18 +178,32 @@ impl<'a> TableMapEvent<'a> {
+     /// Returns `None` if column index is out of bounds or if offset couldn't be calculated
+     /// (e.g. because of unknown column type between `0` and `col_idx`).
+     pub fn get_column_metadata(&self, col_idx: usize) -> Option<&[u8]> {
+-        let mut offset = 0;
+-        for i in 0..=col_idx {
+-            let ty = self.columns_type.get(i)?.get().ok()?;
+-            let ptr = self.columns_metadata.as_bytes().get(offset..)?;
+-            let (metadata, len) = ty.get_metadata(ptr, false)?;
+-            if i == col_idx {
+-                return Some(metadata);
+-            } else {
+-                offset += len;
+-            }
++        self.get_column_metadata_from(0, 0, col_idx)
++    }
++
++    /// The iteration `i` (with the running `offset`) of the loop
++    /// `for i in 0..=col_idx` of `get_column_metadata`, and the iterations after it.
++    fn get_column_metadata_from(&self, i: usize, offset: usize, col_idx: usize) -> Option<&[u8]> {
++        let ty = match self.columns_type.get(i) {
++            Some(x) => match x.get() {
++                Ok(ty) => ty,
++                Err(_) => return None,
++            },
++            None => return None,
++        };
++        let ptr = match self.columns_metadata.as_bytes().get(offset..) {
++            Some(ptr) => ptr,
++            None => return None,
++        };
++        let (metadata, len) = match ty.get_metadata(ptr, false) {
++            Some(x) => x,
++            None => return None,
++        };
++        if i == col_idx {
++            Some(metadata)
++        } else {
++            self.get_column_metadata_from(i + 1, offset + len, col_idx)
+         }
+-        None
+     }
+ 
+     pub fn iter_optional_meta(&'a self) -> OptionalMetadataIter<'a> {

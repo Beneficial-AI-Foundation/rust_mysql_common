@@ -156,3 +156,31 @@ axiom std.collections.hash.map.HashMap (K : Type _) (V : Type _) (S : Type _) (A
 /-- [std::hash::random::RandomState]: opaque (the hasher of a `HashMap`; never used directly). -/
 @[rust_type "std::hash::random::RandomState"]
 axiom std.hash.random.RandomState : Type
+
+/-! ## Opaque types of the binlog translation (nothing is assumed about them)
+
+`MaybeUninit` appears in the signatures of std items reached by the binlog code; JSONB values and
+JSON diffs are out of scope (`binlog::{jsonb, jsondiff}` are opaque in Cargo.toml); `UserVarEvent`
+is opaque in Cargo.toml (Aeneas cannot print the negative discriminant of `ItemResult`). -/
+
+/-- [core::mem::maybe_uninit::MaybeUninit]
+    Source: '/rustc/library/core/src/mem/maybe_uninit.rs', lines 355:0-355:24
+    Name pattern: [core::mem::maybe_uninit::MaybeUninit]
+    Visibility: public -/
+@[rust_type "core::mem::maybe_uninit::MaybeUninit"]
+axiom core.mem.maybe_uninit.MaybeUninit (T : Type _) : Type
+
+/-- [mysql_common::binlog::jsonb::Value]
+    Source: 'src/binlog/jsonb.rs', lines 565:0-581:1
+    Visibility: public -/
+axiom binlog.jsonb.Value : Type
+
+/-- [mysql_common::binlog::jsondiff::JsonDiff]
+    Source: 'src/binlog/jsondiff.rs', lines 61:0-65:1
+    Visibility: public -/
+axiom binlog.jsondiff.JsonDiff : Type
+
+/-- [mysql_common::binlog::events::user_var_event::UserVarEvent]
+    Source: 'src/binlog/events/user_var_event.rs', lines 39:0-52:1
+    Visibility: public -/
+axiom binlog.events.user_var_event.UserVarEvent : Type

@@ -1,0 +1,314 @@
+Translation patch: `PreviousGtidsEvent`/`PreviousGtidsSid`: loops and tags
+
+Change: The nested `for` loops of `deserialize` become the recursive helpers `parse_sids`/`parse_sid`/`parse_intervals`; `io::Error::new(kind, "..")` becomes `io_error_msg`; `into_owned`'s `into_iter().map(..).collect()` becomes the recursive `sids_into_owned` (using `Vec::pop`); `is_tagged`'s `iter().any(..)` an index loop; the `serialize` loops index loops. The operations on `packets::Tag` (validation via `str::from_utf8` + `Tag::new` with their `format!` errors, `Tag::into_owned`, `tag.as_str().as_bytes()`) move into opaque helpers in `binlog::trusted` (`previous_gtids_tag`, `tag_into_owned`, `tag_as_bytes`).
+Why: Early returns (`?`) in loops, closures, `Vec` `into_iter` and `iter().any` are not supported by Aeneas; `Tag` validation iterates `str::chars`, and `Cow<str>` ownership goes through `ToOwned for str`, neither modelled.
+Behaviour: Identical: the helpers run the same iterations in the same order with the same early exits; `sids_into_owned` converts the elements in order (popping recurses to the front first); the trusted helpers are the moved expressions.
+
+diff --git a/src/binlog/events/previous_gtids_event.rs b/src/binlog/events/previous_gtids_event.rs
+index 22a877a..4b03521 100644
+--- a/src/binlog/events/previous_gtids_event.rs
++++ b/src/binlog/events/previous_gtids_event.rs
+@@ -28,7 +28,8 @@ use crate::{
+         consts::{BinlogVersion, EventType},
+     },
+     io::ParseBuf,
+-    misc::{read_varlen_uint, write_varlen_uint},
++    binlog::trusted,
++    misc::{io_error_msg, read_varlen_uint, write_varlen_uint},
+     packets::{GnoInterval, Tag},
+     proto::{MyDeserialize, MySerialize},
+ };
+@@ -72,7 +73,10 @@ impl<'a> PreviousGtidsSid<'a> {
+     pub fn into_owned(self) -> PreviousGtidsSid<'static> {
+         PreviousGtidsSid {
+             uuid: self.uuid,
+-            tag: self.tag.map(|t| t.into_owned()),
++            tag: match self.tag {
++                Some(t) => Some(trusted::tag_into_owned(t)),
++                None => None,
++            },
+             intervals: self.intervals,
+         }
+     }
+@@ -104,13 +108,20 @@ impl<'a> PreviousGtidsEvent<'a> {
+     /// Returns a `'static` version of `self`.
+     pub fn into_owned(self) -> PreviousGtidsEvent<'static> {
+         PreviousGtidsEvent {
+-            sids: self.sids.into_iter().map(|s| s.into_owned()).collect(),
++            sids: sids_into_owned(self.sids),
+         }
+     }
+ 
+     /// Returns true if any SID entry has a tag.
+     fn is_tagged(&self) -> bool {
+-        self.sids.iter().any(|s| s.tag.is_some())
++        let mut i = 0;
++        while i < self.sids.len() {
++            if self.sids[i].tag.is_some() {
++                return true;
++            }
++            i += 1;
++        }
++        false
+     }
+ }
+ 
+@@ -120,7 +131,7 @@ impl<'de> MyDeserialize<'de> for PreviousGtidsEvent<'de> {
+ 
+     fn deserialize(_ctx: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         if buf.len() < 8 {
+-            return Err(io::Error::new(
++            return Err(io_error_msg(
+                 io::ErrorKind::UnexpectedEof,
+                 "PreviousGtidsEvent too short for header",
+             ));
+@@ -142,77 +153,108 @@ impl<'de> MyDeserialize<'de> for PreviousGtidsEvent<'de> {
+ 
+         let mut sids = Vec::with_capacity(n_sids as usize);
+ 
+-        for _ in 0..n_sids {
+-            // UUID (16 bytes)
+-            if buf.len() < 16 {
+-                return Err(io::Error::new(
+-                    io::ErrorKind::UnexpectedEof,
+-                    "PreviousGtidsEvent: unexpected EOF reading UUID",
+-                ));
+-            }
+-            let mut uuid = [0u8; 16];
+-            uuid.copy_from_slice(&buf.0[..16]);
+-            buf.0 = &buf.0[16..];
++        parse_sids(buf, tagged, n_sids, &mut sids)?;
+ 
+-            // Tag (only in tagged format)
+-            let tag = if tagged {
+-                let tag_len = read_varlen_uint(buf)? as usize;
+-                if tag_len == 0 {
+-                    None
+-                } else {
+-                    if buf.len() < tag_len {
+-                        return Err(io::Error::new(
+-                            io::ErrorKind::UnexpectedEof,
+-                            "PreviousGtidsEvent: unexpected EOF reading tag",
+-                        ));
+-                    }
+-                    let tag_bytes = &buf.0[..tag_len];
+-                    buf.0 = &buf.0[tag_len..];
+-                    let tag_str = std::str::from_utf8(tag_bytes).map_err(|e| {
+-                        io::Error::new(
+-                            io::ErrorKind::InvalidData,
+-                            format!("invalid UTF-8 tag: {}", e),
+-                        )
+-                    })?;
+-                    Some(Tag::new(tag_str).map_err(|e| {
+-                        io::Error::new(
+-                            io::ErrorKind::InvalidData,
+-                            format!("invalid GTID tag: {}", e),
+-                        )
+-                    })?)
+-                }
+-            } else {
+-                None
+-            };
++        Ok(Self { sids })
++    }
++}
+ 
+-            // n_intervals (8 bytes LE u64)
+-            if buf.len() < 8 {
+-                return Err(io::Error::new(
++/// `sids.into_iter().map(|s| s.into_owned()).collect()`.
++fn sids_into_owned(mut sids: Vec<PreviousGtidsSid<'_>>) -> Vec<PreviousGtidsSid<'static>> {
++    match sids.pop() {
++        Some(last) => {
++            let mut owned = sids_into_owned(sids);
++            owned.push(last.into_owned());
++            owned
++        }
++        None => Vec::new(),
++    }
++}
++
++/// The loop `for _ in 0..n_sids { .. }` of `PreviousGtidsEvent::deserialize`.
++fn parse_sids<'de>(
++    buf: &mut ParseBuf<'de>,
++    tagged: bool,
++    n_sids: u64,
++    sids: &mut Vec<PreviousGtidsSid<'de>>,
++) -> io::Result<()> {
++    if n_sids == 0 {
++        return Ok(());
++    }
++    let sid = parse_sid(buf, tagged)?;
++    sids.push(sid);
++    parse_sids(buf, tagged, n_sids - 1, sids)
++}
++
++/// One iteration of that loop: one SID entry.
++fn parse_sid<'de>(buf: &mut ParseBuf<'de>, tagged: bool) -> io::Result<PreviousGtidsSid<'de>> {
++    // UUID (16 bytes)
++    if buf.len() < 16 {
++        return Err(io_error_msg(
++            io::ErrorKind::UnexpectedEof,
++            "PreviousGtidsEvent: unexpected EOF reading UUID",
++        ));
++    }
++    let mut uuid = [0u8; 16];
++    uuid.copy_from_slice(&buf.0[..16]);
++    buf.0 = &buf.0[16..];
++
++    // Tag (only in tagged format)
++    let tag = if tagged {
++        let tag_len = read_varlen_uint(buf)? as usize;
++        if tag_len == 0 {
++            None
++        } else {
++            if buf.len() < tag_len {
++                return Err(io_error_msg(
+                     io::ErrorKind::UnexpectedEof,
+-                    "PreviousGtidsEvent: unexpected EOF reading n_intervals",
++                    "PreviousGtidsEvent: unexpected EOF reading tag",
+                 ));
+             }
+-            let mut n_intervals_bytes = [0u8; 8];
+-            n_intervals_bytes.copy_from_slice(&buf.0[..8]);
+-            buf.0 = &buf.0[8..];
+-            let n_intervals = u64::from_le_bytes(n_intervals_bytes);
+-
+-            // Intervals (16 bytes each)
+-            let mut intervals = Vec::with_capacity(n_intervals as usize);
+-            for _ in 0..n_intervals {
+-                let interval: GnoInterval = buf.parse(())?;
+-                intervals.push(interval);
+-            }
+-
+-            sids.push(PreviousGtidsSid {
+-                uuid,
+-                tag,
+-                intervals,
+-            });
++            let tag_bytes = &buf.0[..tag_len];
++            buf.0 = &buf.0[tag_len..];
++            Some(trusted::previous_gtids_tag(tag_bytes)?)
+         }
++    } else {
++        None
++    };
++
++    // n_intervals (8 bytes LE u64)
++    if buf.len() < 8 {
++        return Err(io_error_msg(
++            io::ErrorKind::UnexpectedEof,
++            "PreviousGtidsEvent: unexpected EOF reading n_intervals",
++        ));
++    }
++    let mut n_intervals_bytes = [0u8; 8];
++    n_intervals_bytes.copy_from_slice(&buf.0[..8]);
++    buf.0 = &buf.0[8..];
++    let n_intervals = u64::from_le_bytes(n_intervals_bytes);
++
++    // Intervals (16 bytes each)
++    let mut intervals = Vec::with_capacity(n_intervals as usize);
++    parse_intervals(buf, n_intervals, &mut intervals)?;
++
++    Ok(PreviousGtidsSid {
++        uuid,
++        tag,
++        intervals,
++    })
++}
+ 
+-        Ok(Self { sids })
++/// The loop `for _ in 0..n_intervals { intervals.push(buf.parse(())?); }` of
++/// `PreviousGtidsEvent::deserialize`.
++fn parse_intervals(
++    buf: &mut ParseBuf<'_>,
++    n_intervals: u64,
++    intervals: &mut Vec<GnoInterval>,
++) -> io::Result<()> {
++    if n_intervals == 0 {
++        return Ok(());
+     }
++    let interval: GnoInterval = buf.parse(())?;
++    intervals.push(interval);
++    parse_intervals(buf, n_intervals - 1, intervals)
+ }
+ 
+ impl MySerialize for PreviousGtidsEvent<'_> {
+@@ -229,7 +271,9 @@ impl MySerialize for PreviousGtidsEvent<'_> {
+ 
+         buf.extend_from_slice(&header.to_le_bytes());
+ 
+-        for sid in &self.sids {
++        let mut i = 0;
++        while i < self.sids.len() {
++            let sid = &self.sids[i];
+             // UUID
+             buf.extend_from_slice(&sid.uuid);
+ 
+@@ -237,7 +281,7 @@ impl MySerialize for PreviousGtidsEvent<'_> {
+             if tagged {
+                 match &sid.tag {
+                     Some(tag) => {
+-                        let tag_bytes = tag.as_str().as_bytes();
++                        let tag_bytes = trusted::tag_as_bytes(tag);
+                         write_varlen_uint(buf, tag_bytes.len() as u64);
+                         buf.extend_from_slice(tag_bytes);
+                     }
+@@ -251,9 +295,12 @@ impl MySerialize for PreviousGtidsEvent<'_> {
+             buf.extend_from_slice(&(sid.intervals.len() as u64).to_le_bytes());
+ 
+             // Intervals
+-            for interval in &sid.intervals {
+-                interval.serialize(buf);
++            let mut j = 0;
++            while j < sid.intervals.len() {
++                sid.intervals[j].serialize(buf);
++                j += 1;
+             }
++            i += 1;
+         }
+     }
+ }
+diff --git a/src/binlog/trusted.rs b/src/binlog/trusted.rs
+index e2faf9a..8b64c77 100644
+--- a/src/binlog/trusted.rs
++++ b/src/binlog/trusted.rs
+@@ -25,6 +25,38 @@ pub(crate) fn timestamp2_frac_bytes(sec: i32, usec: i32) -> Vec<u8> {
+     format!("{}.{:06}", sec, usec).into_bytes()
+ }
+ 
++// ---- GTID tags (`packets::Tag`) ------------------------------------------------------------------
++//
++// `Tag` wraps a `Cow<str>`: its validation iterates over `str::chars`, and converting it to an
++// owned value goes through `ToOwned for str`; Aeneas models neither.
++
++/// `Tag::into_owned`.
++pub(crate) fn tag_into_owned(tag: crate::packets::Tag<'_>) -> crate::packets::Tag<'static> {
++    tag.into_owned()
++}
++
++/// `tag.as_str().as_bytes()`.
++pub(crate) fn tag_as_bytes<'a>(tag: &'a crate::packets::Tag<'_>) -> &'a [u8] {
++    tag.as_str().as_bytes()
++}
++
++/// The tag of a `PreviousGtidsEvent` SID entry: `std::str::from_utf8` then `Tag::new`, with the
++/// errors of `PreviousGtidsEvent::deserialize`.
++pub(crate) fn previous_gtids_tag(tag_bytes: &[u8]) -> io::Result<crate::packets::Tag<'_>> {
++    let tag_str = std::str::from_utf8(tag_bytes).map_err(|e| {
++        io::Error::new(
++            io::ErrorKind::InvalidData,
++            format!("invalid UTF-8 tag: {}", e),
++        )
++    })?;
++    crate::packets::Tag::new(tag_str).map_err(|e| {
++        io::Error::new(
++            io::ErrorKind::InvalidData,
++            format!("invalid GTID tag: {}", e),
++        )
++    })
++}
++
+ // ---- zstd --------------------------------------------------------------------------------------
+ //
+ // `zstd` is a C library (`zstd-sys`), which does not cross-compile to the translation target. It

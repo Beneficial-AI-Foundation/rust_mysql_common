@@ -1,0 +1,299 @@
+Translation patch: `StatusVar::get_value` reads with `ParseBuf`
+
+Change: Each `let mut read = self.value; read.read_uN::<LittleEndian>().map_err(|_| self.value)?` (byteorder on a local `&[u8]`) becomes `ParseBuf(self.value).checked_eat_uN_le()` (or `checked_eat_u8`, `checked_eat(4)`) with a `match` returning `Err(self.value)`; `read.get(..len).ok_or(self.value)?` and `read = &read[len..]` act on `read.0`; the `UpdatedDbNames` loop becomes the recursive helper `updated_db_names` (index loop for `position`).
+Why: byteorder's `ReadBytesExt` on `&[u8]` goes through `io::Read`, which Aeneas does not model; closures, `?` on `Option` and early returns in loops: see patch 143.
+Behaviour: Identical: on success both read the same little-endian bytes and advance by the same amount; on failure both return `Err(self.value)` immediately (the local reader is then dropped, so how far it advanced is unobservable). The helper pushes the same names (including the upstream behaviour of not skipping the `0` terminator between names).
+
+diff --git a/src/binlog/events/query_event.rs b/src/binlog/events/query_event.rs
+index 50c1c20..c895555 100644
+--- a/src/binlog/events/query_event.rs
++++ b/src/binlog/events/query_event.rs
+@@ -11,10 +11,9 @@ use std::{
+     cmp::min,
+     convert::TryFrom,
+     fmt,
+-    io::{self, Read},
++    io,
+ };
+ 
+-use byteorder::{LittleEndian, ReadBytesExt};
+ use saturating::Saturating as S;
+ 
+ use crate::{
+@@ -326,33 +325,41 @@ impl StatusVar<'_> {
+     /// Returns parsed value of this status variable, or raw value in case of error.
+     pub fn get_value(&self) -> Result<StatusVarVal<'_>, &[u8]> {
+         match self.key {
+-            StatusVarKey::Flags2 => {
+-                let mut read = self.value;
+-                read.read_u32::<LittleEndian>()
+-                    .map(RawFlags::new)
+-                    .map(StatusVarVal::Flags2)
+-                    .map_err(|_| self.value)
+-            }
+-            StatusVarKey::SqlMode => {
+-                let mut read = self.value;
+-                read.read_u64::<LittleEndian>()
+-                    .map(RawFlags::new)
+-                    .map(StatusVarVal::SqlMode)
+-                    .map_err(|_| self.value)
+-            }
++            StatusVarKey::Flags2 => match ParseBuf(self.value).checked_eat_u32_le() {
++                Some(x) => Ok(StatusVarVal::Flags2(RawFlags::new(x))),
++                None => Err(self.value),
++            },
++            StatusVarKey::SqlMode => match ParseBuf(self.value).checked_eat_u64_le() {
++                Some(x) => Ok(StatusVarVal::SqlMode(RawFlags::new(x))),
++                None => Err(self.value),
++            },
+             StatusVarKey::Catalog => Ok(StatusVarVal::Catalog(self.value)),
+             StatusVarKey::AutoIncrement => {
+-                let mut read = self.value;
+-                let increment = read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
+-                let offset = read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
++                let mut read = ParseBuf(self.value);
++                let increment = match read.checked_eat_u16_le() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                };
++                let offset = match read.checked_eat_u16_le() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                };
+                 Ok(StatusVarVal::AutoIncrement { increment, offset })
+             }
+             StatusVarKey::Charset => {
+-                let mut read = self.value;
+-                let charset_client = read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
+-                let collation_connection =
+-                    read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
+-                let collation_server = read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
++                let mut read = ParseBuf(self.value);
++                let charset_client = match read.checked_eat_u16_le() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                };
++                let collation_connection = match read.checked_eat_u16_le() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                };
++                let collation_server = match read.checked_eat_u16_le() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                };
+                 Ok(StatusVarVal::Charset {
+                     charset_client,
+                     collation_connection,
+@@ -360,47 +367,68 @@ impl StatusVar<'_> {
+                 })
+             }
+             StatusVarKey::TimeZone => {
+-                let mut read = self.value;
+-                let len = read.read_u8().map_err(|_| self.value)? as usize;
+-                let text = read.get(..len).ok_or(self.value)?;
++                let mut read = ParseBuf(self.value);
++                let len = match read.checked_eat_u8() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                } as usize;
++                let text = match read.0.get(..len) {
++                    Some(text) => text,
++                    None => return Err(self.value),
++                };
+                 Ok(StatusVarVal::TimeZone(RawBytes::new(text)))
+             }
+             StatusVarKey::CatalogNz => {
+-                let mut read = self.value;
+-                let len = read.read_u8().map_err(|_| self.value)? as usize;
+-                let text = read.get(..len).ok_or(self.value)?;
++                let mut read = ParseBuf(self.value);
++                let len = match read.checked_eat_u8() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                } as usize;
++                let text = match read.0.get(..len) {
++                    Some(text) => text,
++                    None => return Err(self.value),
++                };
+                 Ok(StatusVarVal::CatalogNz(RawBytes::new(text)))
+             }
+-            StatusVarKey::LcTimeNames => {
+-                let mut read = self.value;
+-                let val = read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::LcTimeNames(val))
+-            }
+-            StatusVarKey::CharsetDatabase => {
+-                let mut read = self.value;
+-                let val = read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::CharsetDatabase(val))
+-            }
+-            StatusVarKey::TableMapForUpdate => {
+-                let mut read = self.value;
+-                let val = read.read_u64::<LittleEndian>().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::TableMapForUpdate(val))
+-            }
+-            StatusVarKey::MasterDataWritten => {
+-                let mut read = self.value;
+-                let mut val = [0u8; 4];
+-                read.read_exact(&mut val).map_err(|_| self.value)?;
+-                Ok(StatusVarVal::MasterDataWritten(val))
+-            }
++            StatusVarKey::LcTimeNames => match ParseBuf(self.value).checked_eat_u16_le() {
++                Some(val) => Ok(StatusVarVal::LcTimeNames(val)),
++                None => Err(self.value),
++            },
++            StatusVarKey::CharsetDatabase => match ParseBuf(self.value).checked_eat_u16_le() {
++                Some(val) => Ok(StatusVarVal::CharsetDatabase(val)),
++                None => Err(self.value),
++            },
++            StatusVarKey::TableMapForUpdate => match ParseBuf(self.value).checked_eat_u64_le() {
++                Some(val) => Ok(StatusVarVal::TableMapForUpdate(val)),
++                None => Err(self.value),
++            },
++            StatusVarKey::MasterDataWritten => match ParseBuf(self.value).checked_eat(4) {
++                Some(bytes) => Ok(StatusVarVal::MasterDataWritten([
++                    bytes[0], bytes[1], bytes[2], bytes[3],
++                ])),
++                None => Err(self.value),
++            },
+             StatusVarKey::Invoker => {
+-                let mut read = self.value;
+-
+-                let len = read.read_u8().map_err(|_| self.value)? as usize;
+-                let username = read.get(..len).ok_or(self.value)?;
+-                read = &read[len..];
+-
+-                let len = read.read_u8().map_err(|_| self.value)? as usize;
+-                let hostname = read.get(..len).ok_or(self.value)?;
++                let mut read = ParseBuf(self.value);
++
++                let len = match read.checked_eat_u8() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                } as usize;
++                let username = match read.0.get(..len) {
++                    Some(username) => username,
++                    None => return Err(self.value),
++                };
++                read.0 = &read.0[len..];
++
++                let len = match read.checked_eat_u8() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                } as usize;
++                let hostname = match read.0.get(..len) {
++                    Some(hostname) => hostname,
++                    None => return Err(self.value),
++                };
+ 
+                 Ok(StatusVarVal::Invoker {
+                     username: RawBytes::new(username),
+@@ -408,54 +436,74 @@ impl StatusVar<'_> {
+                 })
+             }
+             StatusVarKey::UpdatedDbNames => {
+-                let mut read = self.value;
+-                let count = read.read_u8().map_err(|_| self.value)? as usize;
++                let mut read = ParseBuf(self.value);
++                let count = match read.checked_eat_u8() {
++                    Some(x) => x,
++                    None => return Err(self.value),
++                } as usize;
+                 let mut names = Vec::with_capacity(count);
+ 
+-                for _ in 0..count {
+-                    let index = read.iter().position(|x| *x == 0).ok_or(self.value)?;
+-                    names.push(RawBytes::new(&read[..index]));
+-                    read = &read[index..];
++                match updated_db_names(read.0, count, &mut names) {
++                    Some(()) => Ok(StatusVarVal::UpdatedDbNames(names)),
++                    None => Err(self.value),
+                 }
+-
+-                Ok(StatusVarVal::UpdatedDbNames(names))
+-            }
+-            StatusVarKey::Microseconds => {
+-                let mut read = self.value;
+-                let val = read.read_u32::<LittleEndian>().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::Microseconds(val))
+             }
++            StatusVarKey::Microseconds => match ParseBuf(self.value).checked_eat_u32_le() {
++                Some(val) => Ok(StatusVarVal::Microseconds(val)),
++                None => Err(self.value),
++            },
+             StatusVarKey::CommitTs => Ok(StatusVarVal::CommitTs(self.value)),
+             StatusVarKey::CommitTs2 => Ok(StatusVarVal::CommitTs2(self.value)),
+             StatusVarKey::ExplicitDefaultsForTimestamp => {
+-                let mut read = self.value;
+-                let val = read.read_u8().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::ExplicitDefaultsForTimestamp(val != 0))
+-            }
+-            StatusVarKey::DdlLoggedWithXid => {
+-                let mut read = self.value;
+-                let val = read.read_u64::<LittleEndian>().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::DdlLoggedWithXid(val))
++                match ParseBuf(self.value).checked_eat_u8() {
++                    Some(val) => Ok(StatusVarVal::ExplicitDefaultsForTimestamp(val != 0)),
++                    None => Err(self.value),
++                }
+             }
++            StatusVarKey::DdlLoggedWithXid => match ParseBuf(self.value).checked_eat_u64_le() {
++                Some(val) => Ok(StatusVarVal::DdlLoggedWithXid(val)),
++                None => Err(self.value),
++            },
+             StatusVarKey::DefaultCollationForUtf8mb4 => {
+-                let mut read = self.value;
+-                let val = read.read_u16::<LittleEndian>().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::DefaultCollationForUtf8mb4(val))
+-            }
+-            StatusVarKey::SqlRequirePrimaryKey => {
+-                let mut read = self.value;
+-                let val = read.read_u8().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::SqlRequirePrimaryKey(val))
+-            }
+-            StatusVarKey::DefaultTableEncryption => {
+-                let mut read = self.value;
+-                let val = read.read_u8().map_err(|_| self.value)?;
+-                Ok(StatusVarVal::DefaultTableEncryption(val))
++                match ParseBuf(self.value).checked_eat_u16_le() {
++                    Some(val) => Ok(StatusVarVal::DefaultCollationForUtf8mb4(val)),
++                    None => Err(self.value),
++                }
+             }
++            StatusVarKey::SqlRequirePrimaryKey => match ParseBuf(self.value).checked_eat_u8() {
++                Some(val) => Ok(StatusVarVal::SqlRequirePrimaryKey(val)),
++                None => Err(self.value),
++            },
++            StatusVarKey::DefaultTableEncryption => match ParseBuf(self.value).checked_eat_u8() {
++                Some(val) => Ok(StatusVarVal::DefaultTableEncryption(val)),
++                None => Err(self.value),
++            },
+         }
+     }
+ }
+ 
++/// The loop `for _ in 0..count { .. }` of `StatusVar::get_value` for `UpdatedDbNames`: each
++/// iteration pushes the bytes of `read` before its first `0` (failing if there is none) and
++/// continues from that `0` (which is not skipped).
++fn updated_db_names<'a>(
++    read: &'a [u8],
++    count: usize,
++    names: &mut Vec<RawBytes<'a, NullBytes>>,
++) -> Option<()> {
++    if count == 0 {
++        return Some(());
++    }
++    let mut index = 0;
++    while index < read.len() && read[index] != 0 {
++        index += 1;
++    }
++    if index == read.len() {
++        return None;
++    }
++    names.push(RawBytes::new(&read[..index]));
++    updated_db_names(&read[index..], count - 1, names)
++}
++
+ impl fmt::Debug for StatusVar<'_> {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         f.debug_struct("StatusVar")

@@ -1,0 +1,423 @@
+Translation patch: combinators taking functions or closures, and iterator adaptors (binlog)
+
+Change: In binlog/events/*, binlog/mod.rs (`ColumnType::get_metadata`), binlog/value.rs and binlog/row.rs: `.map(Self)`, `.map(RawConst::get).transpose()`, `.map(RawConst::new)`, `.map(BinlogValue::Value)`, `.map(datetime_from_packed)`, `.ok_or_else(unexpected_buf_eof)?`, `.map(|x| ..)`, `.and_then(|x| ..)`, `.map_err(BadColumnType::from)`, `?` on `Option` in `get_metadata`, and `.filter(..).count()` (`TableMapEvent::json_column_count`) become explicit `match`es (with `return` where they were followed by `?`) and an index loop.
+Why: As in patches 09, 13 and 53: Aeneas fails on functions/constructors used as values, does not model closures passed to these combinators, `?` on `Option`, nor iterator adaptors.
+Behaviour: Identical: each `match` is the definition of the combinator; the loop counts the same elements.
+
+diff --git a/src/binlog/events/anonymous_gtid_event.rs b/src/binlog/events/anonymous_gtid_event.rs
+index 956527c..f55174a 100644
+--- a/src/binlog/events/anonymous_gtid_event.rs
++++ b/src/binlog/events/anonymous_gtid_event.rs
+@@ -29,7 +29,10 @@ impl<'de> MyDeserialize<'de> for AnonymousGtidEvent {
+     type Ctx = BinlogCtx<'de>;
+ 
+     fn deserialize(ctx: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        buf.parse_unchecked(ctx).map(Self)
++        match buf.parse_unchecked(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/delete_rows_event.rs b/src/binlog/events/delete_rows_event.rs
+index 1a4ef95..0a9348d 100644
+--- a/src/binlog/events/delete_rows_event.rs
++++ b/src/binlog/events/delete_rows_event.rs
+@@ -79,7 +79,10 @@ impl<'de> MyDeserialize<'de> for DeleteRowsEvent<'de> {
+             event_type: Self::EVENT_TYPE,
+             binlog_ctx: ctx,
+         };
+-        buf.parse(ctx).map(Self)
++        match buf.parse(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/delete_rows_event_v1.rs b/src/binlog/events/delete_rows_event_v1.rs
+index 65c9d37..da26f5e 100644
+--- a/src/binlog/events/delete_rows_event_v1.rs
++++ b/src/binlog/events/delete_rows_event_v1.rs
+@@ -78,7 +78,10 @@ impl<'de> MyDeserialize<'de> for DeleteRowsEventV1<'de> {
+             event_type: Self::EVENT_TYPE,
+             binlog_ctx: ctx,
+         };
+-        buf.parse(ctx).map(Self)
++        match buf.parse(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/gtid_event.rs b/src/binlog/events/gtid_event.rs
+index bd8a605..70ce402 100644
+--- a/src/binlog/events/gtid_event.rs
++++ b/src/binlog/events/gtid_event.rs
+@@ -259,7 +259,10 @@ impl GtidEvent {
+     /// `lc_typecode` is the type of logical timestamp used in the logical clock fields.
+     /// Only meaningful for untagged events.
+     pub fn lc_typecode(&self) -> Option<u8> {
+-        self.lc_typecode.as_ref().map(|x| x.value())
++        match self.lc_typecode.as_ref() {
++            Some(x) => Some(x.value()),
++            None => None,
++        }
+     }
+ 
+     /// Sets the `lc_typecode` value to [`GtidEvent::LOGICAL_TIMESTAMP_TYPECODE`].
+diff --git a/src/binlog/events/mod.rs b/src/binlog/events/mod.rs
+index 10908c3..87e8930 100644
+--- a/src/binlog/events/mod.rs
++++ b/src/binlog/events/mod.rs
+@@ -502,7 +502,13 @@ impl BinlogEventFooter {
+ 
+     /// Returns parsed checksum algorithm, or raw value if algorithm is unknown.
+     pub fn get_checksum_alg(&self) -> Result<Option<BinlogChecksumAlg>, UnknownChecksumAlg> {
+-        self.checksum_alg.as_ref().map(RawConst::get).transpose()
++        match self.checksum_alg.as_ref() {
++            Some(alg) => match alg.get() {
++                Ok(alg) => Ok(Some(alg)),
++                Err(e) => Err(e),
++            },
++            None => Ok(None),
++        }
+     }
+ 
+     /// Returns `true` if checksum is enabled.
+@@ -539,7 +545,10 @@ impl BinlogEventFooter {
+         };
+ 
+         Ok(Self {
+-            checksum_alg: checksum_alg.map(RawConst::new),
++            checksum_alg: match checksum_alg {
++                Some(alg) => Some(RawConst::new(alg)),
++                None => None,
++            },
+             checksum_enabled: true,
+         })
+     }
+diff --git a/src/binlog/events/partial_update_rows_event.rs b/src/binlog/events/partial_update_rows_event.rs
+index 48c2c06..b75e5b4 100644
+--- a/src/binlog/events/partial_update_rows_event.rs
++++ b/src/binlog/events/partial_update_rows_event.rs
+@@ -87,7 +87,10 @@ impl<'de> MyDeserialize<'de> for PartialUpdateRowsEvent<'de> {
+             event_type: Self::EVENT_TYPE,
+             binlog_ctx: ctx,
+         };
+-        buf.parse(ctx).map(Self)
++        match buf.parse(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/rows_event.rs b/src/binlog/events/rows_event.rs
+index 8893659..d866382 100644
+--- a/src/binlog/events/rows_event.rs
++++ b/src/binlog/events/rows_event.rs
+@@ -173,8 +173,14 @@ impl<'a> RowsEvent<'a> {
+             flags: self.flags,
+             extra_data: self.extra_data.into_owned(),
+             num_columns: self.num_columns,
+-            columns_before_image: self.columns_before_image.map(|x| x.into_owned()),
+-            columns_after_image: self.columns_after_image.map(|x| x.into_owned()),
++            columns_before_image: match self.columns_before_image {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
++            columns_after_image: match self.columns_after_image {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
+             rows_data: self.rows_data.into_owned(),
+         }
+     }
+@@ -222,7 +228,10 @@ impl<'de> MyDeserialize<'de> for RowsEvent<'de> {
+                 .get_event_type_header_length(EventType::WRITE_ROWS_EVENT)
+         {
+             // variable-length post header containing extra data
+-            let extra_data_len = buf.checked_eat_u16_le().ok_or_else(unexpected_buf_eof)? as usize;
++            let extra_data_len = match buf.checked_eat_u16_le() {
++                Some(len) => len,
++                None => return Err(unexpected_buf_eof()),
++            } as usize;
+             buf.parse(extra_data_len.saturating_sub(2))?
+         } else {
+             RawBytes::new(&[][..])
+diff --git a/src/binlog/events/table_map_event.rs b/src/binlog/events/table_map_event.rs
+index 7f023c7..5487904 100644
+--- a/src/binlog/events/table_map_event.rs
++++ b/src/binlog/events/table_map_event.rs
+@@ -95,11 +95,15 @@ impl<'a> TableMapEvent<'a> {
+ 
+     /// Returns a number of JSON columns.
+     pub fn json_column_count(&self) -> usize {
+-        self.columns_type
+-            .0
+-            .iter()
+-            .filter(|x| **x == ColumnType::MYSQL_TYPE_JSON as u8)
+-            .count()
++        let mut count = 0;
++        let mut i = 0;
++        while i < self.columns_type.0.len() {
++            if self.columns_type.0[i] == ColumnType::MYSQL_TYPE_JSON as u8 {
++                count += 1;
++            }
++            i += 1;
++        }
++        count
+     }
+ 
+     /// Returns null-bitmap for this table.
+@@ -138,7 +142,13 @@ impl<'a> TableMapEvent<'a> {
+         &self,
+         col_idx: usize,
+     ) -> Result<Option<ColumnType>, UnknownColumnType> {
+-        self.columns_type.get(col_idx).map(|x| x.get()).transpose()
++        match self.columns_type.get(col_idx) {
++            Some(x) => match x.get() {
++                Ok(column_type) => Ok(Some(column_type)),
++                Err(e) => Err(e),
++            },
++            None => Ok(None),
++        }
+     }
+ 
+     /// Returns a type of the given column.
+@@ -151,14 +161,16 @@ impl<'a> TableMapEvent<'a> {
+     ///
+     /// `None` means that the column index is out of range.
+     pub fn get_column_type(&self, col_idx: usize) -> Result<Option<ColumnType>, BadColumnType> {
+-        self.columns_type
+-            .get(col_idx)
+-            .map(|x| {
+-                x.get()
+-                    .map_err(BadColumnType::from)
+-                    .and_then(|column_type| self.get_real_type(col_idx, column_type))
+-            })
+-            .transpose()
++        match self.columns_type.get(col_idx) {
++            Some(x) => match x.get() {
++                Ok(column_type) => match self.get_real_type(col_idx, column_type) {
++                    Ok(column_type) => Ok(Some(column_type)),
++                    Err(e) => Err(e),
++                },
++                Err(e) => Err(BadColumnType::from(e)),
++            },
++            None => Ok(None),
++        }
+     }
+ 
+     /// Returns metadata for the given column.
+diff --git a/src/binlog/events/update_rows_event.rs b/src/binlog/events/update_rows_event.rs
+index 73570db..9f208e3 100644
+--- a/src/binlog/events/update_rows_event.rs
++++ b/src/binlog/events/update_rows_event.rs
+@@ -88,7 +88,10 @@ impl<'de> MyDeserialize<'de> for UpdateRowsEvent<'de> {
+             event_type: Self::EVENT_TYPE,
+             binlog_ctx: ctx,
+         };
+-        buf.parse(ctx).map(Self)
++        match buf.parse(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/update_rows_event_v1.rs b/src/binlog/events/update_rows_event_v1.rs
+index 6b4a271..6038926 100644
+--- a/src/binlog/events/update_rows_event_v1.rs
++++ b/src/binlog/events/update_rows_event_v1.rs
+@@ -85,7 +85,10 @@ impl<'de> MyDeserialize<'de> for UpdateRowsEventV1<'de> {
+             event_type: Self::EVENT_TYPE,
+             binlog_ctx: ctx,
+         };
+-        buf.parse(ctx).map(Self)
++        match buf.parse(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/write_rows_event.rs b/src/binlog/events/write_rows_event.rs
+index add05f1..072820d 100644
+--- a/src/binlog/events/write_rows_event.rs
++++ b/src/binlog/events/write_rows_event.rs
+@@ -80,7 +80,10 @@ impl<'de> MyDeserialize<'de> for WriteRowsEvent<'de> {
+             event_type: Self::EVENT_TYPE,
+             binlog_ctx: ctx,
+         };
+-        buf.parse(ctx).map(Self)
++        match buf.parse(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/write_rows_event_v1.rs b/src/binlog/events/write_rows_event_v1.rs
+index 6b84151..7a250fa 100644
+--- a/src/binlog/events/write_rows_event_v1.rs
++++ b/src/binlog/events/write_rows_event_v1.rs
+@@ -78,7 +78,10 @@ impl<'de> MyDeserialize<'de> for WriteRowsEventV1<'de> {
+             event_type: Self::EVENT_TYPE,
+             binlog_ctx: ctx,
+         };
+-        buf.parse(ctx).map(Self)
++        match buf.parse(ctx) {
++            Ok(ev) => Ok(Self(ev)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/binlog/events/xid_event.rs b/src/binlog/events/xid_event.rs
+index 3303965..935385b 100644
+--- a/src/binlog/events/xid_event.rs
++++ b/src/binlog/events/xid_event.rs
+@@ -40,7 +40,10 @@ impl<'de> MyDeserialize<'de> for XidEvent {
+             return Err(unexpected_buf_eof());
+         }
+ 
+-        let xid = buf.checked_eat_u64_le().ok_or_else(unexpected_buf_eof)?;
++        let xid = match buf.checked_eat_u64_le() {
++            Some(xid) => xid,
++            None => return Err(unexpected_buf_eof()),
++        };
+ 
+         Ok(Self { xid })
+     }
+diff --git a/src/binlog/mod.rs b/src/binlog/mod.rs
+index 2e1e8d4..a163f0e 100644
+--- a/src/binlog/mod.rs
++++ b/src/binlog/mod.rs
+@@ -295,23 +295,49 @@ impl ColumnType {
+             | Self::MYSQL_TYPE_DATETIME2
+             | Self::MYSQL_TYPE_TIMESTAMP2
+             | Self::MYSQL_TYPE_JSON
+-            | Self::MYSQL_TYPE_VECTOR => ptr.get(..1).map(|x| (x, 1)),
++            | Self::MYSQL_TYPE_VECTOR => match ptr.get(..1) {
++                Some(x) => Some((x, 1)),
++                None => None,
++            },
+             Self::MYSQL_TYPE_VARCHAR => {
+                 if is_array {
+-                    ptr.get(..3).map(|x| (x, 3))
++                    match ptr.get(..3) {
++                        Some(x) => Some((x, 3)),
++                        None => None,
++                    }
+                 } else {
+-                    ptr.get(..2).map(|x| (x, 2))
++                    match ptr.get(..2) {
++                        Some(x) => Some((x, 2)),
++                        None => None,
++                    }
+                 }
+             }
+             Self::MYSQL_TYPE_NEWDECIMAL
+             | Self::MYSQL_TYPE_SET
+             | Self::MYSQL_TYPE_ENUM
+             | Self::MYSQL_TYPE_STRING
+-            | Self::MYSQL_TYPE_BIT => ptr.get(..2).map(|x| (x, 2)),
+-            Self::MYSQL_TYPE_TYPED_ARRAY => Self::try_from(*ptr.first()?)
+-                .ok()?
+-                .get_metadata(ptr.get(1..)?, true)
+-                .map(|(x, n)| (x, n + 1)),
++            | Self::MYSQL_TYPE_BIT => match ptr.get(..2) {
++                Some(x) => Some((x, 2)),
++                None => None,
++            },
++            Self::MYSQL_TYPE_TYPED_ARRAY => {
++                let first = match ptr.first() {
++                    Some(first) => *first,
++                    None => return None,
++                };
++                let ty = match Self::try_from(first) {
++                    Ok(ty) => ty,
++                    Err(_) => return None,
++                };
++                let rest = match ptr.get(1..) {
++                    Some(rest) => rest,
++                    None => return None,
++                };
++                match ty.get_metadata(rest, true) {
++                    Some((x, n)) => Some((x, n + 1)),
++                    None => None,
++                }
++            }
+             Self::MYSQL_TYPE_DECIMAL
+             | Self::MYSQL_TYPE_TINY
+             | Self::MYSQL_TYPE_SHORT
+diff --git a/src/binlog/row.rs b/src/binlog/row.rs
+index a66ab33..9dcdb59 100644
+--- a/src/binlog/row.rs
++++ b/src/binlog/row.rs
+@@ -98,13 +98,19 @@ impl BinlogRow {
+     ///
+     /// Non panicking version of `row[usize]`.
+     pub fn as_ref(&self, index: usize) -> Option<&BinlogValue<'_>> {
+-        self.values.get(index).and_then(|x| x.as_ref())
++        match self.values.get(index) {
++            Some(x) => x.as_ref(),
++            None => None,
++        }
+     }
+ 
+     /// Will take value of a column with index `index` if it exists and wasn't taken earlier then
+     /// will converts it to `T`.
+     pub fn take(&mut self, index: usize) -> Option<BinlogValue<'_>> {
+-        self.values.get_mut(index).and_then(|x| x.take())
++        match self.values.get_mut(index) {
++            Some(x) => x.take(),
++            None => None,
++        }
+     }
+ 
+     /// Unwraps values of a row.
+diff --git a/src/binlog/value.rs b/src/binlog/value.rs
+index e4f80ea..1c3be1d 100644
+--- a/src/binlog/value.rs
++++ b/src/binlog/value.rs
+@@ -82,7 +82,10 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+             | MYSQL_TYPE_FLOAT | MYSQL_TYPE_DOUBLE => {
+                 let mut flags = ColumnFlags::empty();
+                 flags.set(ColumnFlags::UNSIGNED_FLAG, is_unsigned);
+-                Value::deserialize_bin((col_type, flags), &mut *buf).map(BinlogValue::Value)
++                match Value::deserialize_bin((col_type, flags), &mut *buf) {
++                    Ok(value) => Ok(BinlogValue::Value(value)),
++                    Err(e) => Err(e),
++                }
+             }
+             MYSQL_TYPE_TIMESTAMP => {
+                 let val: RawInt<LeU32> = buf.parse(())?;
+@@ -155,15 +158,17 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+             }
+             MYSQL_TYPE_DATETIME2 => {
+                 let dec = col_meta[0];
+-                my_datetime_packed_from_binary(&mut *buf, dec as u32)
+-                    .map(datetime_from_packed)
+-                    .map(BinlogValue::Value)
++                match my_datetime_packed_from_binary(&mut *buf, dec as u32) {
++                    Ok(packed) => Ok(BinlogValue::Value(datetime_from_packed(packed))),
++                    Err(e) => Err(e),
++                }
+             }
+             MYSQL_TYPE_TIME2 => {
+                 let dec = col_meta[0];
+-                my_time_packed_from_binary(&mut *buf, dec as u32)
+-                    .map(time_from_packed)
+-                    .map(BinlogValue::Value)
++                match my_time_packed_from_binary(&mut *buf, dec as u32) {
++                    Ok(packed) => Ok(BinlogValue::Value(time_from_packed(packed))),
++                    Err(e) => Err(e),
++                }
+             }
+             MYSQL_TYPE_JSON => {
+                 length = *buf.parse::<RawInt<LeU32>>(())? as usize;

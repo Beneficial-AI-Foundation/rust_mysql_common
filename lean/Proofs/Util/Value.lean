@@ -24,24 +24,24 @@ the matchers Lean generated for the translated bodies (`bin_len.match_*`,
 
 set_option linter.auxLemma false in
 theorem m6 {β : Type} (x : U8) (f : Unit → β) (g : U8 → β) :
-    value.Value.bin_len.match_6 (fun _ => β) x f g = if x = 0#u8 then f () else g x := by
+    value.Value.bin_len.match_5 (fun _ => β) x f g = if x = 0#u8 then f () else g x := by
   by_cases hx : x = 0#u8
   · subst hx; rfl
-  · rw [value.Value.bin_len.match_6.eq_2 _ _ _ _ hx]; simp [hx]
+  · rw [value.Value.bin_len.match_5.eq_2 _ _ _ _ hx]; simp [hx]
 
 set_option linter.auxLemma false in
 theorem m4 {β : Type} (x : U16) (f : Unit → β) (g : U16 → β) :
-    value.Value.bin_len.match_4 (fun _ => β) x f g = if x = 0#u16 then f () else g x := by
+    value.Value.bin_len.match_3 (fun _ => β) x f g = if x = 0#u16 then f () else g x := by
   by_cases hx : x = 0#u16
   · subst hx; rfl
-  · rw [value.Value.bin_len.match_4.eq_2 _ _ _ _ hx]; simp [hx]
+  · rw [value.Value.bin_len.match_3.eq_2 _ _ _ _ hx]; simp [hx]
 
 set_option linter.auxLemma false in
 theorem m8 {β : Type} (x : U32) (f : Unit → β) (g : U32 → β) :
-    value.Value.bin_len.match_8 (fun _ => β) x f g = if x = 0#u32 then f () else g x := by
+    value.Value.bin_len.match_7 (fun _ => β) x f g = if x = 0#u32 then f () else g x := by
   by_cases hx : x = 0#u32
   · subst hx; rfl
-  · rw [value.Value.bin_len.match_8.eq_2 _ _ _ _ hx]; simp [hx]
+  · rw [value.Value.bin_len.match_7.eq_2 _ _ _ _ hx]; simp [hx]
 
 theorem u8_val_eq_zero (x : U8) : x.val = 0 ↔ x = 0#u8 := by
   constructor

@@ -1,0 +1,96 @@
+Translation patch: the column bitmaps of `RowsEvent` and `TableMapEvent`
+
+Change: The field types `RawBytes<'a, BareBytes<0x2000000000000000>>` (`RowsEvent::columns_before_image`/`columns_after_image`, `TableMapEvent::null_bitmask`) become `RawBytes<'a, BareBitmapBytes>`, a new `BytesRepr` in misc/raw/bytes.rs whose body is `BareBytes`' with `const MAX_LEN: usize = 1 << 61`.
+Why: Aeneas prints the const generic argument as the literal `2305843009213693952#usize` in the Lean type, which needs a proof that it fits a `usize` of unknown width (Lean: "scalar_tac failed"); an associated constant computed as `1 << 61` is a `Result` and needs no such proof.
+Behaviour: Identical: `1 << 61 = 0x2000000000000000` on the 64-bit target, and `BareBitmapBytes`' `serialize`/`deserialize`/`SIZE`/`Ctx` are `BareBytes`'. The fields are private and their accessors return `&[u8]`/`BitSlice` views, so the public API is unchanged.
+
+diff --git a/src/binlog/events/rows_event.rs b/src/binlog/events/rows_event.rs
+index 2fe8d84..cac2e12 100644
+--- a/src/binlog/events/rows_event.rs
++++ b/src/binlog/events/rows_event.rs
+@@ -20,7 +20,7 @@ use crate::{
+     misc::{
+         raw::{
+             RawBytes, RawFlags,
+-            bytes::{BareBytes, EofBytes},
++            bytes::{BareBitmapBytes, BareBytes, EofBytes},
+             int::*,
+         },
+         unexpected_buf_eof,
+@@ -53,12 +53,12 @@ pub struct RowsEvent<'a> {
+     /// per column.
+     ///
+     /// Will be empty for WRITE events.
+-    columns_before_image: Option<RawBytes<'a, BareBytes<0x2000000000000000>>>,
++    columns_before_image: Option<RawBytes<'a, BareBitmapBytes>>,
+     /// For WRITE and UPDATE only. Bit-field indicating whether each column is used
+     /// in the `UPDATE_ROWS_EVENT` and `WRITE_ROWS_EVENT` after-image; one bit per column.
+     ///
+     /// Will be empty for DELETE events.
+-    columns_after_image: Option<RawBytes<'a, BareBytes<0x2000000000000000>>>,
++    columns_after_image: Option<RawBytes<'a, BareBitmapBytes>>,
+     /// A sequence of zero or more rows. The end is determined by the size of the event.
+     ///
+     /// Each row has the following format:
+@@ -337,7 +337,7 @@ impl RowsEvent<'_> {
+ }
+ 
+ /// `if let Some(bitmap) = bitmap { bitmap.serialize(buf); }`.
+-fn serialize_bitmap(bitmap: &Option<RawBytes<'_, BareBytes<0x2000000000000000>>>, buf: &mut Vec<u8>) {
++fn serialize_bitmap(bitmap: &Option<RawBytes<'_, BareBitmapBytes>>, buf: &mut Vec<u8>) {
+     if let Some(bitmap) = bitmap {
+         bitmap.serialize(buf);
+     }
+diff --git a/src/binlog/events/table_map_event.rs b/src/binlog/events/table_map_event.rs
+index 9c57eb3..2dec889 100644
+--- a/src/binlog/events/table_map_event.rs
++++ b/src/binlog/events/table_map_event.rs
+@@ -19,7 +19,7 @@ use crate::{
+     io::{ParseBuf, ReadMysqlExt},
+     misc::raw::{
+         Either, RawBytes, RawConst, RawSeq, Skip,
+-        bytes::{BareBytes, EofBytes, LenEnc, U8Bytes},
++        bytes::{BareBitmapBytes, EofBytes, LenEnc, U8Bytes},
+         int::*,
+     },
+     proto::{MyDeserialize, MySerialize},
+@@ -75,7 +75,7 @@ pub struct TableMapEvent<'a> {
+     /// The flag for the first column from the left is in the least-significant bit
+     /// of the first byte, the second is in the second least significant bit of the first byte,
+     /// the ninth is in the least significant bit of the second byte, and so on.
+-    null_bitmask: RawBytes<'a, BareBytes<0x2000000000000000>>,
++    null_bitmask: RawBytes<'a, BareBitmapBytes>,
+     /// Optional metadata.
+     optional_metadata: RawBytes<'a, EofBytes>,
+ }
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index 5ac2ae3..e36f6b6 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -360,3 +360,26 @@ where
+         T::VALUE.serialize(buf)
+     }
+ }
++
++/// `BareBytes<0x2000000000000000>` (the column bitmaps of binlog events), with the maximum
++/// length written as the associated constant `1 << 61` instead of a const generic argument.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
++pub struct BareBitmapBytes;
++
++impl BytesRepr for BareBitmapBytes {
++    const MAX_LEN: usize = 1 << 61;
++    const SIZE: Option<usize> = None;
++    type Ctx = usize;
++
++    fn serialize(text: &[u8], buf: &mut Vec<u8>) {
++        let len = min(text.len(), Self::MAX_LEN);
++        buf.put_slice(&text[..len]);
++    }
++
++    fn deserialize<'de>(len: usize, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
++        match buf.checked_eat(len) {
++            Some(x) => Ok(Cow::Borrowed(x)),
++            None => Err(unexpected_buf_eof()),
++        }
++    }
++}
