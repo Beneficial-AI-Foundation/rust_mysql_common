@@ -6,7 +6,7 @@ to, and decodes data from, the MySQL wire protocol. The Rust is translated to Le
 following the process in [`../VERIFICATION.md`](../VERIFICATION.md). Spec statements about the
 public API are stated in `Specs/` and proved in `Proofs/`.
 
-**Status:** 888 spec statements, all proved, with no `sorry`. Each statement in `Specs/` is
+**Status:** 927 spec statements, all proved, with no `sorry`. Each statement in `Specs/` is
 followed by a `#guard_msgs … #print axioms` check of exactly the axioms it rests on, so the build
 fails if a proof starts depending on anything new. The statements still need a final human
 sign-off (see *Open items*).
@@ -80,15 +80,22 @@ code is the same either way. Aeneas is pinned in `../lakefile.toml`.
 
    The axioms come in three kinds:
    - **Opaque types and functions that assert nothing:** `io::Error` and its constructors,
-     float parsing, bignum / decimal / json, the `time` parsers and `Duration` arithmetic.
+     float parsing, bignum / decimal / json, and the `time` parsers.
    - **One opaque function:** `core.mem.size_of`, used only by `RawFlags::SIZE`.
-   - **A dozen axioms that assert behaviour of a dependency, in namespace `Trusted`**, behind the
+   - **Axioms that assert behaviour of a dependency, in namespace `Trusted`**, behind the
      opaque Rust module `value::convert::trusted` (patch 40). Each was checked against the pinned
-     dependency's source, and by tests:
-     - the seven date/time regexes: exact on ASCII input, and on any input a match has the
-       shape of the pattern (a `\d` is one ASCII digit or at least two bytes `≥ 128`);
+     dependency's source, and by tests, by the author and by two independent reviewers:
+     - the seven date/time regexes: exact on ASCII input (`isMatch_ascii`), and on any input a
+       match has the shape of the pattern (`isMatch_loose`: a `\d` is one ASCII digit or at
+       least two bytes `≥ 128`; fuzzed on ~494M inputs);
      - chrono's `NaiveDate::from_ymd_opt` / `NaiveTime::from_hms_micro_opt` validity and getters;
-     - time's `Date::from_calendar_date` / `Time::from_hms_micro` validity and getters.
+     - time's `Date::from_calendar_date` / `Time::from_hms_micro` validity and getters;
+     - time's `SignedDuration` (`time::Duration`): an opaque total `durNanos`, and for each
+       operation the conversions call (constructors, `+`, `−`, negation, `< ZERO`, `whole_*`)
+       when it returns and with what value. Only the cases the proofs use are stated (e.g. `−`
+       only for `0 ≤ b ≤ a`); only negation's panic case is assumed. These rely on time's
+       sign invariant (seconds and nanoseconds share a sign), which reviewers checked holds for
+       every constructor. A Lean model of the integers in range satisfies all of them.
 4. **Modelling assumptions of Aeneas:**
    - Allocation never fails, and a `Vec` may grow to `usize::MAX`. "Never panics" therefore
      means "never panics, assuming allocation succeeds".
@@ -177,6 +184,10 @@ lake exe cache get && lake build # check every proof and axiom guard
   but a person has not yet signed off. One statement changed after review, because its proof
   showed it false: `RawSeq::into_owned_spec` now assumes the element type's `Clone` is the
   identity, which is true for every primitive the crate uses.
-- Some statements are stronger in their hypotheses than necessary (noted in their docstrings),
-  e.g. `BareBytes::serialize_spec` bounds the untruncated length. They are true as stated.
+- A few hypotheses remain stronger than necessary (noted in their docstrings): `Target64` on
+  the composite readers (Column, OK/ERR packets, values, rows) where only the three base
+  lenenc readers have the exact `hfit` form, and the `dst + src + 2^24` bound in
+  `PlainPacketCodec.decode_spec` for chunks after the first.
+- Off ASCII the date/time regexes are only described by shape, so the panic statements
+  characterise when a panic happens but no theorem exhibits a concrete panicking string.
 - The upstream bugs above should be reported to the crate's maintainers.
