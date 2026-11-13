@@ -1,5 +1,8 @@
 import Proofs.Io.ParseBuf
 import Proofs.Util.IntAndMisc
+import Proofs.Constants.ColumnType
+import Proofs.Constants.ColumnFlags
+import Proofs.Value.Value
 set_option autoImplicit false
 set_option linter.unusedTactic false
 set_option linter.unusedSimpArgs false
@@ -1914,5 +1917,80 @@ theorem datetime_overflow (input : io.ParseBuf) (dec : U32)
     rw [ht] at hp
     unfold packedMake at hp
     omega
+
+end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+open constants.ColumnType
+
+local notation "BVdes" => binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize
+
+theorem ct_eq_ta_false (a : constants.ColumnType) (h : a ≠ MYSQL_TYPE_TYPED_ARRAY) :
+    constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq a MYSQL_TYPE_TYPED_ARRAY = ok false := by
+  cases a <;> first | rfl | exact absurd rfl h
+
+theorem ct_eq_ta_true :
+    constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TYPED_ARRAY MYSQL_TYPE_TYPED_ARRAY = ok true := rfl
+
+theorem index0 (md : Slice U8) (b : U8) (t : List U8) (h : md.val = b :: t) : Slice.index_usize md 0#usize = ok b := by
+  have := Slice.index_usize_spec md 0#usize (by simp [Slice.length, h])
+  obtain ⟨v, hv, hv2⟩ := PBUtil.spec_eq_ok this
+  rw [hv]; simp [h] at hv2; rw [hv2]
+
+theorem deser_eff (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (h : ¬(ct = MYSQL_TYPE_TYPED_ARRAY ∧ md.val = [])) :
+    BVdes (ct, md, uns, part) buf = BVdes (binlogEffType ct md.val, md, uns, part) buf := by
+  by_cases hc : ct = MYSQL_TYPE_TYPED_ARRAY
+  · subst hc
+    rcases hmd : md.val with _ | ⟨b, t⟩
+    · simp [hmd] at h
+    · simp only [binlogEffType]
+      rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+      conv => rhs; rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+      rcases hcode : columnTypeOfCode b.val with _ | ty
+      · simp only [Std.uncurry_apply_pair, ct_eq_ta_true, Std.bind_ok, ite_true, index0 md b t hmd,
+          mysql_common.constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, hcode, Option.getD_none]
+      · by_cases hty : ty = MYSQL_TYPE_TYPED_ARRAY
+        · subst hty
+          simp only [Std.uncurry_apply_pair, ct_eq_ta_true, Std.bind_ok, ite_true, index0 md b t hmd,
+            mysql_common.constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, hcode, Option.getD_some]
+        · simp only [Std.uncurry_apply_pair, ct_eq_ta_true, ct_eq_ta_false ty hty, Std.bind_ok, ite_true, ite_false, Bool.false_eq_true,
+            index0 md b t hmd,
+            mysql_common.constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, hcode, Option.getD_some]
+  · have : binlogEffType ct md.val = ct := by cases ct <;> first | rfl | exact absurd rfl hc
+    rw [this]
+
+end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+open constants.ColumnType
+
+local notation "BVdes" => binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize
+
+theorem index1 (md : Slice U8) (b0 b1 : U8) (t : List U8) (h : md.val = b0 :: b1 :: t) : Slice.index_usize md 1#usize = ok b1 := by
+  have := Slice.index_usize_spec md 1#usize (by simp [Slice.length, h])
+  obtain ⟨v, hv, hv2⟩ := PBUtil.spec_eq_ok this
+  rw [hv]; simp [h] at hv2; rw [hv2]
+
+theorem from_residual_eq {T : Type} (e : core.io.error.Error) :
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual T (core.convert.FromSame core.io.error.Error) (core.result.Result.Err e) = ok (core.result.Result.Err e) :=
+  ValueUtil.from_residual_err e
+
+theorem deser_decimal (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hd : binlogEffType ct md.val = .MYSQL_TYPE_NEWDECIMAL) (m0 m1 : U8) (t : List U8)
+    (hm : md.val = m0 :: m1 :: t) (p s : Usize) (hp : p.val = m0.val) (hs : s.val = m1.val) :
+    BVdes (ct, md, uns, part) buf =
+      (binlog.decimal.read_bin_to_string_bytes buf p s >>= fun x =>
+        ok (resMap (fun d => binlog.value.BinlogValue.Value (.Bytes d)) x.1, x.2)) := by
+  rw [deser_eff ct md uns part buf (by simp [hm]), hd]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  have hp' : UScalar.cast .Usize m0 = p := UScalar.eq_of_val_eq (by rw [hp]; exact IntAndMisc.cast_usize_small m0 (by have := u8_lt m0; omega))
+  have hs' : UScalar.cast .Usize m1 = s := UScalar.eq_of_val_eq (by rw [hs]; exact IntAndMisc.cast_usize_small m1 (by have := u8_lt m1; omega))
+  simp only [Std.uncurry_apply_pair, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_NEWDECIMAL MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, Std.bind_ok, Bool.false_eq_true, ite_false,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_NEWDECIMAL MYSQL_TYPE_STRING = ok false from rfl,
+    index0 md m0 _ hm, index1 md m0 m1 t hm, lift, hp', hs']
+  refine congrArg (Std.bind (binlog.decimal.read_bin_to_string_bytes buf p s)) (funext fun x => ?_)
+  obtain ⟨r, b⟩ := x
+  cases r <;> simp [resMap, core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq]
 
 end mysql_common.BinlogUtil

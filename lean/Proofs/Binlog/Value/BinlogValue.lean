@@ -1,6 +1,7 @@
 import Defs
+import Proofs.Util.BinlogValue
 
-/-! Statements for `enum BinlogValue and its impls` (spec file: `Specs/Binlog/Value.lean`). Proofs: TODO. -/
+/-! Statements for `enum BinlogValue and its impls` (spec file: `Specs/Binlog/Value.lean`). -/
 
 set_option autoImplicit false
 
@@ -15,12 +16,12 @@ theorem binlog.value.BinlogValue.into_owned_eq (self : binlog.value.BinlogValue)
        | .Value v => ok (.Value v)
        | .Jsonb x => binlog.jsonb.Value.into_owned x >>= fun y => ok (.Jsonb y)
        | .JsonDiff x => binlog.jsondiff.json_diffs_into_owned x >>= fun y => ok (.JsonDiff y)) := by
-  sorry
+  cases self <;> rfl
 
 /-- `MyDeserialize for BinlogValue`: `SIZE` is `None`. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.SIZE_eq :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.SIZE = none := by
-  sorry
+  unfold binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.SIZE; rfl
 
 /-- `deserialize`: when `binlogRead` gives a value (and the input is not one of the crate's bugs, `binlogBug`), the crate returns that value (`BinlogValue::Value`) and leaves the same rest. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_ok (h64 : Target64)
@@ -75,8 +76,8 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
     (hm : md.val = m0 :: m1 :: t) (p s : Usize) (hp : p.val = m0.val) (hs : s.val = m1.val) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf =
       (binlog.decimal.read_bin_to_string_bytes buf p s >>= fun x =>
-        ok (resMap (fun d => binlog.value.BinlogValue.Value (.Bytes d)) x.1, x.2)) := by
-  sorry
+        ok (resMap (fun d => binlog.value.BinlogValue.Value (.Bytes d)) x.1, x.2)) := 
+  BinlogUtil.deser_decimal ct md uns part buf hd m0 m1 t hm p s hp hs
 
 /-- `deserialize` of a TIMESTAMP2 column with a non-zero fraction: the text the opaque `timestamp2_frac_bytes(sec, usec)` gives (the crate's `format!("{}.{:06}", sec, usec)`), as `Bytes`, leaving the rest after the value. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_timestamp2_frac
