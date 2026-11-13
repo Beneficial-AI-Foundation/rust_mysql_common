@@ -1580,16 +1580,6 @@ def U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from (x : Std.U64) :
 def core.marker.PhantomData.Insts.CoreCmpPartialEqPhantomData.eq {T : Type _}
     (_ _ : core.marker.PhantomData T) : Result Bool := ok true
 
-/-- `impl Clone for PhantomData<T>`. -/
-@[rust_fun "core::marker::{core::clone::Clone<core::marker::PhantomData<@T>>}::clone"]
-def core.marker.PhantomData.Insts.CoreCloneClone.clone {T : Type _}
-    (x : core.marker.PhantomData T) : Result (core.marker.PhantomData T) := ok x
-
-/-- `impl Default for PhantomData<T>`. -/
-@[rust_fun "core::marker::{core::default::Default<core::marker::PhantomData<@T>>}::default"]
-def core.marker.PhantomData.Insts.CoreDefaultDefault.default (T : Type _) :
-    Result (core.marker.PhantomData T) := ok ()
-
 /-- `impl Not for u16`: bitwise complement. -/
 @[rust_fun "core::ops::bit::{core::ops::bit::Not<u16, u16>}::not"]
 def U16.Insts.CoreOpsBitNotU16.not (x : Std.U16) : Result Std.U16 := ok (~~~ x)
@@ -1654,13 +1644,6 @@ def U32.Insts.CoreOpsBitBitXorU32U32.bitxor (x y : Std.U32) : Result Std.U32 := 
 @[rust_fun "core::ops::bit::{core::ops::bit::BitXor<u64, u64, u64>}::bitxor"]
 def U64.Insts.CoreOpsBitBitXorU64U64.bitxor (x y : Std.U64) : Result Std.U64 := ok (x ^^^ y)
 
-/-- `impl Clone for Option<T>`. -/
-@[rust_fun "core::option::{core::clone::Clone<core::option::Option<@T>>}::clone"]
-def core.option.Option.Insts.CoreCloneClone.clone {T : Type _} (cloneCloneInst : core.clone.Clone T) :
-    Option T → Result (Option T)
-  | none => ok none
-  | some x => do let y ← cloneCloneInst.clone x; ok (some y)
-
 /-- `impl PartialEq for Option<T>`. -/
 @[rust_fun
   "core::option::{core::cmp::PartialEq<core::option::Option<@T>, core::option::Option<@T>>}::eq"]
@@ -1678,25 +1661,6 @@ def core.slice.Slice.first {T : Type _} (s : Slice T) : Result (Option T) := ok 
 @[rust_fun "core::str::traits::{core::cmp::PartialEq<str, str>}::eq"]
 def Str.Insts.CoreCmpPartialEqStr.eq (a b : Str) : Result Bool := ok (decide (a.val = b.val))
 
-/-- `impl Clone for Cow`: `Borrowed(b) => Borrowed(b)`, `Owned(o) => Owned(o.borrow().to_owned())`. -/
-@[rust_fun "alloc::borrow::{core::clone::Clone<alloc::borrow::Cow<'0, @B, @Clause0_Owned>>}::clone"]
-def alloc.borrow.Cow.Insts.CoreCloneClone.clone {B : Type _} {Clause0_Owned : Type _}
-    (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned) :
-    alloc.borrow.Cow B Clause0_Owned → Result (alloc.borrow.Cow B Clause0_Owned)
-  | .Borrowed b => ok (.Borrowed b)
-  | .Owned o => do
-    let b ← ToOwnedInst.coreborrowBorrowInst.borrow o
-    let o' ← ToOwnedInst.to_owned b
-    ok (.Owned o')
-
-/-- `Cow::into_owned`: `Borrowed(b) => b.to_owned()`, `Owned(o) => o`. -/
-@[rust_fun "alloc::borrow::{alloc::borrow::Cow<'0, @B, @Clause0_Owned>}::into_owned"]
-def alloc.borrow.Cow.into_owned {B : Type _} {Clause0_Owned : Type _}
-    (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned) :
-    alloc.borrow.Cow B Clause0_Owned → Result Clause0_Owned
-  | .Borrowed b => ToOwnedInst.to_owned b
-  | .Owned o => ok o
-
 /-- `impl PartialEq<Cow<C>> for Cow<B>`: `PartialEq::eq(&**self, &**other)`. -/
 @[rust_fun
   "alloc::borrow::{core::cmp::PartialEq<alloc::borrow::Cow<'a, @B, @Clause1_Owned>, alloc::borrow::Cow<'b, @C, @Clause2_Owned>>}::eq"]
@@ -1709,13 +1673,6 @@ def alloc.borrow.Cow.Insts.CoreCmpPartialEqCow.eq {B : Type _} {C : Type _} {Cla
   let a ← alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref ToOwnedInst x
   let b ← alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref ToOwnedInst1 y
   corecmpPartialEqInst.eq a b
-
-/-- `impl From<&[T]> for Cow<[T]>`: `Cow::Borrowed`. -/
-@[rust_fun
-  "alloc::vec::cow::{core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, &'a [@T]>}::from"]
-def alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice.from {T : Type _}
-    (corecloneCloneInst : core.clone.Clone T) (s : Slice T) :
-    Result (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T)) := ok (.Borrowed s)
 
 /-- `Vec::pop`: the last element (if any) and the vector without it. -/
 @[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::pop"]
@@ -1796,23 +1753,6 @@ axiom core.num.error.TryFromIntError.Insts.CoreFmtDebug.fmt
   :
   core.num.error.TryFromIntError → core.fmt.Formatter → Result
     ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
-
-/-- [alloc::str::{impl core::borrow::Borrow<str> for alloc::string::String}::borrow]:
-    Source: '/rustc/library/alloc/src/str.rs', lines 233:4-233:28
-    Name pattern: [alloc::str::{core::borrow::Borrow<alloc::string::String, str>}::borrow]
-    Visibility: public -/
-@[rust_fun
-  "alloc::str::{core::borrow::Borrow<alloc::string::String, str>}::borrow"]
-axiom alloc.string.String.Insts.CoreBorrowBorrowStr.borrow
-  : String → Result Str
-
-/-- [alloc::str::{impl alloc::borrow::ToOwned<alloc::string::String> for str}::to_owned]:
-    Source: '/rustc/library/alloc/src/str.rs', lines 252:4-252:32
-    Name pattern: [alloc::str::{alloc::borrow::ToOwned<str, alloc::string::String>}::to_owned]
-    Visibility: public -/
-@[rust_fun
-  "alloc::str::{alloc::borrow::ToOwned<str, alloc::string::String>}::to_owned"]
-axiom Str.Insts.AllocBorrowToOwnedString.to_owned : Str → Result String
 
 
 /-! ### Opaque binlog items: nothing is assumed about them
