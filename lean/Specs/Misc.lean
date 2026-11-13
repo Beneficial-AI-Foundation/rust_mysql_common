@@ -94,10 +94,12 @@ recall misc.split_version_eq {T : Type} (inst : core.convert.AsRef T (Slice U8))
     (hs : inst.as_ref x = ok s) :
     misc.split_version inst x = ok ((splitVersion s.val).getD (0#u8, 0#u8, 0#u8))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.split_version_eq`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.split_version_eq
 /-- `split_version_inner(input)`: total; exactly `splitVersion`. -/
 recall misc.split_version_inner_eq (input : Slice U8) :
     misc.split_version_inner input = ok (splitVersion input.val)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.split_version_inner_eq`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms misc.split_version_inner_eq
 end mysql_common

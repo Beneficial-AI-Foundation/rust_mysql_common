@@ -59,5 +59,9 @@ import Specs.Binlog.Events.UpdateRowsEvent
 import Specs.Binlog.Events.DeleteRowsEvent
 import Specs.Binlog.Events.PartialUpdateRowsEvent
 import Specs.DefsBinlogEvents
+import Specs.Packets.StmtBinlog
+import Specs.Packets.SessionStateChange
+import Specs.Packets.BinlogRequest
+import Specs.DefsStmtSession
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/

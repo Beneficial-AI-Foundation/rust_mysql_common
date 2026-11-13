@@ -220,5 +220,33 @@ import Proofs.Binlog.Events.WriteRowsEvent.WriteRowsEvent
 import Proofs.Binlog.Events.UpdateRowsEvent.UpdateRowsEvent
 import Proofs.Binlog.Events.DeleteRowsEvent.DeleteRowsEvent
 import Proofs.Binlog.Events.PartialUpdateRowsEvent.PartialUpdateRowsEvent
+import Proofs.Defs.LemmasStmtSession
+import Proofs.Packets.ColumnBuilders
+import Proofs.Packets.SessionStateInfo
+import Proofs.Packets.OkPacketSessionStateInfo
+import Proofs.Packets.StmtPacket
+import Proofs.Packets.ComStmtSendLongData
+import Proofs.Packets.ComStmtClose
+import Proofs.Packets.ComStmtBulkExecuteRequestBuilder
+import Proofs.Packets.StmtBulkExecuteParamType
+import Proofs.Packets.StmtBulkExecuteParamValues
+import Proofs.Packets.StmtBulkExecuteParamValue
+import Proofs.Packets.ComStmtBulkExecuteRequest
+import Proofs.Packets.ComRegisterSlave
+import Proofs.Packets.ComTableDump
+import Proofs.Packets.ComBinlogDump
+import Proofs.Packets.GnoInterval
+import Proofs.Packets.Tag
+import Proofs.Packets.Sid
+import Proofs.Packets.ComBinlogDumpGtid
+import Proofs.Packets.SemiSyncAckPacket
+import Proofs.Packets.SessionStateChange.SessionStateChange
+import Proofs.Packets.SessionStateChange.Gtids
+import Proofs.Packets.SessionStateChange.Schema
+import Proofs.Packets.SessionStateChange.SystemVariable
+import Proofs.Packets.SessionStateChange.TransactionCharacteristics
+import Proofs.Packets.SessionStateChange.TransactionState
+import Proofs.Packets.SessionStateChange.Unsupported
+import Proofs.Packets.BinlogRequest.BinlogRequest
 
 /-! The proofs of the spec statements, one file per Rust item (see `VERIFICATION.md` §8). -/
