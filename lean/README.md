@@ -85,7 +85,8 @@ code is the same either way. Aeneas is pinned in `../lakefile.toml`.
    - **A dozen axioms that assert behaviour of a dependency, in namespace `Trusted`**, behind the
      opaque Rust module `value::convert::trusted` (patch 40). Each was checked against the pinned
      dependency's source, and by tests:
-     - the seven date/time regexes on ASCII input;
+     - the seven date/time regexes: exact on ASCII input, and on any input a match has the
+       shape of the pattern (a `\d` is one ASCII digit or at least two bytes `≥ 128`);
      - chrono's `NaiveDate::from_ymd_opt` / `NaiveTime::from_hms_micro_opt` validity and getters;
      - time's `Date::from_calendar_date` / `Time::from_hms_micro` validity and getters.
 4. **Modelling assumptions of Aeneas:**
@@ -118,7 +119,10 @@ was confirmed against upstream `src/`:
 5. **`from_value_opt` (the non-panicking API) panics on `Bytes` holding non-ASCII Unicode
    digits**, e.g. `"00:00:00.\u{0660}"`, when converting to `Duration`, chrono
    `NaiveTime`/`NaiveDateTime`/`NaiveDate` or `time::Duration`. The cause: regex `\d` is
-   Unicode-aware, but `btou(..).unwrap()` accepts only ASCII digits.
+   Unicode-aware, but `btou(..).unwrap()` accepts only ASCII digits. Stated for every input:
+   the parsers panic exactly when the input has a non-ASCII byte and a fractional regex
+   matches it (`timeTextPanics`, `datetimeTextPanics`), and `Bytes` with a non-ASCII byte give
+   a panic or `Err`, never a value. Which non-ASCII strings the regexes match is not modelled.
 6. **`mysql_time_to_duration` computes `microseconds * 1000` in `u32`.** It overflows for
    micros > 4294967, which a server can send in a binary `TIME`: it panics in debug builds and
    gives a wrong duration in release builds.

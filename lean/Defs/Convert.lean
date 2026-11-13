@@ -106,11 +106,6 @@ def intRecover (lo hi : Int) (signed : Bool) (v : Val) : Val :=
   | .uint x => if lo ≤ (x : Int) ∧ (x : Int) ≤ hi then intVal signed x else v
   | _ => v
 
-/-- Every byte of the `Bytes` of a value is ASCII (below 128); true of every other value. -/
-def Val.bytesAscii : Val → Prop
-  | .bytes b => ∀ c ∈ b, c.val < 128
-  | _ => True
-
 /-! ## UTF-8 -/
 
 /-- The UTF-8 encoding of a string (Rust's `String::as_bytes`/`into_bytes`). -/
@@ -206,6 +201,45 @@ def datetimeStringRead (bs : List U8) : Option (Nat × Nat × Nat × Nat × Nat 
       | _ => none
     else none
   | _ => none
+
+/-! ## Where the date/time text parsers panic
+
+The crate's regexes run in Unicode mode, so `\d` also matches non-ASCII decimal digits, which
+`btou(..).unwrap()` then rejects with a panic. Which non-ASCII byte sequences are digits is
+not modelled, so these conditions are stated with the opaque `Trusted.isMatch`
+(`REGEX.is_match`). Both are false of ASCII input, and `timeStringRead`/`datetimeStringRead`
+are `none` on every input they are true of (and on every other input with a non-ASCII byte). -/
+
+/-- `parse_mysql_time_string` panics on `bs`: `bs` has a non-ASCII byte and, after an optional
+    leading `-` (45), is matched by one of the two fractional regexes (`TIME_RE_HH_MM_SS_MS`,
+    `TIME_RE_HHH_MM_SS_MS`), e.g. `"00:00:00.\u{0660}"`. (`t` is the input after the sign, as
+    a slice.) -/
+def timeTextPanics (bs : List U8) : Prop :=
+  (∃ c ∈ bs, 128 ≤ c.val) ∧
+  ∃ t : Slice U8,
+    t.val = (match bs with
+      | c :: rest => if c.val = 45 then rest else bs
+      | [] => []) ∧
+    (Trusted.isMatch .timeHhMmSsMs t = true ∨ Trusted.isMatch .timeHhhMmSsMs t = true)
+
+/-- `parse_mysql_datetime_string` panics on `bs`: `bs` has a non-ASCII byte, is 21 to 26 bytes
+    long and is matched by the fractional regex (`DATETIME_RE_YMD_HMS_NS`), e.g.
+    `"2020-01-01 00:00:00.\u{0660}"`. (`t` is the input as a slice.) -/
+def datetimeTextPanics (bs : List U8) : Prop :=
+  (∃ c ∈ bs, 128 ≤ c.val) ∧ 20 < bs.length ∧ bs.length < 27 ∧
+  ∃ t : Slice U8, t.val = bs ∧ Trusted.isMatch .datetimeYmdHmsNs t = true
+
+/-- The value is `Bytes` on which `parse_mysql_time_string` panics (`timeTextPanics`); false of
+    every other value. -/
+def Val.timeTextPanics : Val → Prop
+  | .bytes b => Defs.timeTextPanics b
+  | _ => False
+
+/-- The value is `Bytes` on which `parse_mysql_datetime_string` panics (`datetimeTextPanics`);
+    false of every other value. -/
+def Val.datetimeTextPanics : Val → Prop
+  | .bytes b => Defs.datetimeTextPanics b
+  | _ => False
 
 /-! ## What the temporal conversions read from a `Value` -/
 

@@ -1,11 +1,12 @@
 import Defs
 import Proofs.Util.ConvBytesTime
+import Proofs.Util.ConvNonAscii
 
 /-! Statements for `fn parse_mysql_datetime_string` (spec file: `Specs/Value/Convert.lean`). Helper lemmas: `Proofs/Util/ConvBytesTime.lean`. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs Classical mysql_common.CBTUtil
+open Aeneas Aeneas.Std Result mysql_common Defs Classical mysql_common.CBTUtil mysql_common.NAUtil
 
 namespace mysql_common
 
@@ -413,12 +414,8 @@ private theorem dsr_some (t : List U8) (h : datetimeStringRead t ≠ none) :
   | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _] | [_, _, _, _, _, _]
   | [_, _, _, _, _, _, _] | [_, _, _, _, _, _, _, _] | [_, _, _, _, _, _, _, _, _] => simp at h
 
-/-- `parse_mysql_datetime_string` (private, used by the chrono conversions): on ASCII input,
-    total; the text `DATE`/`DATETIME` literal `datetimeStringRead`. **ASCII hypothesis:** on
-    non-ASCII input the Unicode-mode regexes can match non-ASCII digits and the following
-    `btou(..).unwrap()` panics (e.g. `"2020-01-01 00:00:00.\u{0660}"`); the regexes are only
-    specified on ASCII input, so that case is excluded rather than stated. -/
-theorem value.convert.parse_mysql_datetime_string_spec (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :
+/-- The parser on ASCII input. -/
+private theorem spec_ascii (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :
     value.convert.parse_mysql_datetime_string b ⦃ r =>
       r.map (fun t => (t.1.val, t.2.1.val, t.2.2.1.val, t.2.2.2.1.val, t.2.2.2.2.1.val,
         t.2.2.2.2.2.1.val, t.2.2.2.2.2.2.val)) = datetimeStringRead b.val ⦄ := by
@@ -442,5 +439,158 @@ theorem value.convert.parse_mysql_datetime_string_spec (b : Slice U8) (ha : ∀ 
     symm; by_contra hne
     rcases dsr_some b.val hne with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2, h3⟩
   all_goals (simp only [UScalar.eq_equiv, UScalar.lt_equiv, hl] at *; simp_all)
+
+/-- `datetimeStringRead` rejects every input with a non-ASCII byte. -/
+theorem datetimeStringRead_nonascii (bs : List U8) (hn : ∃ c ∈ bs, 128 ≤ c.val) :
+    datetimeStringRead bs = none := by
+  by_contra hne
+  obtain ⟨c, hc, hc'⟩ := hn
+  rcases dsr_some bs hne with ⟨-, h⟩ | ⟨-, h⟩ | ⟨-, -, h⟩ <;>
+    have := asciiMatch_ascii _ _ h c hc <;> omega
+
+/-- `datetimeTextPanics` is false of ASCII input. -/
+theorem not_datetimeTextPanics_of_ascii (bs : List U8) (ha : ∀ c ∈ bs, c.val < 128) :
+    ¬ datetimeTextPanics bs := by
+  rintro ⟨⟨c, hc, hc'⟩, -⟩
+  have := ha c hc; omega
+
+/-- The field-reading block of the fractional form, when a field holds a byte `≥ 128`. -/
+private theorem ns_block_panic (b : Slice U8)
+    (h : ∃ (i : Nat) (x : U8), b.val[i]? = some x ∧ 128 ≤ x.val ∧
+      i ≠ 4 ∧ i ≠ 7 ∧ i ≠ 10 ∧ i ≠ 13 ∧ i ≠ 16 ∧ i ≠ 19) :
+    (do
+      let s ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) b
+          { «end» := 4#usize }
+      let o ← value.convert.trusted.btou_u32 s
+      let i ← core.option.Option.unwrap o
+      let s1 ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+          { start := 5#usize, «end» := 7#usize }
+      let o1 ← value.convert.trusted.btou_u32 s1
+      let i1 ← core.option.Option.unwrap o1
+      let s2 ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+          { start := 8#usize, «end» := 10#usize }
+      let o2 ← value.convert.trusted.btou_u32 s2
+      let i2 ← core.option.Option.unwrap o2
+      let o3 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+          (some { start := 11#usize, «end» := 13#usize }) b
+      let i3 ← lift (core.option.Option.unwrap_or o3 0#u32)
+      let o4 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+          (some { start := 14#usize, «end» := 16#usize }) b
+      let i4 ← lift (core.option.Option.unwrap_or o4 0#u32)
+      let o5 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32
+          (some { start := 17#usize, «end» := 19#usize }) b
+      let i5 ← lift (core.option.Option.unwrap_or o5 0#u32)
+      let o6 ←
+        core.option.Option.map
+          value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+          (some { start := 20#usize }) b
+      let i6 ← lift (core.option.Option.unwrap_or o6 0#u32)
+      ok (some (i, i1, i2, i3, i4, i5, i6))) = fail .panic := by
+  have key : (do
+      let i ← fldTo32 b { «end» := 4#usize }
+      let i1 ← fld32 b { start := 5#usize, «end» := 7#usize }
+      let i2 ← fld32 b { start := 8#usize, «end» := 10#usize }
+      let i3 ← fld32 b { start := 11#usize, «end» := 13#usize }
+      let i4 ← fld32 b { start := 14#usize, «end» := 16#usize }
+      let i5 ← fld32 b { start := 17#usize, «end» := 19#usize }
+      let i6 ← fldMicros b { start := 20#usize }
+      ok (some (i, i1, i2, i3, i4, i5, i6))) = fail .panic := by
+    obtain ⟨i, x, hx, hx', n4, n7, n10, n13, n16, n19⟩ := h
+    have hc : i < 4 ∨ (5 ≤ i ∧ i < 7) ∨ (8 ≤ i ∧ i < 10) ∨ (11 ≤ i ∧ i < 13) ∨
+        (14 ≤ i ∧ i < 16) ∨ (17 ≤ i ∧ i < 19) ∨ 20 ≤ i := by omega
+    rcases hc with c | c | c | c | c | c | c
+    · exact bind_p (fldTo32_panic b _ i x hx hx' c)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_p (fld32_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_p (fld32_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_okp (fld32_okp _ _) fun _ => bind_p (fld32_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_okp (fld32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_p (fld32_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_okp (fld32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_okp (fld32_okp _ _) fun _ => bind_p (fld32_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_okp (fld32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_okp (fld32_okp _ _) fun _ => bind_okp (fld32_okp _ _) fun _ =>
+        bind_p (fldMicros_panic b _ i x hx hx' c)
+  simpa only [fldTo32, fld32, fldMicros, tc_bind_eq, Aeneas.Std.bind_assoc, core.option.Option.map_some,
+    value.convert.parse_mysql_datetime_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once,
+    value.convert.parse_mysql_datetime_string.closure_1.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once,
+    value.convert.parse_mysql_datetime_string.closure_2.Insts.CoreOpsFunctionFnOnceTupleRangeUsizeU32.call_once,
+    value.convert.parse_mysql_datetime_string.closure_3.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once,
+    lift, bind_ok, core.option.Option.unwrap_or_some] using key
+
+/-- `parse_mysql_datetime_string` (private, used by the chrono conversions), on every input on
+    which it does not panic (`datetimeTextPanics`; in particular on all ASCII input, and on all
+    input of at most 20 or at least 27 bytes): the text `DATE`/`DATETIME` literal
+    `datetimeStringRead`. An input with a non-ASCII byte is never read as a date:
+    `datetimeStringRead` is `none` on it (`datetimeStringRead_nonascii`). -/
+theorem value.convert.parse_mysql_datetime_string_spec (b : Slice U8)
+    (hp : ¬ datetimeTextPanics b.val) :
+    value.convert.parse_mysql_datetime_string b ⦃ r =>
+      r.map (fun t => (t.1.val, t.2.1.val, t.2.2.1.val, t.2.2.2.1.val, t.2.2.2.2.1.val,
+        t.2.2.2.2.2.1.val, t.2.2.2.2.2.2.val)) = datetimeStringRead b.val ⦄ := by
+  by_cases ha : ∀ c ∈ b.val, c.val < 128
+  · exact spec_ascii b ha
+  have hn : ∃ c ∈ b.val, 128 ≤ c.val := by
+    by_contra hc; exact ha fun c hc' => by by_contra h; exact hc ⟨c, hc', by omega⟩
+  have m1 : b.val.length = 10 → Trusted.isMatch .datetimeYmd b = false := by
+    intro hl; by_contra hm
+    have := isMatch_nonascii_length _ b (by simpa using hm) hn
+    simp only [minLen] at this; omega
+  have m2 : b.val.length = 19 → Trusted.isMatch .datetimeYmdHms b = false := by
+    intro hl; by_contra hm
+    have := isMatch_nonascii_length _ b (by simpa using hm) hn
+    simp only [minLen] at this; omega
+  have m3 : 20 < b.val.length → b.val.length < 27 →
+      Trusted.isMatch .datetimeYmdHmsNs b = false := by
+    intro h1 h2; by_contra hm
+    exact hp ⟨hn, h1, h2, b, rfl, by simpa using hm⟩
+  have hl : (Slice.len b).val = b.val.length := by simp
+  rw [datetimeStringRead_nonascii _ hn]
+  unfold value.convert.parse_mysql_datetime_string
+  simp only [value.convert.trusted.datetime_re_ymd, value.convert.trusted.datetime_re_ymd_hms,
+    value.convert.trusted.datetime_re_ymd_hms_ns, bind_ok]
+  split_ifs
+  all_goals first
+    | (simp only [WP.spec_ok, Option.map_none])
+    | (exfalso; simp only [UScalar.eq_equiv, UScalar.lt_equiv, hl] at *
+       first
+        | exact absurd ‹Trusted.isMatch .datetimeYmd b = true› (by rw [m1 ‹_›]; simp)
+        | exact absurd ‹Trusted.isMatch .datetimeYmdHms b = true› (by rw [m2 ‹_›]; simp)
+        | exact absurd ‹Trusted.isMatch .datetimeYmdHmsNs b = true› (by rw [m3 ‹_› ‹_›]; simp))
+
+/-- **Crash path.** `parse_mysql_datetime_string` panics exactly on `datetimeTextPanics`: a
+    21–26-byte input with a non-ASCII byte that the fractional regex matches (its Unicode `\d`
+    matched a non-ASCII digit), because `btou(..).unwrap()` rejects the field holding it. -/
+theorem value.convert.parse_mysql_datetime_string_panic (b : Slice U8)
+    (hp : datetimeTextPanics b.val) :
+    value.convert.parse_mysql_datetime_string b = fail .panic := by
+  obtain ⟨hn, h1, h2, t, ht, hm⟩ := hp
+  have hb : t = b := Slice.ext _ _ ht
+  rw [hb] at hm
+  have hpos := ns_nonascii_pos b hm hn
+  have c1 : ¬ (Slice.len b = 10#usize) := by scalar_tac
+  have c2 : ¬ (Slice.len b = 19#usize) := by scalar_tac
+  have c3 : 20#usize < Slice.len b := by scalar_tac
+  have c4 : Slice.len b < 27#usize := by scalar_tac
+  unfold value.convert.parse_mysql_datetime_string
+  simp only [value.convert.trusted.datetime_re_ymd_hms_ns, bind_ok, c1, c2, c3, c4, hm,
+    ite_true, ite_false]
+  exact ns_block_panic b hpos
 
 end mysql_common

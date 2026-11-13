@@ -63,7 +63,7 @@ theorem value.Value.Insts.CoreConvertFromDuration.roundtrip (d : core.time.Durat
   simp only [Val.time.injEq] at hw
   obtain ⟨rfl, hd, hh, hm, hs, hu⟩ := hw
   apply WP.spec_mono (core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec
-    (value.Value.Time false dd h0 mm ss us) (by simp [Val.ofValue, Val.bytesAscii])
+    (value.Value.Time false dd h0 mm ss us) (by simp [Val.ofValue, Val.timeTextPanics])
     (by rintro _ _ _ _ _ ⟨⟩; omega))
   rintro (d' | e) ⟨h1, h2⟩
   · refine ⟨d', rfl, ?_⟩

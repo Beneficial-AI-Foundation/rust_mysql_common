@@ -1,11 +1,12 @@
 import Defs
 import Proofs.Util.ConvBytesTime
+import Proofs.Util.ConvNonAscii
 
 /-! Statements for `fn parse_mysql_time_string` (spec file: `Specs/Value/Convert.lean`). Helper lemmas: `Proofs/Util/ConvBytesTime.lean`. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs Classical mysql_common.CBTUtil
+open Aeneas Aeneas.Std Result mysql_common Defs Classical mysql_common.CBTUtil mysql_common.NAUtil
 
 namespace mysql_common
 
@@ -788,14 +789,8 @@ private theorem core_spec (bs1 : Slice U8) (neg : Bool) (ha : ∀ c ∈ bs1.val,
     rcases tsr_some neg bs1.val hne with ⟨h1, h2⟩ | ⟨h1, h2⟩ | h2 | h2
   all_goals (simp only [UScalar.eq_equiv, hl] at *; simp_all)
 
-/-- `parse_mysql_time_string` (private, used by the `Duration`, chrono and time conversions): on
-    ASCII input, total; the text `TIME` literal `timeStringRead`, as `(negative, hours, minutes,
-    seconds, microseconds)`. **ASCII hypothesis:** on non-ASCII input the Unicode-mode regexes
-    can match non-ASCII digits and `btou(..).unwrap()` panics,
-    e.g. on `"00:00:00.\u{0660}"`; the regexes are only specified on ASCII input, so that case is
-    excluded rather than stated. -/
-
-theorem value.convert.parse_mysql_time_string_spec (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :
+/-- The parser on ASCII input. -/
+private theorem spec_ascii (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :
     value.convert.parse_mysql_time_string b ⦃ r =>
       r.map (fun t => (t.1, t.2.1.val, t.2.2.1.val, t.2.2.2.1.val, t.2.2.2.2.val)) =
         timeStringRead b.val ⦄ := by
@@ -842,5 +837,600 @@ theorem value.convert.parse_mysql_time_string_spec (b : Slice U8) (ha : ∀ c �
       have : ¬ c.val = 45 := by
         intro e; apply hc; rw [hi1]; exact UScalar.eq_of_val_eq (by simpa using e)
       simp [this, hc]
+
+/-! ### Input with a non-ASCII byte -/
+
+/-- The input after its optional sign. -/
+private def unsigned (bs : List U8) : List U8 :=
+  match bs with
+  | c :: rest => if c.val = 45 then rest else bs
+  | [] => []
+
+private theorem unsigned_nonascii (bs : List U8) (hn : ∃ c ∈ bs, 128 ≤ c.val) :
+    ∃ c ∈ unsigned bs, 128 ≤ c.val := by
+  obtain ⟨c, hc, hc'⟩ := hn
+  match bs with
+  | [] => simp at hc
+  | c0 :: rest =>
+    simp only [unsigned]
+    split_ifs with h
+    · rcases List.mem_cons.1 hc with rfl | hc
+      · omega
+      · exact ⟨c, hc, hc'⟩
+    · exact ⟨c, hc, hc'⟩
+
+private theorem unsigned_length (bs : List U8) : (unsigned bs).length ≤ bs.length := by
+  match bs with
+  | [] => simp [unsigned]
+  | c0 :: rest => simp only [unsigned]; split_ifs <;> simp
+
+/-- `timeStringRead` rejects every input with a non-ASCII byte. -/
+theorem timeStringRead_nonascii (bs : List U8) (hn : ∃ c ∈ bs, 128 ≤ c.val) :
+    timeStringRead bs = none := by
+  obtain ⟨c, hc, hc'⟩ := unsigned_nonascii bs hn
+  have key : ∀ neg, tsrRest neg (unsigned bs) = none := by
+    intro neg
+    by_contra hne
+    rcases tsr_some neg _ hne with ⟨-, h⟩ | ⟨-, h⟩ | h | h <;>
+      have := asciiMatch_ascii _ _ h c hc <;> omega
+  match bs with
+  | [] => rfl
+  | c0 :: rest =>
+    rw [timeStringRead_cons]
+    simp only [unsigned] at key
+    split_ifs with h
+    · simpa [h] using key true
+    · simpa [h] using key false
+
+/-- `timeTextPanics` is false of ASCII input. -/
+theorem not_timeTextPanics_of_ascii (bs : List U8) (ha : ∀ c ∈ bs, c.val < 128) :
+    ¬ timeTextPanics bs := by
+  rintro ⟨⟨c, hc, hc'⟩, -⟩
+  have := ha c hc; omega
+
+/-- `timeTextPanics` is false of input of at most 10 bytes: a fractional form holding a
+    non-ASCII digit is at least 11 bytes long. -/
+theorem not_timeTextPanics_of_length (bs : List U8) (hl : bs.length ≤ 10) :
+    ¬ timeTextPanics bs := by
+  rintro ⟨hn, t, ht, hm⟩
+  have hu := unsigned_nonascii bs hn
+  have hlen := unsigned_length bs
+  rw [show unsigned bs = t.val from ht.symm] at hu hlen
+  rcases hm with hm | hm <;>
+    have := isMatch_nonascii_length _ t hm hu <;> simp only [minLen] at this <;> omega
+
+/-- The parser after the sign. -/
+private noncomputable def tcore (bs1 : Slice U8) (neg : Bool) :
+    Result (Option (Bool × Std.U32 × Std.U8 × Std.U8 × Std.U32)) :=
+    (do
+    let len := Slice.len bs1
+    if len = 8#usize
+    then
+      let b ← value.convert.trusted.time_re_hh_mm_ss bs1
+      if b
+      then
+        let s ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+            { «end» := 2#usize }
+        let o ← value.convert.trusted.btou_u32 s
+        let i2 ← core.option.Option.unwrap o
+        let s1 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+            { start := 3#usize, «end» := 5#usize }
+        let o1 ← value.convert.trusted.btou_u8 s1
+        let i3 ← core.option.Option.unwrap o1
+        let s2 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+            { start := 6#usize, «end» := 8#usize }
+        let o2 ← value.convert.trusted.btou_u8 s2
+        let i4 ← core.option.Option.unwrap o2
+        let o3 ←
+          core.option.Option.map
+            value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+            none bs1
+        let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+        ok (some (neg, i2, i3, i4, i5))
+      else
+        if len = 9#usize
+        then
+          let b1 ← value.convert.trusted.time_re_hhh_mm_ss bs1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+                { «end» := 3#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 4#usize, «end» := 6#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 7#usize, «end» := 9#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                none bs1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (neg, i2, i3, i4, i5))
+          else
+            let b2 ← value.convert.trusted.time_re_hh_mm_ss_ms bs1
+            if b2
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+                  { «end» := 2#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i2 ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                  { start := 3#usize, «end» := 5#usize }
+              let o1 ← value.convert.trusted.btou_u8 s1
+              let i3 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                  { start := 6#usize, «end» := 8#usize }
+              let o2 ← value.convert.trusted.btou_u8 s2
+              let i4 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 9#usize }) bs1
+              let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              ok (some (neg, i2, i3, i4, i5))
+            else
+              let b3 ← value.convert.trusted.time_re_hhh_mm_ss_ms bs1
+              if b3
+              then
+                let s ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)
+                    bs1 { «end» := 3#usize }
+                let o ← value.convert.trusted.btou_u32 s
+                let i2 ← core.option.Option.unwrap o
+                let s1 ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                    { start := 4#usize, «end» := 6#usize }
+                let o1 ← value.convert.trusted.btou_u8 s1
+                let i3 ← core.option.Option.unwrap o1
+                let s2 ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                    { start := 7#usize, «end» := 9#usize }
+                let o2 ← value.convert.trusted.btou_u8 s2
+                let i4 ← core.option.Option.unwrap o2
+                let o3 ←
+                  core.option.Option.map
+                    value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                    (some { start := 10#usize }) bs1
+                let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+                ok (some (neg, i2, i3, i4, i5))
+              else ok none
+        else
+          let b1 ← value.convert.trusted.time_re_hh_mm_ss_ms bs1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+                { «end» := 2#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 3#usize, «end» := 5#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 6#usize, «end» := 8#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                (some { start := 9#usize }) bs1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (neg, i2, i3, i4, i5))
+          else
+            let b2 ← value.convert.trusted.time_re_hhh_mm_ss_ms bs1
+            if b2
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+                  { «end» := 3#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i2 ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                  { start := 4#usize, «end» := 6#usize }
+              let o1 ← value.convert.trusted.btou_u8 s1
+              let i3 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                  { start := 7#usize, «end» := 9#usize }
+              let o2 ← value.convert.trusted.btou_u8 s2
+              let i4 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 10#usize }) bs1
+              let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              ok (some (neg, i2, i3, i4, i5))
+            else ok none
+    else
+      if len = 9#usize
+      then
+        let b ← value.convert.trusted.time_re_hhh_mm_ss bs1
+        if b
+        then
+          let s ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+              { «end» := 3#usize }
+          let o ← value.convert.trusted.btou_u32 s
+          let i2 ← core.option.Option.unwrap o
+          let s1 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+              { start := 4#usize, «end» := 6#usize }
+          let o1 ← value.convert.trusted.btou_u8 s1
+          let i3 ← core.option.Option.unwrap o1
+          let s2 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+              { start := 7#usize, «end» := 9#usize }
+          let o2 ← value.convert.trusted.btou_u8 s2
+          let i4 ← core.option.Option.unwrap o2
+          let o3 ←
+            core.option.Option.map
+              value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+              none bs1
+          let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+          ok (some (neg, i2, i3, i4, i5))
+        else
+          let b1 ← value.convert.trusted.time_re_hh_mm_ss_ms bs1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+                { «end» := 2#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 3#usize, «end» := 5#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 6#usize, «end» := 8#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                (some { start := 9#usize }) bs1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (neg, i2, i3, i4, i5))
+          else
+            let b2 ← value.convert.trusted.time_re_hhh_mm_ss_ms bs1
+            if b2
+            then
+              let s ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+                  { «end» := 3#usize }
+              let o ← value.convert.trusted.btou_u32 s
+              let i2 ← core.option.Option.unwrap o
+              let s1 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                  { start := 4#usize, «end» := 6#usize }
+              let o1 ← value.convert.trusted.btou_u8 s1
+              let i3 ← core.option.Option.unwrap o1
+              let s2 ←
+                core.slice.index.Slice.index
+                  (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                  { start := 7#usize, «end» := 9#usize }
+              let o2 ← value.convert.trusted.btou_u8 s2
+              let i4 ← core.option.Option.unwrap o2
+              let o3 ←
+                core.option.Option.map
+                  value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                  (some { start := 10#usize }) bs1
+              let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+              ok (some (neg, i2, i3, i4, i5))
+            else ok none
+      else
+        let b ← value.convert.trusted.time_re_hh_mm_ss_ms bs1
+        if b
+        then
+          let s ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+              { «end» := 2#usize }
+          let o ← value.convert.trusted.btou_u32 s
+          let i2 ← core.option.Option.unwrap o
+          let s1 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+              { start := 3#usize, «end» := 5#usize }
+          let o1 ← value.convert.trusted.btou_u8 s1
+          let i3 ← core.option.Option.unwrap o1
+          let s2 ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+              { start := 6#usize, «end» := 8#usize }
+          let o2 ← value.convert.trusted.btou_u8 s2
+          let i4 ← core.option.Option.unwrap o2
+          let o3 ←
+            core.option.Option.map
+              value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+              (some { start := 9#usize }) bs1
+          let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+          ok (some (neg, i2, i3, i4, i5))
+        else
+          let b1 ← value.convert.trusted.time_re_hhh_mm_ss_ms bs1
+          if b1
+          then
+            let s ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) bs1
+                { «end» := 3#usize }
+            let o ← value.convert.trusted.btou_u32 s
+            let i2 ← core.option.Option.unwrap o
+            let s1 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 4#usize, «end» := 6#usize }
+            let o1 ← value.convert.trusted.btou_u8 s1
+            let i3 ← core.option.Option.unwrap o1
+            let s2 ←
+              core.slice.index.Slice.index
+                (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bs1
+                { start := 7#usize, «end» := 9#usize }
+            let o2 ← value.convert.trusted.btou_u8 s2
+            let i4 ← core.option.Option.unwrap o2
+            let o3 ←
+              core.option.Option.map
+                value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+                (some { start := 10#usize }) bs1
+            let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+            ok (some (neg, i2, i3, i4, i5))
+          else ok none)
+
+private theorem hhms_block_panic (b : Slice U8) (neg : Bool)
+    (h : ∃ (i : Nat) (x : U8), b.val[i]? = some x ∧ 128 ≤ x.val ∧ i ≠ 2 ∧ i ≠ 5 ∧ i ≠ 8) :
+    (do
+        let s ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) b
+            { «end» := 2#usize }
+        let o ← value.convert.trusted.btou_u32 s
+        let i2 ← core.option.Option.unwrap o
+        let s1 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+            { start := 3#usize, «end» := 5#usize }
+        let o1 ← value.convert.trusted.btou_u8 s1
+        let i3 ← core.option.Option.unwrap o1
+        let s2 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+            { start := 6#usize, «end» := 8#usize }
+        let o2 ← value.convert.trusted.btou_u8 s2
+        let i4 ← core.option.Option.unwrap o2
+        let o3 ←
+          core.option.Option.map
+            value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+            (some { start := 9#usize }) b
+        let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+        ok (some (neg, i2, i3, i4, i5))) = fail .panic := by
+  have key : (do
+      let i2 ← fldTo32 b { «end» := 2#usize }
+      let i3 ← fld8 b { start := 3#usize, «end» := 5#usize }
+      let i4 ← fld8 b { start := 6#usize, «end» := 8#usize }
+      let i5 ← fldMicros b { start := 9#usize }
+      ok (some (neg, i2, i3, i4, i5))) = fail .panic := by
+    obtain ⟨i, x, hx, hx', n2, n5, n8⟩ := h
+    have hc : i < 2 ∨ (3 ≤ i ∧ i < 5) ∨ (6 ≤ i ∧ i < 8) ∨ 9 ≤ i := by omega
+    rcases hc with c | c | c | c
+    · exact bind_p (fldTo32_panic b _ i x hx hx' c)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_p (fld8_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld8_okp _ _) fun _ =>
+        bind_p (fld8_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld8_okp _ _) fun _ =>
+        bind_okp (fld8_okp _ _) fun _ => bind_p (fldMicros_panic b _ i x hx hx' c)
+  simpa only [fldTo32, fld8, fldMicros, tc_bind_eq, Aeneas.Std.bind_assoc,
+    core.option.Option.map_some,
+    value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once,
+    lift, bind_ok, core.option.Option.unwrap_or_some] using key
+
+private theorem hhhms_block_panic (b : Slice U8) (neg : Bool)
+    (h : ∃ (i : Nat) (x : U8), b.val[i]? = some x ∧ 128 ≤ x.val ∧ i ≠ 3 ∧ i ≠ 6 ∧ i ≠ 9) :
+    (do
+        let s ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) b
+            { «end» := 3#usize }
+        let o ← value.convert.trusted.btou_u32 s
+        let i2 ← core.option.Option.unwrap o
+        let s1 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+            { start := 4#usize, «end» := 6#usize }
+        let o1 ← value.convert.trusted.btou_u8 s1
+        let i3 ← core.option.Option.unwrap o1
+        let s2 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+            { start := 7#usize, «end» := 9#usize }
+        let o2 ← value.convert.trusted.btou_u8 s2
+        let i4 ← core.option.Option.unwrap o2
+        let o3 ←
+          core.option.Option.map
+            value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32
+            (some { start := 10#usize }) b
+        let i5 ← lift (core.option.Option.unwrap_or o3 0#u32)
+        ok (some (neg, i2, i3, i4, i5))) = fail .panic := by
+  have key : (do
+      let i2 ← fldTo32 b { «end» := 3#usize }
+      let i3 ← fld8 b { start := 4#usize, «end» := 6#usize }
+      let i4 ← fld8 b { start := 7#usize, «end» := 9#usize }
+      let i5 ← fldMicros b { start := 10#usize }
+      ok (some (neg, i2, i3, i4, i5))) = fail .panic := by
+    obtain ⟨i, x, hx, hx', n3, n6, n9⟩ := h
+    have hc : i < 3 ∨ (4 ≤ i ∧ i < 6) ∨ (7 ≤ i ∧ i < 9) ∨ 10 ≤ i := by omega
+    rcases hc with c | c | c | c
+    · exact bind_p (fldTo32_panic b _ i x hx hx' c)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_p (fld8_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld8_okp _ _) fun _ =>
+        bind_p (fld8_panic b _ i x hx hx' c.1 c.2)
+    · exact bind_okp (fldTo32_okp _ _) fun _ => bind_okp (fld8_okp _ _) fun _ =>
+        bind_okp (fld8_okp _ _) fun _ => bind_p (fldMicros_panic b _ i x hx hx' c)
+  simpa only [fldTo32, fld8, fldMicros, tc_bind_eq, Aeneas.Std.bind_assoc,
+    core.option.Option.map_some,
+    value.convert.parse_mysql_time_string.closure.Insts.CoreOpsFunctionFnOnceTupleRangeFromUsizeU32.call_once,
+    lift, bind_ok, core.option.Option.unwrap_or_some] using key
+
+/-- After the sign, on input with a non-ASCII byte: a panic if a fractional regex matches,
+    `None` otherwise (the two fixed-length forms cannot match). -/
+private theorem tcore_nonascii (t : Slice U8) (neg : Bool) (hn : ∃ c ∈ t.val, 128 ≤ c.val) :
+    tcore t neg =
+      if Trusted.isMatch .timeHhMmSsMs t = true ∨ Trusted.isMatch .timeHhhMmSsMs t = true
+      then fail .panic else ok none := by
+  have m1 : Slice.len t = 8#usize → Trusted.isMatch .timeHhMmSs t = false := by
+    intro hl; by_contra hm
+    have := isMatch_nonascii_length _ t (by simpa using hm) hn
+    simp only [minLen] at this; scalar_tac
+  have m2 : Slice.len t = 9#usize → Trusted.isMatch .timeHhhMmSs t = false := by
+    intro hl; by_contra hm
+    have := isMatch_nonascii_length _ t (by simpa using hm) hn
+    simp only [minLen] at this; scalar_tac
+  unfold tcore
+  simp only [value.convert.trusted.time_re_hh_mm_ss, value.convert.trusted.time_re_hh_mm_ss_ms,
+    value.convert.trusted.time_re_hhh_mm_ss, value.convert.trusted.time_re_hhh_mm_ss_ms, bind_ok]
+  have hlen : (Slice.len t = 8#usize ∧ ¬ Slice.len t = 9#usize) ∨
+      (¬ Slice.len t = 8#usize ∧ Slice.len t = 9#usize) ∨
+      (¬ Slice.len t = 8#usize ∧ ¬ Slice.len t = 9#usize) := by
+    by_cases c8 : Slice.len t = 8#usize
+    · exact Or.inl ⟨c8, by rw [c8]; decide⟩
+    · by_cases c9 : Slice.len t = 9#usize
+      · exact Or.inr (Or.inl ⟨c8, c9⟩)
+      · exact Or.inr (Or.inr ⟨c8, c9⟩)
+  cases hA : Trusted.isMatch .timeHhMmSsMs t
+  · cases hB : Trusted.isMatch .timeHhhMmSsMs t
+    · rcases hlen with ⟨c8, c9⟩ | ⟨c8, c9⟩ | ⟨c8, c9⟩
+      · simp only [eq_true c8, c9, m1 c8, ↓reduceIte, Bool.false_eq_true, or_self]
+      · simp only [c8, eq_true c9, m2 c9, ↓reduceIte, Bool.false_eq_true, or_self]
+      · simp only [c8, c9, ↓reduceIte, Bool.false_eq_true, or_self]
+    · have hpos := hhhms_nonascii_pos t hB hn
+      rcases hlen with ⟨c8, c9⟩ | ⟨c8, c9⟩ | ⟨c8, c9⟩
+      · simp only [eq_true c8, c9, m1 c8, ↓reduceIte, Bool.false_eq_true, or_true]
+        exact hhhms_block_panic t neg hpos
+      · simp only [c8, eq_true c9, m2 c9, ↓reduceIte, Bool.false_eq_true, or_true]
+        exact hhhms_block_panic t neg hpos
+      · simp only [c8, c9, ↓reduceIte, Bool.false_eq_true, or_true]
+        exact hhhms_block_panic t neg hpos
+  · have hpos := hhms_nonascii_pos t hA hn
+    rcases hlen with ⟨c8, c9⟩ | ⟨c8, c9⟩ | ⟨c8, c9⟩
+    · simp only [eq_true c8, c9, m1 c8, ↓reduceIte, Bool.false_eq_true, true_or]
+      exact hhms_block_panic t neg hpos
+    · simp only [c8, eq_true c9, m2 c9, ↓reduceIte, Bool.false_eq_true, true_or]
+      exact hhms_block_panic t neg hpos
+    · simp only [c8, c9, ↓reduceIte, true_or]
+      exact hhms_block_panic t neg hpos
+
+/-- From 8 bytes on, the parser is `tcore` of the input after its sign. -/
+private theorem parse_eq_tcore (b : Slice U8) (h8 : 8 ≤ b.val.length) :
+    ∃ t : Slice U8, t.val = unsigned b.val ∧
+      ∃ neg, value.convert.parse_mysql_time_string b = tcore t neg := by
+  obtain ⟨c, rest, hb⟩ : ∃ c rest, b.val = c :: rest := by
+    cases h : b.val with
+    | nil => rw [h] at h8; simp at h8
+    | cons c rest => exact ⟨c, rest, rfl⟩
+  have hlt : ¬ (Slice.len b < 8#usize) := by scalar_tac
+  have hidx : Slice.index_usize b 0#usize = ok c := by
+    simp [Slice.index_usize, hb]
+  unfold value.convert.parse_mysql_time_string
+  simp only [hlt, ↓reduceIte, hidx, bind_ok]
+  by_cases hc : c = 45#u8
+  · have hd : core.slice.index.Slice.index (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) b
+        { start := 1#usize } = ok (b.drop 1#usize) := by
+      simp [core.slice.index.Slice.index, core.slice.index.SliceIndexRangeFromUsizeSlice.index,
+        Slice.length, hb]
+    rw [ite_pos' hc, hd]
+    simp only [bind_ok]
+    refine ⟨b.drop 1#usize, ?_, decide (c = 45#u8), rfl⟩
+    simp [unsigned, hb, hc]
+  · rw [ite_neg' hc]
+    simp only [bind_ok]
+    refine ⟨b, ?_, decide (c = 45#u8), rfl⟩
+    have : ¬ c.val = 45 := fun e => hc (UScalar.eq_of_val_eq (by simpa using e))
+    simp [unsigned, hb, this]
+
+/-- `parse_mysql_time_string` (private, used by the `Duration`, chrono and time conversions), on
+    every input on which it does not panic (`timeTextPanics`; in particular on all ASCII input
+    and on all input of at most 10 bytes): the text `TIME` literal `timeStringRead`, as
+    `(negative, hours, minutes, seconds, microseconds)`. An input with a non-ASCII byte is never
+    read as a time: `timeStringRead` is `none` on it (`timeStringRead_nonascii`). -/
+theorem value.convert.parse_mysql_time_string_spec (b : Slice U8) (hp : ¬ timeTextPanics b.val) :
+    value.convert.parse_mysql_time_string b ⦃ r =>
+      r.map (fun t => (t.1, t.2.1.val, t.2.2.1.val, t.2.2.2.1.val, t.2.2.2.2.val)) =
+        timeStringRead b.val ⦄ := by
+  by_cases ha : ∀ c ∈ b.val, c.val < 128
+  · exact spec_ascii b ha
+  have hn : ∃ c ∈ b.val, 128 ≤ c.val := by
+    by_contra hc; exact ha fun c hc' => by by_contra h; exact hc ⟨c, hc', by omega⟩
+  rw [timeStringRead_nonascii _ hn]
+  by_cases h8 : 8 ≤ b.val.length
+  · obtain ⟨t, ht, neg, he⟩ := parse_eq_tcore b h8
+    rw [he, tcore_nonascii t neg (ht ▸ unsigned_nonascii _ hn),
+      ite_neg' (fun hm => hp ⟨hn, t, ht, hm⟩)]
+    simp
+  · have hlt : Slice.len b < 8#usize := by scalar_tac
+    unfold value.convert.parse_mysql_time_string
+    simp only [hlt, ↓reduceIte]
+    simp
+
+/-- **Crash path.** `parse_mysql_time_string` panics exactly on `timeTextPanics`: an input with
+    a non-ASCII byte that, after its sign, a fractional regex matches (its Unicode `\d` matched
+    a non-ASCII digit), because `btou(..).unwrap()` rejects the field holding it. E.g.
+    `"00:00:00.\u{0660}"`, if the regex matches it (which is not modelled). -/
+theorem value.convert.parse_mysql_time_string_panic (b : Slice U8) (hp : timeTextPanics b.val) :
+    value.convert.parse_mysql_time_string b = fail .panic := by
+  obtain ⟨hn, t, ht, hm⟩ := hp
+  have hu : ∃ c ∈ t.val, 128 ≤ c.val := ht ▸ unsigned_nonascii _ hn
+  have h8 : 8 ≤ b.val.length := by
+    have hlen := unsigned_length b.val
+    rw [show unsigned b.val = t.val from ht.symm] at hlen
+    rcases hm with hm | hm <;>
+      have := isMatch_nonascii_length _ t hm hu <;> simp only [minLen] at this <;> omega
+  obtain ⟨t', ht', neg, he⟩ := parse_eq_tcore b h8
+  have : t' = t := Slice.ext _ _ (ht'.trans ht.symm)
+  rw [he, this, tcore_nonascii t neg hu, ite_pos' hm]
 
 end mysql_common

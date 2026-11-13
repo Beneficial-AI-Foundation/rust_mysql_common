@@ -32,7 +32,7 @@ theorem value.Value.Insts.CoreConvertFromNaiveTime.roundtrip (x : chrono.naive.t
   apply WP.spec_bind (value.Value.Insts.CoreConvertFromNaiveTime.from_spec x)
   intro w hw
   apply WP.spec_mono (chrono.naive.time.NaiveTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveTime.from_value_opt_spec w
-    (by cases w <;> simp_all [Val.ofValue, Val.bytesAscii]))
+    (by cases w <;> simp_all [Val.ofValue, Val.timeTextPanics]))
   rintro r ⟨_, h2⟩
   rw [hw] at h2
   simp only [chronoTime, Trusted.chronoHmsMicroValid] at hv h2 ⊢

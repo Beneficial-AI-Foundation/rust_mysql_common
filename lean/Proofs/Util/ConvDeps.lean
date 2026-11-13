@@ -38,10 +38,29 @@ theorem str_from_utf8_eq (b : Slice U8) :
 @[simp] theorem vec_deref_val {T : Type} (v : alloc.vec.Vec T) : (alloc.vec.Vec.deref v).val = v.val := by
   simp [alloc.vec.Vec.deref]
 
-/-- The ASCII hypothesis on a `Bytes` value, as the text parsers' precondition. -/
-theorem bytesAscii_bytes {b : alloc.vec.Vec U8} (ha : (Val.ofValue (.Bytes b)).bytesAscii) :
-    ∀ c ∈ (alloc.vec.Vec.deref b).val, c.val < 128 := by
-  simpa [Val.ofValue, Val.bytesAscii] using ha
+/-- The no-panic hypothesis on a `Bytes` value, as the text `TIME` parser's precondition. -/
+theorem notTimeTextPanics_bytes {b : alloc.vec.Vec U8}
+    (ha : ¬ (Val.ofValue (.Bytes b)).timeTextPanics) :
+    ¬ timeTextPanics (alloc.vec.Vec.deref b).val := by
+  simpa [Val.ofValue, Val.timeTextPanics] using ha
+
+/-- The no-panic hypothesis on a `Bytes` value, as the text `DATETIME` parser's precondition. -/
+theorem notDatetimeTextPanics_bytes {b : alloc.vec.Vec U8}
+    (ha : ¬ (Val.ofValue (.Bytes b)).datetimeTextPanics) :
+    ¬ datetimeTextPanics (alloc.vec.Vec.deref b).val := by
+  simpa [Val.ofValue, Val.datetimeTextPanics] using ha
+
+/-- A value on which the text `TIME` parser panics is `Bytes`. -/
+theorem timeTextPanics_bytes {v : value.Value} (h : (Val.ofValue v).timeTextPanics) :
+    ∃ b : alloc.vec.Vec U8, v = .Bytes b ∧ timeTextPanics (alloc.vec.Vec.deref b).val := by
+  cases v <;> simp [Val.ofValue, Val.timeTextPanics] at h
+  exact ⟨_, rfl, by simpa using h⟩
+
+/-- A value on which the text `DATETIME` parser panics is `Bytes`. -/
+theorem datetimeTextPanics_bytes {v : value.Value} (h : (Val.ofValue v).datetimeTextPanics) :
+    ∃ b : alloc.vec.Vec U8, v = .Bytes b ∧ datetimeTextPanics (alloc.vec.Vec.deref b).val := by
+  cases v <;> simp [Val.ofValue, Val.datetimeTextPanics] at h
+  exact ⟨_, rfl, by simpa using h⟩
 
 /-! ## Casts -/
 
@@ -162,6 +181,14 @@ theorem from_value_opt_eq_of {T : Type} (inst : value.convert.FromValue T (value
   cases r with
   | Ok p => simp [hinto, mapIr]
   | Err e => simp [mapIr]
+
+theorem from_value_opt_fail_of {T : Type} (inst : value.convert.FromValue T (value.convert.ParseIr T))
+    (hd : inst.from_value_opt = value.convert.FromValue.from_value_opt.default inst)
+    (v : value.Value) {e : Error}
+    (h : inst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from v = fail e) :
+    value.convert.from_value_opt inst v = fail e := by
+  simp only [value.convert.from_value_opt, hd, value.convert.FromValue.from_value_opt.default, h,
+    bind_fail]
 
 theorem from_value_opt_spec_of {T : Type} (inst : value.convert.FromValue T (value.convert.ParseIr T))
     (hd : inst.from_value_opt = value.convert.FromValue.from_value_opt.default inst)

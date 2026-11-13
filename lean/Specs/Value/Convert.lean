@@ -45,15 +45,18 @@ import Proofs.Value.Convert.FromBytes
     `¬ f x ⦃ _ => True ⦄` is not used; panics are stated as `f x = fail e`.
 
     **Definitions used.** `Defs/Convert.lean` (`asciiInt`, `decimalBytes`, `Val.integer`,
-    `intConv`, `intIr`, `irView`, `intVal`, `intRecover`, `Val.bytesAscii`, `utf8`, `IsUtf8`,
+    `intConv`, `intIr`, `irView`, `intVal`, `intRecover`, `utf8`, `IsUtf8`,
     `durNanos`, `timeNanos`, `durationTime`, `Val.durationNanos`, `fracRead`, `timeStringRead`,
-    `datetimeStringRead`), `Defs/Value.lean` (`Val`, `Val.ofValue`), `Defs/Bytes.lean` (`okPart`,
+    `datetimeStringRead`, `timeTextPanics`, `datetimeTextPanics`, `Val.timeTextPanics`,
+    `Val.datetimeTextPanics`), `Defs/Value.lean` (`Val`, `Val.ofValue`), `Defs/Bytes.lean` (`okPart`,
     `byte`, `cowList`).
 
     **Trusted axioms these statements rest on** (`lean/MysqlCommon/FunsExternal.lean`, namespace
     `Trusted`; the other `trusted::*` helpers used here — UTF-8 checks, `String` bytes, integer
     `to_string`, `Duration`, `btoi`/`btou` — are exact Lean definitions, not axioms):
-    * `Trusted.isMatch`, `Trusted.isMatch_ascii` (the seven regexes, exact on ASCII input): the
+    * `Trusted.isMatch`, `Trusted.isMatch_ascii` (the seven regexes, exact on ASCII input) and
+      `Trusted.isMatch_loose` (on any input a match has the shape of the pattern, a `\d` being
+      one ASCII digit or at least two bytes that are all `≥ 128`; one direction only): the
       date/time string parsers and everything that reads a date/time from `Bytes`;
     * `Trusted.parseF32`, `Trusted.parseF64` (opaque float parsing): `f32`/`f64` from `Bytes`;
     * `Trusted.f32ToF64` (opaque widening): `f64` from `Float`.
@@ -77,12 +80,22 @@ import Proofs.Value.Convert.FromBytes
       protocol sends microseconds as 4 bytes, so a server can send such a value.
     * **Non-ASCII digits** (upstream bug, confirmed in review): the regexes run in Unicode mode, so
       `\d` also matches non-ASCII decimal digits, which `btou` then rejects; the following
-      `.unwrap()` panics, e.g. on `"00:00:00.\u{0660}"`. Only the fractional forms can panic
-      (TIME `*_MS`, DATETIME of length 21–26): the fixed lengths 8/9 (TIME) and 10/19
-      (DATETIME) force every digit to be one byte, i.e. ASCII. **Non-ASCII `Bytes` inputs to the
-      date/time parsers are unspecified** (panic or not): we deliberately add no axiom about the
-      regexes off ASCII (`Trusted.isMatch_ascii` is the only one), so every statement that reads a
-      date/time from `Bytes` has an explicit ASCII hypothesis.
+      `.unwrap()` panics, e.g. on `"00:00:00.\u{0660}"`. The statements cover **every** input:
+      - the parsers panic exactly on `timeTextPanics` / `datetimeTextPanics` (a non-ASCII byte,
+        and a fractional regex matches; `..._string_panic`), and off them they are total and
+        exact (`..._string_spec`). So on input with a non-ASCII byte a parser returns `None` or
+        panics, never a value (`timeStringRead_nonascii`, `datetimeStringRead_nonascii`);
+      - only the fractional forms can panic: the fixed lengths 8/9 (TIME) and 10/19 (DATETIME)
+        force every digit to be one byte, i.e. ASCII (from `Trusted.isMatch_loose`). So no
+        input of at most 10 bytes (TIME; `not_timeTextPanics_of_length`), and no input of at
+        most 20 or at least 27 bytes (DATETIME; by definition), panics;
+      - every conversion that reads a date/time from `Bytes` has `¬ (Val.ofValue v).timeTextPanics`
+        (or `datetimeTextPanics`) as its hypothesis, the complement `..._panic` statement
+        (`= fail .panic`), and a `..._nonascii` statement (non-ASCII `Bytes`: a panic or
+        `Err v`, never `Ok`).
+      Which non-ASCII inputs the regexes do match is not modelled (`Trusted.isMatch` is
+      opaque off ASCII), so the panic conditions are stated with `Trusted.isMatch`, and that
+      `"00:00:00.\u{0660}"` itself panics is not a theorem.
     * `ParseIrOpt::rollback` of a `Ready` intermediate is `Value::from` of the number, not the
       original value: `UInt 5` read as an `i8` rolls back to `Int 5`, `Int 7` read as a `bool` to
       `Int 1`, a `Float` read as an `f64` to a `Double` (`intRecover`, `recover` statements).
@@ -105,20 +118,53 @@ open Aeneas Aeneas.Std Result mysql_common Defs Classical
 
 namespace mysql_common
 
+/-! ### The regexes (`Trusted.isMatch`): the two axioms agree on ASCII input -/
+
+/-- Sanity check of `Trusted.isMatch_loose` against `Trusted.isMatch_ascii`: what a regex
+    matches on ASCII input (`Regex.asciiMatch`) has the shape `Regex.Loose`. So on ASCII input
+    `isMatch_loose` follows from `isMatch_ascii`; it is a new assumption only about input with a
+    non-ASCII byte. -/
+recall Trusted.Regex.loose_of_asciiMatch (r : Trusted.Regex) (l : List U8)
+    (h : r.asciiMatch l = true) : r.Loose l
+
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Trusted.Regex.loose_of_asciiMatch
 /-! ### `fn parse_mysql_datetime_string` -/
 
-/-- `parse_mysql_datetime_string` (private, used by the chrono conversions): on ASCII input,
-    total; the text `DATE`/`DATETIME` literal `datetimeStringRead`. **ASCII hypothesis:** on
-    non-ASCII input the Unicode-mode regexes can match non-ASCII digits and the following
-    `btou(..).unwrap()` panics (e.g. `"2020-01-01 00:00:00.\u{0660}"`); the regexes are only
-    specified on ASCII input, so that case is excluded rather than stated. -/
-recall value.convert.parse_mysql_datetime_string_spec (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :
+/-- `parse_mysql_datetime_string` (private, used by the chrono conversions), on every input on
+    which it does not panic (`datetimeTextPanics`; in particular on all ASCII input, and on all
+    input of at most 20 or at least 27 bytes): the text `DATE`/`DATETIME` literal
+    `datetimeStringRead`. An input with a non-ASCII byte is never read as a date:
+    `datetimeStringRead` is `none` on it (`datetimeStringRead_nonascii`). -/
+recall value.convert.parse_mysql_datetime_string_spec (b : Slice U8)
+    (hp : ¬ datetimeTextPanics b.val) :
     value.convert.parse_mysql_datetime_string b ⦃ r =>
       r.map (fun t => (t.1.val, t.2.1.val, t.2.2.1.val, t.2.2.2.1.val, t.2.2.2.2.1.val,
         t.2.2.2.2.2.1.val, t.2.2.2.2.2.2.val)) = datetimeStringRead b.val ⦄
 
-/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii] -/
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.parse_mysql_datetime_string_spec
+/-- **Crash path.** `parse_mysql_datetime_string` panics exactly on `datetimeTextPanics`: a
+    21–26-byte input with a non-ASCII byte that the fractional regex matches (its Unicode `\d`
+    matched a non-ASCII digit), because `btou(..).unwrap()` rejects the field holding it. -/
+recall value.convert.parse_mysql_datetime_string_panic (b : Slice U8)
+    (hp : datetimeTextPanics b.val) :
+    value.convert.parse_mysql_datetime_string b = fail .panic
+
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_loose] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.parse_mysql_datetime_string_panic
+/-- `datetimeStringRead` rejects every input with a non-ASCII byte. -/
+recall datetimeStringRead_nonascii (bs : List U8) (hn : ∃ c ∈ bs, 128 ≤ c.val) :
+    datetimeStringRead bs = none
+
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms datetimeStringRead_nonascii
+/-- `datetimeTextPanics` is false of ASCII input. -/
+recall not_datetimeTextPanics_of_ascii (bs : List U8) (ha : ∀ c ∈ bs, c.val < 128) :
+    ¬ datetimeTextPanics bs
+
+/-- [propext, Quot.sound, Trusted.isMatch] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms not_datetimeTextPanics_of_ascii
 /-! ### `trait FromValue` -/
 
 /-- `FromValue::from_value` (the default every impl uses): when `from_value_opt` is `Ok x`,
@@ -843,17 +889,18 @@ recall value.convert.mysql_time_to_duration_overflow (d : U32) (h m s : U8) (us 
 
 /-- `TryFrom<Value> for ParseIrOpt<Duration>`: a non-negative (sign flag false) `TIME`, or `Bytes` holding a
     non-negative text `TIME` literal, is `Parsed` with that duration (`Val.durationNanos`);
-    everything else, including every negative `TIME`, is an error. Hypotheses: the `Bytes` are
-    ASCII (see the module docstring: the non-ASCII panic), and a non-negative `TIME` has at most 4294967
+    everything else, including every negative `TIME`, is an error. Hypotheses: the value is not
+    `Bytes` on which the text parser panics (`Val.timeTextPanics`, stated separately as
+    `try_from_panic`; false of all ASCII `Bytes`), and a non-negative `TIME` has at most 4294967
     microseconds (negative ones are rejected before any arithmetic) (the `mysql_time_to_duration` overflow, stated separately). -/
-recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v ⦃ r =>
       (okPart r).map (fun ir => durNanos (match ir with | .Ready t => t | .Parsed t _ => t)) =
         (Val.ofValue v).durationNanos ∧
       (∀ ir, r = .Ok ir → ∃ t, ir = .Parsed t v) ∧ (okPart r = none → r = .Err v) ⦄
 
-/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii] -/
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- **Crash path.** `TryFrom<Value> for ParseIrOpt<Duration>` (and so `from_value_opt::<Duration>`)
     fails on a non-negative `TIME` with more than 4294967 microseconds (the `mysql_time_to_duration`
@@ -864,17 +911,50 @@ recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueEr
 
 /-- [propext, choice, Quot.sound, Trusted.isMatch] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_overflow
-/-- `from_value_opt::<Duration>`: as `try_from`, committed (same hypotheses). -/
-recall core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+/-- **Crash path.** `TryFrom<Value> for ParseIrOpt<Duration>` panics exactly on the `Bytes` on
+    which the text parser panics (`Val.timeTextPanics`: a non-ASCII byte, and a fractional regex
+    matches): the complement of the hypothesis of `try_from_spec`. -/
+recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic
+
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_loose] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic
+/-- `TryFrom<Value> for ParseIrOpt<Duration>` on `Bytes` with a non-ASCII byte never returns a
+    duration: it panics or returns the error carrying the value. -/
+recall value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_nonascii (b : alloc.vec.Vec U8) (hn : ∃ c ∈ b.val, 128 ≤ c.val) :
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = fail .panic ∨
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = ok (.Err (.Bytes b))
+
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_nonascii
+/-- `from_value_opt::<Duration>`: as `try_from`, committed (same hypotheses; the panic is
+    `from_value_opt_panic`). -/
+recall core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration v ⦃ r =>
       (okPart r).map durNanos = (Val.ofValue v).durationNanos ∧ (okPart r = none → r = .Err v) ⦄
 
-/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii] -/
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec
+/-- **Crash path.** `from_value_opt::<Duration>` panics exactly on the `Bytes` on which the text
+    parser panics (`Val.timeTextPanics`): the complement of the hypothesis of
+    `from_value_opt_spec`. -/
+recall core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
+    value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration v = fail .panic
+
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_loose] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_panic
+/-- `from_value_opt::<Duration>` on `Bytes` with a non-ASCII byte never returns a duration: it
+    panics or returns the error carrying the value. -/
+recall core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_nonascii (b : alloc.vec.Vec U8) (hn : ∃ c ∈ b.val, 128 ≤ c.val) :
+    value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration (.Bytes b) = fail .panic ∨
+    value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration (.Bytes b) = ok (.Err (.Bytes b))
+
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_nonascii
 /-- `From<ParseIrOpt<Duration>> for Value` after `try_from` gives back the original value (every
     successful conversion is `Parsed`). Same hypotheses. -/
-recall value.Value.Insts.CoreConvertFromParseIrOptDuration.recover (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+recall value.Value.Insts.CoreConvertFromParseIrOptDuration.recover (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     (do
       let r ← value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v
@@ -882,7 +962,7 @@ recall value.Value.Insts.CoreConvertFromParseIrOptDuration.recover (v : value.Va
       | .Ok ir => value.Value.Insts.CoreConvertFromParseIrOptDuration.from ir
       | .Err e => ok e) = ok v
 
-/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii] -/
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromParseIrOptDuration.recover
 /-! ### `impl FromValue for String` -/
 
@@ -1038,19 +1118,46 @@ recall ArrayU8N.Insts.Mysql_commonValueConvertFromValueArrayU8N.from_value_opt_s
 #guard_msgs (whitespace := lax, substring := true) in #print axioms ArrayU8N.Insts.Mysql_commonValueConvertFromValueArrayU8N.from_value_opt_spec
 /-! ### `fn parse_mysql_time_string` -/
 
-/-- `parse_mysql_time_string` (private, used by the `Duration`, chrono and time conversions): on
-    ASCII input, total; the text `TIME` literal `timeStringRead`, as `(negative, hours, minutes,
-    seconds, microseconds)`. **ASCII hypothesis:** on non-ASCII input the Unicode-mode regexes
-    can match non-ASCII digits and `btou(..).unwrap()` panics,
-    e.g. on `"00:00:00.\u{0660}"`; the regexes are only specified on ASCII input, so that case is
-    excluded rather than stated. -/
-recall value.convert.parse_mysql_time_string_spec (b : Slice U8) (ha : ∀ c ∈ b.val, c.val < 128) :
+/-- `parse_mysql_time_string` (private, used by the `Duration`, chrono and time conversions), on
+    every input on which it does not panic (`timeTextPanics`; in particular on all ASCII input
+    and on all input of at most 10 bytes): the text `TIME` literal `timeStringRead`, as
+    `(negative, hours, minutes, seconds, microseconds)`. An input with a non-ASCII byte is never
+    read as a time: `timeStringRead` is `none` on it (`timeStringRead_nonascii`). -/
+recall value.convert.parse_mysql_time_string_spec (b : Slice U8) (hp : ¬ timeTextPanics b.val) :
     value.convert.parse_mysql_time_string b ⦃ r =>
       r.map (fun t => (t.1, t.2.1.val, t.2.2.1.val, t.2.2.2.1.val, t.2.2.2.2.val)) =
         timeStringRead b.val ⦄
 
-/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii] -/
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.parse_mysql_time_string_spec
+/-- **Crash path.** `parse_mysql_time_string` panics exactly on `timeTextPanics`: an input with
+    a non-ASCII byte that, after its sign, a fractional regex matches (its Unicode `\d` matched
+    a non-ASCII digit), because `btou(..).unwrap()` rejects the field holding it. E.g.
+    `"00:00:00.\u{0660}"`, if the regex matches it (which is not modelled). -/
+recall value.convert.parse_mysql_time_string_panic (b : Slice U8) (hp : timeTextPanics b.val) :
+    value.convert.parse_mysql_time_string b = fail .panic
+
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_loose] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.parse_mysql_time_string_panic
+/-- `timeStringRead` rejects every input with a non-ASCII byte. -/
+recall timeStringRead_nonascii (bs : List U8) (hn : ∃ c ∈ bs, 128 ≤ c.val) :
+    timeStringRead bs = none
+
+/-- [propext, choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms timeStringRead_nonascii
+/-- `timeTextPanics` is false of ASCII input. -/
+recall not_timeTextPanics_of_ascii (bs : List U8) (ha : ∀ c ∈ bs, c.val < 128) :
+    ¬ timeTextPanics bs
+
+/-- [propext, Quot.sound, Trusted.isMatch] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms not_timeTextPanics_of_ascii
+/-- `timeTextPanics` is false of input of at most 10 bytes: a fractional form holding a
+    non-ASCII digit is at least 11 bytes long. -/
+recall not_timeTextPanics_of_length (bs : List U8) (hl : bs.length ≤ 10) :
+    ¬ timeTextPanics bs
+
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_loose] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms not_timeTextPanics_of_length
 /-! ### `impl From<Duration> for Value` -/
 
 /-- `From<Duration> for Value`: the non-negative `TIME` `durationTime` (microseconds rounded half
@@ -1069,7 +1176,7 @@ recall value.Value.Insts.CoreConvertFromDuration.roundtrip (d : core.time.Durati
       ∃ d', r = .Ok d' ∧
         durNanos d' = (d.secs.val % (86400 * 2 ^ 32)) * 10 ^ 9 + (d.nanos.val + 500) / 1000 * 1000 ⦄
 
-/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii] -/
+/-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.Value.Insts.CoreConvertFromDuration.roundtrip
 /-! ### `trait ToValue and impl From<&T> for Value` -/
 

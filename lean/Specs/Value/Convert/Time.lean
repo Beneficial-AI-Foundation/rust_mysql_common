@@ -20,7 +20,7 @@ import Proofs.Value.Convert.Time.FromSignedDuration
     **Configuration.** As in `Specs/Io.lean` (feature `time`, time 0.3.55 without `large-dates`).
 
     **Definitions used.** `Defs/Convert.lean` (`timeDate`, `timeTime`, `timeDateTime`,
-    `timeDateValid`, `timeTimeValid`, `Val.bytesAscii`, `timeStringRead`, `IsUtf8`),
+    `timeDateValid`, `timeTimeValid`, `Val.timeTextPanics`, `timeStringRead`, `IsUtf8`),
     `Trusted.daysInMonth`, `Trusted.monthNumber`, `Defs/Value.lean`, `Defs/Bytes.lean`.
 
     **Trusted axioms these statements rest on** (`FunsExternal.lean`, namespace `Trusted`):
@@ -33,7 +33,7 @@ import Proofs.Value.Convert.Time.FromSignedDuration
     `InsufficientInformation` error); the opaque `time::Duration` operations `durationDays`,
     `durationHours`, `durationMinutes`, `durationSeconds`, `durationMicroseconds`, `durationAdd`,
     `durationSub`, `durationNeg`, `durationLtZero`, `durationWholeDays`, `durationWholeHours`,
-    `durationWholeMinutes`, `durationWholeSeconds`, `durationWholeMicroseconds`; and `isMatch`/`isMatch_ascii`
+    `durationWholeMinutes`, `durationWholeSeconds`, `durationWholeMicroseconds`; and `isMatch`/`isMatch_ascii`/`isMatch_loose`
     (for `time::Duration` from `Bytes`). (`time_month_from_u8`, `time_month_to_u8` and the
     `InsufficientInformation` error are exact definitions.)
 
@@ -259,43 +259,78 @@ recall time.time.Time.Insts.Mysql_commonValueConvertFromValueParseIrTime.from_va
 /-! ### `impl TryFrom<Value> for ParseIr<time::Duration>` -/
 
 /-- `TryFrom<Value> for ParseIr<time::Duration>` (partial, glue level: time's `Duration` arithmetic is
-    opaque and may panic): on a `TIME`, or on `Bytes` (ASCII) holding a text `TIME` literal, if it
-    returns, it returns `Ok` keeping the original value; on other `Bytes` or any other value it
-    is an error carrying the value. -/
-recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) (r : core.result.Result (value.convert.ParseIr time.signed_duration.SignedDuration) value.convert.FromValueError)
+    opaque and may panic): on a `TIME`, or on `Bytes` holding a text `TIME` literal, if it
+    returns, it returns `Ok` keeping the original value; on any other value (not `TIME`, not
+    `Bytes`) it is an error carrying the value. No hypothesis on the `Bytes`: a text `TIME`
+    literal is ASCII, and the text parser's panic (`try_from_panic`) is not a return. -/
+recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (r : core.result.Result (value.convert.ParseIr time.signed_duration.SignedDuration) value.convert.FromValueError)
     (h : value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok r) :
     match Val.ofValue v with
     | .time .. => ∃ x, r = .Ok (x, v)
     | .bytes b => (timeStringRead b).isSome → ∃ x, r = .Ok (x, v)
     | _ => r = .Err v
 
-/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
-/-- `TryFrom<Value> for ParseIr<time::Duration>` is an error (no opaque call) on `Bytes` (ASCII)
-    that are not a text `TIME` literal and on every value other than `TIME` and `Bytes`. -/
-recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+/-- `TryFrom<Value> for ParseIr<time::Duration>` is an error (no opaque call) on `Bytes` that
+    are not a text `TIME` literal and on every value other than `TIME` and `Bytes`. Hypothesis:
+    the value is not `Bytes` on which the text parser panics (`Val.timeTextPanics`, see
+    `try_from_panic`; false of all ASCII `Bytes`). -/
+recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hv : match Val.ofValue v with | .time .. => False | .bytes b => timeStringRead b = none | _ => True) :
     value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok (.Err v)
 
-/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err
+/-- **Crash path.** `TryFrom<Value> for ParseIr<time::Duration>` panics on the `Bytes` on which
+    the text parser panics (`Val.timeTextPanics`: a non-ASCII byte, and a fractional regex
+    matches): the complement of the hypothesis of `try_from_err`. -/
+recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
+    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic
+
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic
+/-- `TryFrom<Value> for ParseIr<time::Duration>` on `Bytes` with a non-ASCII byte never returns a
+    duration: it panics or returns the error carrying the value. -/
+recall value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_nonascii (b : alloc.vec.Vec U8) (hn : ∃ c ∈ b.val, 128 ≤ c.val) :
+    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = fail .panic ∨
+    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = ok (.Err (.Bytes b))
+
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_nonascii
 /-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
-recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii) (r : core.result.Result time.signed_duration.SignedDuration value.convert.FromValueError)
+recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec (v : value.Value) (r : core.result.Result time.signed_duration.SignedDuration value.convert.FromValueError)
     (h : value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v = ok r) :
     match Val.ofValue v with
     | .time .. => ∃ x, r = .Ok x
     | .bytes b => (timeStringRead b).isSome → ∃ x, r = .Ok x
     | _ => r = .Err v
 
-/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec
 /-- `from_value_opt`: as `try_from_err` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
-recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hv : match Val.ofValue v with | .time .. => False | .bytes b => timeStringRead b = none | _ => True) :
     value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v = ok (.Err v)
 
-/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, time.signed_duration.SignedDuration] -/
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err
+/-- **Crash path.** `from_value_opt::<time::Duration>` panics on the `Bytes` on which the text
+    parser panics (`Val.timeTextPanics`): the complement of the hypothesis of
+    `from_value_opt_err`. -/
+recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
+    value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v = fail .panic
+
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_panic
+/-- `from_value_opt::<time::Duration>` on `Bytes` with a non-ASCII byte never returns a duration:
+    it panics or returns the error carrying the value. -/
+recall time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_nonascii (b : alloc.vec.Vec U8) (hn : ∃ c ∈ b.val, 128 ≤ c.val) :
+    value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration (.Bytes b) = fail .panic ∨
+    value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration (.Bytes b) = ok (.Err (.Bytes b))
+
+/-- [propext, choice, Quot.sound, Trusted.durationAdd, Trusted.durationDays, Trusted.durationHours, Trusted.durationMicroseconds, Trusted.durationMinutes, Trusted.durationNeg, Trusted.durationSeconds, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, time.signed_duration.SignedDuration] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_nonascii
 /-! ### `impl From<ParseIr<_>> for PrimitiveDateTime, Date, Time, time::Duration and for Value` -/
 
 /-- `From<ParseIr<PrimitiveDateTime>>` for `PrimitiveDateTime` is `commit`, for `Value` is

@@ -54,7 +54,7 @@ theorem value.Value.Insts.CoreConvertFromNaiveDateTime.roundtrip (x : chrono.nai
   apply WP.spec_bind (value.Value.Insts.CoreConvertFromNaiveDateTime.from_spec x hy)
   intro w hw
   apply WP.spec_mono (chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromValueParseIrNaiveDateTime.from_value_opt_spec w
-    (by cases w <;> simp_all [Val.ofValue, Val.bytesAscii]))
+    (by cases w <;> simp_all [Val.ofValue, Val.datetimeTextPanics]))
   rintro r ⟨_, h2⟩
   rw [hw] at h2
   simp only [chronoDateTime, chronoDate, chronoTime, Trusted.chronoYmdValid, Trusted.chronoHmsMicroValid] at hv hy h2 ⊢

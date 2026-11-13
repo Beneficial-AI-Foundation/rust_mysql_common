@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.ConvBytesTime
+import Proofs.Util.ConvDeps
 import Proofs.Value.Convert.MysqlTimeToDuration
 import Proofs.Value.Convert.ParseMysqlTimeString
 
@@ -13,10 +14,11 @@ namespace mysql_common
 
 /-- `TryFrom<Value> for ParseIrOpt<Duration>`: a non-negative (sign flag false) `TIME`, or `Bytes` holding a
     non-negative text `TIME` literal, is `Parsed` with that duration (`Val.durationNanos`);
-    everything else, including every negative `TIME`, is an error. Hypotheses: the `Bytes` are
-    ASCII (see the module docstring: the non-ASCII panic), and a non-negative `TIME` has at most 4294967
+    everything else, including every negative `TIME`, is an error. Hypotheses: the value is not
+    `Bytes` on which the text parser panics (`Val.timeTextPanics`, stated separately as
+    `try_from_panic`; false of all ASCII `Bytes`), and a non-negative `TIME` has at most 4294967
     microseconds (negative ones are rejected before any arithmetic) (the `mysql_time_to_duration` overflow, stated separately). -/
-theorem value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+theorem value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v ⦃ r =>
       (okPart r).map (fun ir => durNanos (match ir with | .Ready t => t | .Parsed t _ => t)) =
@@ -25,8 +27,8 @@ theorem value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueE
   cases v with
   | Bytes b =>
     simp only [value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from]
-    have ha' : ∀ c ∈ (alloc.vec.Vec.deref b).val, c.val < 128 := by
-      simpa [Val.ofValue, Val.bytesAscii, alloc.vec.Vec.deref, alloc.vec.Vec.val] using ha
+    have ha' : ¬ timeTextPanics (alloc.vec.Vec.deref b).val := by
+      simpa [Val.ofValue, Val.timeTextPanics, vec_deref_val] using ha
     apply WP.spec_bind (value.convert.parse_mysql_time_string_spec _ ha')
     rintro (_ | ⟨neg, hrs, mi, se, us⟩) hr
     · simp only [Option.map_none, vec_deref_val] at hr
@@ -72,8 +74,9 @@ theorem value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueE
   rw [value.convert.mysql_time_to_duration_overflow d h m s us (by omega)]
   simp
 
-/-- `from_value_opt::<Duration>`: as `try_from`, committed (same hypotheses). -/
-theorem core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+/-- `from_value_opt::<Duration>`: as `try_from`, committed (same hypotheses; the panic is
+    `from_value_opt_panic`). -/
+theorem core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration v ⦃ r =>
       (okPart r).map durNanos = (Val.ofValue v).durationNanos ∧ (okPart r = none → r = .Err v) ⦄ := by
@@ -90,7 +93,7 @@ theorem core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDura
 
 /-- `From<ParseIrOpt<Duration>> for Value` after `try_from` gives back the original value (every
     successful conversion is `Parsed`). Same hypotheses. -/
-theorem value.Value.Insts.CoreConvertFromParseIrOptDuration.recover (v : value.Value) (ha : (Val.ofValue v).bytesAscii)
+theorem value.Value.Insts.CoreConvertFromParseIrOptDuration.recover (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
     (hus : ∀ d h m s us, v = .Time false d h m s us → us.val ≤ 4294967) :
     (do
       let r ← value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v
@@ -106,5 +109,49 @@ theorem value.Value.Insts.CoreConvertFromParseIrOptDuration.recover (v : value.V
   · simp only [okPart, forall_const] at h3
     cases h3
     simp
+
+/-- **Crash path.** `TryFrom<Value> for ParseIrOpt<Duration>` panics exactly on the `Bytes` on
+    which the text parser panics (`Val.timeTextPanics`: a non-ASCII byte, and a fractional regex
+    matches): the complement of the hypothesis of `try_from_spec`. -/
+theorem value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic := by
+  obtain ⟨b, rfl, hb⟩ := ConvDeps.timeTextPanics_bytes hp
+  simp only [value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
+    value.convert.parse_mysql_time_string_panic _ hb, bind_fail]
+
+/-- `TryFrom<Value> for ParseIrOpt<Duration>` on `Bytes` with a non-ASCII byte never returns a
+    duration: it panics or returns the error carrying the value. -/
+theorem value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_nonascii (b : alloc.vec.Vec U8) (hn : ∃ c ∈ b.val, 128 ≤ c.val) :
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = fail .panic ∨
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from (.Bytes b) = ok (.Err (.Bytes b)) := by
+  by_cases hp : (Val.ofValue (.Bytes b)).timeTextPanics
+  · exact Or.inl (value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic _ hp)
+  · obtain ⟨r, hr, h1, -, h3⟩ := spec_exists_ok
+      (value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec _ hp
+        (by rintro _ _ _ _ _ ⟨⟩))
+    simp only [Val.ofValue, Val.durationNanos, timeStringRead_nonascii _ hn, Option.map_eq_none_iff] at h1
+    exact Or.inr (by rw [hr, h3 h1])
+
+/-- **Crash path.** `from_value_opt::<Duration>` panics exactly on the `Bytes` on which the text
+    parser panics (`Val.timeTextPanics`): the complement of the hypothesis of
+    `from_value_opt_spec`. -/
+theorem core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
+    value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration v = fail .panic := by
+  simp only [value.convert.from_value_opt,
+    value.convert.ParseIrOptDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic v hp,
+    bind_fail]
+
+/-- `from_value_opt::<Duration>` on `Bytes` with a non-ASCII byte never returns a duration: it
+    panics or returns the error carrying the value. -/
+theorem core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_nonascii (b : alloc.vec.Vec U8) (hn : ∃ c ∈ b.val, 128 ≤ c.val) :
+    value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration (.Bytes b) = fail .panic ∨
+    value.convert.from_value_opt core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration (.Bytes b) = ok (.Err (.Bytes b)) := by
+  by_cases hp : (Val.ofValue (.Bytes b)).timeTextPanics
+  · exact Or.inl (core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_panic _ hp)
+  · obtain ⟨r, hr, h1, h3⟩ := spec_exists_ok
+      (core.time.Duration.Insts.Mysql_commonValueConvertFromValueParseIrOptDuration.from_value_opt_spec _ hp
+        (by rintro _ _ _ _ _ ⟨⟩))
+    simp only [Val.ofValue, Val.durationNanos, timeStringRead_nonascii _ hn, Option.map_eq_none_iff] at h1
+    exact Or.inr (by rw [hr, h3 h1])
 
 end mysql_common
