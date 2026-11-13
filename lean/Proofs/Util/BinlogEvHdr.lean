@@ -11,6 +11,7 @@ import Proofs.Misc.Raw.Const.RawConst
 import Proofs.Misc.Raw.Flags.RawFlags
 import Proofs.Misc.Raw.Const.Const
 import Proofs.Misc.Raw.Bytes.RawBytes
+import Proofs.Misc.Raw.Bytes.BareBytes
 import Proofs.Misc.Raw.Bytes.FixedLengthText
 import Proofs.Misc.Raw.Int.ConstU8
 import Proofs.Binlog.Consts.BinlogVersion
@@ -272,6 +273,27 @@ theorem pu_constu8 {T : Type} (N : U8) (e : core.error.Error T) (d : core.defaul
       ((okPart r).isSome ↔ leNat (buf.val.take 1) = N.val) ∧ rest.val = buf.val.drop 1 ⦄ := by
   rw [io.ParseBuf.parse_unchecked_eq]
   exact misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec N e d hd buf h
+
+@[step] theorem rawint_default_u16_spec :
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU16.Insts.CoreDefaultDefault
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 core.default.DefaultU16 ⦃ r => r.1.val = 0 ⦄ := by
+  simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
+  exact (WP.spec_ok _).mpr rfl
+
+@[step] theorem skip_default_spec (L : Usize) :
+    misc.raw.Skip.Insts.CoreDefaultDefault.default L ⦃ _ => True ⦄ := by
+  simp [misc.raw.Skip.Insts.CoreDefaultDefault.default]
+
+@[step] theorem bare_len_spec (M : Usize) (self : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes M) Usize) :
+    misc.raw.bytes.RawBytes.len (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize M) self
+      ⦃ n => n.val = min (cowList self.1).length M.val ⦄ :=
+  misc.raw.bytes.RawBytes.len_spec _ M (by simp [misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN_spec]) self
+
+theorem cast_u8_small (x : Usize) (h : x.val < 256) : (UScalar.cast .U8 x).val = x.val := by
+  rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by simpa using h)
+
+theorem cast_u16_small (x : Usize) (h : x.val < 65536) : (UScalar.cast .U16 x).val = x.val := by
+  rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by simpa using h)
 
 /-! ## The readers consume everything -/
 
