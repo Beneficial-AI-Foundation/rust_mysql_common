@@ -76,7 +76,8 @@ x86_64) rather than an axiom; the rows-event readers also take `core.mem.size_of
 2. **Translation patches** (`../translation-patches/`, 107 patches). These are behaviour-preserving
    edits applied to a copy of the crate so that it translates. Each one has a
    Change / Why / Behaviour header and was reviewed by independent agents (three per round). With
-   the first 52 patches the patched copy passed the crate's 121 library tests. Some patches go
+   all 107 patches applied, the patched copy passes the crate's 121 library tests (`cargo test
+   --lib`, features `test,chrono,time,rust_decimal,bigdecimal,frunk,binlog`). Some patches go
    beyond small rewrites:
    - **Rust stand-ins for external crates:** an in-crate copy of `bytes::BufMut` for `Vec<u8>`
      (01, 31, 152), the `bitflags` types as plain structs (20, 61, 142), and a `Vec`-backed model
