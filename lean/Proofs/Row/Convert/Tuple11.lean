@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Util.RowTuples
 
 /-! Statements for `impl FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)` (spec file: `Specs/Row/Convert.lean`). -/
 
@@ -12,14 +13,14 @@ namespace mysql_common
 theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_eq {T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 : Type} (inst1 : value.convert.FromValue T1 I1) (inst2 : value.convert.FromValue T2 I2) (inst3 : value.convert.FromValue T3 I3) (inst4 : value.convert.FromValue T4 I4) (inst5 : value.convert.FromValue T5 I5) (inst6 : value.convert.FromValue T6 I6) (inst7 : value.convert.FromValue T7 I7) (inst8 : value.convert.FromValue T8 I8) (inst9 : value.convert.FromValue T9 I9) (inst10 : value.convert.FromValue T10 I10) (inst11 : value.convert.FromValue T11 I11)
     (into1 : core.convert.Into I1 value.Value) (into2 : core.convert.Into I2 value.Value) (into3 : core.convert.Into I3 value.Value) (into4 : core.convert.Into I4 value.Value) (into5 : core.convert.Into I5 value.Value) (into6 : core.convert.Into I6 value.Value) (into7 : core.convert.Into I7 value.Value) (into8 : core.convert.Into I8 value.Value) (into9 : core.convert.Into I9 value.Value) (into10 : core.convert.Into I10 value.Value) :
     (TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow inst1 inst2 inst3 inst4 inst5 inst6 inst7 inst8 inst9 inst10 inst11 into1 into2 into3 into4 into5 into6 into7 into8 into9 into10).from_row = row.convert.FromRow.from_row.default (TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow inst1 inst2 inst3 inst4 inst5 inst6 inst7 inst8 inst9 inst10 inst11 into1 into2 into3 into4 into5 into6 into7 into8 into9 into10) := by
-  sorry
+  rfl
 
 /-- `FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)`: a row with other than 11 cells is handed back unchanged as the error. -/
 theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt_len {T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 : Type} (inst1 : value.convert.FromValue T1 I1) (inst2 : value.convert.FromValue T2 I2) (inst3 : value.convert.FromValue T3 I3) (inst4 : value.convert.FromValue T4 I4) (inst5 : value.convert.FromValue T5 I5) (inst6 : value.convert.FromValue T6 I6) (inst7 : value.convert.FromValue T7 I7) (inst8 : value.convert.FromValue T8 I8) (inst9 : value.convert.FromValue T9 I9) (inst10 : value.convert.FromValue T10 I10) (inst11 : value.convert.FromValue T11 I11)
     (into1 : core.convert.Into I1 value.Value) (into2 : core.convert.Into I2 value.Value) (into3 : core.convert.Into I3 value.Value) (into4 : core.convert.Into I4 value.Value) (into5 : core.convert.Into I5 value.Value) (into6 : core.convert.Into I6 value.Value) (into7 : core.convert.Into I7 value.Value) (into8 : core.convert.Into I8 value.Value) (into9 : core.convert.Into I9 value.Value) (into10 : core.convert.Into I10 value.Value)
     (r : row.Row) (h : r.values.length ≠ 11) :
     TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt inst1 inst2 inst3 inst4 inst5 inst6 inst7 inst8 inst9 inst10 inst11 into1 into2 into3 into4 into5 into6 into7 into8 into9 into10 r = ok (.Err r) := by
-  sorry
+  simp_all [TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt, row.Row.len]
 
 /-- `FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)`: when every cell holds a value whose column's intermediate is `Ok`, and every intermediate turns into the target type, the result is the tuple of the converted values, in column order. Assumes at least 11 columns (`Row::take` finds cell `k` through the column count; rows built by the crate have one cell per column). -/
 theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt_ok {T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 : Type} (inst1 : value.convert.FromValue T1 I1) (inst2 : value.convert.FromValue T2 I2) (inst3 : value.convert.FromValue T3 I3) (inst4 : value.convert.FromValue T4 I4) (inst5 : value.convert.FromValue T5 I5) (inst6 : value.convert.FromValue T6 I6) (inst7 : value.convert.FromValue T7 I7) (inst8 : value.convert.FromValue T8 I8) (inst9 : value.convert.FromValue T9 I9) (inst10 : value.convert.FromValue T10 I10) (inst11 : value.convert.FromValue T11 I11)
@@ -49,8 +50,10 @@ theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_r
     (hx10 : inst10.coreconvertIntoInst.into ir10 = ok x10)
     (hx11 : inst11.coreconvertIntoInst.into ir11 = ok x11) :
     TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt inst1 inst2 inst3 inst4 inst5 inst6 inst7 inst8 inst9 inst10 inst11 into1 into2 into3 into4 into5 into6 into7 into8 into9 into10 r = ok (.Ok (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11)) := by
-  sorry
+  have hlt : ∀ k : Nat, k < 11 → k < r.columns.val.length := fun k hk => by scalar_tac
+  simp_all [TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt, row.Row.len, RowTuples.take_eq_lt]
 
+set_option maxHeartbeats 1000000 in
 /-- `FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)` (headline): the conversion succeeds with `(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11)` exactly when the row has exactly 11 cells and at least 11 columns, no cell taken, and each value has an `Ok` intermediate that turns into the corresponding component. Exact, for any `FromValue` impls. -/
 theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt_ok_iff {T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 : Type} (inst1 : value.convert.FromValue T1 I1) (inst2 : value.convert.FromValue T2 I2) (inst3 : value.convert.FromValue T3 I3) (inst4 : value.convert.FromValue T4 I4) (inst5 : value.convert.FromValue T5 I5) (inst6 : value.convert.FromValue T6 I6) (inst7 : value.convert.FromValue T7 I7) (inst8 : value.convert.FromValue T8 I8) (inst9 : value.convert.FromValue T9 I9) (inst10 : value.convert.FromValue T10 I10) (inst11 : value.convert.FromValue T11 I11)
     (into1 : core.convert.Into I1 value.Value) (into2 : core.convert.Into I2 value.Value) (into3 : core.convert.Into I3 value.Value) (into4 : core.convert.Into I4 value.Value) (into5 : core.convert.Into I5 value.Value) (into6 : core.convert.Into I6 value.Value) (into7 : core.convert.Into I7 value.Value) (into8 : core.convert.Into I8 value.Value) (into9 : core.convert.Into I9 value.Value) (into10 : core.convert.Into I10 value.Value)
@@ -68,7 +71,28 @@ theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_r
         inst9.get_intermediate v9 = ok (.Ok ir9) ∧ inst9.coreconvertIntoInst.into ir9 = ok x9 ∧
         inst10.get_intermediate v10 = ok (.Ok ir10) ∧ inst10.coreconvertIntoInst.into ir10 = ok x10 ∧
         inst11.get_intermediate v11 = ok (.Ok ir11) ∧ inst11.coreconvertIntoInst.into ir11 = ok x11 := by
-  sorry
+  constructor
+  · intro h
+    unfold TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt at h
+    by_cases hl : r.values.val.length = 11
+    swap; · simp_all [row.Row.len]
+    obtain ⟨c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, hr⟩ : ∃ c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11, r.values.val = [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11] := by
+      match hv : r.values.val, hl with
+      | [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11], _ => exact ⟨c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, rfl⟩
+    row_fwd_cell 0 c1 inst1
+    row_fwd_cell 1 c2 inst2
+    row_fwd_cell 2 c3 inst3
+    row_fwd_cell 3 c4 inst4
+    row_fwd_cell 4 c5 inst5
+    row_fwd_cell 5 c6 inst6
+    row_fwd_cell 6 c7 inst7
+    row_fwd_cell 7 c8 inst8
+    row_fwd_cell 8 c9 inst9
+    row_fwd_cell 9 c10 inst10
+    row_fwd_cell 10 c11 inst11
+    row_fwd_finish
+  · rintro ⟨hcols, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, ir1, ir2, ir3, ir4, ir5, ir6, ir7, ir8, ir9, ir10, ir11, hr, hi1, hx1, hi2, hx2, hi3, hx3, hi4, hx4, hi5, hx5, hi6, hx6, hi7, hx7, hi8, hx8, hi9, hx9, hi10, hx10, hi11, hx11⟩
+    exact TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt_ok inst1 inst2 inst3 inst4 inst5 inst6 inst7 inst8 inst9 inst10 inst11 into1 into2 into3 into4 into5 into6 into7 into8 into9 into10 r v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 ir1 ir2 ir3 ir4 ir5 ir6 ir7 ir8 ir9 ir10 ir11 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 hr hcols hi1 hi2 hi3 hi4 hi5 hi6 hi7 hi8 hi9 hi10 hi11 hx1 hx2 hx3 hx4 hx5 hx6 hx7 hx8 hx9 hx10 hx11
 
 /-- `FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)` (headline, through `from_value_opt`): for impls with the default `FromValue` methods (`DefaultFromValue`; all of the crate's), the conversion succeeds with `(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11)` exactly when the row has exactly 11 cells and at least 11 columns, no cell taken, and each converts by `from_value_opt` to the corresponding component. -/
 theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt_ok_iff_default {T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 : Type} (inst1 : value.convert.FromValue T1 I1) (inst2 : value.convert.FromValue T2 I2) (inst3 : value.convert.FromValue T3 I3) (inst4 : value.convert.FromValue T4 I4) (inst5 : value.convert.FromValue T5 I5) (inst6 : value.convert.FromValue T6 I6) (inst7 : value.convert.FromValue T7 I7) (inst8 : value.convert.FromValue T8 I8) (inst9 : value.convert.FromValue T9 I9) (inst10 : value.convert.FromValue T10 I10) (inst11 : value.convert.FromValue T11 I11)
@@ -78,8 +102,15 @@ theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_r
     TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt inst1 inst2 inst3 inst4 inst5 inst6 inst7 inst8 inst9 inst10 inst11 into1 into2 into3 into4 into5 into6 into7 into8 into9 into10 r = ok (.Ok (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11)) ↔
       11 ≤ r.columns.length ∧ ∃ v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 : value.Value, r.values.val = [some v1, some v2, some v3, some v4, some v5, some v6, some v7, some v8, some v9, some v10, some v11] ∧
         inst1.from_value_opt v1 = ok (.Ok x1) ∧ inst2.from_value_opt v2 = ok (.Ok x2) ∧ inst3.from_value_opt v3 = ok (.Ok x3) ∧ inst4.from_value_opt v4 = ok (.Ok x4) ∧ inst5.from_value_opt v5 = ok (.Ok x5) ∧ inst6.from_value_opt v6 = ok (.Ok x6) ∧ inst7.from_value_opt v7 = ok (.Ok x7) ∧ inst8.from_value_opt v8 = ok (.Ok x8) ∧ inst9.from_value_opt v9 = ok (.Ok x9) ∧ inst10.from_value_opt v10 = ok (.Ok x10) ∧ inst11.from_value_opt v11 = ok (.Ok x11) := by
-  sorry
+  rw [TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt_ok_iff]
+  simp only [RowTuples.from_value_opt_ok_iff hd1, RowTuples.from_value_opt_ok_iff hd2, RowTuples.from_value_opt_ok_iff hd3, RowTuples.from_value_opt_ok_iff hd4, RowTuples.from_value_opt_ok_iff hd5, RowTuples.from_value_opt_ok_iff hd6, RowTuples.from_value_opt_ok_iff hd7, RowTuples.from_value_opt_ok_iff hd8, RowTuples.from_value_opt_ok_iff hd9, RowTuples.from_value_opt_ok_iff hd10, RowTuples.from_value_opt_ok_iff hd11]
+  constructor
+  · rintro ⟨hc, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, ir1, ir2, ir3, ir4, ir5, ir6, ir7, ir8, ir9, ir10, ir11, hr, h1a, h1b, h2a, h2b, h3a, h3b, h4a, h4b, h5a, h5b, h6a, h6b, h7a, h7b, h8a, h8b, h9a, h9b, h10a, h10b, h11a, h11b⟩
+    exact ⟨hc, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, hr, ⟨ir1, h1a, h1b⟩, ⟨ir2, h2a, h2b⟩, ⟨ir3, h3a, h3b⟩, ⟨ir4, h4a, h4b⟩, ⟨ir5, h5a, h5b⟩, ⟨ir6, h6a, h6b⟩, ⟨ir7, h7a, h7b⟩, ⟨ir8, h8a, h8b⟩, ⟨ir9, h9a, h9b⟩, ⟨ir10, h10a, h10b⟩, ⟨ir11, h11a, h11b⟩⟩
+  · rintro ⟨hc, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, hr, ⟨ir1, h1a, h1b⟩, ⟨ir2, h2a, h2b⟩, ⟨ir3, h3a, h3b⟩, ⟨ir4, h4a, h4b⟩, ⟨ir5, h5a, h5b⟩, ⟨ir6, h6a, h6b⟩, ⟨ir7, h7a, h7b⟩, ⟨ir8, h8a, h8b⟩, ⟨ir9, h9a, h9b⟩, ⟨ir10, h10a, h10b⟩, ⟨ir11, h11a, h11b⟩⟩
+    exact ⟨hc, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, ir1, ir2, ir3, ir4, ir5, ir6, ir7, ir8, ir9, ir10, ir11, hr, h1a, h1b, h2a, h2b, h3a, h3b, h4a, h4b, h5a, h5b, h6a, h6b, h7a, h7b, h8a, h8b, h9a, h9b, h10a, h10b, h11a, h11b⟩
 
+set_option maxHeartbeats 1000000 in
 /-- `FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)`: on failure, exactly the row `fromRowErrCells` describes comes back as the error, with the same columns. Columns are converted left to right; at the first failing cell `k`: if it was taken, every cell up to `k` comes back empty (upstream data-loss bug: the cells converted before `k` are not put back, e.g. `[Some(Int 1), None]` as `(i64, String)` gives `[None, None]`); if its value is rejected, the cells before `k` come back as `Value::from` of their intermediates (the original value only when that conversion round-trips) and cell `k` as the rejected value. Only the outcomes up to the first failure need to be described (`none` for the rest), and before a taken cell `passed` suffices (no rollback happens there). Assumes at least 11 columns (`Row::take` finds cell `k` through the column count; rows built by the crate have one cell per column). -/
 theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt_err {T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 : Type} (inst1 : value.convert.FromValue T1 I1) (inst2 : value.convert.FromValue T2 I2) (inst3 : value.convert.FromValue T3 I3) (inst4 : value.convert.FromValue T4 I4) (inst5 : value.convert.FromValue T5 I5) (inst6 : value.convert.FromValue T6 I6) (inst7 : value.convert.FromValue T7 I7) (inst8 : value.convert.FromValue T8 I8) (inst9 : value.convert.FromValue T9 I9) (inst10 : value.convert.FromValue T10 I10) (inst11 : value.convert.FromValue T11 I11)
     (into1 : core.convert.Into I1 value.Value) (into2 : core.convert.Into I2 value.Value) (into3 : core.convert.Into I3 value.Value) (into4 : core.convert.Into I4 value.Value) (into5 : core.convert.Into I5 value.Value) (into6 : core.convert.Into I6 value.Value) (into7 : core.convert.Into I7 value.Value) (into8 : core.convert.Into I8 value.Value) (into9 : core.convert.Into I9 value.Value) (into10 : core.convert.Into I10 value.Value)
@@ -99,6 +130,21 @@ theorem TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_r
     (h11 : CellOutcome.OfOpt inst11 noRollback c11 o11)
     (cells : List (Option value.Value)) (he : fromRowErrCells [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11] [o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11] = some cells) :
     TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt inst1 inst2 inst3 inst4 inst5 inst6 inst7 inst8 inst9 inst10 inst11 into1 into2 into3 into4 into5 into6 into7 into8 into9 into10 r ⦃ res => ∃ r' : row.Row, res = .Err r' ∧ r'.values.val = cells ∧ r'.columns = r.columns ⦄ := by
-  sorry
+  have hlt : ∀ k : Nat, k < 11 → k < r.columns.val.length := fun k hk => by scalar_tac
+  have hlv : ∀ k : Nat, k < 11 → k < r.values.val.length := fun k hk => by simp [hr]; omega
+  unfold fromRowErrCells at he
+  unfold TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  row_err_cell h1
+  row_err_cell h2
+  row_err_cell h3
+  row_err_cell h4
+  row_err_cell h5
+  row_err_cell h6
+  row_err_cell h7
+  row_err_cell h8
+  row_err_cell h9
+  row_err_cell h10
+  row_err_cell h11
+  simp at he
 
 end mysql_common

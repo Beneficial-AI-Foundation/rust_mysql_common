@@ -1,0 +1,219 @@
+Translation patch: `BinlogValue`: out-of-scope decoders and string rendering
+
+Change: In `BinlogValue::into_owned` and `MyDeserialize for BinlogValue`: the JSON-diff conversion `x.into_iter().map(|x| x.into_owned()).collect()` moves into `jsondiff::json_diffs_into_owned`; the partial-JSON loop into `jsondiff::parse_json_diffs`; `json_value_buf.parse(())` (JSONB) into `jsonb::parse_jsonb_value`; `Decimal::read_bin(..)` + `to_string().into_bytes()` into `decimal::read_bin_to_string_bytes`; `(1900 + y).to_string().into_bytes()` and `sec.to_string().into_bytes()` become `trusted::string_into_bytes(trusted::i128_to_string(x as i128))` (the existing helpers of patch 40); `format!("{}.{:06}", sec, usec).into_bytes()` moves into `binlog::trusted::timestamp2_frac_bytes`; `bytes.into()` (`&[u8]` to `Vec<u8>`) becomes `bytes.to_vec()`; `ColumnType::try_from(b).unwrap_or(t)` becomes a `match`. The new helpers in `jsonb`, `jsondiff`, `decimal` (modules opaque in the translation) and `binlog::trusted` are the moved code verbatim.
+Why: JSONB, JSON diffs and decimals are out of scope (opaque modules); `to_string`, `format!` and `From<&[T]> for Vec<T>` are not modelled (patch 58); closures and the loop with `?`: see patch 143.
+Behaviour: Identical: the helpers contain exactly the moved expressions; an `i32` renders the same as the `i128` it widens to; `to_vec` is std's `From<&[T]>`; the `match` is `unwrap_or`.
+
+diff --git a/src/binlog/decimal/mod.rs b/src/binlog/decimal/mod.rs
+index 4e83f73..d87a38c 100644
+--- a/src/binlog/decimal/mod.rs
++++ b/src/binlog/decimal/mod.rs
+@@ -432,3 +432,14 @@ pub fn decimal_bin_size(precision: usize, scale: usize) -> usize {
+         + frac0 * size_of::<Digit>()
+         + DIG_TO_BYTES[frac0x] as usize
+ }
++
++/// `Decimal::read_bin(input, precision, scale, false)` rendered with `to_string().into_bytes()`
++/// (translation helper for `BinlogValue::deserialize`; this module is opaque in the translation).
++pub(crate) fn read_bin_to_string_bytes(
++    input: &mut crate::io::ParseBuf<'_>,
++    precision: usize,
++    scale: usize,
++) -> io::Result<Vec<u8>> {
++    let dec = Decimal::read_bin(input, precision, scale, false)?;
++    Ok(dec.to_string().into_bytes())
++}
+diff --git a/src/binlog/jsonb.rs b/src/binlog/jsonb.rs
+index 429d012..80c7864 100644
+--- a/src/binlog/jsonb.rs
++++ b/src/binlog/jsonb.rs
+@@ -1067,3 +1067,9 @@ impl TryFrom<u8> for LiteralType {
+         }
+     }
+ }
++
++/// `buf.parse(())` (translation helper for `BinlogValue::deserialize`; this module is opaque in
++/// the translation).
++pub(crate) fn parse_jsonb_value<'de>(buf: &mut ParseBuf<'de>) -> io::Result<Value<'de>> {
++    buf.parse(())
++}
+diff --git a/src/binlog/jsondiff.rs b/src/binlog/jsondiff.rs
+index 6c8507a..5b05774 100644
+--- a/src/binlog/jsondiff.rs
++++ b/src/binlog/jsondiff.rs
+@@ -117,3 +117,19 @@ impl<'de> MyDeserialize<'de> for JsonDiff<'de> {
+         })
+     }
+ }
++
++/// `diffs.into_iter().map(|x| x.into_owned()).collect()` (translation helper for
++/// `BinlogValue::into_owned`; this module is opaque in the translation).
++pub(crate) fn json_diffs_into_owned(diffs: Vec<JsonDiff<'_>>) -> Vec<JsonDiff<'static>> {
++    diffs.into_iter().map(|x| x.into_owned()).collect()
++}
++
++/// Parses `JsonDiff`s until `buf` is empty (translation helper for
++/// `BinlogValue::deserialize`; this module is opaque in the translation).
++pub(crate) fn parse_json_diffs(mut buf: ParseBuf<'_>) -> io::Result<Vec<JsonDiff<'_>>> {
++    let mut diffs = Vec::new();
++    while !buf.is_empty() {
++        diffs.push(buf.parse(())?);
++    }
++    Ok(diffs)
++}
+diff --git a/src/binlog/trusted.rs b/src/binlog/trusted.rs
+index 67adfe5..e2faf9a 100644
+--- a/src/binlog/trusted.rs
++++ b/src/binlog/trusted.rs
+@@ -20,6 +20,11 @@ pub(crate) fn bytes_remaining_error<T>() -> io::Error {
+     ))
+ }
+ 
++/// The TIMESTAMP2 text with a fraction: `format!("{}.{:06}", sec, usec).into_bytes()`.
++pub(crate) fn timestamp2_frac_bytes(sec: i32, usec: i32) -> Vec<u8> {
++    format!("{}.{:06}", sec, usec).into_bytes()
++}
++
+ // ---- zstd --------------------------------------------------------------------------------------
+ //
+ // `zstd` is a C library (`zstd-sys`), which does not cross-compile to the translation target. It
+diff --git a/src/binlog/value.rs b/src/binlog/value.rs
+index 1c3be1d..367f682 100644
+--- a/src/binlog/value.rs
++++ b/src/binlog/value.rs
+@@ -14,7 +14,10 @@ use crate::{
+     io::ParseBuf,
+     misc::raw::int::*,
+     proto::MyDeserialize,
+-    value::Value::{self, *},
++    value::{
++        Value::{self, *},
++        convert::trusted,
++    },
+ };
+ 
+ use super::jsonb::JsonbToJsonError;
+@@ -37,7 +40,7 @@ impl<'a> BinlogValue<'a> {
+             BinlogValue::Value(x) => BinlogValue::Value(x),
+             BinlogValue::Jsonb(x) => BinlogValue::Jsonb(x.into_owned()),
+             BinlogValue::JsonDiff(x) => {
+-                BinlogValue::JsonDiff(x.into_iter().map(|x| x.into_owned()).collect())
++                BinlogValue::JsonDiff(crate::binlog::jsondiff::json_diffs_into_owned(x))
+             }
+         }
+     }
+@@ -58,7 +61,10 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+ 
+         if col_type == MYSQL_TYPE_TYPED_ARRAY {
+             let type_byte = col_meta[0];
+-            col_type = ColumnType::try_from(type_byte).unwrap_or(col_type);
++            col_type = match ColumnType::try_from(type_byte) {
++                Ok(ty) => ty,
++                Err(_) => col_type,
++            };
+         }
+ 
+         if col_type == MYSQL_TYPE_STRING {
+@@ -126,9 +132,9 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+             }
+             MYSQL_TYPE_YEAR => {
+                 let y = *buf.parse::<RawInt<u8>>(())? as i32;
+-                Ok(BinlogValue::Value(Bytes(
+-                    (1900 + y).to_string().into_bytes(),
+-                )))
++                Ok(BinlogValue::Value(Bytes(trusted::string_into_bytes(
++                    trusted::i128_to_string((1900 + y) as i128),
++                ))))
+             }
+             MYSQL_TYPE_NEWDATE => {
+                 let tmp = *buf.parse::<RawInt<LeU24>>(())?;
+@@ -143,16 +149,18 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                 let n_bits = col_meta[1] as usize * 8 + (col_meta[0] as usize);
+                 let n_bytes = n_bits.div_ceil(8);
+                 let bytes: &[u8] = buf.parse(n_bytes)?;
+-                Ok(BinlogValue::Value(Bytes(bytes.into())))
++                Ok(BinlogValue::Value(Bytes(bytes.to_vec())))
+             }
+             MYSQL_TYPE_TIMESTAMP2 => {
+                 let dec = col_meta[0];
+                 let (sec, usec) = my_timestamp_from_binary(&mut *buf, dec)?;
+                 if usec == 0 {
+-                    Ok(BinlogValue::Value(Bytes(sec.to_string().into_bytes())))
++                    Ok(BinlogValue::Value(Bytes(trusted::string_into_bytes(
++                        trusted::i128_to_string(sec as i128),
++                    ))))
+                 } else {
+                     Ok(BinlogValue::Value(Bytes(
+-                        format!("{}.{:06}", sec, usec).into_bytes(),
++                        crate::binlog::trusted::timestamp2_frac_bytes(sec, usec),
+                     )))
+                 }
+             }
+@@ -174,13 +182,13 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                 length = *buf.parse::<RawInt<LeU32>>(())? as usize;
+                 let mut json_value_buf: ParseBuf<'_> = buf.parse(length)?;
+                 if is_partial {
+-                    let mut diffs = Vec::new();
+-                    while !json_value_buf.is_empty() {
+-                        diffs.push(json_value_buf.parse(())?);
+-                    }
+-                    Ok(BinlogValue::JsonDiff(diffs))
++                    Ok(BinlogValue::JsonDiff(
++                        crate::binlog::jsondiff::parse_json_diffs(json_value_buf)?,
++                    ))
+                 } else {
+-                    Ok(BinlogValue::Jsonb(json_value_buf.parse(())?))
++                    Ok(BinlogValue::Jsonb(crate::binlog::jsonb::parse_jsonb_value(
++                        &mut json_value_buf,
++                    )?))
+                 }
+             }
+             MYSQL_TYPE_NEWDECIMAL => {
+@@ -189,9 +197,9 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                 // scale (aka decimals) is the number of decimal digits after the point
+                 let scale = col_meta[1] as usize;
+ 
+-                let dec = decimal::Decimal::read_bin(&mut *buf, precision, scale, false)?;
++                let dec = decimal::read_bin_to_string_bytes(&mut *buf, precision, scale)?;
+ 
+-                Ok(BinlogValue::Value(Bytes(dec.to_string().into_bytes())))
++                Ok(BinlogValue::Value(Bytes(dec)))
+             }
+             MYSQL_TYPE_ENUM => match col_meta[1] {
+                 1 => {
+@@ -207,7 +215,7 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+             MYSQL_TYPE_SET => {
+                 let n_bytes = col_meta[1] as usize;
+                 let bytes: &[u8] = buf.parse(n_bytes)?;
+-                Ok(BinlogValue::Value(Bytes(bytes.into())))
++                Ok(BinlogValue::Value(Bytes(bytes.to_vec())))
+             }
+             MYSQL_TYPE_TINY_BLOB
+             | MYSQL_TYPE_MEDIUM_BLOB
+@@ -228,7 +236,7 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                     }
+                 };
+                 let bytes: &[u8] = buf.parse(n_bytes)?;
+-                Ok(BinlogValue::Value(Bytes(bytes.into())))
++                Ok(BinlogValue::Value(Bytes(bytes.to_vec())))
+             }
+             MYSQL_TYPE_VARCHAR | MYSQL_TYPE_VAR_STRING => {
+                 let type_len = (col_meta[0] as u16 | ((col_meta[1] as u16) << 8)) as usize;
+@@ -238,7 +246,7 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                     *buf.parse::<RawInt<LeU16>>(())? as usize
+                 };
+                 let bytes: &[u8] = buf.parse(n_bytes)?;
+-                Ok(BinlogValue::Value(Bytes(bytes.into())))
++                Ok(BinlogValue::Value(Bytes(bytes.to_vec())))
+             }
+             MYSQL_TYPE_STRING => {
+                 let n_bytes = if length < 256 {
+@@ -247,7 +255,7 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                     *buf.parse::<RawInt<LeU16>>(())? as usize
+                 };
+                 let bytes: &[u8] = buf.parse(n_bytes)?;
+-                Ok(BinlogValue::Value(Bytes(bytes.into())))
++                Ok(BinlogValue::Value(Bytes(bytes.to_vec())))
+             }
+             _ => Err(crate::misc::io_error_msg(
+                 io::ErrorKind::InvalidData,

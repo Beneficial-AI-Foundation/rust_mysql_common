@@ -1,0 +1,58 @@
+Translation patch: `bytes::BufMut` in binlog/events
+
+Change: `use bytes::BufMut` becomes `use crate::io::BufMut` (the crate-local model from patch 01) in binlog/events/{mod,rows_event,user_var_event,xid_event}.rs.
+Why: The same as patches 01 and 31.
+Behaviour: Identical, as for patch 31: every `BufMut` call in these files (`put_slice`, `put_u8`, `put_u16_le`, `put_u64_le`) is on a `Vec<u8>`.
+
+diff --git a/src/binlog/events/mod.rs b/src/binlog/events/mod.rs
+index fbbdb5c..7652670 100644
+--- a/src/binlog/events/mod.rs
++++ b/src/binlog/events/mod.rs
+@@ -8,7 +8,7 @@
+ 
+ use bitvec::prelude::*;
+ use byteorder::{LittleEndian, WriteBytesExt};
+-use bytes::BufMut;
++use crate::io::BufMut;
+ use saturating::Saturating as S;
+ 
+ use crate::{
+diff --git a/src/binlog/events/rows_event.rs b/src/binlog/events/rows_event.rs
+index a0b6584..2fe8d84 100644
+--- a/src/binlog/events/rows_event.rs
++++ b/src/binlog/events/rows_event.rs
+@@ -9,7 +9,7 @@
+ use std::{cmp::min, fmt, io};
+ 
+ use bitvec::prelude::*;
+-use bytes::BufMut;
++use crate::io::BufMut;
+ use crate::{
+     binlog::{
+         BinlogCtx,
+diff --git a/src/binlog/events/user_var_event.rs b/src/binlog/events/user_var_event.rs
+index a299e30..b636753 100644
+--- a/src/binlog/events/user_var_event.rs
++++ b/src/binlog/events/user_var_event.rs
+@@ -12,7 +12,7 @@ use std::{
+     io::{self},
+ };
+ 
+-use bytes::BufMut;
++use crate::io::BufMut;
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+diff --git a/src/binlog/events/xid_event.rs b/src/binlog/events/xid_event.rs
+index 935385b..ef9aec2 100644
+--- a/src/binlog/events/xid_event.rs
++++ b/src/binlog/events/xid_event.rs
+@@ -8,7 +8,7 @@
+ 
+ use std::io::{self};
+ 
+-use bytes::BufMut;
++use crate::io::BufMut;
+ 
+ use crate::{
+     binlog::{

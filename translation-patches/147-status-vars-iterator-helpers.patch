@@ -1,0 +1,206 @@
+Translation patch: `StatusVarsIterator::next` and `StatusVars::get_status_var`
+
+Change: In `next`, the length of the value (the `get_fixed!`/`get_var!` macro arithmetic) is computed by new helpers `value_len`/`var_len`/`db_names_len`/`skip_db_name` (the `for`/`while` loops of `UpdatedDbNames` become recursion) before `self.pos += len`; the `?`s become `match`es. `get_status_var`'s `self.iter().find_map(..)` becomes the recursive helper `find_status_var`.
+Why: Aeneas does not support early returns (`?`) inside loops, `?` on `Option`, closures, or `find_map`.
+Behaviour: Identical: the helpers read the same bytes in the same order as the macros, `self.pos` is advanced at the same points (by 1 for the key, then by `len` before the final `get`, which may still fail), and `None` is returned in the same cases; `find_status_var` calls `next` until a key matches or the iterator ends, which is `find_map`.
+
+diff --git a/src/binlog/events/query_event.rs b/src/binlog/events/query_event.rs
+index c895555..bfbe6ce 100644
+--- a/src/binlog/events/query_event.rs
++++ b/src/binlog/events/query_event.rs
+@@ -525,8 +525,7 @@ impl<'a> StatusVars<'a> {
+ 
+     /// Returns raw value of a status variable by key.
+     pub fn get_status_var(&'a self, needle: StatusVarKey) -> Option<StatusVar<'a>> {
+-        self.iter()
+-            .find_map(|var| if var.key == needle { Some(var) } else { None })
++        find_status_var(&mut self.iter(), needle)
+     }
+ 
+     pub fn into_owned(self) -> StatusVars<'static> {
+@@ -534,6 +533,23 @@ impl<'a> StatusVars<'a> {
+     }
+ }
+ 
++/// `iter.find_map(|var| if var.key == needle { Some(var) } else { None })`.
++fn find_status_var<'a>(
++    iter: &mut StatusVarsIterator<'a>,
++    needle: StatusVarKey,
++) -> Option<StatusVar<'a>> {
++    match iter.next() {
++        Some(var) => {
++            if var.key == needle {
++                Some(var)
++            } else {
++                find_status_var(iter, needle)
++            }
++        }
++        None => None,
++    }
++}
++
+ impl<'de> MyDeserialize<'de> for StatusVars<'de> {
+     const SIZE: Option<usize> = None;
+     type Ctx = u16;
+@@ -580,64 +596,110 @@ impl fmt::Debug for StatusVarsIterator<'_> {
+     }
+ }
+ 
+-impl<'a> Iterator for StatusVarsIterator<'a> {
+-    type Item = StatusVar<'a>;
+-
+-    fn next(&mut self) -> Option<Self::Item> {
+-        let key = *self.status_vars.get(self.pos)?;
+-        let key = StatusVarKey::try_from(key).ok()?;
+-        self.pos += 1;
++impl<'a> StatusVarsIterator<'a> {
++    /// The length of the value of a status variable with the given key that starts at
++    /// `self.pos` (the `len` of `get_fixed!(len)` in `next`), or `None` where `next` returns `None`
++    /// before advancing `self.pos`.
++    fn value_len(&self, key: StatusVarKey) -> Option<usize> {
++        match key {
++            StatusVarKey::Flags2 => Some(4),
++            StatusVarKey::SqlMode => Some(8),
++            StatusVarKey::Catalog => self.var_len(1),
++            StatusVarKey::AutoIncrement => Some(4),
++            StatusVarKey::Charset => Some(6),
++            StatusVarKey::TimeZone => self.var_len(0),
++            StatusVarKey::CatalogNz => self.var_len(0),
++            StatusVarKey::LcTimeNames => Some(2),
++            StatusVarKey::CharsetDatabase => Some(2),
++            StatusVarKey::TableMapForUpdate => Some(8),
++            StatusVarKey::MasterDataWritten => Some(4),
++            StatusVarKey::Invoker => {
++                let user_len = match self.status_vars.get(self.pos) {
++                    Some(x) => *x as usize,
++                    None => return None,
++                };
++                let host_len = match self.status_vars.get(self.pos + 1 + user_len) {
++                    Some(x) => *x as usize,
++                    None => return None,
++                };
++                Some(1 + user_len + 1 + host_len)
++            }
++            StatusVarKey::UpdatedDbNames => {
++                let count = match self.status_vars.get(self.pos) {
++                    Some(x) => *x as usize,
++                    None => return None,
++                };
++                self.db_names_len(count, 1)
++            }
++            StatusVarKey::Microseconds => Some(3),
++            StatusVarKey::CommitTs => Some(0),
++            StatusVarKey::CommitTs2 => Some(0),
++            StatusVarKey::ExplicitDefaultsForTimestamp => Some(1),
++            StatusVarKey::DdlLoggedWithXid => Some(8),
++            StatusVarKey::DefaultCollationForUtf8mb4 => Some(2),
++            StatusVarKey::SqlRequirePrimaryKey => Some(1),
++            StatusVarKey::DefaultTableEncryption => Some(1),
++        }
++    }
+ 
+-        macro_rules! get_fixed {
+-            ($len:expr_2021) => {{
+-                self.pos += $len;
+-                self.status_vars.get((self.pos - $len)..self.pos)?
+-            }};
++    /// `get_var!(suffix_len)` of `next`, up to its `get_fixed!`: the length byte at `self.pos`.
++    fn var_len(&self, suffix_len: usize) -> Option<usize> {
++        match self.status_vars.get(self.pos) {
++            Some(x) => Some(1 + *x as usize + suffix_len),
++            None => None,
+         }
++    }
+ 
+-        macro_rules! get_var {
+-            ($suffix_len:expr_2021) => {{
+-                let len = *self.status_vars.get(self.pos)? as usize;
+-                get_fixed!(1 + len + $suffix_len)
+-            }};
++    /// The loop `for _ in 0..count { while .. { total += 1; } total += 1; }` of `next` for
++    /// `UpdatedDbNames`, from the running `total`.
++    fn db_names_len(&self, count: usize, total: usize) -> Option<usize> {
++        if count == 0 {
++            return Some(total);
++        }
++        match self.skip_db_name(total) {
++            Some(total) => self.db_names_len(count - 1, total),
++            None => None,
+         }
++    }
+ 
+-        let value = match key {
+-            StatusVarKey::Flags2 => get_fixed!(4),
+-            StatusVarKey::SqlMode => get_fixed!(8),
+-            StatusVarKey::Catalog => get_var!(1),
+-            StatusVarKey::AutoIncrement => get_fixed!(4),
+-            StatusVarKey::Charset => get_fixed!(6),
+-            StatusVarKey::TimeZone => get_var!(0),
+-            StatusVarKey::CatalogNz => get_var!(0),
+-            StatusVarKey::LcTimeNames => get_fixed!(2),
+-            StatusVarKey::CharsetDatabase => get_fixed!(2),
+-            StatusVarKey::TableMapForUpdate => get_fixed!(8),
+-            StatusVarKey::MasterDataWritten => get_fixed!(4),
+-            StatusVarKey::Invoker => {
+-                let user_len = *self.status_vars.get(self.pos)? as usize;
+-                let host_len = *self.status_vars.get(self.pos + 1 + user_len)? as usize;
+-                get_fixed!(1 + user_len + 1 + host_len)
+-            }
+-            StatusVarKey::UpdatedDbNames => {
+-                let mut total = 1;
+-                let count = *self.status_vars.get(self.pos)? as usize;
+-                for _ in 0..count {
+-                    while *self.status_vars.get(self.pos + total)? != 0x00 {
+-                        total += 1;
+-                    }
+-                    total += 1;
++    /// One iteration of that loop: `while *self.status_vars.get(self.pos + total)? != 0x00 {
++    /// total += 1; } total += 1;`.
++    fn skip_db_name(&self, total: usize) -> Option<usize> {
++        match self.status_vars.get(self.pos + total) {
++            Some(x) => {
++                if *x != 0x00 {
++                    self.skip_db_name(total + 1)
++                } else {
++                    Some(total + 1)
+                 }
+-                get_fixed!(total)
+             }
+-            StatusVarKey::Microseconds => get_fixed!(3),
+-            StatusVarKey::CommitTs => get_fixed!(0),
+-            StatusVarKey::CommitTs2 => get_fixed!(0),
+-            StatusVarKey::ExplicitDefaultsForTimestamp => get_fixed!(1),
+-            StatusVarKey::DdlLoggedWithXid => get_fixed!(8),
+-            StatusVarKey::DefaultCollationForUtf8mb4 => get_fixed!(2),
+-            StatusVarKey::SqlRequirePrimaryKey => get_fixed!(1),
+-            StatusVarKey::DefaultTableEncryption => get_fixed!(1),
++            None => None,
++        }
++    }
++}
++
++impl<'a> Iterator for StatusVarsIterator<'a> {
++    type Item = StatusVar<'a>;
++
++    fn next(&mut self) -> Option<Self::Item> {
++        let key = match self.status_vars.get(self.pos) {
++            Some(key) => *key,
++            None => return None,
++        };
++        let key = match StatusVarKey::try_from(key) {
++            Ok(key) => key,
++            Err(_) => return None,
++        };
++        self.pos += 1;
++
++        let len = match self.value_len(key) {
++            Some(len) => len,
++            None => return None,
++        };
++        self.pos += len;
++        let value = match self.status_vars.get((self.pos - len)..self.pos) {
++            Some(value) => value,
++            None => return None,
+         };
+ 
+         Some(StatusVar { key, value })

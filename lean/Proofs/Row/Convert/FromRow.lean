@@ -16,6 +16,6 @@ theorem row.convert.FromRow.from_row.default_eq {T : Type} (inst : row.convert.F
       (inst.from_row_opt r >>= fun res => match res with
         | .Ok x => ok x
         | .Err _ => fail .panic) := by
-  sorry
+  rfl
 
 end mysql_common

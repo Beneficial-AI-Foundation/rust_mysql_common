@@ -1,0 +1,133 @@
+Translation patch: the binlog flags types as plain structs
+
+Change: `EventFlags`, `SemiSyncFlags`, `GtidFlags`, `RowsEventFlags`, `UserVarFlags` (binlog/consts.rs) and `Flags2`, `SqlMode` (constants.rs) switch from `my_bitflags!` to `my_plain_bitflags!` (patch 20), dropping `Debug` from their `derive` lists.
+Why: As in patch 20: `bitflags!` goes through the external `bitflags::Bits`/`Flags` traits, which Aeneas does not model; `RawFlags<T, _>` of these types appear in the binlog events.
+Behaviour: Identical, see patch 20 (same API, same bodies, same `Debug` output).
+
+diff --git a/src/binlog/consts.rs b/src/binlog/consts.rs
+index 0c0f06a..7a8b8c2 100644
+--- a/src/binlog/consts.rs
++++ b/src/binlog/consts.rs
+@@ -190,14 +190,14 @@ impl TryFrom<u8> for EventType {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     EventFlags,
+     #[error("Unknown flags in the raw value of EventFlags (raw={0:b})")]
+     UnknownEventFlags,
+     u16,
+ 
+     /// Binlog Event Flags
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct EventFlags: u16 {
+         /// Gets unset in the `FORMAT_DESCRIPTION_EVENT`
+         /// when the file gets closed to detect broken binlogs.
+@@ -396,14 +396,14 @@ impl TryFrom<u8> for StatusVarKey {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     SemiSyncFlags,
+     #[error("Unknown flags in the raw value of SemiSyncFlags (raw={0:b})")]
+     UnknownSemiSyncFlags,
+     u8,
+ 
+     /// Semi-sync binlog flags.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct SemiSyncFlags: u8 {
+         // If the SEMI_SYNC_ACK_REQ flag is set the master waits for a Semi Sync ACK packet
+         // from the slave before it sends the next event.
+@@ -702,14 +702,14 @@ impl TryFrom<u8> for IntvarEventType {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     GtidFlags,
+     #[error("Unknown flags in the raw value of GtidFlags (raw={0:b})")]
+     UnknownGtidFlags,
+     u8,
+ 
+     /// Gtid event flags.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct GtidFlags: u8 {
+         /// Transaction may have changes logged with SBR.
+         ///
+@@ -756,14 +756,14 @@ impl TryFrom<u64> for Gno {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     RowsEventFlags,
+     #[error("Unknown flags in the raw value of RowsEventFlags (raw={0:b})")]
+     UnknownRowsEventFlags,
+     u16,
+ 
+     /// Rows event flags.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct RowsEventFlags: u16 {
+         /// Last event of a statement.
+         const STMT_END = 0x0001;
+@@ -777,14 +777,14 @@ my_bitflags! {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     UserVarFlags,
+     #[error("Unknown flags in the raw value of UserVarFlags (raw={0:b})")]
+     UnknownUserVarFlags,
+     u8,
+ 
+     /// Flags of a user variable.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct UserVarFlags: u8 {
+         const UNSIGNED = 0x01;
+     }
+diff --git a/src/constants.rs b/src/constants.rs
+index 72e1421..7f465a1 100644
+--- a/src/constants.rs
++++ b/src/constants.rs
+@@ -811,14 +811,14 @@ impl From<ColumnType> for u8 {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     Flags2,
+     #[error("Unknown flags in the raw value of Flags2 (raw={0:b})")]
+     UnknownFlags2,
+     u32,
+ 
+     /// Bitmask of flags that are usually set with `SET`.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct Flags2: u32 {
+         const OPTION_AUTO_IS_NULL          = 0x00004000;
+         const OPTION_NOT_AUTOCOMMIT        = 0x00080000;
+@@ -827,14 +827,14 @@ my_bitflags! {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     SqlMode,
+     #[error("Unknown flags in the raw value of SqlMode (raw={0:b})")]
+     UnknownSqlMode,
+     u64,
+ 
+     /// Bitmask of flags that are usually set with `SET sql_mode`.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct SqlMode: u64 {
+         const MODE_REAL_AS_FLOAT              = 0x00000001;
+         const MODE_PIPES_AS_CONCAT            = 0x00000002;
