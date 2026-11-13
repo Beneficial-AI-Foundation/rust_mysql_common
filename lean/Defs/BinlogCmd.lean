@@ -247,14 +247,30 @@ def sidRead (bs : List U8) : ReadOut SidV :=
     | .panic e => .panic e
     | .unknown => .unknown
 
+/-- A byte that may start a GTID tag: an ASCII lowercase letter `a`–`z` (`0x61`–`0x7A`) or `_`
+    (`0x5F`). -/
+def tagFirstByte (b : U8) : Bool := (0x61 ≤ b.val && b.val ≤ 0x7A) || b.val = 0x5F
+
+/-- A byte that may follow in a GTID tag: an ASCII lowercase letter, an ASCII digit `0`–`9`
+    (`0x30`–`0x39`) or `_`. -/
+def tagRestByte (b : U8) : Bool := tagFirstByte b || (0x30 ≤ b.val && b.val ≤ 0x39)
+
+/-- The bytes of a valid GTID tag, as the crate documents `Tag` ("The format is:
+    `[a-z_][a-z0-9_]{0,31}` (1-32 characters)"; `Tag::MAX_LEN` = 32): 1 to 32 bytes, the first an
+    ASCII lowercase letter or `_`, the others ASCII lowercase letters, digits or `_`. All these
+    characters are ASCII, so characters and bytes coincide. (MySQL 8.4's tags are
+    `[a-zA-Z_][a-zA-Z0-9_]{0,31}`, uppercase letters being lowercased; the crate rejects
+    uppercase.) -/
+def tagBytesValid : List U8 → Bool
+  | [] => false
+  | c :: cs => cs.length < 32 && tagFirstByte c && cs.all tagRestByte
+
 /-- The crate's reader of a tagged SID (`Sid::deserialize_tagged`): 16 bytes of UUID (`none`,
     nothing consumed, if fewer); the tag length (`varlenUintDecode`; `none`, nothing more consumed,
     if malformed); for length 0, no tag; otherwise `none`, nothing more consumed, if fewer bytes
-    follow or they are not valid UTF-8, and `none`, the tag consumed, for a tag longer than 32
-    bytes (`InvalidTag::TooLong`); then `intervalsRead`. For a valid UTF-8 tag of 1–32 bytes the
-    result is `unknown` (`Defs.sidTaggedRead_unknown_iff`): `Tag::new` checks its characters
-    through `Chars::next`, an Aeneas-library function without a model. (The crate accepts
-    `[a-z_][a-z0-9_]*`; MySQL also accepts uppercase letters, lowercasing them.) -/
+    follow or they are not valid UTF-8, and `none`, the tag consumed, if they are not a valid tag
+    (`tagBytesValid`; `Tag::new` rejects it); else the tag is those bytes; then `intervalsRead`.
+    It is never `unknown` (`Defs.sidTaggedRead_ne_unknown`). -/
 def sidTaggedRead (bs : List U8) : ReadOut SidV :=
   if bs.length < 16 then .done none bs
   else
@@ -271,8 +287,8 @@ def sidTaggedRead (bs : List U8) : ReadOut SidV :=
       if tl = 0 then ints none r
       else if r.length < tl then .done none r
       else if ¬ (Trusted.bytesOf (r.take tl)).IsValidUTF8 then .done none r
-      else if 32 < tl then .done none (r.drop tl)
-      else .unknown
+      else if tagBytesValid (r.take tl) then ints (some (r.take tl)) (r.drop tl)
+      else .done none (r.drop tl)
 
 /-- `n` SIDs read one after the other (tagged or untagged format), stopping at the first failure. -/
 def sidsRead (tagged : Bool) : Nat → List U8 → ReadOut (List SidV)
@@ -300,7 +316,7 @@ def sidsRead (tagged : Bool) : Nat → List U8 → ReadOut (List SidV)
       count in bits 0–55 (MySQL rejects an unknown format byte); then that many SIDs
       (`sidsRead`). Bytes left in the block are ignored.
     **Crate behaviour**: `data_size` and the block are read whatever the flags say. The result is
-    `unknown` only through `sidTaggedRead` (`Defs.gtidDumpRead_unknown`). -/
+    never `unknown` (`Defs.gtidDumpRead_ne_unknown`). -/
 def gtidDumpRead (bs : List U8) : ReadOut GtidDump :=
   if bs.length < 7 then .done none bs
   else
