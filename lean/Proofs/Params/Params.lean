@@ -1,6 +1,5 @@
 import Defs
 import Proofs.Util.ParamsAsSql
-import Proofs.Defs.LemmasSqlText
 
 /-! Statements for `impl Params` (`into_values`, `into_positional`) (spec file:
 `Specs/Params.lean`). -/
@@ -30,7 +29,7 @@ theorem params.Params.into_values_empty (ns : Option (Slice (alloc.vec.Vec U8)))
       simp only [core.slice.Slice.is_empty, hne, decide_false, Std.bind_ok, Bool.false_eq_true,
         ↓reduceIte]
       step as ⟨v, hv⟩
-      simp only [vec_u8_clone_eq, Std.bind_ok, core.convert.IntoFrom.into,
+      simp only [vec_u8_clone_eq, Std.bind_ok,
         params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from]
       simp [hs, hv]
 
@@ -72,7 +71,9 @@ theorem params.Params.into_values_named_ok (m : Trusted.ParamsMap)
     (h : ∀ n ∈ s.val, (Trusted.paramsMapLookup m n.val).isSome) :
     params.Params.into_values (.Named m) (some s) ⦃ r => ∃ v, r = .Ok v ∧
       v.val.map some = s.val.map (fun n => Trusted.paramsMapLookup m n.val) ⦄ := by
-  sorry
+  refine WP.spec_mono (iv_named_spec m s hne) ?_
+  intro r ⟨h1, _⟩
+  exact h1 h
 
 /-- `into_values` of `Params::Named m` when some name has no value: `Missing` with the name
     `intoValuesMissing` (exact), which is always one of the statement's names without a value. -/
@@ -82,7 +83,10 @@ theorem params.Params.into_values_named_missing (m : Trusted.ParamsMap)
     params.Params.into_values (.Named m) (some s) ⦃ r => ∃ e, r = .Err (.Missing e) ∧
       e.val = intoValuesMissing m (s.val.map (·.val)) ∧
       e.val ∈ s.val.map (·.val) ∧ Trusted.paramsMapLookup m e.val = none ⦄ := by
-  sorry
+  refine WP.spec_mono (iv_named_spec m (s := s) (by
+    obtain ⟨n, hn, _⟩ := h; exact List.ne_nil_of_mem hn)) ?_
+  intro r ⟨_, h2⟩
+  exact h2 h
 
 /-- Quirk: with names `[a, b, c]` where only `a` has a value, `into_values` reports `c`, not
     the first missing name `b`. -/
@@ -92,7 +96,17 @@ theorem params.Params.into_values_quirk_last (m : Trusted.ParamsMap)
     (hc : Trusted.paramsMapLookup m c = none) :
     params.Params.into_values (.Named m) (some s) ⦃ r => ∃ e, r = .Err (.Missing e) ∧
       e.val = c ⦄ := by
-  sorry
+  have hn : ∃ n ∈ s.val, Trusted.paramsMapLookup m n.val = none := by
+    have : b ∈ s.val.map (·.val) := by rw [hs]; simp
+    obtain ⟨n, hn, hnb⟩ := List.mem_map.mp this
+    exact ⟨n, hn, by rw [hnb]; exact hb⟩
+  refine WP.spec_mono (params.Params.into_values_named_missing m s hn) ?_
+  rintro r ⟨e, hr, he, -, -⟩
+  refine ⟨e, hr, ?_⟩
+  rw [he, hs]
+  have hna : Trusted.paramsMapLookup m a ≠ none := by
+    intro h; rw [h] at ha; exact absurd ha (by simp)
+  simp [intoValuesMissing, List.findIdx?_cons, hna, hb, hc]
 
 /-- `into_positional` (deprecated) of `Params::Empty` or `Params::Positional`: unchanged (the
     statement's names are not checked, unlike `into_values`). -/

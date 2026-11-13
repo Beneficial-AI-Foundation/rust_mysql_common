@@ -811,4 +811,770 @@ theorem ip_outer_spec (ns : Slice (alloc.vec.Vec U8)) (m : Trusted.ParamsMap) :
         · exact hr
         · rw [hfind val hv, ← hi3]; exact hr
 
+
+/-! ## `sort_indexes` (insertion sort) -/
+
+/-- Sorted by value. -/
+abbrev SortedV (l : List Usize) : Prop := l.Pairwise (fun a b => a.val ≤ b.val)
+
+theorem swap_adj_spec (s : Slice Usize) (i j : Usize) (A : List Usize) (a x : Usize) (R : List Usize)
+    (hs : s.val = A ++ a :: x :: R) (hA : A.length = i.val) (hij : i.val + 1 = j.val) :
+    core.slice.Slice.swap s i j ⦃ s' => s'.val = A ++ x :: a :: R ⦄ := by
+  have hlen : s.length = A.length + 2 + R.length := by simp [Slice.length, hs]; omega
+  unfold core.slice.Slice.swap
+  step with Slice.index_usize_spec s i (by omega) as ⟨av, hav⟩
+  step with Slice.index_usize_spec s j (by omega) as ⟨bv, hbv⟩
+  step with Slice.update_spec s i bv (by omega) as ⟨s1, hs1⟩
+  step with Slice.update_spec s1 j av (by rw [hs1]; simp [Slice.length] at hlen ⊢; omega) as ⟨s2, hs2⟩
+  have ha : av = a := by rw [hav]; simp [hs, ← hA]
+  have hb : bv = x := by rw [hbv]; simp [hs, ← hij, ← hA]
+  rw [hs2, hs1, ha, hb]
+  simp only [Slice.set_val_eq, hs, ← hA]
+  rw [List.set_append_right _ _ (by omega), List.set_append_right _ _ (by omega)]
+  simp [← hij, ← hA]
+
+theorem sort_inner_spec : ∀ (n : Nat) (v : Slice Usize) (j : Usize) (A : List Usize) (x : Usize)
+    (B C : List Usize), j.val = n → v.val = A ++ x :: (B ++ C) → A.length = j.val →
+    SortedV (A ++ B) → (∀ b ∈ B, x.val < b.val) →
+    params.sort_indexes_loop0_loop0 v j ⦃ r => ∃ L, r.val = L ++ C ∧ SortedV L ∧
+      L.Perm (x :: (A ++ B)) ⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro v j A x B C hj hv hA hs hB
+    have hA0 : A = [] := List.eq_nil_of_length_eq_zero (by omega)
+    subst hA0
+    unfold params.sort_indexes_loop0_loop0
+    rw [loop]
+    simp only
+    rw [params.sort_indexes_loop0_loop0.body]
+    have : ¬ j > 0#usize := by scalar_tac
+    simp only [this, ↓reduceIte, Std.bind_ok, WP.spec_ok]
+    refine ⟨x :: B, by simp [hv], ?_, List.Perm.refl _⟩
+    simp only [List.nil_append] at hs
+    exact List.pairwise_cons.mpr ⟨fun b hb => Nat.le_of_lt (hB b hb), hs⟩
+  | succ n ih =>
+    intro v j A x B C hj hv hA hs hB
+    obtain ⟨A', a, rfl⟩ : ∃ A' a, A = A' ++ [a] := by
+      rcases List.eq_nil_or_concat A with h | ⟨L, b, h⟩
+      · subst h; simp at hA; omega
+      · exact ⟨L, b, by simpa using h⟩
+    unfold params.sort_indexes_loop0_loop0
+    rw [loop]
+    simp only
+    rw [params.sort_indexes_loop0_loop0.body]
+    have hgt : j > 0#usize := by scalar_tac
+    simp only [hgt, ↓reduceIte]
+    simp only [List.length_append, List.length_singleton] at hA
+    have hvl : v.length = A'.length + 2 + B.length + C.length := by
+      simp [Slice.length, hv]; omega
+    step as ⟨i, hi⟩
+    step with Slice.index_usize_spec v i (by scalar_tac) as ⟨i1, hi1⟩
+    step with Slice.index_usize_spec v j (by scalar_tac) as ⟨i2, hi2⟩
+    have hi1' : i1 = a := by rw [hi1]; simp [hv, hi, ← hA]
+    have hi2' : i2 = x := by rw [hi2]; simp [hv, ← hA]
+    subst hi1' hi2'
+    split
+    · rename_i hax
+      step with swap_adj_spec v i j A' i1 i2 (B ++ C) (by simp [hv]) (by scalar_tac) (by scalar_tac)
+        as ⟨v1, hv1⟩
+      have := ih v1 i A' i2 (i1 :: B) C (by scalar_tac) (by simp [hv1]) (by scalar_tac)
+        (by simpa using hs) (by
+          intro b hb
+          rcases List.mem_cons.mp hb with rfl | hb
+          · scalar_tac
+          · exact hB b hb)
+      unfold params.sort_indexes_loop0_loop0 at this
+      refine WP.spec_mono this ?_
+      rintro r ⟨L, h1, h2, h3⟩
+      refine ⟨L, h1, h2, h3.trans ?_⟩
+      simp only [List.append_assoc, List.singleton_append]
+      exact List.Perm.refl _
+    · rename_i hax
+      simp only [Std.bind_ok, WP.spec_ok]
+      refine ⟨A' ++ [i1] ++ i2 :: B, by simp [hv], ?_, List.perm_middle⟩
+      unfold SortedV at hs ⊢
+      rw [List.pairwise_append]
+      refine ⟨(List.pairwise_append.mp hs).1, ?_, ?_⟩
+      · exact List.pairwise_cons.mpr ⟨fun b hb => Nat.le_of_lt (hB b hb),
+          (List.pairwise_append.mp hs).2.1⟩
+      · intro y hy z hz
+        have hpa := (List.pairwise_append.mp (List.pairwise_append.mp hs).1)
+        have hle : y.val ≤ i1.val := by
+          rcases List.mem_append.mp hy with hy | hy
+          · exact hpa.2.2 y hy i1 (by simp)
+          · simp at hy; subst hy; exact le_refl _
+        rcases List.mem_cons.mp hz with rfl | hz
+        · have : ¬ i1 > z := hax
+          scalar_tac
+        · exact (List.pairwise_append.mp hs).2.2 y hy z hz
+
+theorem sort_outer_spec : ∀ (n : Nat) (v : Slice Usize) (i : Usize), v.length - i.val = n →
+    SortedV (v.val.take i.val) →
+    params.sort_indexes_loop0 v i ⦃ r => r.val.Perm v.val ∧ SortedV r.val ⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro v i hn hs
+    unfold params.sort_indexes_loop0
+    rw [loop]
+    simp only
+    rw [params.sort_indexes_loop0.body]
+    have : ¬ i.val < v.length := by omega
+    have ht : v.val.take i.val = v.val := List.take_of_length_le (by simp only [Slice.length] at this; omega)
+    split
+    · exfalso; scalar_tac
+    · simp only [Std.bind_ok, WP.spec_ok]
+      exact ⟨List.Perm.refl _, ht ▸ hs⟩
+  | succ n ih =>
+    intro v i hn hs
+    unfold params.sort_indexes_loop0
+    rw [loop]
+    simp only
+    rw [params.sort_indexes_loop0.body]
+    have hlt : i.val < v.length := by omega
+    rw [ite_eq_left_of_eq_true _ _ (eq_true (by simp only [Slice.len]; exact hlt))]
+    have hv : v.val = v.val.take i.val ++ v.val[i.val]'(by simpa using hlt) :: ([] ++ v.val.drop (i.val + 1)) := by
+      simp
+    step with sort_inner_spec i.val v i (v.val.take i.val) (v.val[i.val]'(by simpa using hlt)) [] _ rfl hv
+      (by simp only [Slice.length] at hlt; simp; omega) (by simpa using hs) (by simp) as ⟨v1, L, h1, h2, h3⟩
+    step as ⟨i2, hi2⟩
+    have hL : L.length = i.val + 1 := by
+      rw [h3.length_eq]; simp only [Slice.length] at hlt; simp; omega
+    have hperm : v1.val.Perm v.val := by
+      have e : v.val = v.val.take i.val ++ v.val[i.val]'(by simpa using hlt) :: v.val.drop (i.val + 1) := by
+        simp
+      rw [h1]
+      refine (List.Perm.append_right _ h3).trans ?_
+      rw [List.append_nil, List.cons_append]
+      exact List.perm_middle.symm.trans (e ▸ List.Perm.refl _)
+    have := ih v1 i2 (by
+        rw [hi2]; have := hperm.length_eq; simp only [Slice.length] at hn this ⊢; omega)
+      (by rw [hi2, h1, List.take_left' hL]; exact h2)
+    unfold params.sort_indexes_loop0 at this
+    refine WP.spec_mono this ?_
+    rintro r ⟨hr1, hr2⟩
+    exact ⟨hr1.trans hperm, hr2⟩
+
+theorem sort_indexes_spec (v : Slice Usize) :
+    params.sort_indexes v ⦃ r => r.val.Perm v.val ∧ SortedV r.val ⦄ := by
+  unfold params.sort_indexes
+  exact sort_outer_spec _ v 1#usize rfl (by
+    rcases hv : v.val with _ | ⟨a, l⟩
+    · simp
+    · simp)
+
+/-! ## `into_values`: the search for the first missing index -/
+
+theorem iv_loop1_spec (S : alloc.vec.Vec Usize) : ∀ (n : Nat) (m : Usize), S.length - m.val = n →
+    m.val ≤ S.length →
+    (∀ k < m.val, (S.val[k]?).map (·.val) = some k) →
+    params.Params.into_values_loop1 S m ⦃ r => r.val ≤ S.length ∧
+      (∀ k < r.val, (S.val[k]?).map (·.val) = some k) ∧
+      (r.val < S.length → (S.val[r.val]?).map (·.val) ≠ some r.val) ⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro m hn hm hk
+    unfold params.Params.into_values_loop1
+    rw [loop]
+    rw [params.Params.into_values_loop1.body]
+    split
+    · exfalso; scalar_tac
+    · simp only [Std.bind_ok, WP.spec_ok]
+      exact ⟨hm, hk, fun h => by omega⟩
+  | succ n ih =>
+    intro m hn hm hk
+    unfold params.Params.into_values_loop1
+    rw [loop]
+    rw [params.Params.into_values_loop1.body]
+    have hlt : m.val < S.length := by omega
+    rw [ite_eq_left_of_eq_true _ _ (eq_true (by simp only [alloc.vec.Vec.len]; exact hlt))]
+    step as ⟨i1, hi1⟩
+    have hget : S.val[m.val]? = some i1 := by rw [hi1]; simp
+    split
+    · rename_i heq
+      step as ⟨m1, hm1⟩
+      have := ih m1 (by rw [hm1]; omega) (by rw [hm1]; omega) (by
+        intro k hk'
+        rcases Nat.lt_or_ge k m.val with h | h
+        · exact hk k h
+        · have : k = m.val := by omega
+          subst this; rw [hget]; simp [heq])
+      unfold params.Params.into_values_loop1 at this
+      exact this
+    · rename_i hne
+      simp only [Std.bind_ok, WP.spec_ok]
+      refine ⟨by omega, hk, fun _ => ?_⟩
+      rw [hget]; simp only [Option.map_some]
+      intro h; exact hne (by simp only [Option.some.injEq] at h; scalar_tac)
+
+/-! ## `into_values`: the inner loop over the statement's names -/
+
+/-- Position `j` of the names is `k`. -/
+abbrev PosIs (ns : Slice (alloc.vec.Vec U8)) (k : List U8) (j : Nat) : Prop :=
+  (ns.val[j]?).map (·.val) = some k
+
+theorem iv_inner_spec (ns : Slice (alloc.vec.Vec U8)) (nm : alloc.vec.Vec U8) (val : value.Value) :
+    ∀ (n : Nat) (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Usize)
+      (first : Option Usize) (i : Usize),
+    ns.length - i.val = n → i.val ≤ ns.length → values.length = ns.length →
+    (∀ f, first = some f → f.val < i.val) →
+    indexes.length + ((List.range' i.val (ns.length - i.val)).filter (fun j => PosIs ns nm.val j)).length
+      ≤ Usize.max →
+    params.Params.into_values_loop0_loop0 ns values indexes nm val first i ⦃ values' indexes' first' =>
+      indexes'.val.map (·.val) = indexes.val.map (·.val) ++
+        (List.range' i.val (ns.length - i.val)).filter (fun j => PosIs ns nm.val j) ∧
+      first'.map (·.val) = (first.map (·.val)).or
+        ((List.range' i.val (ns.length - i.val)).find? (fun j => PosIs ns nm.val j)) ∧
+      values'.length = ns.length ∧
+      ∀ j, values'.val[j]? = if i.val ≤ j ∧ PosIs ns nm.val j ∧ first'.map (·.val) ≠ some j
+        then (if j < ns.length then some val else none) else values.val[j]? ⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro values indexes first i hn hi hvl hf hlen
+    unfold params.Params.into_values_loop0_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_values_loop0_loop0.body.eq_def]
+    have he : ns.length - i.val = 0 := hn
+    rw [ite_eq_right_of_eq_false _ _ (eq_false (by simp only [Slice.len]; scalar_tac))]
+    simp only [Std.bind_ok, WP.spec_ok, he, List.range'_zero, List.filter_nil, List.append_nil,
+      List.find?_nil, Option.or_none]
+    refine ⟨rfl, rfl, hvl, fun j => ?_⟩
+    · split
+      · rename_i hc
+        exfalso
+        obtain ⟨h1, h2, _⟩ := hc
+        have : j < ns.val.length := by
+          unfold PosIs at h2
+          cases h : ns.val[j]? with
+          | none => simp [h] at h2
+          | some _ => exact (List.getElem?_eq_some_iff.mp h).1
+        simp only [Slice.length] at he; omega
+      · rfl
+  | succ n ih =>
+    intro values indexes first i hn hi hvl hf hlen
+    have hlt : i.val < ns.length := by omega
+    have hr : List.range' i.val (ns.length - i.val) = i.val :: List.range' (i.val + 1) (ns.length - (i.val + 1)) := by
+      rw [show ns.length - i.val = (ns.length - (i.val + 1)) + 1 by omega, List.range'_succ]
+    unfold params.Params.into_values_loop0_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_values_loop0_loop0.body.eq_def]
+    rw [ite_eq_left_of_eq_true _ _ (eq_true (by simp only [Slice.len]; exact hlt))]
+    step as ⟨v, hv⟩
+    step with slice_u8_eq_spec (alloc.vec.Vec.deref v) (alloc.vec.Vec.deref nm) as ⟨b, hb⟩
+    rw [CBTUtil.vec_deref_val, CBTUtil.vec_deref_val] at hb
+    have hgi : ns.val[i.val]? = some v := by rw [hv]; simp
+    have hpos : PosIs ns nm.val i.val ↔ b = true := by
+      unfold PosIs; rw [hgi, hb]; simp
+    rw [hr] at hlen ⊢
+    split
+    · rename_i hbt
+      have hP : PosIs ns nm.val i.val := hpos.mpr hbt
+      rw [List.filter_cons_of_pos (by simpa using hP), List.length_cons] at hlen
+      step with alloc.vec.Vec.push_spec indexes i (by simp at hlen ⊢; omega) as ⟨ix2, hix2⟩
+      rw [List.filter_cons_of_pos (by simpa using hP), List.find?_cons_of_pos (by simpa using hP)]
+      cases first with
+      | none =>
+        simp only [Std.bind_ok]
+        step as ⟨i2, hi2⟩
+        have hn2 : ns.length - i2.val = n := by rw [hi2, Nat.sub_add_eq, hn, Nat.add_sub_cancel]
+        have := ih values ix2 (some i) i2 hn2 (by rw [hi2]; exact Nat.succ_le_of_lt hlt) hvl
+          (fun f hf' => by cases hf'; rw [hi2]; omega)
+          (by rw [hi2]; simp [hix2] at hlen ⊢; omega)
+        unfold params.Params.into_values_loop0_loop0 at this
+        refine WP.spec_mono this ?_
+        rintro ⟨values', indexes', first'⟩ ⟨h1, h2, h3, h4⟩
+        simp only [Option.map_some, Option.some_or] at h2
+        refine ⟨by rw [h1, hix2, hi2]; simp, by rw [h2]; simp, h3, ?_⟩
+        intro j
+        rw [h4 j, hi2, h2]
+        by_cases hj : j = i.val
+        · subst hj; simp
+        · by_cases hij : i.val ≤ j
+          · simp [show i.val + 1 ≤ j by omega, hij, Ne.symm hj]
+          · simp [show ¬ i.val + 1 ≤ j by omega, hij]
+      | some f =>
+        simp only [value_clone_eq, Std.bind_ok]
+        step with alloc.vec.Vec.index_mut_usize_spec values i (by omega) as ⟨p, hp1, hp2⟩
+        obtain ⟨p1, back⟩ := p
+        simp only at hp2 ⊢
+        subst hp2
+        step as ⟨i2, hi2⟩
+        have hn2 : ns.length - i2.val = n := by rw [hi2, Nat.sub_add_eq, hn, Nat.add_sub_cancel]
+        have hfi : f.val < i.val := hf f rfl
+        have := ih (values.set i val) ix2 (some f) i2 hn2 (by rw [hi2]; exact Nat.succ_le_of_lt hlt)
+          (by simp [hvl]) (fun f' hf' => by cases hf'; rw [hi2]; omega)
+          (by rw [hi2]; simp [hix2] at hlen ⊢; omega)
+        unfold params.Params.into_values_loop0_loop0 at this
+        refine WP.spec_mono this ?_
+        rintro ⟨values', indexes', first'⟩ ⟨h1, h2, h3, h4⟩
+        simp only [Option.map_some, Option.some_or] at h2
+        refine ⟨by rw [h1, hix2, hi2]; simp, by rw [h2]; simp, h3, ?_⟩
+        intro j
+        rw [h4 j, hi2, h2]
+        by_cases hj : j = i.val
+        · subst hj
+          have hvi : i.val < values.val.length := by simp only [alloc.vec.Vec.length] at hvl; omega
+          have hnmi : (ns.val[i.val]'(by simpa using hlt)).val = nm.val := by
+            have := hP; unfold PosIs at this; rw [hgi] at this; simpa [hv] using this
+          simp [alloc.vec.Vec.set_val_eq, hlt, show f.val ≠ i.val by omega, hvi, hnmi]
+        · by_cases hij : i.val ≤ j
+          · simp [show i.val + 1 ≤ j by omega, hij, alloc.vec.Vec.set_val_eq, Ne.symm hj]
+          · simp [show ¬ i.val + 1 ≤ j by omega, hij, alloc.vec.Vec.set_val_eq, Ne.symm hj]
+    · rename_i hbf
+      have hP : ¬ PosIs ns nm.val i.val := fun h => hbf (hpos.mp h)
+      simp only [hP, decide_false, Bool.false_eq_true, not_false_eq_true, List.filter_cons_of_neg] at hlen ⊢
+      step as ⟨i2, hi2⟩
+      have hn2 : ns.length - i2.val = n := by rw [hi2, Nat.sub_add_eq, hn, Nat.add_sub_cancel]
+      have := ih values indexes first i2 hn2 (by rw [hi2]; exact Nat.succ_le_of_lt hlt) hvl
+        (fun f hf' => by have := hf f hf'; rw [hi2]; omega) (by rw [hi2]; exact hlen)
+      unfold params.Params.into_values_loop0_loop0 at this
+      refine WP.spec_mono this ?_
+      rintro ⟨values', indexes', first'⟩ ⟨h1, h2, h3, h4⟩
+      refine ⟨by rw [h1, hi2], by rw [h2, hi2, List.find?_cons_of_neg (by simpa using hP)], h3, ?_⟩
+      intro j
+      rw [h4 j, hi2]
+      by_cases hj : j = i.val
+      · subst hj; simp [hP]
+      · by_cases hij : i.val ≤ j
+        · simp [show i.val + 1 ≤ j by omega, hij]
+        · simp [show ¬ i.val + 1 ≤ j by omega, hij]
+
+/-! ## `into_values`: the outer loop over the map's entries -/
+
+/-- The positions of the names equal to `k`. -/
+abbrev posOf (ns : Slice (alloc.vec.Vec U8)) (k : List U8) : List Nat :=
+  (List.range ns.length).filter (fun j => PosIs ns k j)
+
+/-- The value for name `n` after the entries `P`. -/
+abbrev Lv (P : List (alloc.vec.Vec U8 × value.Value)) (n : alloc.vec.Vec U8) : value.Value :=
+  ((P.find? (fun e => e.1.val = n.val)).map (·.2)).getD .NULL
+
+theorem ite_t {α : Sort _} {c : Prop} [Decidable c] {a b : α} (h : c) : (if c then a else b) = a := by
+  simp [h]
+
+theorem ite_f {α : Sort _} {c : Prop} [Decidable c] {a b : α} (h : ¬ c) : (if c then a else b) = b := by
+  simp [h]
+
+theorem posIs_lt {ns : Slice (alloc.vec.Vec U8)} {k : List U8} {j : Nat} (h : PosIs ns k j) :
+    j < ns.length := by
+  unfold PosIs at h
+  cases hj : ns.val[j]? with
+  | none => simp [hj] at h
+  | some _ => exact (List.getElem?_eq_some_iff.mp hj).1
+
+theorem iv_entry_spec {β : Type} (ns : Slice (alloc.vec.Vec U8)) (nm : alloc.vec.Vec U8) (val : value.Value)
+    (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Usize)
+    (hvl : values.length = ns.length) (hlen : indexes.length + (posOf ns nm.val).length ≤ Usize.max)
+    (K : alloc.vec.Vec value.Value → alloc.vec.Vec Usize → Result β) (Q : β → Prop)
+    (hK : ∀ values'' indexes'',
+      indexes''.val.map (·.val) = indexes.val.map (·.val) ++ posOf ns nm.val →
+      values''.length = ns.length →
+      (∀ j, values''.val[j]? = if PosIs ns nm.val j then some val else values.val[j]?) →
+      K values'' indexes'' ⦃ Q ⦄) :
+    (do
+      let (values1, indexes1, first) ←
+        params.Params.into_values_loop0_loop0 ns values indexes nm val none 0#usize
+      match first with
+      | none => K values1 indexes1
+      | some first1 => do
+        let (_, index_mut_back) ← alloc.vec.Vec.index_mut_usize values1 first1
+        K (index_mut_back val) indexes1) ⦃ Q ⦄ := by
+  have hr : List.range' 0 (ns.length - 0) = List.range ns.length := by
+    simp [List.range_eq_range']
+  step with iv_inner_spec ns nm val ns.length values indexes none 0#usize (by simp) (by simp) hvl
+    (by simp) (by simpa [List.range_eq_range', posOf, PosIs] using hlen) as ⟨values', indexes', first', h1, h2, h3, h4⟩
+  rw [hr] at h1 h2
+  simp only [Option.map_none, Option.none_or] at h2
+  simp only [Nat.zero_le, true_and] at h4
+  cases first' with
+  | none =>
+    refine hK _ _ h1 h3 (fun j => ?_)
+    rw [h4 j]
+    by_cases hp : PosIs ns nm.val j
+    · exfalso
+      have := List.find?_eq_none.mp h2.symm j (List.mem_range.mpr (posIs_lt hp))
+      simp at this
+      obtain ⟨x, hx, hxv⟩ : ∃ x, ns.val[j]? = some x ∧ x.val = nm.val := by unfold PosIs at hp; simpa using hp
+      exact this x hx hxv
+    · simp [hp]
+  | some f =>
+    simp only [Option.map_some] at h2
+    have hf := List.find?_some h2.symm
+    have hfl : f.val < ns.length := List.mem_range.mp (List.mem_of_find?_eq_some h2.symm)
+    step with alloc.vec.Vec.index_mut_usize_spec values' f (by omega) as ⟨x, back, hx, hback⟩
+    subst hback
+    refine hK _ _ h1 (by simp [h3]) (fun j => ?_)
+    have hfp : PosIs ns nm.val f.val := by simpa using hf
+    by_cases hj : f.val = j
+    · subst hj
+      rw [ite_t hfp, alloc.vec.Vec.set_val_eq, List.getElem?_set_self (by simp only [alloc.vec.Vec.length] at h3; omega)]
+    · rw [alloc.vec.Vec.set_val_eq, List.getElem?_set_ne hj, h4 j]
+      by_cases hp : PosIs ns nm.val j
+      · rw [ite_t ⟨hp, by simpa using hj⟩, ite_t hp, ite_t (posIs_lt hp)]
+      · rw [ite_f (fun h => hp h.1), ite_f hp]
+
+theorem iv_outer_spec (ns : Slice (alloc.vec.Vec U8)) :
+    ∀ (R P : List (alloc.vec.Vec U8 × value.Value))
+      (iter : alloc.vec.into_iter.IntoIter (alloc.vec.Vec U8 × value.Value))
+      (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Usize),
+    iter.val = R → ((P ++ R).map (·.1.val)).Nodup →
+    ((P ++ R).flatMap (fun e => posOf ns e.1.val)).length ≤ Usize.max →
+    values.length = ns.length →
+    (∀ j : Nat, values.val[j]? = (ns.val[j]?).map (Lv P)) →
+    indexes.val.map (·.val) = P.flatMap (fun e => posOf ns e.1.val) →
+    params.Params.into_values_loop0 iter ns values indexes ⦃ values' indexes' =>
+      values'.length = ns.length ∧ (∀ j : Nat, values'.val[j]? = (ns.val[j]?).map (Lv (P ++ R))) ∧
+      indexes'.val.map (·.val) = (P ++ R).flatMap (fun e => posOf ns e.1.val) ⦄ := by
+  intro R
+  induction R with
+  | nil =>
+    intro P iter values indexes hit hnd hlen hvl hv hix
+    unfold params.Params.into_values_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_values_loop0.body.eq_def]
+    step with next_spec iter as ⟨p, ho, hit'⟩
+    obtain ⟨o, it'⟩ := p
+    simp only [hit, List.head?_nil] at ho ⊢
+    subst ho
+    simp only [Std.uncurry_apply_pair, Std.bind_ok, WP.spec_ok, WP.uncurry'_pair, List.append_nil]
+    exact ⟨hvl, hv, hix⟩
+  | cons e R ih =>
+    intro P iter values indexes hit hnd hlen hvl hv hix
+    obtain ⟨k, v⟩ := e
+    unfold params.Params.into_values_loop0
+    rw [loop]
+    simp only
+    rw [params.Params.into_values_loop0.body.eq_def]
+    step with next_spec iter as ⟨p, ho, hit'⟩
+    obtain ⟨o, it'⟩ := p
+    simp only [hit, List.head?_cons, List.tail_cons] at ho hit' ⊢
+    subst ho
+    simp only [Std.uncurry_apply_pair]
+    have hkP : ∀ e ∈ P, e.1.val ≠ k.val := by
+      intro e he heq
+      have := List.nodup_middle.mp (by simpa using hnd)
+      simp only [List.nodup_cons, List.mem_map, List.mem_append] at this
+      exact this.1 (Or.inl ⟨e, he, heq⟩)
+    have hlen1 : indexes.length + (posOf ns k.val).length ≤ Usize.max := by
+      have : indexes.length = (P.flatMap (fun e => posOf ns e.1.val)).length := by
+        rw [← hix]; simp
+      rw [this]
+      simp only [List.flatMap_append, List.flatMap_cons, List.length_append] at hlen
+      omega
+    apply WP.spec_bind (Pₘ := fun r => ∃ values'' indexes'', r = .cont (it', values'', indexes'') ∧
+      indexes''.val.map (·.val) = indexes.val.map (·.val) ++ posOf ns k.val ∧
+      values''.length = ns.length ∧
+      (∀ j, values''.val[j]? = if PosIs ns k.val j then some v else values.val[j]?))
+    · exact iv_entry_spec ns k v values indexes hvl hlen1 (fun a b => ok (ControlFlow.cont (it', a, b))) _
+        (fun a b h1 h2 h3 => (WP.spec_ok _).mpr ⟨a, b, rfl, h1, h2, h3⟩)
+    · rintro r ⟨values'', indexes'', rfl, h1, h2, h3⟩
+      simp only
+      have := ih (P ++ [(k, v)]) it' values'' indexes'' hit' (by simpa using hnd) (by simpa using hlen) h2
+        (fun j => by
+          rw [h3 j, hv j]
+          by_cases hp : PosIs ns k.val j
+          · rw [ite_t hp]
+            obtain ⟨w, hw, hwk⟩ : ∃ w, ns.val[j]? = some w ∧ w.val = k.val := by
+              unfold PosIs at hp; simpa using hp
+            have hnone : P.find? (fun e => e.1.val = k.val) = none := by
+              rw [List.find?_eq_none]; intro e he; simpa using hkP e he
+            rw [hw]
+            simp [Lv, List.find?_append, hnone, hwk]
+          · rw [ite_f hp]
+            rcases Option.eq_none_or_eq_some (ns.val[j]?) with hw | ⟨w, hw⟩
+            · rw [hw]; rfl
+            · have hne : ¬ w.val = k.val := fun h => hp (by unfold PosIs; rw [hw]; simp [h])
+              rw [hw]
+              simp [Lv, List.find?_append, Ne.symm hne])
+        (by rw [h1, hix]; simp)
+      unfold params.Params.into_values_loop0 at this
+      refine WP.spec_mono this ?_
+      rintro ⟨a, b⟩ ⟨h1', h2', h3'⟩
+      exact ⟨h1', by simpa using h2', by simpa using h3'⟩
+
+/-! ## `into_values`: combinatorics of the found positions -/
+
+theorem first_missing (T : List Nat) (hlt : T.Pairwise (· < ·)) (m : Nat) (hm : m ≤ T.length)
+    (hk : ∀ k < m, T[k]? = some k) (hne : m < T.length → T[m]? ≠ some m) :
+    (∀ k < m, k ∈ T) ∧ m ∉ T ∧ (m < T.length → ∃ j ∈ T, m < j) ∧ (m = T.length → ∀ j ∈ T, j < m) := by
+  have hpw := List.pairwise_iff_getElem.mp hlt
+  have hge : ∀ h : m < T.length, m ≤ T[m] := by
+    intro h
+    rcases Nat.eq_zero_or_pos m with h0 | h0
+    · omega
+    · have h1 := hk (m - 1) (by omega)
+      obtain ⟨h1', h1''⟩ := List.getElem?_eq_some_iff.mp h1
+      have := hpw (m - 1) m h1' h (by omega)
+      omega
+  have hne' : ∀ h : m < T.length, T[m] ≠ m := by
+    intro h heq; exact hne h (by rw [List.getElem?_eq_getElem h, heq])
+  refine ⟨fun k hkm => List.mem_iff_getElem?.mpr ⟨k, hk k hkm⟩, ?_, ?_, ?_⟩
+  · intro hmem
+    obtain ⟨p, hp⟩ := List.mem_iff_getElem?.mp hmem
+    obtain ⟨hp1, hp2⟩ := List.getElem?_eq_some_iff.mp hp
+    rcases Nat.lt_trichotomy p m with h | h | h
+    · have := hk p h; rw [hp] at this; cases this; omega
+    · subst h; exact hne' hp1 hp2
+    · have := hpw m p (by omega) hp1 h
+      have := hge (by omega)
+      omega
+  · intro h
+    exact ⟨T[m], List.getElem_mem h, by have := hge h; have := hne' h; omega⟩
+  · intro h j hj
+    obtain ⟨p, hp⟩ := List.mem_iff_getElem?.mp hj
+    obtain ⟨hp1, hp2⟩ := List.getElem?_eq_some_iff.mp hp
+    have := hk p (by omega)
+    rw [hp] at this; cases this; omega
+
+theorem lookup_isSome_iff (m : Trusted.ParamsMap) (k : List U8) :
+    (Trusted.paramsMapLookup m k).isSome ↔ ∃ e ∈ Trusted.paramsMapEntries m, e.1.val = k := by
+  constructor
+  · intro h
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp h
+    obtain ⟨e, he, hk, _⟩ := (lookup_some_iff m k v).mp hv
+    exact ⟨e, he, hk⟩
+  · rintro ⟨e, he, hk⟩
+    rw [(lookup_some_iff m k e.2).mpr ⟨e, he, hk, rfl⟩]; rfl
+
+theorem mem_posOf (ns : Slice (alloc.vec.Vec U8)) (k : List U8) (j : Nat) :
+    j ∈ posOf ns k ↔ ∃ h : j < ns.length, (ns.val[j]'h).val = k := by
+  simp only [posOf, List.mem_filter, List.mem_range, decide_eq_true_eq, PosIs]
+  constructor
+  · rintro ⟨h, h2⟩
+    refine ⟨h, ?_⟩
+    rw [List.getElem?_eq_getElem h] at h2; simpa using h2
+  · rintro ⟨h, h2⟩
+    exact ⟨h, by rw [List.getElem?_eq_getElem h]; simpa using h2⟩
+
+theorem found_facts (ns : Slice (alloc.vec.Vec U8)) (m : Trusted.ParamsMap) :
+    ((Trusted.paramsMapEntries m).flatMap (fun e => posOf ns e.1.val)).Nodup ∧
+    (∀ j, j ∈ (Trusted.paramsMapEntries m).flatMap (fun e => posOf ns e.1.val) ↔
+      ∃ h : j < ns.length, (Trusted.paramsMapLookup m (ns.val[j]'h).val).isSome) ∧
+    ((Trusted.paramsMapEntries m).flatMap (fun e => posOf ns e.1.val)).length ≤ ns.length := by
+  have hmem : ∀ j, j ∈ (Trusted.paramsMapEntries m).flatMap (fun e => posOf ns e.1.val) ↔
+      ∃ h : j < ns.length, (Trusted.paramsMapLookup m (ns.val[j]'h).val).isSome := by
+    intro j
+    rw [List.mem_flatMap]
+    constructor
+    · rintro ⟨e, he, hj⟩
+      obtain ⟨h, hk⟩ := (mem_posOf ns _ j).mp hj
+      exact ⟨h, (lookup_isSome_iff m _).mpr ⟨e, he, hk.symm⟩⟩
+    · rintro ⟨h, hs⟩
+      obtain ⟨e, he, hk⟩ := (lookup_isSome_iff m _).mp hs
+      exact ⟨e, he, (mem_posOf ns _ j).mpr ⟨h, hk.symm⟩⟩
+  have hnd : ((Trusted.paramsMapEntries m).flatMap (fun e => posOf ns e.1.val)).Nodup := by
+    rw [List.nodup_flatMap]
+    refine ⟨fun e _ => (List.nodup_range).filter _, ?_⟩
+    have hk := Trusted.paramsMapEntries_keys_nodup m
+    rw [List.Nodup, List.pairwise_map] at hk
+    refine hk.imp ?_
+    intro a b hab
+    simp only [Function.onFun]
+    rw [List.disjoint_left]
+    intro j ha hb
+    obtain ⟨h1, h1'⟩ := (mem_posOf ns _ j).mp ha
+    obtain ⟨h2, h2'⟩ := (mem_posOf ns _ j).mp hb
+    exact hab (h1'.symm.trans h2')
+  refine ⟨hnd, hmem, ?_⟩
+  have hsub : (Trusted.paramsMapEntries m).flatMap (fun e => posOf ns e.1.val) ⊆ List.range ns.length := by
+    intro j hj
+    obtain ⟨h, _⟩ := (hmem j).mp hj
+    exact List.mem_range.mpr h
+  have := (hnd.subperm hsub).length_le
+  simpa using this
+
+/-! ## `into_values` of `Params::Named` -/
+
+theorem iv_named_spec (m : Trusted.ParamsMap) (s : Slice (alloc.vec.Vec U8)) (hne : s.val ≠ []) :
+    params.Params.into_values (.Named m) (some s) ⦃ r =>
+      ((∀ n ∈ s.val, (Trusted.paramsMapLookup m n.val).isSome) → ∃ v, r = .Ok v ∧
+        v.val.map some = s.val.map (fun n => Trusted.paramsMapLookup m n.val)) ∧
+      ((∃ n ∈ s.val, Trusted.paramsMapLookup m n.val = none) → ∃ e, r = .Err (.Missing e) ∧
+        e.val = intoValuesMissing m (s.val.map (·.val)) ∧
+        e.val ∈ s.val.map (·.val) ∧ Trusted.paramsMapLookup m e.val = none) ⦄ := by
+  obtain ⟨hInd, hmem, hIlen⟩ := found_facts s m
+  have hsl : s.length ≠ 0 := by simpa [Slice.length] using hne
+  unfold params.Params.into_values
+  simp only [core.slice.Slice.is_empty, hsl, decide_false, Std.bind_ok, Bool.false_eq_true, ↓reduceIte]
+  step with alloc.vec.from_elem_spec value.Value.Insts.CoreCloneClone value.Value.NULL (Slice.len s)
+    (value_clone_eq value.Value.NULL) as ⟨values, hv1, hv2⟩
+  step with (show sql_trusted.params_map_into_entries m ⦃ v => v.val = Trusted.paramsMapEntries m ⦄ by
+    simp [sql_trusted.params_map_into_entries]) as ⟨ev, hev⟩
+  step with (show alloc.vec.IntoIteratorVec.into_iter ev ⦃ it => it.val = ev.val ⦄ from
+    (WP.spec_ok _).mpr rfl) as ⟨it, hit⟩
+  rw [hev] at hit
+  have hlenI := hIlen
+  step with iv_outer_spec s (Trusted.paramsMapEntries m) [] it values
+    (alloc.vec.Vec.with_capacity Usize (Slice.len s)) hit
+    (by simpa using Trusted.paramsMapEntries_keys_nodup m)
+    (by simp only [List.nil_append]; have := s.property; simp only [Slice.length] at hIlen; omega)
+    (by simp [hv2])
+    (fun j => by
+      rw [hv1]
+      rcases Nat.lt_or_ge j s.length with h | h
+      · rw [List.getElem?_replicate_of_lt (by simpa using h), List.getElem?_eq_getElem (by simpa using h)]
+        simp [Lv]
+      · rw [List.getElem?_eq_none (by simpa using h), List.getElem?_eq_none (by simpa [Slice.length] using h)]
+        rfl)
+    (by simp [alloc.vec.Vec.with_capacity]) as ⟨values1, indexes1, h1, h2, h3⟩
+  simp only [List.nil_append] at h2 h3
+  have hIdx : indexes1.length = ((Trusted.paramsMapEntries m).flatMap (fun e => posOf s e.1.val)).length := by
+    rw [← h3]; simp
+  -- the values, when every name has a value
+  have hvals : ∀ (hall : ∀ n ∈ s.val, (Trusted.paramsMapLookup m n.val).isSome),
+      values1.val.map some = s.val.map (fun n => Trusted.paramsMapLookup m n.val) := by
+    intro hall
+    apply List.ext_getElem?
+    intro j
+    rw [List.getElem?_map, h2 j, List.getElem?_map]
+    rcases Option.eq_none_or_eq_some (s.val[j]?) with hj | ⟨w, hj⟩
+    · rw [hj]; rfl
+    · rw [hj]
+      have hw := hall w (List.mem_of_getElem? hj)
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hw
+      simp only [Option.map_some, Option.some.injEq]
+      change some ((Trusted.paramsMapLookup m w.val).getD value.Value.NULL) = Trusted.paramsMapLookup m w.val
+      rw [hx]; rfl
+  by_cases hall : ∀ n ∈ s.val, (Trusted.paramsMapLookup m n.val).isSome
+  · have hfull : ((Trusted.paramsMapEntries m).flatMap (fun e => posOf s e.1.val)).length = s.length := by
+      apply le_antisymm hIlen
+      have hsub : List.range s.length ⊆ (Trusted.paramsMapEntries m).flatMap (fun e => posOf s e.1.val) := by
+        intro j hj
+        have hj' := List.mem_range.mp hj
+        exact (hmem j).mpr ⟨hj', hall _ (List.getElem_mem _)⟩
+      simpa using (List.nodup_range.subperm hsub).length_le
+    have hc : ¬ ((alloc.vec.Vec.len indexes1 != Slice.len s) = true) := by
+      simp only [bne_iff_ne, ne_eq, not_not]; scalar_tac
+    rw [ite_f hc]
+    apply (WP.spec_ok _).mpr
+    refine ⟨fun _ => ⟨values1, rfl, hvals hall⟩, ?_⟩
+    intro n hn hnone
+    have := hall n hn; simp [hnone] at this
+  · set I := (Trusted.paramsMapEntries m).flatMap (fun e => posOf s e.1.val) with hIdef
+    obtain ⟨n0, hn0, hn0s⟩ : ∃ n ∈ s.val, ¬ (Trusted.paramsMapLookup m n.val).isSome := by
+      simpa using hall
+    obtain ⟨j0, hj0⟩ := List.mem_iff_getElem?.mp hn0
+    obtain ⟨hj0l, hj0e⟩ := List.getElem?_eq_some_iff.mp hj0
+    have hj0I : j0 ∉ I := by
+      intro h; obtain ⟨_, hs⟩ := (hmem j0).mp h; rw [hj0e] at hs; exact hn0s hs
+    have hIlt : I.length < s.length := by
+      have hsub : I ⊆ (List.range s.length).erase j0 := by
+        intro j hj
+        obtain ⟨h, _⟩ := (hmem j).mp hj
+        exact (List.mem_erase_of_ne (fun (e : j = j0) => hj0I (e ▸ hj))).mpr (List.mem_range.mpr h)
+      have := (hInd.subperm hsub).length_le
+      rw [List.length_erase_of_mem (List.mem_range.mpr hj0l)] at this
+      simp at this; simp [Slice.length]; omega
+    have hc : (alloc.vec.Vec.len indexes1 != Slice.len s) = true := by
+      simp only [bne_iff_ne, ne_eq]; intro h
+      have : indexes1.length = s.length := by scalar_tac
+      omega
+    rw [ite_t hc]
+    simp only [lift, alloc.vec.Vec.deref_mut, Std.bind_ok]
+    step with sort_indexes_spec indexes1.slice as ⟨s1, hperm, hsorted⟩
+    step with iv_loop1_spec ⟨s1⟩ _ 0#usize rfl (by simp) (by simp) as ⟨miss, hm1, hm2, hm3⟩
+    set T := s1.val.map (·.val) with hTdef
+    have hTI : T.Perm I := by
+      rw [← h3, hTdef]; exact hperm.map _
+    have hTnd : T.Nodup := hTI.nodup_iff.mpr hInd
+    have hTlt : T.Pairwise (· < ·) := by
+      have h1 : T.Pairwise (· ≤ ·) := by rw [hTdef, List.pairwise_map]; exact hsorted
+      exact (h1.and hTnd).imp (fun ⟨a, b⟩ => Nat.lt_of_le_of_ne a b)
+    have hTlen : T.length = I.length := hTI.length_eq
+    have hfound : ∀ j (h : j < s.length), (Trusted.paramsMapLookup m (s.val[j]'h).val).isSome ↔ j ∈ T := by
+      intro j h; rw [hTI.mem_iff, hmem j]; exact ⟨fun hs => ⟨h, hs⟩, fun ⟨_, hs⟩ => hs⟩
+    have hvl : (alloc.vec.Vec.length ⟨s1⟩ : Nat) = T.length := by simp [hTdef, alloc.vec.Vec.length, alloc.vec.Vec.val]
+    have hk : ∀ k < miss.val, T[k]? = some k := by
+      intro k hk'; have := hm2 k hk'; simpa [hTdef, alloc.vec.Vec.val] using this
+    have hne' : miss.val < T.length → T[miss.val]? ≠ some miss.val := by
+      intro h; have := hm3 (by rw [hvl]; exact h); simpa [hTdef, alloc.vec.Vec.val] using this
+    obtain ⟨fa, fb, fc, fd⟩ := first_missing T hTlt miss.val (by rw [← hvl]; exact hm1) hk hne'
+    have hTs : T.length < s.length := by omega
+    set names := s.val.map (·.val) with hnames
+    have hnl : names.length = s.length := by simp [hnames, Slice.length]
+    have hfind : names.findIdx? (fun k => !(Trusted.paramsMapLookup m k).isSome) = some miss.val := by
+      rw [List.findIdx?_eq_some_iff_getElem]
+      have hml : miss.val < s.length := by
+        rcases Nat.lt_or_ge miss.val T.length with h | h
+        · omega
+        · have := hm1; rw [hvl] at this; omega
+      refine ⟨by omega, ?_, ?_⟩
+      · simp only [hnames, List.getElem_map, Bool.not_eq_true', Option.isSome_eq_false_iff,
+          Option.isNone_iff_eq_none]
+        have := (hfound miss.val hml).not.mpr fb
+        simpa using this
+      · intro k hk'
+        simp only [hnames, List.getElem_map, Bool.not_eq_true', Bool.not_eq_false]
+        exact (hfound k (by omega)).mpr (fa k hk')
+    have hnotfound : ∀ j (h : j < s.length), j ∉ T → Trusted.paramsMapLookup m (s.val[j]'h).val = none := by
+      intro j h hj
+      have := (hfound j h).not.mpr hj
+      simpa using this
+    split
+    · rename_i hlt
+      have hmT : miss.val < T.length := by rw [← hvl]; scalar_tac
+      have hml : miss.val < s.length := by omega
+      step with Slice.index_usize_spec s miss (by simpa [Slice.length] using hml) as ⟨w, hw⟩
+      simp only [vec_u8_clone_eq, Std.bind_ok, params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from,
+        WP.spec_ok]
+      refine ⟨fun h => absurd h hall, fun _ _ _ => ⟨w, rfl, ?_, ?_, ?_⟩⟩
+      · obtain ⟨j, hjT, hjm⟩ := fc hmT
+        have hjl : j < s.length := by
+          obtain ⟨h, _⟩ := (hmem j).mp (hTI.mem_iff.mp hjT); exact h
+        have hany : (names.drop (miss.val + 1)).any (fun k => (Trusted.paramsMapLookup m k).isSome) = true := by
+          rw [List.any_eq_true]
+          refine ⟨(s.val[j]'(by simpa [Slice.length] using hjl)).val, ?_, (hfound j hjl).mpr hjT⟩
+          rw [List.mem_iff_getElem?]
+          refine ⟨j - (miss.val + 1), ?_⟩
+          rw [List.getElem?_drop, show miss.val + 1 + (j - (miss.val + 1)) = j by omega, hnames,
+            List.getElem?_map, List.getElem?_eq_getElem (by simpa [Slice.length] using hjl)]
+          rfl
+        simp only [intoValuesMissing, hfind, hany, ↓reduceIte]
+        rw [hw, hnames, List.getD_eq_getElem?_getD, List.getElem?_map,
+          List.getElem?_eq_getElem (by simpa [Slice.length] using hml)]
+        rfl
+      · rw [hw]; exact List.mem_map_of_mem (List.getElem_mem _)
+      · rw [hw]; exact hnotfound miss.val hml fb
+    · rename_i hge
+      have hmT : miss.val = T.length := by
+        have : ¬ miss.val < T.length := by rw [← hvl]; scalar_tac
+        have := hm1; rw [hvl] at this; omega
+      have hsl1 : 0 < s.length := by omega
+      step as ⟨i6, hi6⟩
+      step with Slice.index_usize_spec s i6 (by simp [Slice.length] at hsl1 ⊢; scalar_tac) as ⟨w, hw⟩
+      simp only [vec_u8_clone_eq, Std.bind_ok, params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from,
+        WP.spec_ok]
+      have hi6v : i6.val = s.length - 1 := by scalar_tac
+      have hlastnf : s.length - 1 ∉ T := fun h => by have := fd hmT _ h; omega
+      refine ⟨fun h => absurd h hall, fun _ _ _ => ⟨w, rfl, ?_, ?_, ?_⟩⟩
+      · have hany : (names.drop (miss.val + 1)).any (fun k => (Trusted.paramsMapLookup m k).isSome) = false := by
+          rw [List.any_eq_false]
+          intro x hx hxs
+          obtain ⟨p, hp⟩ := List.mem_iff_getElem?.mp hx
+          rw [List.getElem?_drop, hnames, List.getElem?_map] at hp
+          rcases Option.eq_none_or_eq_some (s.val[miss.val + 1 + p]?) with h | ⟨y, h⟩
+          · rw [h] at hp; cases hp
+          · rw [h] at hp
+            simp only [Option.map_some, Option.some.injEq] at hp
+            obtain ⟨hyl, hye⟩ := List.getElem?_eq_some_iff.mp h
+            have hT := (hfound (miss.val + 1 + p) (by simpa [Slice.length] using hyl)).mp (by
+              simp only [hye, hp, hxs])
+            have := fd hmT _ hT
+            omega
+        simp only [intoValuesMissing, hfind, hany, Bool.false_eq_true, ↓reduceIte]
+        rw [hw, hnames]
+        simp only [List.getLastD_eq_getLast?, List.getLast?_eq_getElem?, List.length_map, List.getElem?_map]
+        rw [List.getElem?_eq_getElem (by simp [Slice.length] at hsl1 ⊢; omega)]
+        simp [hi6v, Slice.length]
+      · rw [hw]; exact List.mem_map_of_mem (List.getElem_mem _)
+      · rw [hw]
+        have := hnotfound (s.length - 1) (by omega) hlastnf
+        simpa [hi6v, Slice.length] using this
+
 end mysql_common.PASUtil
