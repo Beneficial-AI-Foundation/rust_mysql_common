@@ -1,10 +1,11 @@
 import Defs
+import Proofs.Util.BinlogConsts
 
-/-! Statements for `enum IncidentType and its impls` (spec file: `Specs/Binlog/Consts.lean`). Proofs: TODO. -/
+/-! Statements for `enum IncidentType and its impls` (spec file: `Specs/Binlog/Consts.lean`). Helper lemmas: `Proofs/Util/BinlogConsts.lean`. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.BinlogConstsUtil
 
 namespace mysql_common
 
@@ -14,6 +15,8 @@ theorem binlog.consts.IncidentType.Insts.CoreConvertTryFromU16UnknownIncidentTyp
       ok (match incidentTypeOfCode value.val with
         | some x => .Ok x
         | none => .Err value) := by
-  sorry
+  unfold binlog.consts.IncidentType.Insts.CoreConvertTryFromU16UnknownIncidentType.try_from
+  split <;> first | rfl |
+    simp_all [uscalar_eq_iff, uscalar_mk_val, incidentTypeOfCode, incidentTypeCode, List.find?]
 
 end mysql_common

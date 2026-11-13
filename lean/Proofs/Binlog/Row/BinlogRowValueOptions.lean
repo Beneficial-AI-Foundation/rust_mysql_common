@@ -1,10 +1,11 @@
 import Defs
+import Proofs.Util.BinlogConsts
 
-/-! Statements for `enum BinlogRowValueOptions and its impls` (spec file: `Specs/Binlog/Row.lean`). Proofs: TODO. -/
+/-! Statements for `enum BinlogRowValueOptions and its impls` (spec file: `Specs/Binlog/Row.lean`). Helper lemmas: `Proofs/Util/BinlogConsts.lean`. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.BinlogConstsUtil
 
 namespace mysql_common
 
@@ -14,6 +15,8 @@ theorem binlog.row.BinlogRowValueOptions.Insts.CoreConvertTryFromU64UnknownBinlo
       ok (match rowValueOptionsOfCode value.val with
         | some o => .Ok o
         | none => .Err value) := by
-  sorry
+  unfold binlog.row.BinlogRowValueOptions.Insts.CoreConvertTryFromU64UnknownBinlogRowValueOptions.try_from
+  split <;> first | rfl |
+    simp_all [uscalar_eq_iff, uscalar_mk_val, rowValueOptionsOfCode]
 
 end mysql_common
