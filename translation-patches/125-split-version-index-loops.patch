@@ -1,0 +1,79 @@
+Translation patch: `misc::split_version_inner` (src/misc/mod.rs): index loops and the trusted `btoi`
+
+Change: `input.split(|c| *c == b'.')` with `take(2).enumerate()` / `next()` / `?`, and `iter().position(..)`, become two helper loops `dot_or_end(input, start)` (index of the first `.` at or after `start`, else `input.len()`) and `digits_end(input)` (index of the first byte outside `b'0'..=b'9'`, else `input.len()`): the first and second parts are `input[..end0]` and `input[end0 + 1..end1]`, returning `None` if `input` has no first or no second `.`, and the third is `input[end1 + 1..end2]` truncated at `digits_end`. `btoi::btoi(chunk).ok()?` becomes a `match` on `crate::value::convert::trusted::btoi_u8(chunk)` (patch 40's helper, `btoi::btoi::<u8>(chunk).ok()`).
+Why: Aeneas does not model `split`, `take`, `enumerate`, `position` or closures, nor `?` on `Option`; `btoi` is a dependency (patch 40 already routes it, with an exact Lean model).
+Behaviour: Identical: the result is `Some` exactly when the input has at least two `.` and the first two parts and the digit prefix of the third part (up to the next `.` or the end) each parse as a `u8`, with those values; every other case is `None` in both, and `btoi` is pure, so the order of the checks does not matter.
+
+diff --git a/src/misc/mod.rs b/src/misc/mod.rs
+index edf8eb3..0e8dc10 100644
+--- a/src/misc/mod.rs
++++ b/src/misc/mod.rs
+@@ -176,21 +176,57 @@ pub fn split_version<T: AsRef<[u8]>>(version_str: T) -> (u8, u8, u8) {
+ // 1. Generic function will be instantiated for every type, increasing code size
+ // 2. It allows using Option and ? operator without breaking public API
+ fn split_version_inner(input: &[u8]) -> Option<(u8, u8, u8)> {
+-    let mut nums = [0_u8; 3];
+-    let mut iter = input.split(|c| *c == b'.');
+-    for (i, chunk) in (&mut iter).take(2).enumerate() {
+-        nums[i] = btoi::btoi(chunk).ok()?;
++    // The first three `.`-separated parts; fewer than three parts is an error.
++    let end0 = dot_or_end(input, 0);
++    if end0 == input.len() {
++        return None;
+     }
++    let end1 = dot_or_end(input, end0 + 1);
++    if end1 == input.len() {
++        return None;
++    }
++    let end2 = dot_or_end(input, end1 + 1);
++    let major = match crate::value::convert::trusted::btoi_u8(&input[..end0]) {
++        Some(x) => x,
++        None => return None,
++    };
++    let minor = match crate::value::convert::trusted::btoi_u8(&input[end0 + 1..end1]) {
++        Some(x) => x,
++        None => return None,
++    };
+     // allow junk at the end of the final part of the version
+-    let chunk_with_junk = iter.next()?;
+-    let end_of_digits = chunk_with_junk.iter().position(|c| *c < b'0' || *c > b'9');
+-    let chunk = match end_of_digits {
+-        Some(pos) => &chunk_with_junk[..pos],
+-        None => chunk_with_junk,
++    let chunk_with_junk = &input[end1 + 1..end2];
++    let chunk = &chunk_with_junk[..digits_end(chunk_with_junk)];
++    let patch = match crate::value::convert::trusted::btoi_u8(chunk) {
++        Some(x) => x,
++        None => return None,
+     };
+-    nums[2] = btoi::btoi(chunk).ok()?;
+ 
+-    Some((nums[0], nums[1], nums[2]))
++    Some((major, minor, patch))
++}
++
++/// The index of the first `.` in `input` at or after `start`, or `input.len()` if there is none.
++fn dot_or_end(input: &[u8], start: usize) -> usize {
++    let mut i = start;
++    while i < input.len() {
++        if input[i] == b'.' {
++            return i;
++        }
++        i += 1;
++    }
++    input.len()
++}
++
++/// The index of the first byte of `input` that is not an ASCII digit, or `input.len()`.
++fn digits_end(input: &[u8]) -> usize {
++    let mut i = 0;
++    while i < input.len() {
++        if input[i] < b'0' || input[i] > b'9' {
++            return i;
++        }
++        i += 1;
++    }
++    input.len()
+ }
+ 
+ #[cfg(test)]

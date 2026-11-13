@@ -1,0 +1,345 @@
+Translation patch: the compressed codec and `PacketCodec` over the buffer model of patch 21 (src/proto/codec)
+
+Change: (a) `buf_model.rs` gains a trait `Clear` (`BytesMut::clear`), implemented for `BytesMut` by delegation and for `VecBuf` (`self.0 = Vec::new()`, marked `#[verify::start_from]`). (b) `compress`/`compress_with` take `src: &mut S` with `S: Deref<Target = [u8]> + Clear` and `dst: &mut D` with `D: PacketBufMut + Reserve`; `CompDecoder::decode`/`decode_with` take `src: &mut S` (`S: Deref<Target = [u8]> + PacketBuf`) and `dst: &mut D` (`D: PacketBufMut`); `CompData::write_payload` takes `dst: &mut D` (`D: PacketBufMut`); the `decode` of `PacketCodec`, `PacketCodecInner` and `CompPacketCodec` take `src: &mut S` (as for `CompDecoder`) and `T: PacketBufMut` in place of `T: BufMut`, and their `encode` take `T: PacketBuf` and `dst: &mut D` (`D: PacketBufMut + Reserve`). (c) In the bodies: `put_uint_le(n as u64, 3)` becomes `put_slice(&u24_le_bytes(n))` with a new `fn u24_le_bytes(n: usize) -> [u8; 3]` (`[n as u8, (n >> 8) as u8, (n >> 16) as u8]`), `put_uint_le(0, 3)` becomes `put_slice(&[0, 0, 0])`, `put_u8(seq_id)` becomes `put_slice(&[seq_id])`, `extend_from_slice` becomes `put_slice`, and `LittleEndian::read_u24(&*src)` / `read_u24(&src[4..])` become `u32::from_le_bytes([src[0], src[1], src[2], 0])` / `([src[4], src[5], src[6], 0])`. (d) The private `CompPacketCodec::in_buf`/`out_buf` become `VecBuf` (created with `VecBuf(Vec::with_capacity(DEFAULT_MAX_ALLOWED_PACKET))`, replaced by `VecBuf(Vec::new())`), and `buf.capacity()` becomes `trusted::vec_capacity(&buf.0)`. (e) The imports only the tests use become `#[cfg(test)]`.
+Why: As in patch 21: `BytesMut` and the `bytes` traits are external with `unsafe` implementations, and `byteorder` is not modelled. The codec is translated generically, with `VecBuf` as the translated instance; the codec's own buffers have to be a translated type.
+Behaviour: Identical on the bytes of every buffer, for every instantiation the crate makes (callers pass `BytesMut` and `T: Buf` / `T: BufMut + AsRef<[u8]>`, which implement the local traits by delegation).
+  - `put_uint_le(n, 3)` writes the low three bytes of `n` little-endian, i.e. `u24_le_bytes`; `put_u8(x)` writes `[x]`; `BytesMut::extend_from_slice` and `put_slice` both append; `read_u24` is the first three bytes little-endian, only reached with `src.len() >= 7`.
+  - `VecBuf` has the semantics of `BytesMut` on its bytes (patch 21; `Clear`: the buffer becomes empty). Only memory use differs: the internal buffers are `Vec`-backed (`VecBuf::advance` copies), and the shrink-on-threshold logic tests the `Vec`'s capacity; both of its branches leave an empty buffer (`in_buf` is tested empty; `out_buf` was cleared, or was already empty, by `compress_with`).
+  - The public signatures of `compress`, `CompDecoder::decode` and `PacketCodec::{decode, encode}` change to the crate-local traits (as patch 21 did for the plain codec); callers outside the crate are not covered. `VecBuf::reserve` never fails, whereas `BytesMut::reserve` panics on capacity overflow (patch 21's model limitation).
+
+diff --git a/src/proto/codec/buf_model.rs b/src/proto/codec/buf_model.rs
+index f56b192..79f1b27 100644
+--- a/src/proto/codec/buf_model.rs
++++ b/src/proto/codec/buf_model.rs
+@@ -155,3 +155,23 @@ impl Reserve for VecBuf {
+     /// `BytesMut::reserve` only changes the capacity.
+     fn reserve(&mut self, _additional: usize) {}
+ }
++
++/// `BytesMut::clear`.
++pub trait Clear {
++    /// Removes all bytes from the buffer (no other effect).
++    fn clear(&mut self);
++}
++
++impl Clear for BytesMut {
++    fn clear(&mut self) {
++        BytesMut::clear(self)
++    }
++}
++
++#[verify::start_from]
++impl Clear for VecBuf {
++    /// `BytesMut::clear`: the buffer becomes empty.
++    fn clear(&mut self) {
++        self.0 = Vec::new();
++    }
++}
+diff --git a/src/proto/codec/mod.rs b/src/proto/codec/mod.rs
+index 7a516a2..4cac187 100644
+--- a/src/proto/codec/mod.rs
++++ b/src/proto/codec/mod.rs
+@@ -10,8 +10,10 @@
+ 
+ pub use flate2::Compression;
+ 
++#[cfg(test)]
+ use byteorder::{ByteOrder, LittleEndian};
+-use bytes::{Buf, BufMut, BytesMut};
++#[cfg(test)]
++use bytes::{BufMut, BytesMut};
+ use flate2::{Compress, Decompress};
+ #[cfg(test)]
+ use flate2::FlushCompress;
+@@ -69,12 +71,15 @@ pub fn packet_to_chunks<
+ /// Will compress all data from `src` to `dst`.
+ ///
+ /// Compressed packets will start with given `seq_id`. Resulting sequence id will be returned.
+-pub fn compress(
++pub fn compress<
++    S: std::ops::Deref<Target = [u8]> + buf_model::Clear,
++    D: buf_model::PacketBufMut + buf_model::Reserve,
++>(
+     seq_id: u8,
+     compression: Compression,
+     max_allowed_packet: usize,
+-    src: &mut BytesMut,
+-    dst: &mut BytesMut,
++    src: &mut S,
++    dst: &mut D,
+ ) -> Result<u8, PacketCodecError> {
+     compress_with(seq_id, compression, &mut None, max_allowed_packet, src, dst)
+ }
+@@ -82,13 +87,16 @@ pub fn compress(
+ /// Same as [`compress`], but deflates with `deflater`, creating it on first use.
+ ///
+ /// `deflater` must have been created with `compression`.
+-fn compress_with(
++fn compress_with<
++    S: std::ops::Deref<Target = [u8]> + buf_model::Clear,
++    D: buf_model::PacketBufMut + buf_model::Reserve,
++>(
+     mut seq_id: u8,
+     compression: Compression,
+     deflater: &mut Option<Compress>,
+     max_allowed_packet: usize,
+-    src: &mut BytesMut,
+-    dst: &mut BytesMut,
++    src: &mut S,
++    dst: &mut D,
+ ) -> Result<u8, PacketCodecError> {
+     if src.is_empty() {
+         return Ok(0);
+@@ -121,15 +129,15 @@ fn compress_with(
+ 
+         match compressed {
+             Some(compressed) => {
+-                dst.put_uint_le(compressed.len() as u64, 3);
+-                dst.put_u8(seq_id);
+-                dst.put_uint_le(chunk.len() as u64, 3);
++                dst.put_slice(&u24_le_bytes(compressed.len()));
++                dst.put_slice(&[seq_id]);
++                dst.put_slice(&u24_le_bytes(chunk.len()));
+                 dst.put_slice(&compressed);
+             }
+             None => {
+-                dst.put_uint_le(chunk.len() as u64, 3);
+-                dst.put_u8(seq_id);
+-                dst.put_uint_le(0, 3);
++                dst.put_slice(&u24_le_bytes(chunk.len()));
++                dst.put_slice(&[seq_id]);
++                dst.put_slice(&[0, 0, 0]);
+                 dst.put_slice(chunk);
+             }
+         }
+@@ -142,6 +150,12 @@ fn compress_with(
+     Ok(seq_id)
+ }
+ 
++/// The bytes that `BufMut::put_uint_le(n as u64, 3)` writes: the low three bytes of `n`,
++/// little-endian.
++fn u24_le_bytes(n: usize) -> [u8; 3] {
++    [n as u8, (n >> 8) as u8, (n >> 16) as u8]
++}
++
+ /// Chunk info.
+ #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+ pub enum ChunkInfo {
+@@ -298,15 +312,15 @@ impl CompData {
+     }
+ 
+     /// Writes the plain data of `payload` into `dst`, inflating it with `inflater` if compressed.
+-    fn write_payload(
++    fn write_payload<D: buf_model::PacketBufMut>(
+         self,
+         payload: &[u8],
+-        dst: &mut BytesMut,
++        dst: &mut D,
+         inflater: &mut Option<Decompress>,
+     ) -> io::Result<()> {
+         match self {
+             CompData::Uncompressed(_) => {
+-                dst.extend_from_slice(payload);
++                dst.put_slice(payload);
+                 Ok(())
+             }
+             CompData::Compressed(_, plain_len) => {
+@@ -319,7 +333,7 @@ impl CompData {
+                         plain?
+                     }
+                 };
+-                dst.extend_from_slice(&plain);
++                dst.put_slice(&plain);
+                 Ok(())
+             }
+         }
+@@ -344,32 +358,41 @@ impl CompDecoder {
+     /// Will try to decode compressed packet from `src` into `dst`.
+     ///
+     /// If packet is decoded, then `ChunkInfo::Last` is returned.
+-    pub fn decode(
++    pub fn decode<S, D>(
+         &mut self,
+-        src: &mut BytesMut,
+-        dst: &mut BytesMut,
++        src: &mut S,
++        dst: &mut D,
+         max_allowed_packet: usize,
+-    ) -> Result<Option<ChunkInfo>, PacketCodecError> {
++    ) -> Result<Option<ChunkInfo>, PacketCodecError>
++    where
++        S: std::ops::Deref<Target = [u8]> + buf_model::PacketBuf,
++        D: buf_model::PacketBufMut,
++    {
+         self.decode_with(src, dst, max_allowed_packet, &mut None)
+     }
+ 
+     /// Same as [`CompDecoder::decode`], but inflates with `inflater`, creating it on first use.
+-    fn decode_with(
++    fn decode_with<S, D>(
+         &mut self,
+-        src: &mut BytesMut,
+-        dst: &mut BytesMut,
++        src: &mut S,
++        dst: &mut D,
+         max_allowed_packet: usize,
+         inflater: &mut Option<Decompress>,
+-    ) -> Result<Option<ChunkInfo>, PacketCodecError> {
++    ) -> Result<Option<ChunkInfo>, PacketCodecError>
++    where
++        S: std::ops::Deref<Target = [u8]> + buf_model::PacketBuf,
++        D: buf_model::PacketBufMut,
++    {
+         match *self {
+             CompDecoder::Idle => {
+                 if src.len() < 7 {
+                     // We need at least 7 bytes to read compressed packet header.
+                     Ok(None)
+                 } else {
+-                    let compressed_len = LittleEndian::read_u24(&*src) as usize;
++                    let compressed_len = u32::from_le_bytes([src[0], src[1], src[2], 0]) as usize;
+                     let seq_id = src[3];
+-                    let uncompressed_len = LittleEndian::read_u24(&src[4..]) as usize;
++                    let uncompressed_len =
++                        u32::from_le_bytes([src[4], src[5], src[6], 0]) as usize;
+ 
+                     match CompData::new(compressed_len, uncompressed_len, max_allowed_packet)? {
+                         Some(needed) => {
+@@ -431,19 +454,20 @@ impl PacketCodec {
+     ///
+     /// * `true` - decoded packet was written into the `dst`,
+     /// * `false` - `src` did not contain a full packet.
+-    pub fn decode<T>(&mut self, src: &mut BytesMut, dst: &mut T) -> Result<bool, PacketCodecError>
++    pub fn decode<S, T>(&mut self, src: &mut S, dst: &mut T) -> Result<bool, PacketCodecError>
+     where
++        S: std::ops::Deref<Target = [u8]> + buf_model::PacketBuf,
+         T: AsRef<[u8]>,
+-        T: BufMut,
++        T: buf_model::PacketBufMut,
+     {
+         self.inner.decode(src, dst, self.max_allowed_packet)
+     }
+ 
+     /// Will encode packets into `dst`.
+-    pub fn encode<T: Buf>(
++    pub fn encode<T: buf_model::PacketBuf, D: buf_model::PacketBufMut + buf_model::Reserve>(
+         &mut self,
+         src: &mut T,
+-        dst: &mut BytesMut,
++        dst: &mut D,
+     ) -> Result<(), PacketCodecError> {
+         self.inner.encode(src, dst, self.max_allowed_packet)
+     }
+@@ -491,8 +515,8 @@ impl PacketCodecInner {
+                 *self = PacketCodecInner::Comp(CompPacketCodec {
+                     level,
+                     comp_seq_id: 0,
+-                    in_buf: BytesMut::with_capacity(DEFAULT_MAX_ALLOWED_PACKET),
+-                    out_buf: BytesMut::with_capacity(DEFAULT_MAX_ALLOWED_PACKET),
++                    in_buf: buf_model::VecBuf(Vec::with_capacity(DEFAULT_MAX_ALLOWED_PACKET)),
++                    out_buf: buf_model::VecBuf(Vec::with_capacity(DEFAULT_MAX_ALLOWED_PACKET)),
+                     comp_decoder: CompDecoder::Idle,
+                     deflater: None,
+                     inflater: None,
+@@ -511,15 +535,16 @@ impl PacketCodecInner {
+     /// Will try to decode packet from `src` into `dst`.
+     ///
+     /// If `true` is returned then `dst` contains full packet.
+-    fn decode<T>(
++    fn decode<S, T>(
+         &mut self,
+-        src: &mut BytesMut,
++        src: &mut S,
+         dst: &mut T,
+         max_allowed_packet: usize,
+     ) -> Result<bool, PacketCodecError>
+     where
++        S: std::ops::Deref<Target = [u8]> + buf_model::PacketBuf,
+         T: AsRef<[u8]>,
+-        T: BufMut,
++        T: buf_model::PacketBufMut,
+     {
+         match self {
+             PacketCodecInner::Plain(codec) => codec.decode(src, dst, max_allowed_packet, None),
+@@ -528,10 +553,10 @@ impl PacketCodecInner {
+     }
+ 
+     /// Will try to encode packets into `dst`.
+-    fn encode<T: Buf>(
++    fn encode<T: buf_model::PacketBuf, D: buf_model::PacketBufMut + buf_model::Reserve>(
+         &mut self,
+         packet: &mut T,
+-        dst: &mut BytesMut,
++        dst: &mut D,
+         max_allowed_packet: usize,
+     ) -> Result<(), PacketCodecError> {
+         match self {
+@@ -641,9 +666,9 @@ struct CompPacketCodec {
+     /// Compressed packet sequence id.
+     comp_seq_id: u8,
+     /// Buffer for decompressed input data.
+-    in_buf: BytesMut,
++    in_buf: buf_model::VecBuf,
+     /// Buffer for compressed output data.
+-    out_buf: BytesMut,
++    out_buf: buf_model::VecBuf,
+     /// Compressed packet decoder.
+     comp_decoder: CompDecoder,
+     /// Deflate stream for outgoing packets, kept for the connection's lifetime.
+@@ -672,15 +697,16 @@ impl CompPacketCodec {
+     /// Will try to decode packet from `src` into `dst`.
+     ///
+     /// If `true` is returned then `dst` contains full packet.
+-    fn decode<T>(
++    fn decode<S, T>(
+         &mut self,
+-        src: &mut BytesMut,
++        src: &mut S,
+         dst: &mut T,
+         max_allowed_packet: usize,
+     ) -> Result<bool, PacketCodecError>
+     where
++        S: std::ops::Deref<Target = [u8]> + buf_model::PacketBuf,
+         T: AsRef<[u8]>,
+-        T: BufMut,
++        T: buf_model::PacketBufMut,
+     {
+         if !self.in_buf.is_empty()
+             && self.plain_codec.decode(
+@@ -694,8 +720,10 @@ impl CompPacketCodec {
+         {
+             // After decoding, in_buf may be empty but still hold capacity
+             // from previous large responses. Reclaim if over threshold.
+-            if self.in_buf.is_empty() && self.in_buf.capacity() > COMP_CODEC_SHRINK_THRESHOLD {
+-                self.in_buf = BytesMut::new();
++            if self.in_buf.is_empty()
++                && trusted::vec_capacity(&self.in_buf.0) > COMP_CODEC_SHRINK_THRESHOLD
++            {
++                self.in_buf = buf_model::VecBuf(Vec::new());
+             }
+             return Ok(true);
+         }
+@@ -720,10 +748,10 @@ impl CompPacketCodec {
+     }
+ 
+     /// Will try to encode packets into `dst`.
+-    fn encode<T: Buf>(
++    fn encode<T: buf_model::PacketBuf, D: buf_model::PacketBufMut + buf_model::Reserve>(
+         &mut self,
+         packet: &mut T,
+-        dst: &mut BytesMut,
++        dst: &mut D,
+         max_allowed_packet: usize,
+     ) -> Result<(), PacketCodecError> {
+         self.plain_codec
+@@ -740,8 +768,8 @@ impl CompPacketCodec {
+ 
+         // compress() drains out_buf but leaves allocated capacity behind.
+         // Reclaim if over threshold to avoid holding megabytes idle.
+-        if self.out_buf.capacity() > COMP_CODEC_SHRINK_THRESHOLD {
+-            self.out_buf = BytesMut::new();
++        if trusted::vec_capacity(&self.out_buf.0) > COMP_CODEC_SHRINK_THRESHOLD {
++            self.out_buf = buf_model::VecBuf(Vec::new());
+         }
+ 
+         /* Sync packet number if using compression (see net_serv.cc) */

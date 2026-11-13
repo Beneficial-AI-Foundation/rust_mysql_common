@@ -1,0 +1,105 @@
+Translation patch: `proto::codec::trusted` (new module: the trust boundary of the compressed codec)
+
+Change: Adds `src/proto/codec/trusted.rs`, declared `pub(crate) mod trusted` in `codec/mod.rs`, with one function per dependency operation the compressed codec uses: `compression_none` (`Compression::none()`), `compression_eq` (the derived `==` of `Compression`), `compress_new` (`Compress::new(level, true)`), `decompress_new` (`Decompress::new(true)`), `deflate` and `inflate` (the bodies of upstream `deflate_into` / `inflate_into`, writing into a fresh `Vec` of the same length instead of the spare capacity of the destination `BytesMut`, and returning it), and `vec_capacity` (`Vec::capacity`).
+Why: The module is `opaque` in Cargo.toml (the pattern of patch 40), so the trusted surface of the compressed codec is exactly this list, each with a Lean model or axiom in `FunsExternal.lean`. flate2 is a dependency (not translated), `Compress`/`Decompress` hold foreign state, and upstream `deflate_into`/`inflate_into` write through raw pointers into uninitialised spare capacity (`unsafe`, `slice_from_raw_parts_mut`, `advance_mut`), which Aeneas cannot model. `Vec::capacity` has no Aeneas model.
+Behaviour: Unchanged: the module is not used until the next patch. (`deflate`/`inflate` are compared with the functions they replace in patch 121.)
+
+diff --git a/src/proto/codec/mod.rs b/src/proto/codec/mod.rs
+index 850533e..0ad8ad2 100644
+--- a/src/proto/codec/mod.rs
++++ b/src/proto/codec/mod.rs
+@@ -26,6 +26,7 @@ use crate::constants::{DEFAULT_MAX_ALLOWED_PACKET, MAX_PAYLOAD_LEN, MIN_COMPRESS
+ 
+ pub mod buf_model;
+ pub mod error;
++pub(crate) mod trusted;
+ 
+ /// Will split given `packet` to MySql packet chunks and write into `dst`.
+ ///
+diff --git a/src/proto/codec/trusted.rs b/src/proto/codec/trusted.rs
+new file mode 100644
+index 0000000..f390665
+--- /dev/null
++++ b/src/proto/codec/trusted.rs
+@@ -0,0 +1,81 @@
++//! Translation helpers: the trust boundary of the compressed codec.
++//!
++//! Every operation of `flate2` (and the one `std` operation without an Aeneas model) that the
++//! compressed codec uses goes through exactly one function of this module. The module is
++//! `opaque` in Cargo.toml: these functions are not translated, and each has a Lean model or
++//! axiom in `lean/MysqlCommon/FunsExternal.lean`.
++
++#![allow(dead_code)]
++
++use std::io;
++
++use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
++
++/// `Compression::none()`.
++pub(crate) fn compression_none() -> Compression {
++    Compression::none()
++}
++
++/// `a == b` (the derived `PartialEq for Compression`).
++pub(crate) fn compression_eq(a: Compression, b: Compression) -> bool {
++    a == b
++}
++
++/// `Compress::new(level, true)`: a zlib deflate stream.
++pub(crate) fn compress_new(level: Compression) -> Compress {
++    Compress::new(level, true)
++}
++
++/// `Decompress::new(true)`: a zlib inflate stream.
++pub(crate) fn decompress_new() -> Decompress {
++    Decompress::new(true)
++}
++
++/// The body of upstream `deflate_into`, writing into a fresh buffer instead of the spare
++/// capacity of the destination: resets `deflater`, deflates `chunk` with `FlushCompress::Finish`
++/// into a buffer of `chunk.len()` bytes, and returns the deflated bytes if the stream ended and
++/// they are fewer than `chunk.len()`, and `None` otherwise.
++pub(crate) fn deflate(deflater: &mut Compress, chunk: &[u8]) -> io::Result<Option<Vec<u8>>> {
++    deflater.reset();
++    let mut out = vec![0_u8; chunk.len()];
++    let status = deflater
++        .compress(chunk, &mut out, FlushCompress::Finish)
++        .map_err(io::Error::other)?;
++
++    let compressed_len = deflater.total_out() as usize;
++    if status == Status::StreamEnd && compressed_len < chunk.len() {
++        out.truncate(compressed_len);
++        Ok(Some(out))
++    } else {
++        Ok(None)
++    }
++}
++
++/// The body of upstream `inflate_into`, writing into a fresh buffer instead of the spare
++/// capacity of the destination: resets `inflater`, inflates `compressed` with
++/// `FlushDecompress::Finish` into a buffer of `plain_len` bytes, and returns that buffer if the
++/// stream ended having produced exactly `plain_len` bytes, and an `InvalidData` error otherwise.
++pub(crate) fn inflate(
++    inflater: &mut Decompress,
++    compressed: &[u8],
++    plain_len: usize,
++) -> io::Result<Vec<u8>> {
++    inflater.reset(true);
++    let mut out = vec![0_u8; plain_len];
++    let status = inflater
++        .decompress(compressed, &mut out, FlushDecompress::Finish)
++        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
++
++    if status != Status::StreamEnd || inflater.total_out() != plain_len as u64 {
++        return Err(io::Error::new(
++            io::ErrorKind::InvalidData,
++            "compressed packet does not inflate to its declared length",
++        ));
++    }
++    Ok(out)
++}
++
++/// `Vec::capacity`.
++pub(crate) fn vec_capacity(v: &Vec<u8>) -> usize {
++    v.capacity()
++}

@@ -907,6 +907,12 @@ structure proto.codec.buf_model.Reserve (Self : Type _) where
 @[reducible]
 def proto.codec.buf_model.VecBuf := alloc.vec.Vec Std.U8
 
+/-- Trait declaration: [mysql_common::proto::codec::buf_model::Clear]
+    Source: 'src/proto/codec/buf_model.rs', lines 160:0-163:1
+    Visibility: public -/
+structure proto.codec.buf_model.Clear (Self : Type _) where
+  clear : Self → Result Self
+
 /-- [mysql_common::proto::codec::error::PacketCodecError]
     Source: 'src/proto/codec/error.rs', lines 12:0-17:1
     Visibility: public -/
@@ -918,7 +924,7 @@ inductive proto.codec.error.PacketCodecError where
 | BadCompressedPacketHeader : proto.codec.error.PacketCodecError
 
 /-- [mysql_common::proto::codec::ChunkInfo]
-    Source: 'src/proto/codec/mod.rs', lines 189:0-198:1
+    Source: 'src/proto/codec/mod.rs', lines 161:0-170:1
     Visibility: public -/
 @[discriminant isize]
 inductive proto.codec.ChunkInfo where
@@ -926,7 +932,7 @@ inductive proto.codec.ChunkInfo where
 | Last : Std.U8 → proto.codec.ChunkInfo
 
 /-- [mysql_common::proto::codec::ChunkDecoder]
-    Source: 'src/proto/codec/mod.rs', lines 210:0-223:1
+    Source: 'src/proto/codec/mod.rs', lines 182:0-195:1
     Visibility: public -/
 @[discriminant isize]
 inductive proto.codec.ChunkDecoder where
@@ -936,11 +942,56 @@ inductive proto.codec.ChunkDecoder where
   proto.codec.buf_model.NonZeroUsize →
   proto.codec.ChunkDecoder
 
+/-- [mysql_common::proto::codec::CompData]
+    Source: 'src/proto/codec/mod.rs', lines 273:0-278:1
+    Visibility: public -/
+@[discriminant isize]
+inductive proto.codec.CompData where
+| Compressed :
+  proto.codec.buf_model.NonZeroUsize →
+  proto.codec.buf_model.NonZeroUsize →
+  proto.codec.CompData
+| Uncompressed : proto.codec.buf_model.NonZeroUsize → proto.codec.CompData
+
+/-- [mysql_common::proto::codec::CompDecoder]
+    Source: 'src/proto/codec/mod.rs', lines 345:0-355:1
+    Visibility: public -/
+@[discriminant isize]
+inductive proto.codec.CompDecoder where
+| Idle : proto.codec.CompDecoder
+| Packet : Std.U8 → proto.codec.CompData → proto.codec.CompDecoder
+
 /-- [mysql_common::proto::codec::PlainPacketCodec]
-    Source: 'src/proto/codec/mod.rs', lines 585:0-590:1 -/
+    Source: 'src/proto/codec/mod.rs', lines 577:0-582:1 -/
 structure proto.codec.PlainPacketCodec where
   seq_id : Std.U8
   chunk_decoder : proto.codec.ChunkDecoder
+
+/-- [mysql_common::proto::codec::CompPacketCodec]
+    Source: 'src/proto/codec/mod.rs', lines 663:0-680:1 -/
+structure proto.codec.CompPacketCodec where
+  level : flate2.Compression
+  comp_seq_id : Std.U8
+  in_buf : proto.codec.buf_model.VecBuf
+  out_buf : proto.codec.buf_model.VecBuf
+  comp_decoder : proto.codec.CompDecoder
+  deflater : Option flate2.mem.Compress
+  inflater : Option flate2.mem.Decompress
+  plain_codec : proto.codec.PlainPacketCodec
+
+/-- [mysql_common::proto::codec::PacketCodecInner]
+    Source: 'src/proto/codec/mod.rs', lines 487:0-492:1 -/
+@[discriminant isize]
+inductive proto.codec.PacketCodecInner where
+| Plain : proto.codec.PlainPacketCodec → proto.codec.PacketCodecInner
+| Comp : proto.codec.CompPacketCodec → proto.codec.PacketCodecInner
+
+/-- [mysql_common::proto::codec::PacketCodec]
+    Source: 'src/proto/codec/mod.rs', lines 428:0-433:1
+    Visibility: public -/
+structure proto.codec.PacketCodec where
+  max_allowed_packet : Std.Usize
+  inner : proto.codec.PacketCodecInner
 
 /-- [mysql_common::proto::Text]
     Source: 'src/proto/mod.rs', lines 18:0-18:16

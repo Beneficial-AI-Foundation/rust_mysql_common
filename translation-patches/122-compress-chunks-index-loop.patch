@@ -1,0 +1,25 @@
+Translation patch: `compress_with` (src/proto/codec): `src.chunks(n)` becomes an index loop
+
+Change: `for chunk in src.chunks(min(MAX_PAYLOAD_LEN, max_allowed_packet))` becomes `let chunk_size = min(..); assert!(chunk_size != 0, "chunk size must be non-zero"); let mut start = 0; while start < src.len() { let chunk_len = min(chunk_size, src.len() - start); let chunk = &src[start..start + chunk_len]; start += chunk_len; .. }`.
+Why: Aeneas does not model the `Chunks` iterator.
+Behaviour: Identical: `chunks(n)` panics with this message when `n == 0` (core's `assert!`), and otherwise yields consecutive slices of `n` bytes, the last one shorter, which is what the loop visits (`src.len() - start` cannot underflow, and `start + chunk_len <= src.len()`). The panic case is reached exactly as upstream: only for a non-empty `src` (the function returns early on an empty one) and `max_allowed_packet == 0`.
+
+diff --git a/src/proto/codec/mod.rs b/src/proto/codec/mod.rs
+index ce3142b..7a516a2 100644
+--- a/src/proto/codec/mod.rs
++++ b/src/proto/codec/mod.rs
+@@ -94,7 +94,13 @@ fn compress_with(
+         return Ok(0);
+     }
+ 
+-    for chunk in src.chunks(min(MAX_PAYLOAD_LEN, max_allowed_packet)) {
++    let chunk_size = min(MAX_PAYLOAD_LEN, max_allowed_packet);
++    assert!(chunk_size != 0, "chunk size must be non-zero");
++    let mut start = 0;
++    while start < src.len() {
++        let chunk_len = min(chunk_size, src.len() - start);
++        let chunk = &src[start..start + chunk_len];
++        start += chunk_len;
+         dst.reserve(7 + chunk.len());
+ 
+         let compressed = if !trusted::compression_eq(compression, trusted::compression_none())

@@ -135,6 +135,20 @@ def uuid.Uuid.as_bytes
 @[global_simps, irreducible]
 def constants.MAX_PAYLOAD_LEN : Std.Usize := 16777215#usize
 
+/-- [mysql_common::constants::DEFAULT_MAX_ALLOWED_PACKET]
+    Source: 'src/constants.rs', lines 12:0-12:63
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.DEFAULT_MAX_ALLOWED_PACKET : Result Std.Usize := do
+  let i ← 4#usize * 1024#usize
+  i * 1024#usize
+
+/-- [mysql_common::constants::MIN_COMPRESS_LENGTH]
+    Source: 'src/constants.rs', lines 13:0-13:44
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.MIN_COMPRESS_LENGTH : Std.Usize := 512#usize
+
 /-- [mysql_common::constants::{mysql_common::constants::StatusFlags}::all]:
     Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
     Visibility: public -/
@@ -5153,6 +5167,135 @@ def misc.write_varlen_uint
         (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)) a
         { «end» := num_bytes }
     alloc.vec.Vec.extend_from_slice core.clone.CloneU8 buf s
+
+/-- [mysql_common::misc::digits_end]: loop body 0:
+    Source: 'src/misc/mod.rs', lines 223:4-230:1 -/
+@[rust_loop_body]
+def misc.digits_end_loop.body
+  (input : Slice Std.U8) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Std.Usize)
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let i2 ← Slice.index_usize input i
+    if i2 < 48#u8
+    then ok (done i)
+    else
+      if i2 > 57#u8
+      then ok (done i)
+      else let i3 ← i + 1#usize
+           ok (cont i3)
+  else let i2 := Slice.len input
+       ok (done i2)
+
+/-- [mysql_common::misc::digits_end]: loop 0:
+    Source: 'src/misc/mod.rs', lines 223:4-230:1 -/
+@[rust_loop]
+def misc.digits_end_loop
+  (input : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  loop
+    (fun i1 => misc.digits_end_loop.body input i1)
+    i
+
+/-- [mysql_common::misc::digits_end]:
+    Source: 'src/misc/mod.rs', lines 221:0-230:1 -/
+@[reducible]
+def misc.digits_end (input : Slice Std.U8) : Result Std.Usize := do
+  misc.digits_end_loop input 0#usize
+
+/-- [mysql_common::misc::dot_or_end]: loop body 0:
+    Source: 'src/misc/mod.rs', lines 211:4-218:1 -/
+@[rust_loop_body]
+def misc.dot_or_end_loop.body
+  (input : Slice Std.U8) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Std.Usize)
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let i2 ← Slice.index_usize input i
+    if i2 = 46#u8
+    then ok (done i)
+    else let i3 ← i + 1#usize
+         ok (cont i3)
+  else let i2 := Slice.len input
+       ok (done i2)
+
+/-- [mysql_common::misc::dot_or_end]: loop 0:
+    Source: 'src/misc/mod.rs', lines 211:4-218:1 -/
+@[rust_loop]
+def misc.dot_or_end_loop
+  (input : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  loop
+    (fun i1 => misc.dot_or_end_loop.body input i1)
+    i
+
+/-- [mysql_common::misc::dot_or_end]:
+    Source: 'src/misc/mod.rs', lines 209:0-218:1 -/
+@[reducible]
+def misc.dot_or_end
+  (input : Slice Std.U8) (start : Std.Usize) : Result Std.Usize := do
+  misc.dot_or_end_loop input start
+
+/-- [mysql_common::misc::split_version_inner]:
+    Source: 'src/misc/mod.rs', lines 178:0-206:1 -/
+def misc.split_version_inner
+  (input : Slice Std.U8) : Result (Option (Std.U8 × Std.U8 × Std.U8)) := do
+  let end0 ← misc.dot_or_end input 0#usize
+  let i := Slice.len input
+  if end0 = i
+  then ok none
+  else
+    let i1 ← end0 + 1#usize
+    let end1 ← misc.dot_or_end input i1
+    let i2 := Slice.len input
+    if end1 = i2
+    then ok none
+    else
+      let i3 ← end1 + 1#usize
+      let end2 ← misc.dot_or_end input i3
+      let s ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) input
+          { «end» := end0 }
+      let o ← value.convert.trusted.btoi_u8 s
+      match o with
+      | none => ok none
+      | some x =>
+        let s1 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) input
+            { start := i1, «end» := end1 }
+        let o1 ← value.convert.trusted.btoi_u8 s1
+        match o1 with
+        | none => ok none
+        | some x1 =>
+          let chunk_with_junk ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) input
+              { start := i3, «end» := end2 }
+          let i4 ← misc.digits_end chunk_with_junk
+          let chunk ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)
+              chunk_with_junk { «end» := i4 }
+          let o2 ← value.convert.trusted.btoi_u8 chunk
+          match o2 with
+          | none => ok none
+          | some x2 => ok (some (x, x1, x2))
+
+/-- [mysql_common::misc::split_version]:
+    Source: 'src/misc/mod.rs', lines 170:0-173:1
+    Visibility: public -/
+def misc.split_version
+  {T : Type _} (coreconvertAsRefTSliceU8Inst : core.convert.AsRef T (Slice
+  Std.U8)) (version_str : T) :
+  Result (Std.U8 × Std.U8 × Std.U8)
+  := do
+  let bytes ← coreconvertAsRefTSliceU8Inst.as_ref version_str
+  let o ← misc.split_version_inner bytes
+  ok (core.option.Option.unwrap_or o (0#u8, 0#u8, 0#u8))
 
 /-- [mysql_common::misc::raw::_const::{mysql_common::misc::raw::_const::Const<T, U>}::new]:
     Source: 'src/misc/raw/_const.rs', lines 34:4-36:5
@@ -13524,8 +13667,45 @@ def proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve :
     proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve.reserve
 }
 
+/-- [mysql_common::proto::codec::buf_model::{impl mysql_common::proto::codec::buf_model::Clear for mysql_common::proto::codec::buf_model::VecBuf}::clear]:
+    Source: 'src/proto/codec/buf_model.rs', lines 174:4-176:5
+    Visibility: public -/
+def
+  proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear.clear
+  (self : proto.codec.buf_model.VecBuf) :
+  Result proto.codec.buf_model.VecBuf
+  := do
+  ok (alloc.vec.Vec.new Std.U8)
+
+/-- Trait implementation: [mysql_common::proto::codec::buf_model::{impl mysql_common::proto::codec::buf_model::Clear for mysql_common::proto::codec::buf_model::VecBuf}]
+    Source: 'src/proto/codec/buf_model.rs', lines 172:0-177:1 -/
+@[reducible]
+def proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear :
+  proto.codec.buf_model.Clear proto.codec.buf_model.VecBuf := {
+  clear :=
+    proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear.clear
+}
+
+/-- [mysql_common::proto::codec::error::{impl core::convert::From<core::io::error::Error> for mysql_common::proto::codec::error::PacketCodecError}::from]:
+    Source: 'src/proto/codec/error.rs', lines 20:4-22:5
+    Visibility: public -/
+def proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from
+  (io_err : core.io.error.Error) :
+  Result proto.codec.error.PacketCodecError
+  := do
+  ok (proto.codec.error.PacketCodecError.Io io_err)
+
+/-- Trait implementation: [mysql_common::proto::codec::error::{impl core::convert::From<core::io::error::Error> for mysql_common::proto::codec::error::PacketCodecError}]
+    Source: 'src/proto/codec/error.rs', lines 19:0-23:1 -/
+@[reducible]
+def proto.codec.error.PacketCodecError.Insts.CoreConvertFromError :
+  core.convert.From proto.codec.error.PacketCodecError core.io.error.Error := {
+  «from» :=
+    proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from
+}
+
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop body 1:
-    Source: 'src/proto/codec/mod.rs', lines 49:8-55:9
+    Source: 'src/proto/codec/mod.rs', lines 53:8-59:9
     Visibility: public -/
 @[rust_loop_body]
 def proto.codec.packet_to_chunks_loop0_loop0.body
@@ -13551,7 +13731,7 @@ def proto.codec.packet_to_chunks_loop0_loop0.body
   else ok (done (packet, dst))
 
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop 1:
-    Source: 'src/proto/codec/mod.rs', lines 49:8-55:9
+    Source: 'src/proto/codec/mod.rs', lines 53:8-59:9
     Visibility: public -/
 @[rust_loop]
 def proto.codec.packet_to_chunks_loop0_loop0
@@ -13568,7 +13748,7 @@ def proto.codec.packet_to_chunks_loop0_loop0
     (packet, dst, chunk_len)
 
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop body 0:
-    Source: 'src/proto/codec/mod.rs', lines 46:4-57:5
+    Source: 'src/proto/codec/mod.rs', lines 50:4-61:5
     Visibility: public -/
 @[rust_loop_body]
 def proto.codec.packet_to_chunks_loop0.body
@@ -13597,7 +13777,7 @@ def proto.codec.packet_to_chunks_loop0.body
   else ok (done (seq_id, packet, dst))
 
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop 0:
-    Source: 'src/proto/codec/mod.rs', lines 46:4-57:5
+    Source: 'src/proto/codec/mod.rs', lines 50:4-61:5
     Visibility: public -/
 @[rust_loop]
 def proto.codec.packet_to_chunks_loop0
@@ -13613,7 +13793,7 @@ def proto.codec.packet_to_chunks_loop0
     (seq_id, packet, dst)
 
 /-- [mysql_common::proto::codec::packet_to_chunks]:
-    Source: 'src/proto/codec/mod.rs', lines 35:0-65:1
+    Source: 'src/proto/codec/mod.rs', lines 39:0-69:1
     Visibility: public -/
 def proto.codec.packet_to_chunks
   {T : Type _} {D : Type _} (buf_modelPacketBufInst :
@@ -13642,16 +13822,258 @@ def proto.codec.packet_to_chunks
     ok (seq_id2, packet1, dst3)
   else ok (seq_id1, packet1, dst2)
 
+/-- [mysql_common::proto::codec::u24_le_bytes]:
+    Source: 'src/proto/codec/mod.rs', lines 155:0-157:1 -/
+def proto.codec.u24_le_bytes
+  (n : Std.Usize) : Result (Array Std.U8 3#usize) := do
+  let i ← lift (UScalar.cast .U8 n)
+  let i1 ← n >>> 8#i32
+  let i2 ← lift (UScalar.cast .U8 i1)
+  let i3 ← n >>> 16#i32
+  let i4 ← lift (UScalar.cast .U8 i3)
+  ok (Array.make 3#usize [ i, i2, i4 ])
+
+/-- [mysql_common::proto::codec::compress_with]: loop body 0:
+    Source: 'src/proto/codec/mod.rs', lines 108:4-151:1 -/
+@[rust_loop_body]
+def proto.codec.compress_with_loop.body
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (compression : flate2.Compression) 
+  (src : S) (chunk_size : Std.Usize) (seq_id : Std.U8)
+  (deflater : Option flate2.mem.Compress) (dst : D) (start : Std.Usize) :
+  Result (ControlFlow (Std.U8 × (Option flate2.mem.Compress) × D ×
+    Std.Usize) ((core.result.Result Std.U8 proto.codec.error.PacketCodecError)
+    × (Option flate2.mem.Compress) × S × D))
+  := do
+  let s ← coreopsderefDerefSSliceU8Inst.deref src
+  let i := Slice.len s
+  if start < i
+  then
+    let i1 := Slice.len s
+    let i2 ← i1 - start
+    let chunk_len ← core.cmp.min core.cmp.OrdUsize chunk_size i2
+    let i3 ← start + chunk_len
+    let chunk ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) s { start, «end» := i3 }
+    let i4 := Slice.len chunk
+    let i5 ← 7#usize + i4
+    let dst1 ← buf_modelReserveInst.reserve dst i5
+    let c ← proto.codec.trusted.compression_none
+    let b ← proto.codec.trusted.compression_eq compression c
+    if b
+    then
+      let i6 := Slice.len chunk
+      let a ← proto.codec.u24_le_bytes i6
+      let s1 ← lift (Array.to_slice a)
+      let dst2 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+      let s2 ← lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+      let dst3 ← buf_modelPacketBufMutInst.put_slice dst2 s2
+      let a1 := Array.repeat 3#usize 0#u8
+      let s3 ← lift (Array.to_slice a1)
+      let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s3
+      let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 chunk
+      let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+      ok (cont (seq_id1, deflater, dst5, i3))
+    else
+      let i6 := Slice.len chunk
+      if i6 >= constants.MIN_COMPRESS_LENGTH
+      then
+        match deflater with
+        | none =>
+          let new_deflater ← proto.codec.trusted.compress_new compression
+          let (compressed, new_deflater1) ←
+            proto.codec.trusted.deflate new_deflater chunk
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch compressed
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue val =>
+            let dst2 ←
+              match val with
+              | none =>
+                do
+                let i7 := Slice.len chunk
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let a1 := Array.repeat 3#usize 0#u8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                buf_modelPacketBufMutInst.put_slice dst5 chunk
+              | some compressed1 =>
+                do
+                let i7 := alloc.vec.Vec.len compressed1
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let i8 := Slice.len chunk
+                let a1 ← proto.codec.u24_le_bytes i8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                let s4 := alloc.vec.Vec.deref compressed1
+                buf_modelPacketBufMutInst.put_slice dst5 s4
+            let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+            ok (cont (seq_id1, some new_deflater1, dst2, i3))
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Std.U8
+                proto.codec.error.PacketCodecError.Insts.CoreConvertFromError
+                residual
+            ok (done (r, some new_deflater1, src, dst1))
+        | some deflater1 =>
+          let (r, deflater2) ← proto.codec.trusted.deflate deflater1 chunk
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue val =>
+            let dst2 ←
+              match val with
+              | none =>
+                do
+                let i7 := Slice.len chunk
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let a1 := Array.repeat 3#usize 0#u8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                buf_modelPacketBufMutInst.put_slice dst5 chunk
+              | some compressed =>
+                do
+                let i7 := alloc.vec.Vec.len compressed
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let i8 := Slice.len chunk
+                let a1 ← proto.codec.u24_le_bytes i8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                let s4 := alloc.vec.Vec.deref compressed
+                buf_modelPacketBufMutInst.put_slice dst5 s4
+            let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+            ok (cont (seq_id1, some deflater2, dst2, i3))
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r1 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Std.U8
+                proto.codec.error.PacketCodecError.Insts.CoreConvertFromError
+                residual
+            ok (done (r1, some deflater2, src, dst1))
+      else
+        let i7 := Slice.len chunk
+        let a ← proto.codec.u24_le_bytes i7
+        let s1 ← lift (Array.to_slice a)
+        let dst2 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+        let s2 ← lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+        let dst3 ← buf_modelPacketBufMutInst.put_slice dst2 s2
+        let a1 := Array.repeat 3#usize 0#u8
+        let s3 ← lift (Array.to_slice a1)
+        let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s3
+        let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 chunk
+        let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+        ok (cont (seq_id1, deflater, dst5, i3))
+  else
+    let src1 ← buf_modelClearInst.clear src
+    ok (done (core.result.Result.Ok seq_id, deflater, src1, dst))
+
+/-- [mysql_common::proto::codec::compress_with]: loop 0:
+    Source: 'src/proto/codec/mod.rs', lines 108:4-151:1 -/
+@[rust_loop]
+def proto.codec.compress_with_loop
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (seq_id : Std.U8)
+  (compression : flate2.Compression) (deflater : Option flate2.mem.Compress)
+  (src : S) (dst : D) (chunk_size : Std.Usize) (start : Std.Usize) :
+  Result ((core.result.Result Std.U8 proto.codec.error.PacketCodecError) ×
+    (Option flate2.mem.Compress) × S × D)
+  := do
+  loop
+    (fun (seq_id1, deflater1, dst1, start1) =>
+      proto.codec.compress_with_loop.body coreopsderefDerefSSliceU8Inst
+      buf_modelClearInst buf_modelPacketBufMutInst buf_modelReserveInst
+      compression src chunk_size seq_id1 deflater1 dst1 start1)
+    (seq_id, deflater, dst, start)
+
+/-- [mysql_common::proto::codec::compress_with]:
+    Source: 'src/proto/codec/mod.rs', lines 90:0-151:1 -/
+def proto.codec.compress_with
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (seq_id : Std.U8)
+  (compression : flate2.Compression) (deflater : Option flate2.mem.Compress)
+  (max_allowed_packet : Std.Usize) (src : S) (dst : D) :
+  Result ((core.result.Result Std.U8 proto.codec.error.PacketCodecError) ×
+    (Option flate2.mem.Compress) × S × D)
+  := do
+  let s ← coreopsderefDerefSSliceU8Inst.deref src
+  let b ← core.slice.Slice.is_empty s
+  if b
+  then ok (core.result.Result.Ok 0#u8, deflater, src, dst)
+  else
+    let chunk_size ←
+      core.cmp.min core.cmp.OrdUsize constants.MAX_PAYLOAD_LEN
+        max_allowed_packet
+    massert (chunk_size != 0#usize)
+    proto.codec.compress_with_loop coreopsderefDerefSSliceU8Inst
+      buf_modelClearInst buf_modelPacketBufMutInst buf_modelReserveInst seq_id
+      compression deflater src dst chunk_size 0#usize
+
+/-- [mysql_common::proto::codec::compress]:
+    Source: 'src/proto/codec/mod.rs', lines 74:0-85:1
+    Visibility: public -/
+def proto.codec.compress
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (seq_id : Std.U8)
+  (compression : flate2.Compression) (max_allowed_packet : Std.Usize) 
+  (src : S) (dst : D) :
+  Result ((core.result.Result Std.U8 proto.codec.error.PacketCodecError) × S
+    × D)
+  := do
+  let (r, _, src1, dst1) ←
+    proto.codec.compress_with coreopsderefDerefSSliceU8Inst buf_modelClearInst
+      buf_modelPacketBufMutInst buf_modelReserveInst seq_id compression none
+      max_allowed_packet src dst
+  ok (r, src1, dst1)
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::ChunkInfo}::seq_id]:
-    Source: 'src/proto/codec/mod.rs', lines 201:4-205:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 173:4-177:5 -/
 def proto.codec.ChunkInfo.seq_id
   (self : proto.codec.ChunkInfo) : Result Std.U8 := do
   match self with
   | proto.codec.ChunkInfo.Middle x => ok x
   | proto.codec.ChunkInfo.Last x => ok x
 
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::ChunkDecoder}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 181:44-181:51
+    Visibility: public -/
+def proto.codec.ChunkDecoder.Insts.CoreDefaultDefault.default
+  : Result proto.codec.ChunkDecoder := do
+  ok proto.codec.ChunkDecoder.Idle
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::ChunkDecoder}::decode]:
-    Source: 'src/proto/codec/mod.rs', lines 233:4-296:5
+    Source: 'src/proto/codec/mod.rs', lines 205:4-268:5
     Visibility: public -/
 def proto.codec.ChunkDecoder.decode
   {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
@@ -13734,16 +14156,342 @@ def proto.codec.ChunkDecoder.decode
     else ok (core.result.Result.Ok none, self, src, dst)
 partial_fixpoint
 
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompData}::new]:
+    Source: 'src/proto/codec/mod.rs', lines 282:4-305:5 -/
+def proto.codec.CompData.new
+  (compressed_len : Std.Usize) (uncompressed_len : Std.Usize)
+  (max_allowed_packet : Std.Usize) :
+  Result (core.result.Result (Option proto.codec.CompData)
+    proto.codec.error.PacketCodecError)
+  := do
+  let i ← core.cmp.max core.cmp.OrdUsize compressed_len uncompressed_len
+  if i > max_allowed_packet
+  then
+    ok (core.result.Result.Err
+      proto.codec.error.PacketCodecError.PacketTooLarge)
+  else
+    let compressed_len1 ←
+      proto.codec.buf_model.NonZeroUsize.new compressed_len
+    let uncompressed_len1 ←
+      proto.codec.buf_model.NonZeroUsize.new uncompressed_len
+    match compressed_len1 with
+    | none =>
+      match uncompressed_len1 with
+      | none => ok (core.result.Result.Ok none)
+      | some _ =>
+        ok (core.result.Result.Err
+          proto.codec.error.PacketCodecError.BadCompressedPacketHeader)
+    | some needed =>
+      match uncompressed_len1 with
+      | none =>
+        ok (core.result.Result.Ok (some (proto.codec.CompData.Uncompressed
+          needed)))
+      | some plain_len =>
+        ok (core.result.Result.Ok (some (proto.codec.CompData.Compressed needed
+          plain_len)))
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompData}::needed]:
+    Source: 'src/proto/codec/mod.rs', lines 308:4-312:5 -/
+def proto.codec.CompData.needed
+  (self : proto.codec.CompData) : Result Std.Usize := do
+  let needed ←
+    match self with
+    | proto.codec.CompData.Compressed needed1 _ => ok needed1
+    | proto.codec.CompData.Uncompressed needed1 => ok needed1
+  proto.codec.buf_model.NonZeroUsize.get needed
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompData}::write_payload]:
+    Source: 'src/proto/codec/mod.rs', lines 315:4-340:5 -/
+def proto.codec.CompData.write_payload
+  {D : Type _} (buf_modelPacketBufMutInst : proto.codec.buf_model.PacketBufMut
+  D) (self : proto.codec.CompData) (payload : Slice Std.U8) (dst : D)
+  (inflater : Option flate2.mem.Decompress) :
+  Result ((core.result.Result Unit core.io.error.Error) × D × (Option
+    flate2.mem.Decompress))
+  := do
+  match self with
+  | proto.codec.CompData.Compressed _ plain_len =>
+    match inflater with
+    | none =>
+      let new_inflater ← proto.codec.trusted.decompress_new
+      let i ← proto.codec.buf_model.NonZeroUsize.get plain_len
+      let (plain, new_inflater1) ←
+        proto.codec.trusted.inflate new_inflater payload i
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch plain
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let s := alloc.vec.Vec.deref val
+        let dst1 ← buf_modelPacketBufMutInst.put_slice dst s
+        ok (core.result.Result.Ok (), dst1, some new_inflater1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame core.io.error.Error) residual
+        ok (r, dst, some new_inflater1)
+    | some inflater1 =>
+      let i ← proto.codec.buf_model.NonZeroUsize.get plain_len
+      let (r, inflater2) ← proto.codec.trusted.inflate inflater1 payload i
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let s := alloc.vec.Vec.deref val
+        let dst1 ← buf_modelPacketBufMutInst.put_slice dst s
+        ok (core.result.Result.Ok (), dst1, some inflater2)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame core.io.error.Error) residual
+        ok (r1, dst, some inflater2)
+  | proto.codec.CompData.Uncompressed _ =>
+    let dst1 ← buf_modelPacketBufMutInst.put_slice dst payload
+    ok (core.result.Result.Ok (), dst1, inflater)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompDecoder}::decode_with]:
+    Source: 'src/proto/codec/mod.rs', lines 375:4-421:5 -/
+def proto.codec.CompDecoder.decode_with
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (self : proto.codec.CompDecoder)
+  (src : S) (dst : D) (max_allowed_packet : Std.Usize)
+  (inflater : Option flate2.mem.Decompress) :
+  Result ((core.result.Result (Option proto.codec.ChunkInfo)
+    proto.codec.error.PacketCodecError) × proto.codec.CompDecoder × S × D ×
+    (Option flate2.mem.Decompress))
+  := do
+  match self with
+  | proto.codec.CompDecoder.Idle =>
+    let s ← coreopsderefDerefSSliceU8Inst.deref src
+    let i := Slice.len s
+    if i < 7#usize
+    then
+      ok (core.result.Result.Ok none, proto.codec.CompDecoder.Idle, src, dst,
+        inflater)
+    else
+      let i1 ← Slice.index_usize s 0#usize
+      let i2 ← Slice.index_usize s 1#usize
+      let i3 ← Slice.index_usize s 2#usize
+      let i4 ←
+        lift (core.num.U32.from_le_bytes
+          (Array.make 4#usize [ i1, i2, i3, 0#u8 ]))
+      let compressed_len ← lift (UScalar.cast .Usize i4)
+      let seq_id ← Slice.index_usize s 3#usize
+      let i5 ← Slice.index_usize s 4#usize
+      let i6 ← Slice.index_usize s 5#usize
+      let i7 ← Slice.index_usize s 6#usize
+      let i8 ←
+        lift (core.num.U32.from_le_bytes
+          (Array.make 4#usize [ i5, i6, i7, 0#u8 ]))
+      let uncompressed_len ← lift (UScalar.cast .Usize i8)
+      let r ←
+        proto.codec.CompData.new compressed_len uncompressed_len
+          max_allowed_packet
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        match val with
+        | none =>
+          let src1 ← buf_modelPacketBufInst.advance src 7#usize
+          ok (core.result.Result.Ok (some (proto.codec.ChunkInfo.Last seq_id)),
+            proto.codec.CompDecoder.Idle, src1, dst, inflater)
+        | some needed =>
+          proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+            buf_modelPacketBufInst buf_modelPacketBufMutInst
+            (proto.codec.CompDecoder.Packet seq_id needed) src dst
+            max_allowed_packet inflater
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (Option proto.codec.ChunkInfo) (core.convert.FromSame
+            proto.codec.error.PacketCodecError) residual
+        ok (r1, proto.codec.CompDecoder.Idle, src, dst, inflater)
+  | proto.codec.CompDecoder.Packet seq_id needed =>
+    let s ← coreopsderefDerefSSliceU8Inst.deref src
+    let i := Slice.len s
+    let i1 ← proto.codec.CompData.needed needed
+    let i2 ← 7#usize + i1
+    if i >= i2
+    then
+      let src1 ← buf_modelPacketBufInst.advance src 7#usize
+      let s1 ← coreopsderefDerefSSliceU8Inst.deref src1
+      let s2 ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) s1
+          { «end» := i1 }
+      let (r, dst1, inflater1) ←
+        proto.codec.CompData.write_payload buf_modelPacketBufMutInst needed s2
+          dst inflater
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let src2 ← buf_modelPacketBufInst.advance src1 i1
+        ok (core.result.Result.Ok (some (proto.codec.ChunkInfo.Last seq_id)),
+          proto.codec.CompDecoder.Idle, src2, dst1, inflater1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (Option proto.codec.ChunkInfo)
+            proto.codec.error.PacketCodecError.Insts.CoreConvertFromError
+            residual
+        ok (r1, self, src1, dst1, inflater1)
+    else ok (core.result.Result.Ok none, self, src, dst, inflater)
+partial_fixpoint
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompDecoder}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 361:4-372:5
+    Visibility: public -/
+def proto.codec.CompDecoder.decode
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (self : proto.codec.CompDecoder)
+  (src : S) (dst : D) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result (Option proto.codec.ChunkInfo)
+    proto.codec.error.PacketCodecError) × proto.codec.CompDecoder × S × D)
+  := do
+  let (r, self1, src1, dst1, _) ←
+    proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+      buf_modelPacketBufInst buf_modelPacketBufMutInst self src dst
+      max_allowed_packet none
+  ok (r, self1, src1, dst1)
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::PlainPacketCodec}::reset_seq_id]:
-    Source: 'src/proto/codec/mod.rs', lines 594:4-596:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 586:4-588:5 -/
 def proto.codec.PlainPacketCodec.reset_seq_id
   (self : proto.codec.PlainPacketCodec) :
   Result proto.codec.PlainPacketCodec
   := do
   ok { self with seq_id := 0#u8 }
 
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::reset_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 684:4-687:5 -/
+def proto.codec.CompPacketCodec.reset_seq_id
+  (self : proto.codec.CompPacketCodec) :
+  Result proto.codec.CompPacketCodec
+  := do
+  let ppc ← proto.codec.PlainPacketCodec.reset_seq_id self.plain_codec
+  ok { self with comp_seq_id := 0#u8, plain_codec := ppc }
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::reset_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 496:4-501:5 -/
+def proto.codec.PacketCodecInner.reset_seq_id
+  (self : proto.codec.PacketCodecInner) :
+  Result proto.codec.PacketCodecInner
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain c =>
+    let c1 ← proto.codec.PlainPacketCodec.reset_seq_id c
+    ok (proto.codec.PacketCodecInner.Plain c1)
+  | proto.codec.PacketCodecInner.Comp c =>
+    let c1 ← proto.codec.CompPacketCodec.reset_seq_id c
+    ok (proto.codec.PacketCodecInner.Comp c1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::reset_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 437:4-439:5
+    Visibility: public -/
+def proto.codec.PacketCodec.reset_seq_id
+  (self : proto.codec.PacketCodec) : Result proto.codec.PacketCodec := do
+  let pci ← proto.codec.PacketCodecInner.reset_seq_id self.inner
+  ok { self with inner := pci }
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::sync_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 691:4-695:5 -/
+def proto.codec.CompPacketCodec.sync_seq_id
+  (self : proto.codec.CompPacketCodec) :
+  Result proto.codec.CompPacketCodec
+  := do
+  let s ←
+    proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref
+      self.in_buf
+  let b ← core.slice.Slice.is_empty s
+  if b
+  then
+    ok
+      {
+        self
+          with
+          plain_codec := { self.plain_codec with seq_id := self.comp_seq_id }
+      }
+  else ok self
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::sync_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 504:4-509:5 -/
+def proto.codec.PacketCodecInner.sync_seq_id
+  (self : proto.codec.PacketCodecInner) :
+  Result proto.codec.PacketCodecInner
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain _ => ok self
+  | proto.codec.PacketCodecInner.Comp c =>
+    let c1 ← proto.codec.CompPacketCodec.sync_seq_id c
+    ok (proto.codec.PacketCodecInner.Comp c1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::sync_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 442:4-444:5
+    Visibility: public -/
+def proto.codec.PacketCodec.sync_seq_id
+  (self : proto.codec.PacketCodec) : Result proto.codec.PacketCodec := do
+  let pci ← proto.codec.PacketCodecInner.sync_seq_id self.inner
+  ok { self with inner := pci }
+
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PlainPacketCodec}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 576:38-576:45
+    Visibility: public -/
+def proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default
+  : Result proto.codec.PlainPacketCodec := do
+  let cd ← proto.codec.ChunkDecoder.Insts.CoreDefaultDefault.default
+  ok { seq_id := (core.default.DefaultU8.default), chunk_decoder := cd }
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::compress]:
+    Source: 'src/proto/codec/mod.rs', lines 512:4-533:5 -/
+def proto.codec.PacketCodecInner.compress
+  (self : proto.codec.PacketCodecInner) (level : flate2.Compression) :
+  Result proto.codec.PacketCodecInner
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain c =>
+    let i ← constants.DEFAULT_MAX_ALLOWED_PACKET
+    let v := alloc.vec.Vec.with_capacity Std.U8 i
+    let v1 := alloc.vec.Vec.with_capacity Std.U8 i
+    let ppc ← proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default
+    let (ppc1, _) := core.mem.replace c ppc
+    ok (proto.codec.PacketCodecInner.Comp
+      {
+        level,
+        comp_seq_id := 0#u8,
+        in_buf := v,
+        out_buf := v1,
+        comp_decoder := proto.codec.CompDecoder.Idle,
+        deflater := none,
+        inflater := none,
+        plain_codec := ppc1
+      })
+  | proto.codec.PacketCodecInner.Comp c =>
+    let b ← proto.codec.trusted.compression_eq c.level level
+    if b
+    then ok self
+    else
+      ok (proto.codec.PacketCodecInner.Comp { c with level, deflater := none })
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::compress]:
+    Source: 'src/proto/codec/mod.rs', lines 447:4-449:5
+    Visibility: public -/
+def proto.codec.PacketCodec.compress
+  (self : proto.codec.PacketCodec) (level : flate2.Compression) :
+  Result proto.codec.PacketCodec
+  := do
+  let pci ← proto.codec.PacketCodecInner.compress self.inner level
+  ok { self with inner := pci }
+
+/-- [mysql_common::proto::codec::COMP_CODEC_SHRINK_THRESHOLD]
+    Source: 'src/proto/codec/mod.rs', lines 659:0-659:59 -/
+@[global_simps, irreducible]
+def proto.codec.COMP_CODEC_SHRINK_THRESHOLD : Result Std.Usize := do
+  let i ← 4#usize * 1024#usize
+  i * 1024#usize
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::PlainPacketCodec}::decode]:
-    Source: 'src/proto/codec/mod.rs', lines 603:4-644:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 595:4-636:5 -/
 def proto.codec.PlainPacketCodec.decode
   {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
   core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
@@ -13826,8 +14574,216 @@ def proto.codec.PlainPacketCodec.decode
     ok (r1, { self with chunk_decoder := cd }, src1, dst1)
 partial_fixpoint
 
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 700:4-748:5 -/
+def proto.codec.CompPacketCodec.decode
+  {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (coreconvertAsRefTSliceU8Inst :
+  core.convert.AsRef T (Slice Std.U8)) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut T) (self : proto.codec.CompPacketCodec)
+  (src : S) (dst : T) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Bool proto.codec.error.PacketCodecError) ×
+    proto.codec.CompPacketCodec × S × T)
+  := do
+  let s ←
+    proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref
+      self.in_buf
+  let b ← core.slice.Slice.is_empty s
+  if b
+  then
+    let (r, cd, src1, vb, o) ←
+      proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+        buf_modelPacketBufInst
+        proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut
+        self.comp_decoder src self.in_buf max_allowed_packet self.inflater
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      match val with
+      | none =>
+        ok (core.result.Result.Ok false,
+          { self with in_buf := vb, comp_decoder := cd, inflater := o }, src1,
+          dst)
+      | some chunk_info =>
+        let i ← proto.codec.ChunkInfo.seq_id chunk_info
+        if self.comp_seq_id != i
+        then
+          ok (core.result.Result.Err
+            proto.codec.error.PacketCodecError.PacketsOutOfSync,
+            { self with in_buf := vb, comp_decoder := cd, inflater := o },
+            src1, dst)
+        else
+          let i1 ← lift (core.num.U8.wrapping_add self.comp_seq_id 1#u8)
+          proto.codec.CompPacketCodec.decode coreopsderefDerefSSliceU8Inst
+            buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+            buf_modelPacketBufMutInst
+            {
+              self
+                with
+                comp_seq_id := i1,
+                in_buf := vb,
+                comp_decoder := cd,
+                inflater := o
+            } src1 dst max_allowed_packet
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Bool (core.convert.FromSame proto.codec.error.PacketCodecError)
+          residual
+      ok (r1, { self with in_buf := vb, comp_decoder := cd, inflater := o },
+        src1, dst)
+  else
+    let i ← lift (core.num.U8.wrapping_sub self.comp_seq_id 1#u8)
+    let (r, ppc, vb, dst1) ←
+      proto.codec.PlainPacketCodec.decode
+        proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8
+        proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf
+        coreconvertAsRefTSliceU8Inst buf_modelPacketBufMutInst self.plain_codec
+        self.in_buf dst max_allowed_packet (some i)
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      if val
+      then
+        let s1 ←
+          proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref vb
+        let b1 ← core.slice.Slice.is_empty s1
+        if b1
+        then
+          let i1 ← proto.codec.trusted.vec_capacity vb
+          let i2 ← proto.codec.COMP_CODEC_SHRINK_THRESHOLD
+          if i1 > i2
+          then
+            ok (core.result.Result.Ok true,
+              {
+                self
+                  with
+                  in_buf := (alloc.vec.Vec.new Std.U8), plain_codec := ppc
+              }, src, dst1)
+          else
+            ok (core.result.Result.Ok true,
+              { self with in_buf := vb, plain_codec := ppc }, src, dst1)
+        else
+          ok (core.result.Result.Ok true,
+            { self with in_buf := vb, plain_codec := ppc }, src, dst1)
+      else
+        let (r1, cd, src1, vb1, o) ←
+          proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+            buf_modelPacketBufInst
+            proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut
+            self.comp_decoder src vb max_allowed_packet self.inflater
+        let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+        match cf1 with
+        | core.ops.control_flow.ControlFlow.Continue val1 =>
+          match val1 with
+          | none =>
+            ok (core.result.Result.Ok false,
+              {
+                self
+                  with
+                  in_buf := vb1,
+                  comp_decoder := cd,
+                  inflater := o,
+                  plain_codec := ppc
+              }, src1, dst1)
+          | some chunk_info =>
+            let i1 ← proto.codec.ChunkInfo.seq_id chunk_info
+            if self.comp_seq_id != i1
+            then
+              ok (core.result.Result.Err
+                proto.codec.error.PacketCodecError.PacketsOutOfSync,
+                {
+                  self
+                    with
+                    in_buf := vb1,
+                    comp_decoder := cd,
+                    inflater := o,
+                    plain_codec := ppc
+                }, src1, dst1)
+            else
+              let i2 ← lift (core.num.U8.wrapping_add self.comp_seq_id 1#u8)
+              proto.codec.CompPacketCodec.decode coreopsderefDerefSSliceU8Inst
+                buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+                buf_modelPacketBufMutInst
+                {
+                  self
+                    with
+                    comp_seq_id := i2,
+                    in_buf := vb1,
+                    comp_decoder := cd,
+                    inflater := o,
+                    plain_codec := ppc
+                } src1 dst1 max_allowed_packet
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r2 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Bool (core.convert.FromSame proto.codec.error.PacketCodecError)
+              residual
+          ok (r2,
+            {
+              self
+                with
+                in_buf := vb1,
+                comp_decoder := cd,
+                inflater := o,
+                plain_codec := ppc
+            }, src1, dst1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Bool (core.convert.FromSame proto.codec.error.PacketCodecError)
+          residual
+      ok (r1, { self with in_buf := vb, plain_codec := ppc }, src, dst1)
+partial_fixpoint
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 538:4-553:5 -/
+def proto.codec.PacketCodecInner.decode
+  {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (coreconvertAsRefTSliceU8Inst :
+  core.convert.AsRef T (Slice Std.U8)) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut T) (self : proto.codec.PacketCodecInner)
+  (src : S) (dst : T) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Bool proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodecInner × S × T)
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain codec =>
+    let (r, codec1, src1, dst1) ←
+      proto.codec.PlainPacketCodec.decode coreopsderefDerefSSliceU8Inst
+        buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+        buf_modelPacketBufMutInst codec src dst max_allowed_packet none
+    ok (r, proto.codec.PacketCodecInner.Plain codec1, src1, dst1)
+  | proto.codec.PacketCodecInner.Comp codec =>
+    let (r, codec1, src1, dst1) ←
+      proto.codec.CompPacketCodec.decode coreopsderefDerefSSliceU8Inst
+        buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+        buf_modelPacketBufMutInst codec src dst max_allowed_packet
+    ok (r, proto.codec.PacketCodecInner.Comp codec1, src1, dst1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 457:4-464:5
+    Visibility: public -/
+def proto.codec.PacketCodec.decode
+  {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (coreconvertAsRefTSliceU8Inst :
+  core.convert.AsRef T (Slice Std.U8)) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut T) (self : proto.codec.PacketCodec)
+  (src : S) (dst : T) :
+  Result ((core.result.Result Bool proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodec × S × T)
+  := do
+  let (r, pci, src1, dst1) ←
+    proto.codec.PacketCodecInner.decode coreopsderefDerefSSliceU8Inst
+      buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+      buf_modelPacketBufMutInst self.inner src dst self.max_allowed_packet
+  ok (r, { self with inner := pci }, src1, dst1)
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::PlainPacketCodec}::encode]:
-    Source: 'src/proto/codec/mod.rs', lines 647:4-660:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 639:4-652:5 -/
 def proto.codec.PlainPacketCodec.encode
   {T : Type _} {D : Type _} (buf_modelPacketBufInst :
   proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
@@ -13847,6 +14803,139 @@ def proto.codec.PlainPacketCodec.encode
       proto.codec.packet_to_chunks buf_modelPacketBufInst
         buf_modelPacketBufMutInst buf_modelReserveInst self.seq_id packet dst
     ok (core.result.Result.Ok (), { self with seq_id := i1 }, packet1, dst1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::encode]:
+    Source: 'src/proto/codec/mod.rs', lines 751:4-779:5 -/
+def proto.codec.CompPacketCodec.encode
+  {T : Type _} {D : Type _} (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (self : proto.codec.CompPacketCodec)
+  (packet : T) (dst : D) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Unit proto.codec.error.PacketCodecError) ×
+    proto.codec.CompPacketCodec × T × D)
+  := do
+  let (r, ppc, packet1, vb) ←
+    proto.codec.PlainPacketCodec.encode buf_modelPacketBufInst
+      proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut
+      proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve
+      self.plain_codec packet self.out_buf max_allowed_packet
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, o, vb1, dst1) ←
+      proto.codec.compress_with
+        proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8
+        proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear
+        buf_modelPacketBufMutInst buf_modelReserveInst self.comp_seq_id
+        self.level self.deflater max_allowed_packet vb dst
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let i ← proto.codec.trusted.vec_capacity vb1
+      let i1 ← proto.codec.COMP_CODEC_SHRINK_THRESHOLD
+      if i > i1
+      then
+        ok (core.result.Result.Ok (),
+          {
+            self
+              with
+              comp_seq_id := val,
+              out_buf := (alloc.vec.Vec.new Std.U8),
+              deflater := o,
+              plain_codec := { ppc with seq_id := val }
+          }, packet1, dst1)
+      else
+        ok (core.result.Result.Ok (),
+          {
+            self
+              with
+              comp_seq_id := val,
+              out_buf := vb1,
+              deflater := o,
+              plain_codec := { ppc with seq_id := val }
+          }, packet1, dst1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame proto.codec.error.PacketCodecError)
+          residual
+      ok (r2, { self with out_buf := vb1, deflater := o, plain_codec := ppc },
+        packet1, dst1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame proto.codec.error.PacketCodecError)
+        residual
+    ok (r1, { self with out_buf := vb, plain_codec := ppc }, packet1, dst)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::encode]:
+    Source: 'src/proto/codec/mod.rs', lines 556:4-566:5 -/
+def proto.codec.PacketCodecInner.encode
+  {T : Type _} {D : Type _} (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (self : proto.codec.PacketCodecInner)
+  (packet : T) (dst : D) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Unit proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodecInner × T × D)
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain codec =>
+    let (r, codec1, packet1, dst1) ←
+      proto.codec.PlainPacketCodec.encode buf_modelPacketBufInst
+        buf_modelPacketBufMutInst buf_modelReserveInst codec packet dst
+        max_allowed_packet
+    ok (r, proto.codec.PacketCodecInner.Plain codec1, packet1, dst1)
+  | proto.codec.PacketCodecInner.Comp codec =>
+    let (r, codec1, packet1, dst1) ←
+      proto.codec.CompPacketCodec.encode buf_modelPacketBufInst
+        buf_modelPacketBufMutInst buf_modelReserveInst codec packet dst
+        max_allowed_packet
+    ok (r, proto.codec.PacketCodecInner.Comp codec1, packet1, dst1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::encode]:
+    Source: 'src/proto/codec/mod.rs', lines 467:4-473:5
+    Visibility: public -/
+def proto.codec.PacketCodec.encode
+  {T : Type _} {D : Type _} (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (self : proto.codec.PacketCodec) (src : T)
+  (dst : D) :
+  Result ((core.result.Result Unit proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodec × T × D)
+  := do
+  let (r, pci, src1, dst1) ←
+    proto.codec.PacketCodecInner.encode buf_modelPacketBufInst
+      buf_modelPacketBufMutInst buf_modelReserveInst self.inner src dst
+      self.max_allowed_packet
+  ok (r, { self with inner := pci }, src1, dst1)
+
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PacketCodecInner}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 570:4-572:5
+    Visibility: public -/
+def proto.codec.PacketCodecInner.Insts.CoreDefaultDefault.default
+  : Result proto.codec.PacketCodecInner := do
+  let ppc ← proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default
+  ok (proto.codec.PacketCodecInner.Plain ppc)
+
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PacketCodec}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 477:4-482:5
+    Visibility: public -/
+def proto.codec.PacketCodec.Insts.CoreDefaultDefault.default
+  : Result proto.codec.PacketCodec := do
+  let i ← constants.DEFAULT_MAX_ALLOWED_PACKET
+  let pci ← proto.codec.PacketCodecInner.Insts.CoreDefaultDefault.default
+  ok { max_allowed_packet := i, inner := pci }
+
+/-- Trait implementation: [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PacketCodec}]
+    Source: 'src/proto/codec/mod.rs', lines 476:0-483:1 -/
+@[reducible]
+def proto.codec.PacketCodec.Insts.CoreDefaultDefault : core.default.Default
+  proto.codec.PacketCodec := {
+  default := proto.codec.PacketCodec.Insts.CoreDefaultDefault.default
+}
 
 /-- [mysql_common::row::convert::FromRow::from_row]:
     Source: 'src/row/convert/mod.rs', lines 78:4-88:5
