@@ -1310,7 +1310,46 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
       | panic e => rw [hsr] at h; simp at h
       | unknown => rw [hsr] at h; simp at h
     · rename_i hne; exact absurd rfl hne
-  sorry
+  · have hfb1 : fb ≠ 1#u8 := fun hh => htg (by rw [← hfbv, hh]; rfl)
+    simp only [htg, decide_false, ↓reduceIte] at h
+    split
+    · rename_i hh; exact absurd hh hfb1
+    have hnsv : (raw &&& 72057594037927935#u64).val = raw.val % 2 ^ 56 := by
+      rw [UScalar.val_and]; exact mask_low _
+    step as ⟨i5, hi5⟩
+    split
+    · rename_i hh; exact absurd rfl hfb1
+    obtain ⟨hd9, -⟩ := untagged_loop h64 (raw.val % 2 ^ 56) sid_buf (raw &&& 72057594037927935#u64)
+      (alloc.vec.Vec.with_capacity packets.Sid i5) hnsv (by simp [alloc.vec.Vec.with_capacity])
+    cases hsr : sidsRead false (raw.val % 2 ^ 56) sid_buf.val with
+    | done o rr =>
+      rw [hsr] at h
+      step with hd9 o rr hsr as ⟨r9, b9, h9⟩
+      cases o with
+      | some ss =>
+        simp only [ReadOut.done.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        cases r9 with
+        | Err _ => simp [okPart] at h9
+        | Ok v =>
+        gtid_ok_br
+        rw [seq_sid_new_vec]
+        apply spec_bind_ok
+        apply (WP.spec_ok _).mpr
+        simp only [okPart, Option.map_some, Option.some.injEq] at h9
+        refine ⟨?_, hb5⟩
+        simp only [okPart, Option.map_some, GtidDump.of, h3a, h4a, hrb, hpos]
+        simp [cowList, h9, alloc.vec.Vec.with_capacity]
+      | none =>
+        simp only [ReadOut.done.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        cases r9 with
+        | Ok _ => simp [okPart] at h9
+        | Err e =>
+          gtid_err_br
+          exact ⟨by simp [okPart], hb5⟩
+    | panic e => rw [hsr] at h; simp at h
+    | unknown => rw [hsr] at h; simp at h
 
 /-- **Crash path.** `MyDeserialize for ComBinlogDumpGtid` panics where `gtidDumpRead` does: a SID
     whose interval count `n` has `16 * n` above `usize::MAX` (see `Sid::deserialize_overflow`:
