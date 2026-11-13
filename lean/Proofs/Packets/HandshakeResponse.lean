@@ -71,7 +71,7 @@ theorem packets.HandshakeResponse.new_spec {T1 T2 T3 : Type} (into1 : core.conve
     simp [constants.CapabilityFlags.CLIENT_CONNECT_ATTRS, CLIENT_CONNECT_ATTRS]
   rcases scramble_buf with _ | x1 <;> rcases user with _ | x2 <;> rcases db_name with _ | x3 <;>
     rcases auth_plugin with _ | ap <;> rcases connect_attributes with _ | ca <;>
-    simp only [alloc.borrow.Cow.Insts.CoreDefaultDefault.default, alloc.vec.Vec.Insts.CoreDefaultDefault.default, bind_tc_ok, core.option.Option.is_some, Option.isSome_some,
+    simp only [alloc.borrow.Cow.Insts.CoreDefaultDefault.default, alloc.vec.Vec.Insts.CoreDefaultDefault.default, core.option.Option.is_some, Option.isSome_some,
       Option.isSome_none, Bool.false_eq_true, ↓reduceIte, misc.trusted.connect_attrs_from_strings]
   all_goals
     try have hs' := hs2 _ rfl
