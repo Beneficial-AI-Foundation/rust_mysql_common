@@ -39,72 +39,72 @@ recall packets.binlog_request.BinlogRequest.new_spec (server_id : U32) :
     packets.binlog_request.BinlogRequest.new server_id ⦃ r =>
       BinlogReq.of r = ⟨server_id.val, false, 0, [], 4, []⟩ ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.new_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.new_spec
 /-- `server_id`: the field. -/
 recall packets.binlog_request.BinlogRequest.impl.server_id_eq (self : packets.binlog_request.BinlogRequest) :
     packets.binlog_request.BinlogRequest.impl.server_id self = ok self.server_id
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.server_id_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.server_id_eq
 /-- `use_gtid`: the field. -/
 recall packets.binlog_request.BinlogRequest.impl.use_gtid_eq (self : packets.binlog_request.BinlogRequest) :
     packets.binlog_request.BinlogRequest.impl.use_gtid self = ok self.use_gtid
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.use_gtid_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.use_gtid_eq
 /-- `flags`: the field. -/
 recall packets.binlog_request.BinlogRequest.impl.flags_eq (self : packets.binlog_request.BinlogRequest) :
     packets.binlog_request.BinlogRequest.impl.flags self = ok self.flags
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.flags_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.flags_eq
 /-- `filename_raw`: the file name. -/
 recall packets.binlog_request.BinlogRequest.filename_raw_spec (self : packets.binlog_request.BinlogRequest) :
     packets.binlog_request.BinlogRequest.filename_raw self ⦃ s => s.val = cowList self.filename ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.filename_raw_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.filename_raw_spec
 /-- `filename`: the file name's raw bytes. **Quirk**: documented as "a UTF-8 string (lossy
     converted)", it returns the same bytes as `filename_raw`. -/
 recall packets.binlog_request.BinlogRequest.impl.filename_spec (self : packets.binlog_request.BinlogRequest) :
     packets.binlog_request.BinlogRequest.impl.filename self ⦃ s => s.val = cowList self.filename ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.filename_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.filename_spec
 /-- `pos`: the field. -/
 recall packets.binlog_request.BinlogRequest.impl.pos_eq (self : packets.binlog_request.BinlogRequest) :
     packets.binlog_request.BinlogRequest.impl.pos self = ok self.pos
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.pos_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.pos_eq
 /-- `sids`: the SIDs. -/
 recall packets.binlog_request.BinlogRequest.impl.sids_spec (self : packets.binlog_request.BinlogRequest) :
     packets.binlog_request.BinlogRequest.impl.sids self ⦃ s => s.val = self.sids.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.sids_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.impl.sids_spec
 /-- `with_server_id`: sets the field. -/
 recall packets.binlog_request.BinlogRequest.with_server_id_eq (self : packets.binlog_request.BinlogRequest)
     (server_id : U32) :
     packets.binlog_request.BinlogRequest.with_server_id self server_id = ok { self with server_id }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_server_id_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_server_id_eq
 /-- `with_use_gtid`: sets the field. -/
 recall packets.binlog_request.BinlogRequest.with_use_gtid_eq (self : packets.binlog_request.BinlogRequest)
     (use_gtid : Bool) :
     packets.binlog_request.BinlogRequest.with_use_gtid self use_gtid = ok { self with use_gtid }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_use_gtid_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_use_gtid_eq
 /-- `with_flags`: sets the field. -/
 recall packets.binlog_request.BinlogRequest.with_flags_eq (self : packets.binlog_request.BinlogRequest)
     (flags : packets.BinlogDumpFlags) :
     packets.binlog_request.BinlogRequest.with_flags self flags = ok { self with flags }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_flags_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_flags_eq
 /-- `with_filename`: sets the field to `filename.into()`. -/
 recall packets.binlog_request.BinlogRequest.with_filename_eq {T : Type}
     (into : core.convert.Into T (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
@@ -112,15 +112,15 @@ recall packets.binlog_request.BinlogRequest.with_filename_eq {T : Type}
     (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) (h : into.into x = ok c) :
     packets.binlog_request.BinlogRequest.with_filename into self x = ok { self with filename := c }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_filename_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_filename_eq
 /-- `with_pos`: sets the field to `pos.into()`. -/
 recall packets.binlog_request.BinlogRequest.with_pos_eq {T : Type} (into : core.convert.Into T U64)
     (self : packets.binlog_request.BinlogRequest) (x : T) (p : U64) (h : into.into x = ok p) :
     packets.binlog_request.BinlogRequest.with_pos into self x = ok { self with pos := p }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_pos_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.with_pos_eq
 /-- `as_cmd`: without GTID, a `COM_BINLOG_DUMP` with the position **truncated to 32 bits**
     (`pos as u32`, documented), only the `BINLOG_DUMP_NON_BLOCK` flag kept (documented), the
     server id and the file name (the SIDs are ignored); with GTID, a `COM_BINLOG_DUMP_GTID` with
@@ -137,6 +137,6 @@ recall packets.binlog_request.BinlogRequest.as_cmd_spec (self : packets.binlog_r
               else self.flags.val ||| BINLOG_THROUGH_GTID,
             self.server_id.val, cowList self.filename, self.pos.val, self.sids.val.map SidV.of⟩ ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.as_cmd_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.binlog_request.BinlogRequest.as_cmd_spec
 end mysql_common
