@@ -297,11 +297,104 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
   case MasterDataWritten =>
     unfold binlog.events.query_event.StatusVar.get_value
     simp only []
-    sorry
+    step with io.ParseBuf.checked_eat_spec as ⟨o, r1, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some bs =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        simp only []
+        have lb : bs.val.length = 4 := by rw [h1]; simp [Slice.length] at hl ⊢; omega
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        obtain ⟨a0, a1, a2, a3, h4⟩ : ∃ a0 a1 a2 a3, bs.val = [a0, a1, a2, a3] := by
+          match hx : bs.val, lb with
+          | [a0, a1, a2, a3], _ => exact ⟨a0, a1, a2, a3, rfl⟩
+        simp only [h4] at *
+        simp [hl, ← h1, Array.make]
+        refine ⟨?_, ?_, ?_, ?_⟩ <;> subst_vars <;> rfl
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
   case Invoker =>
     unfold binlog.events.query_event.StatusVar.get_value
     simp only []
-    sorry
+    step with io.ParseBuf.checked_eat_u8_spec as ⟨o, r1, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, hr1⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        simp only [lift, bind_ok]
+        have hc : (UScalar.cast .Usize x).val = x.val := IntAndMisc.cast_usize_small _ (by scalar_tac)
+        obtain ⟨b, t, hbt⟩ : ∃ b t, val.val = b :: t := by
+          cases hx : val.val with
+          | nil => simp [Slice.length, hx] at hl
+          | cons b t => exact ⟨b, t, rfl⟩
+        rw [hbt] at h1 hr1
+        simp [leNat] at h1 hr1
+        step with slice_get_to as ⟨o1, h2⟩
+        rw [hc] at h2
+        split_ifs at h2 with hl2
+        · obtain ⟨un, rfl, hun⟩ := h2
+          simp only []
+          have hs : (UScalar.cast .Usize x).val ≤ r1.length := by rw [hc]; exact hl2
+          simp only [core.slice.index.Slice.index, core.slice.index.SliceIndexRangeFromUsizeSlice.index, hs, ite_true,
+            bind_ok]
+          step with io.ParseBuf.checked_eat_u8_spec as ⟨o2, r2, ho2⟩
+          simp only [Slice.drop, Slice.from_val, Slice.length, hc] at ho2
+          split_ifs at ho2 with hl3
+          · obtain ⟨h3, hr2⟩ := ho2
+            cases o2 with
+            | none => simp at h3
+            | some y =>
+              simp only [Option.map_some, Option.some.injEq] at h3
+              simp only [lift, bind_ok]
+              have hcy : (UScalar.cast .Usize y).val = y.val := IntAndMisc.cast_usize_small _ (by scalar_tac)
+              obtain ⟨b2, t2, hbt2⟩ : ∃ b2 t2, r1.val.drop x.val = b2 :: t2 := by
+                cases hx : r1.val.drop x.val with
+                | nil => simp [hx] at hl3
+                | cons b2 t2 => exact ⟨b2, t2, rfl⟩
+              rw [hbt2] at h3 hr2
+              simp [leNat] at h3 hr2
+              step with slice_get_to as ⟨o3, h4⟩
+              rw [hcy] at h4
+              split_ifs at h4 with hl4
+              · obtain ⟨hn, rfl, hhn⟩ := h4
+                simp only []
+                step with rawbytes_new_borrowed as ⟨rb, hrb⟩
+                step with rawbytes_new_borrowed as ⟨rb2, hrb2⟩
+                simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+                rw [hbt]
+                rw [hr1] at hl2 hun hbt2
+                rw [hr2] at hl4 hhn
+                simp [lp1, takeExact, ← h1, hl2, hbt2, ← h3, hl4, hrb, hrb2, hun, hhn]
+              · subst h4
+                simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+                rw [hbt]
+                rw [hr1] at hl2 hbt2
+                rw [hr2] at hl4
+                simp [lp1, takeExact, ← h1, hl2, hbt2, ← h3, hl4]
+          · obtain ⟨rfl, -⟩ := ho2
+            simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+            rw [hbt]
+            rw [hr1] at hl2 hl3
+            have : t.drop x.val = [] := List.drop_eq_nil_of_le (by simp at hl3; omega)
+            simp [lp1, takeExact, ← h1, hl2, this]
+        · subst h2
+          simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+          rw [hbt]
+          rw [hr1] at hl2
+          simp [lp1, takeExact, ← h1, hl2]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      have : val.val = [] := by cases hx : val.val <;> simp_all
+      simp [this, lp1]
   case UpdatedDbNames =>
     unfold binlog.events.query_event.StatusVar.get_value
     simp only []
