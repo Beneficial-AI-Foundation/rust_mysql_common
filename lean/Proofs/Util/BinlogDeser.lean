@@ -491,4 +491,147 @@ theorem deser_MYSQL_TYPE_ENUM (h64 : Target64) (md : Slice U8) (uns part : Bool)
     simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 2 from by omega, ite_false, hg, hv1, hv2]
     simp [binRel, okPart]
 
+theorem deser_MYSQL_TYPE_VARCHAR (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hmeta : binlogMetaLen MYSQL_TYPE_VARCHAR ≤ md.val.length) (hb : ¬ binlogBug MYSQL_TYPE_VARCHAR md.val uns buf.val) :
+    BVdes (MYSQL_TYPE_VARCHAR, md, uns, part) buf ⦃ r rest => binRel (binlogRead MYSQL_TYPE_VARCHAR md.val uns buf.val) r rest ⦄ := by
+  have hm2 : 2 ≤ md.val.length := by simpa [binlogMetaLen] using hmeta
+  obtain ⟨m0, m1, t, hmd⟩ : ∃ m0 m1 t, md.val = m0 :: m1 :: t := by
+    rcases h : md.val with _ | ⟨a, _ | ⟨b, t⟩⟩ <;> simp_all
+  pre_tac MYSQL_TYPE_VARCHAR
+  simp only [index0 md m0 _ hmd, index1 md m0 m1 t hmd, Std.bind_ok]
+  have b0 := u8_lt m0
+  have b1 := u8_lt m1
+  step as ⟨i4, i4_post, i4_post1⟩
+  have hlen : (UScalar.cast .Usize (UScalar.cast .U16 m0 ||| i4)).val = m0.val + 256 * m1.val := by
+    have c0 : (UScalar.cast .U16 m0).val = m0.val := by rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+    have c1 : (UScalar.cast .U16 m1).val = m1.val := by rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+    rw [c1, Nat.shiftLeft_eq] at i4_post
+    have hi4 : i4.val = m1.val * 256 := by rw [i4_post]; simp [U16.size, U16.numBits]; omega
+    have hor : (UScalar.cast .U16 m0 ||| i4).val = m0.val + 256 * m1.val := by
+      rw [UScalar.val_or, c0, hi4, Nat.lor_comm, show m1.val * 256 = m1.val <<< 8 by rw [Nat.shiftLeft_eq],
+        ← Nat.shiftLeft_add_eq_or_of_lt (by omega : m0.val < 2 ^ 8), Nat.shiftLeft_eq]; ring
+    rw [IntAndMisc.cast_usize_small _ (by rw [hor]; omega), hor]
+  have hg0 : (md.val.getD 0 (byte 0)) = m0 := by simp [hmd]
+  have hg1 : (md.val.getD 1 (byte 0)) = m1 := by simp [hmd]
+  split_ifs with hlt
+  · have hlt' : m0.val + 256 * m1.val < 256 := by rw [← hlen]; scalar_tac
+    rw [show binlogRead MYSQL_TYPE_VARCHAR md.val uns buf.val = binlogStr 1 buf.val by
+      simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 2 from by omega, ite_false, hg0, hg1, hlt', ite_true]]
+    lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
+  · have hlt' : ¬ m0.val + 256 * m1.val < 256 := by rw [← hlen]; scalar_tac
+    rw [show binlogRead MYSQL_TYPE_VARCHAR md.val uns buf.val = binlogStr 2 buf.val by
+      simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 2 from by omega, ite_false, hg0, hg1, hlt']]
+    lenpref_tac (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf) 2
+theorem deser_MYSQL_TYPE_VAR_STRING (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hmeta : binlogMetaLen MYSQL_TYPE_VAR_STRING ≤ md.val.length) (hb : ¬ binlogBug MYSQL_TYPE_VAR_STRING md.val uns buf.val) :
+    BVdes (MYSQL_TYPE_VAR_STRING, md, uns, part) buf ⦃ r rest => binRel (binlogRead MYSQL_TYPE_VAR_STRING md.val uns buf.val) r rest ⦄ := by
+  have hm2 : 2 ≤ md.val.length := by simpa [binlogMetaLen] using hmeta
+  obtain ⟨m0, m1, t, hmd⟩ : ∃ m0 m1 t, md.val = m0 :: m1 :: t := by
+    rcases h : md.val with _ | ⟨a, _ | ⟨b, t⟩⟩ <;> simp_all
+  pre_tac MYSQL_TYPE_VAR_STRING
+  simp only [index0 md m0 _ hmd, index1 md m0 m1 t hmd, Std.bind_ok]
+  have b0 := u8_lt m0
+  have b1 := u8_lt m1
+  step as ⟨i4, i4_post, i4_post1⟩
+  have hlen : (UScalar.cast .Usize (UScalar.cast .U16 m0 ||| i4)).val = m0.val + 256 * m1.val := by
+    have c0 : (UScalar.cast .U16 m0).val = m0.val := by rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+    have c1 : (UScalar.cast .U16 m1).val = m1.val := by rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+    rw [c1, Nat.shiftLeft_eq] at i4_post
+    have hi4 : i4.val = m1.val * 256 := by rw [i4_post]; simp [U16.size, U16.numBits]; omega
+    have hor : (UScalar.cast .U16 m0 ||| i4).val = m0.val + 256 * m1.val := by
+      rw [UScalar.val_or, c0, hi4, Nat.lor_comm, show m1.val * 256 = m1.val <<< 8 by rw [Nat.shiftLeft_eq],
+        ← Nat.shiftLeft_add_eq_or_of_lt (by omega : m0.val < 2 ^ 8), Nat.shiftLeft_eq]; ring
+    rw [IntAndMisc.cast_usize_small _ (by rw [hor]; omega), hor]
+  have hg0 : (md.val.getD 0 (byte 0)) = m0 := by simp [hmd]
+  have hg1 : (md.val.getD 1 (byte 0)) = m1 := by simp [hmd]
+  split_ifs with hlt
+  · have hlt' : m0.val + 256 * m1.val < 256 := by rw [← hlen]; scalar_tac
+    rw [show binlogRead MYSQL_TYPE_VAR_STRING md.val uns buf.val = binlogStr 1 buf.val by
+      simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 2 from by omega, ite_false, hg0, hg1, hlt', ite_true]]
+    lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
+  · have hlt' : ¬ m0.val + 256 * m1.val < 256 := by rw [← hlen]; scalar_tac
+    rw [show binlogRead MYSQL_TYPE_VAR_STRING md.val uns buf.val = binlogStr 2 buf.val by
+      simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 2 from by omega, ite_false, hg0, hg1, hlt']]
+    lenpref_tac (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf) 2
+
+theorem deser_MYSQL_TYPE_STRING (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hmeta : binlogMetaLen MYSQL_TYPE_STRING ≤ md.val.length) (hb : ¬ binlogBug MYSQL_TYPE_STRING md.val uns buf.val) :
+    BVdes (MYSQL_TYPE_STRING, md, uns, part) buf ⦃ r rest => binRel (binlogRead MYSQL_TYPE_STRING md.val uns buf.val) r rest ⦄ := by
+  have hm2 : 2 ≤ md.val.length := by simpa [binlogMetaLen] using hmeta
+  obtain ⟨m0, m1, t, hmd⟩ : ∃ m0 m1 t, md.val = m0 :: m1 :: t := by
+    rcases h : md.val with _ | ⟨a, _ | ⟨b, t⟩⟩ <;> simp_all
+  have b0 := u8_lt m0
+  have b1 := u8_lt m1
+  have hg0 : (md.val.getD 0 (byte 0)) = m0 := by simp [hmd]
+  have hg1 : (md.val.getD 1 (byte 0)) = m1 := by simp [hmd]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_STRING MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_STRING MYSQL_TYPE_STRING = ok true from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, ite_true, lift, index0 md m0 _ hmd, index1 md m0 m1 t hmd]
+  have hrd : ∀ L : Nat, stringFieldLen m0.val m1.val = L →
+      binlogRead MYSQL_TYPE_STRING md.val uns buf.val = binlogStr (if L < 256 then 1 else 2) buf.val := by
+    intro L hL
+    simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 2 from by omega, ite_false, hg0, hg1, hL]
+  have c0 := IntAndMisc.cast_usize_small m0 (by omega)
+  have c1 := IntAndMisc.cast_usize_small m1 (by omega)
+  have v48 : (48#usize : Usize).val = 48 := by simp
+  by_cases h0 : m0 ≥ 1#u8
+  · have h0' : 1 ≤ m0.val := by scalar_tac
+    have hsl := stringFieldLen_lt m0.val m1.val h0' b1
+    simp only [h0, ite_true]
+    by_cases h48 : (UScalar.cast UScalarTy.Usize m0 &&& 48#usize != 48#usize) = true
+    · have h48' : m0.val &&& 48 ≠ 48 := by
+        simp only [bne_iff_ne, ne_eq] at h48
+        intro hc; apply h48; apply UScalar.eq_of_val_eq; rw [UScalar.val_and, c0, v48, hc]
+      simp only [h48, ite_true]
+      have hx : ((UScalar.cast UScalarTy.Usize m0 &&& 48#usize) ^^^ 48#usize).val = (m0.val &&& 48) ^^^ 48 := by
+        rw [UScalar.val_xor, UScalar.val_and, c0, v48]
+      have hxb : (m0.val &&& 48) ^^^ 48 < 2 ^ 6 :=
+        Nat.xor_lt_two_pow (lt_of_le_of_lt Nat.and_le_right (by norm_num)) (by norm_num)
+      step as ⟨i5, i5_post, i5_post1⟩
+      case hy => cases System.Platform.numBits_eq <;> simp_all
+      have hLv : (UScalar.cast UScalarTy.Usize m1 ||| i5).val = stringFieldLen m0.val m1.val := by
+        rw [UScalar.val_or, c1, i5_post, hx]
+        simp only [stringFieldLen, h0', ite_true, h48', ne_eq, not_false_eq_true]
+        have hs : ((m0.val &&& 48) ^^^ 48) <<< 4 < Usize.size := by
+          rw [Nat.shiftLeft_eq]; have : (m0.val &&& 48 ^^^ 48) * 2 ^ 4 < 1024 := by omega
+          scalar_tac
+        rw [Nat.mod_eq_of_lt hs]
+      try simp only [Std.bind_ok]
+      split_ifs with hlt
+      · have hlt' : stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
+        rw [hrd _ rfl, if_pos hlt']
+        lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
+      · have hlt' : ¬ stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
+        rw [hrd _ rfl, if_neg hlt']
+        lenpref_tac (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf) 2
+    · have h48' : m0.val &&& 48 = 48 := by
+        rw [Bool.not_eq_true, bne_eq_false_iff_eq] at h48
+        have := congrArg UScalar.val h48; rw [UScalar.val_and, c0, v48] at this; exact this
+      rw [if_neg h48]
+      simp only [Std.bind_ok]
+      have hLv : (UScalar.cast UScalarTy.Usize m1).val = stringFieldLen m0.val m1.val := by
+        rw [c1]; unfold stringFieldLen; rw [if_pos h0', if_neg (by rw [h48']; exact fun h => h rfl)]
+      split_ifs with hlt
+      · have hlt' : stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
+        rw [hrd _ rfl, if_pos hlt']
+        lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
+      · exfalso; rw [UScalar.lt_equiv, c1] at hlt; simp at hlt; omega
+  · have h0' : m0.val = 0 := by scalar_tac
+    simp only [h0, ite_false]
+    step with io.ParseBuf.eat_u16_le_spec md (by simp [Slice.length]; omega) as ⟨pr, hi1, hmd2⟩
+    obtain ⟨i1, mdr⟩ := pr
+    simp only [Std.uncurry_apply_pair, Std.bind_ok] at *
+    have hLv : (UScalar.cast UScalarTy.Usize i1).val = stringFieldLen m0.val m1.val := by
+      rw [IntAndMisc.cast_usize_small _ (by have := i1.hBounds; simp at this; omega), hi1, hmd]
+      simp [stringFieldLen, h0', leNat]
+    split_ifs with hlt
+    · have hlt' : stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
+      rw [hrd _ rfl, if_pos hlt']
+      lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
+    · have hlt' : ¬ stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
+      rw [hrd _ rfl, if_neg hlt']
+      lenpref_tac (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf) 2
+
 end mysql_common.BinlogUtil
