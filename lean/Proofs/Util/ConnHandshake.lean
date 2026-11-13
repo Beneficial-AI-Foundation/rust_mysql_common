@@ -17,30 +17,19 @@ import Proofs.Constants.CapabilityFlags
 import Proofs.Util.ConnAuth
 import Proofs.Misc.Raw.Int.U8
 import Proofs.Packets.AuthPlugin
+import Proofs.Util.Shared
 
 /-! Helper lemmas for the handshake packet proofs (`Proofs/Packets/{HandshakePacket,
 HandshakeResponse,SslRequest}.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common.ConnHSUtil
 
 /-! ## Fixed-width readers through `parse_unchecked` -/
-
-theorem pu_rawint_leu32 (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
-    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
-      (okPart r).map (·.1.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4 ⦄ := by
-  rw [io.ParseBuf.parse_unchecked_eq]
-  have := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 buf
-    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4)
-    (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec buf h)
-  apply WP.spec_mono this
-  rintro ⟨r, rest⟩ hr
-  simpa [Option.map_map] using hr
 
 theorem pu_rawconst {T P : Type} (U : Type) (inst : misc.raw.int.IntRepr T P) (k : Nat) (g : P → Nat)
     (buf : io.ParseBuf) (F : List U8 → Nat)
@@ -672,17 +661,6 @@ theorem hsRespRead_enc (v : HsResp) (kvs : Option (List (List U8 × List U8))) (
 
 /-! ## Handshake response reading steps -/
 
-theorem parse_u8bytes_spec (buf : io.ParseBuf) :
-    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
-      ((okPart r).map (fun rb => cowList rb.1), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
-  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
-    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
-  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
-    (fun o rest => (o, rest.val) = checkedLenPrefixed 1 buf.val)
-    (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
-
 theorem flag_pos_iff (flags : U32) (c : constants.CapabilityFlags) (i : U32) (k : Nat)
     (hc : c.val = 2 ^ k) (hi : i.val = (flags &&& c).val) :
     (i > 0#u32 ↔ hasFlag flags.val (2 ^ k) = true) := by
@@ -795,12 +773,6 @@ theorem hsRespRead_eq (bs : List U8) : hsRespRead bs =
   rfl
 
 /-! ## Failure chains -/
-
-theorem bind_fail_pair {α β γ : Type} {m : Result (α × β)} {k : α → β → Result γ} {P : α → β → Prop}
-    {e : Error} (hm : m ⦃ a b => P a b ⦄) (hk : ∀ a b, P a b → k a b = fail e) :
-    (do let (a, b) ← m; k a b) = fail e := by
-  obtain ⟨⟨a, b⟩, h1, h2⟩ := PBUtil.spec_eq_ok hm
-  rw [h1]; simpa using hk a b h2
 
 theorem branch_ok_spec {T E : Type} (x : T) :
     CoreOpsTry.branch (core.result.Result.Ok x : core.result.Result T E) ⦃ c =>

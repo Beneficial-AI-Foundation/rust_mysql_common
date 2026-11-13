@@ -1,6 +1,7 @@
 import Defs
 import Proofs.Util.StmtBulkSsB
 import Proofs.Misc.Raw.Bytes.RawBytes
+import Proofs.Util.Shared
 
 /-! Statements for `struct TransactionState and its impls` (spec file: `Specs/Packets/SessionStateChange.lean`).
 Helper lemmas: `Proofs/Util/StmtBulkSsB.lean`. -/
@@ -32,7 +33,7 @@ theorem packets.session_state_change.TransactionState.as_bytes_spec (self : pack
 theorem packets.session_state_change.TransactionState.as_str_spec (self : packets.session_state_change.TransactionState) :
     packets.session_state_change.TransactionState.as_str self ⦃ c => LossyUtf8Valid (cowList self.1) c ⦄ := by
   unfold packets.session_state_change.TransactionState.as_str
-  exact SBSsB.lenenc_as_str self
+  exact Shared.lenenc_as_str self
 
 /-- `into_owned`: the same bytes. -/
 theorem packets.session_state_change.TransactionState.into_owned_spec (self : packets.session_state_change.TransactionState) :

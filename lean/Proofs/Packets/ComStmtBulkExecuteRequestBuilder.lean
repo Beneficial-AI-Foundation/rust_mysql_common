@@ -2,13 +2,14 @@ import Defs
 import Proofs.Value.Value
 import Proofs.Packets.ComStmtBulkExecuteRequest
 import Proofs.Defs.LemmasStmtSession
+import Proofs.Util.SharedBasic
 
 /-! Statements for `struct ComStmtBulkExecuteRequestBuilder and its impls` (spec file:
 `Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.Shared
 
 namespace mysql_common
 
@@ -52,17 +53,6 @@ theorem packets.ComStmtBulkExecuteRequestBuilder.impl.with_results_spec
   simp [packets.ComStmtBulkExecuteRequestBuilder.impl.with_results, BulkBuilder.of]
 
 private abbrev lensOf (l : List value.Value) : List Nat := l.map (fun v => 1 + (binEnc (Val.ofValue v)).length)
-
-private theorem usize_max_lt : Usize.max < 2 ^ 64 := by
-  rcases Usize.bounds_eq with h | h <;> rw [h] <;> simp [U32.max, U64.max, U32.numBits, U64.numBits]
-
-private theorem sum_take_le (l : List Nat) (k : Nat) : (l.take k).sum ≤ l.sum := by
-  have := congrArg List.sum (List.take_append_drop k l)
-  rw [List.sum_append] at this; omega
-
-private theorem sum_take_succ (l : List Nat) (k : Nat) (hk : k < l.length) :
-    (l.take (k + 1)).sum = (l.take k).sum + l[k] := by
-  rw [List.take_add_one, List.getElem?_eq_getElem hk, List.sum_append]; simp
 
 private theorem add_row_loop_spec (params : alloc.vec.Vec value.Value) (k : Usize) (dl : Usize)
     (hk : k.val ≤ params.length)

@@ -1,13 +1,14 @@
 import Defs
 import Proofs.Util.ConvInts
 import Proofs.Util.ConvBytesTime
+import Proofs.Util.SharedBasic
 
 /-! Helper lemmas for the proofs of group ParamsAsSql (`Proofs/Params/*`,
 `Proofs/Value/{Escaped,AsSql}.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.Shared
 
 namespace mysql_common.PASUtil
 
@@ -587,12 +588,6 @@ theorem uadd_overflow {ty : UScalarTy} (x y : UScalar ty) (h : 2 ^ ty.numBits �
 
 /-! ## Map lookups -/
 
-
-theorem slice_u8_eq_spec (s1 s2 : Slice U8) :
-    core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s1 s2 ⦃ b => b = true ↔ s1.val = s2.val ⦄ := by
-  apply WP.spec_mono (core.slice.cmp.PartialEqSlice.eq_homo_spec _ _ _ ?_)
-  · intro b hb; rw [← Slice.eq_iff]; simpa using hb
-  · intro x y; simp
 
 theorem lookup_some_iff (m : Trusted.ParamsMap) (k : List U8) (v : value.Value) :
     Trusted.paramsMapLookup m k = some v ↔ ∃ e ∈ Trusted.paramsMapEntries m, e.1.val = k ∧ e.2 = v := by

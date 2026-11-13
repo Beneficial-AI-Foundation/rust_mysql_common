@@ -11,13 +11,14 @@ import Proofs.Misc.Raw.Bytes.LenEnc
 import Proofs.Util.PacketsColStmt
 import Proofs.Io.BufMutExt
 import Proofs.Defs.LemmasConn
+import Proofs.Util.Shared
 
 /-! Helper lemmas for the connection-phase auth packets (`AuthMoreData`, `AuthPlugin`,
 `AuthSwitchRequest`, `ComChangeUser`, `LocalInfilePacket`, ...). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common.CAUtil
@@ -103,12 +104,6 @@ theorem knownPlugin_none (n : List U8) (h0 : n ≠ utf8 "mysql_old_password") (h
     knownPlugin n = none := by
   simp only [knownPlugin, knownPlugins, authPluginName, List.find?]
   simp [eq_comm (b := n), *]
-
-theorem slice_u8_eq_spec (s1 s2 : Slice U8) :
-    core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s1 s2 ⦃ b => b = true ↔ s1.val = s2.val ⦄ := by
-  apply WP.spec_mono (core.slice.cmp.PartialEqSlice.eq_homo_spec _ _ _ ?_)
-  · intro b hb; rw [← Slice.eq_iff]; simpa using hb
-  · intro x y; simp
 
 theorem cow_into_vec_spec (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
     misc.raw.cow_into_vec core.clone.CloneU8 c ⦃ v => v.val = cowList c ⦄ := by

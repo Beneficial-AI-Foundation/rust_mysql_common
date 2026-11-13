@@ -7,7 +7,7 @@ import Proofs.Misc.Raw.Either
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common
@@ -204,7 +204,7 @@ theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
   | Ok w1 =>
   step as ⟨cfx, hcfx⟩
   subst hcfx
-  step with pu_rawint_leu32 s1 (by simp [Slice.length, k1b, hpb]; omega) as ⟨q2, s2, k2a, k2b⟩
+  step with parse_unchecked_leu32_spec s1 (by simp [Slice.length, k1b, hpb]; omega) as ⟨q2, s2, k2a, k2b⟩
   cases q2 with
   | Err e => simp [okPart] at k2a
   | Ok w2 =>

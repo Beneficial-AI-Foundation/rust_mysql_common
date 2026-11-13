@@ -6,7 +6,7 @@ import Proofs.Packets.AuthPlugin
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common
@@ -149,7 +149,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   have hpl : pb.val.length = 31 := by rw [hpb]; simp; omega
   step as ⟨cfx, hcfx⟩
   subst hcfx
-  step with pu_rawint_leu32 as ⟨q1, s1, k1a, k1b⟩
+  step with parse_unchecked_leu32_spec as ⟨q1, s1, k1a, k1b⟩
   cases q1 with
   | Err e => simp [okPart] at k1a
   | Ok w1 =>
@@ -446,7 +446,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   rotate_left
   · rename_i hh; cases hh
   rename_i hh; cases hh
-  apply bind_fail_pair (pu_rawint_leu32 pb (by simp only [Slice.length, hpb]; simp; omega))
+  apply bind_fail_pair (parse_unchecked_leu32_spec pb (by simp only [Slice.length, hpb]; simp; omega))
   intro q1 s1 k1
   obtain ⟨k1a, k1b⟩ := k1
   cases q1 with

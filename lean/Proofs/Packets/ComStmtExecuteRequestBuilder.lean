@@ -8,12 +8,13 @@ import Proofs.Misc.Raw.Const.Const
 import Proofs.Misc.Raw.Int.ConstU8
 import Proofs.Misc.Raw.Int.ConstU32
 import Proofs.Misc.Raw.Bytes.RawBytes
+import Proofs.Util.SharedBasic
 
 /-! Statements for `struct ComStmtExecuteRequestBuilder and its impls` (spec file: `Specs/Packets.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PCSUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PCSUtil mysql_common.Shared
 
 namespace mysql_common
 
@@ -24,17 +25,6 @@ theorem packets.ComStmtExecuteRequestBuilder.new_eq (stmt_id : U32) :
 
 private abbrev nullsOf (l : List value.Value) : List Bool := l.map (fun v => isNullVal (Val.ofValue v))
 private abbrev lensOf (l : List value.Value) : List Nat := l.map (fun v => (binEnc (Val.ofValue v)).length)
-
-private theorem usize_max_lt : Usize.max < 2 ^ 64 := by
-  rcases Usize.bounds_eq with h | h <;> rw [h] <;> simp [U32.max, U64.max, U32.numBits, U64.numBits]
-
-private theorem sum_take_le (l : List Nat) (k : Nat) : (l.take k).sum ≤ l.sum := by
-  have := congrArg List.sum (List.take_append_drop k l)
-  rw [List.sum_append] at this; omega
-
-private theorem sum_take_succ (l : List Nat) (k : Nat) (hk : k < l.length) :
-    (l.take (k + 1)).sum = (l.take k).sum + l[k] := by
-  rw [List.take_add_one, List.getElem?_eq_getElem hk, List.sum_append]; simp
 
 @[local step]
 private theorem from_bytes_ok' {T U : Type} (inst : value.SerializationSide T) (asRef : core.convert.AsRef U (Slice U8)) (bytes : U) :

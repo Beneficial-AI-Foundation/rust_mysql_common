@@ -1,26 +1,16 @@
 import Defs
 import Proofs.Util.ConnAuth
 import Proofs.Packets.ComChangeUserMoreData
+import Proofs.Util.Shared
 
 /-! Statements for `struct ComChangeUser and its impls` (spec file: `Specs/Packets/Connection.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common
-
-private theorem parse_u8_bytes_spec (buf : io.ParseBuf) :
-    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
-      ((okPart r).map (fun rb => cowList rb.1), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
-  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
-    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
-  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
-    (fun o rest => (o, rest.val) = checkedLenPrefixed 1 buf.val)
-    (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
 
 private theorem more_data_spec (h64 : Target64) (flags : constants.CapabilityFlags) (buf : io.ParseBuf) :
     packets.parse_change_user_more_data flags buf ⦃ r rest =>
@@ -239,7 +229,7 @@ theorem packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFl
           obtain ⟨hou, hrr⟩ := h2
           subst hou
           simp only [branch_ok, bind_ok]
-          step with parse_u8_bytes_spec as ⟨r3, buf3, h3⟩
+          step with parse_u8bytes_spec as ⟨r3, buf3, h3⟩
           rw [hrr] at h3
           cases hc : checkedLenPrefixed 1 rr1 with
           | mk oa rr2 =>

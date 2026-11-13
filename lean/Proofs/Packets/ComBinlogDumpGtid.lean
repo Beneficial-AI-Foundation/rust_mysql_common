@@ -10,6 +10,7 @@ import Proofs.Misc.VarlenUintSize
 import Proofs.Defs.LemmasG
 import Proofs.Packets.Sid
 import Proofs.Util.Replication
+import Proofs.Util.Shared
 
 /-! Statements for `struct ComBinlogDumpGtid and its impls` (spec file:
 `Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
@@ -17,17 +18,13 @@ import Proofs.Util.Replication
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
-open core.result.Result.Insts mysql_common.PCSUtil
+open core.result.Result.Insts mysql_common.PCSUtil mysql_common.Shared
 
 namespace mysql_common
 
-namespace GtidUtil
+attribute [local step] constu8_default_spec
 
-@[step] theorem constu8_default_spec {T : Type} (N : U8) (d : core.default.Default T) :
-    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
-  have e : misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d = ok () := by
-    simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-  rw [e]; exact (WP.spec_ok _).mpr trivial
+namespace GtidUtil
 
 @[step] theorem rawint_u64_default_spec :
     misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU64.Insts.CoreDefaultDefault
@@ -452,14 +449,6 @@ theorem u32bytes_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U32Bytes Unit)
   rw [hb]
   simp [Slice.length, hs]
 
-theorem rawint_u64_ser (x : misc.raw.int.RawInt misc.raw.int.LeU64 U64) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 8 ≤ Usize.max) :
-    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
-      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 x buf
-      ⦃ b => b.val = buf.val ++ leBytes 8 x.1.val ⦄ := by
-  rw [misc.raw.int.RawInt.serialize_eq]
-  exact misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec _ _ h
-
 theorem length_le_flatMap_pos {α β : Type} (f : α → List β) (hf : ∀ x, 1 ≤ (f x).length) :
     ∀ l : List α, l.length ≤ (l.flatMap f).length := by
   intro l
@@ -741,18 +730,6 @@ theorem tagged_loop (h64 : Target64) (n : Nat) : ∀ (buf : io.ParseBuf) (nn : U
       refine ⟨fun o r h => ?_, fun e h => ?_⟩
       · simp [sidsRead, hs] at h
       · simp [sidsRead, hs] at h
-
-theorem parse_unchecked_leu32_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
-    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
-      (okPart r).map (·.1.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4 ⦄ := by
-  rw [io.ParseBuf.parse_unchecked_eq]
-  have := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 buf
-    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4)
-    (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec buf h)
-  apply WP.spec_mono this
-  rintro ⟨r, rest⟩ hr
-  simpa [Option.map_map] using hr
 
 theorem flags_try_from_spec (p : U16) :
     packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags.try_from p ⦃ r =>

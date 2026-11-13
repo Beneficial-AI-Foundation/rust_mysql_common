@@ -6,7 +6,7 @@ import Proofs.Packets.AuthPlugin
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil mysql_common.Shared
 
 namespace mysql_common
 

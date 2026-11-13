@@ -12,12 +12,13 @@ import Proofs.Misc.Raw.Skip
 import Proofs.Constants.ColumnType
 import Proofs.Constants.ColumnFlags
 import Proofs.Defs.LemmasCF
+import Proofs.Util.Shared
 
 /-! Statements for `struct Column and its impls` (spec file: `Specs/Packets.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PCSUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PCSUtil mysql_common.Shared
 
 namespace mysql_common
 
@@ -53,20 +54,6 @@ private theorem d_u16 (buf : io.ParseBuf) (x y : U8) (t : List U8) (hb : buf.val
       apply WP.spec_mono (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spec buf (by simp [hb]))
       rintro ⟨r, rest⟩ h
       simp_all [WP.uncurry', leNat])
-  apply WP.spec_mono this
-  rintro ⟨r, rest⟩ h
-  simp_all [WP.uncurry', Option.map_map, Function.comp_def]
-
-private theorem d_u32 (buf : io.ParseBuf) (x0 x1 x2 x3 : U8) (t : List U8) (hb : buf.val = x0 :: x1 :: x2 :: x3 :: t) :
-    misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 () buf ⦃ r rest =>
-      (okPart r).map (·.1.val) = some (leNat [x0, x1, x2, x3]) ∧ rest.val = t ⦄ := by
-  have := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 buf
-    (fun (o : Option U32) (rest : io.ParseBuf) => o.map (fun v : U32 => v.val) = some (leNat [x0, x1, x2, x3]) ∧ rest.val = t)
-    (by
-      apply WP.spec_mono (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec buf (by simp [hb]))
-      rintro ⟨r, rest⟩ h
-      simp_all [WP.uncurry'])
   apply WP.spec_mono this
   rintro ⟨r, rest⟩ h
   simp_all [WP.uncurry', Option.map_map, Function.comp_def]
