@@ -1,0 +1,40 @@
+Translation patch: `StmtBulkExecuteParamType::from_value`, `StmtBulkExecuteParamValue::new` (parameter names)
+
+Change: The parameter `value` becomes `v` (and the field initialiser `value` becomes `value: v`).
+Why: As in patch 59: Aeneas names the local `value`, which shadows the Lean namespace `value` in the generated `match` patterns (`value.Value.NULL`), so the Lean does not elaborate.
+Behaviour: Identical: renaming only.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 2f578ea..f51753a 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -3380,8 +3380,8 @@ impl StmtBulkExecuteParamType {
+         }
+     }
+ 
+-    pub fn from_value(value: &Value) -> Self {
+-        let (r#type, flags) = match value {
++    pub fn from_value(v: &Value) -> Self {
++        let (r#type, flags) = match v {
+             Value::NULL => (ColumnType::MYSQL_TYPE_NULL, StmtExecuteParamFlags::empty()),
+             Value::Bytes(_) => (
+                 ColumnType::MYSQL_TYPE_VAR_STRING,
+@@ -3490,15 +3490,15 @@ pub struct StmtBulkExecuteParamValue {
+ }
+ 
+ impl StmtBulkExecuteParamValue {
+-    pub fn new(value: Value) -> Self {
+-        let indicator = if matches!(value, Value::NULL) {
++    pub fn new(v: Value) -> Self {
++        let indicator = if matches!(v, Value::NULL) {
+             MariadbBulkIndicator::BULK_INDICATOR_NULL
+         } else {
+             MariadbBulkIndicator::BULK_INDICATOR_NONE
+         };
+         Self {
+             indicator: Const::new(indicator),
+-            value,
++            value: v,
+         }
+     }
+ 

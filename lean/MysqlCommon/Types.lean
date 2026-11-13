@@ -30,6 +30,14 @@ namespace mysql_common
 structure core.alloc.AllocatorClone (Self : Type _) where
   cloneCloneInst : core.clone.Clone Self
 
+/-- Trait declaration: [core::clone::CloneToUninit]
+    Source: '/rustc/library/core/src/clone.rs', lines 608:0-608:30
+    Name pattern: [core::clone::CloneToUninit]
+    Visibility: public -/
+@[rust_trait "core::clone::CloneToUninit"]
+structure core.clone.CloneToUninit (Self : Type _) where
+  clone_to_uninit : Self → MutRawPtr Std.U8 → Result Unit
+
 /-- [core::io::error::ErrorKind]
     Source: '/rustc/library/core/src/io/error.rs', lines 769:0-769:18
     Name pattern: [core::io::error::ErrorKind]
@@ -260,6 +268,12 @@ def constants.CapabilityFlags := Std.U32
 @[reducible]
 def constants.UnknownCapabilityFlags := Std.U32
 
+/-- [mysql_common::constants::MariadbCapabilities]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 363:0-390:1
+    Visibility: public -/
+@[reducible]
+def constants.MariadbCapabilities := Std.U32
+
 /-- [mysql_common::constants::CursorType]
     Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 392:0-406:1
     Visibility: public -/
@@ -278,6 +292,24 @@ def constants.StmtExecuteParamsFlags := Std.U8
 @[reducible]
 def constants.StmtExecuteParamFlags := Std.U8
 
+/-- [mysql_common::constants::UnknownStmtExecuteParamFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+@[reducible]
+def constants.UnknownStmtExecuteParamFlags := Std.U8
+
+/-- [mysql_common::constants::StmtBulkExecuteFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+@[reducible]
+def constants.StmtBulkExecuteFlags := Std.U16
+
+/-- [mysql_common::constants::UnknownStmtBulkExecuteParamsFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+@[reducible]
+def constants.UnknownStmtBulkExecuteParamsFlags := Std.U16
+
 /-- [mysql_common::constants::ColumnFlags]
     Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
     Visibility: public -/
@@ -289,6 +321,40 @@ def constants.ColumnFlags := Std.U16
     Visibility: public -/
 @[reducible]
 def constants.UnknownColumnFlags := Std.U16
+
+/-- [mysql_common::constants::UnknownMariadbBulkIndicator]
+    Source: 'src/constants.rs', lines 550:0-550:47
+    Visibility: public -/
+@[reducible]
+def constants.UnknownMariadbBulkIndicator := Std.U8
+
+/-- [mysql_common::constants::MariadbBulkIndicator]
+    Source: 'src/constants.rs', lines 556:0-565:1
+    Visibility: public -/
+@[discriminant u8]
+inductive constants.MariadbBulkIndicator where
+| BULK_INDICATOR_NONE : constants.MariadbBulkIndicator
+| BULK_INDICATOR_NULL : constants.MariadbBulkIndicator
+| BULK_INDICATOR_DEFAULT : constants.MariadbBulkIndicator
+| BULK_INDICATOR_IGNORE : constants.MariadbBulkIndicator
+
+/-- [mysql_common::constants::SessionStateType]
+    Source: 'src/constants.rs', lines 591:0-604:1
+    Visibility: public -/
+@[discriminant u8]
+inductive constants.SessionStateType where
+| SESSION_TRACK_SYSTEM_VARIABLES : constants.SessionStateType
+| SESSION_TRACK_SCHEMA : constants.SessionStateType
+| SESSION_TRACK_STATE_CHANGE : constants.SessionStateType
+| SESSION_TRACK_GTIDS : constants.SessionStateType
+| SESSION_TRACK_TRANSACTION_CHARACTERISTICS : constants.SessionStateType
+| SESSION_TRACK_TRANSACTION_STATE : constants.SessionStateType
+
+/-- [mysql_common::constants::UnknownSessionStateType]
+    Source: 'src/constants.rs', lines 630:0-630:43
+    Visibility: public -/
+@[reducible]
+def constants.UnknownSessionStateType := Std.U8
 
 /-- [mysql_common::constants::ColumnType]
     Source: 'src/constants.rs', lines 679:0-714:1
@@ -423,13 +489,6 @@ def misc.raw._const.RawConst (T : Type _) (U : Type _) (Clause0_Primitive :
   Type _) :=
   Clause0_Primitive × core.marker.PhantomData U
 
-/-- [mysql_common::misc::raw::bytes::RawBytes]
-    Source: 'src/misc/raw/bytes.rs', lines 28:0-28:73
-    Visibility: public -/
-def misc.raw.bytes.RawBytes (T : Type _) (Clause0_Ctx : Type _) :=
-  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) ×
-  core.marker.PhantomData T
-
 /-- Trait declaration: [mysql_common::misc::raw::bytes::BytesRepr]
     Source: 'src/misc/raw/bytes.rs', lines 115:0-125:1
     Visibility: public -/
@@ -441,6 +500,13 @@ structure misc.raw.bytes.BytesRepr (Self : Type _) (Self_Ctx : Type _) where
   deserialize : Self_Ctx → io.ParseBuf → Result ((core.result.Result
     (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))
     core.io.error.Error) × io.ParseBuf)
+
+/-- [mysql_common::misc::raw::bytes::RawBytes]
+    Source: 'src/misc/raw/bytes.rs', lines 28:0-28:73
+    Visibility: public -/
+def misc.raw.bytes.RawBytes (T : Type _) (Clause0_Ctx : Type _) :=
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) ×
+  core.marker.PhantomData T
 
 /-- [mysql_common::misc::raw::int::LenEnc]
     Source: 'src/misc/raw/int.rs', lines 141:12-141:29; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 187:0-190:1
@@ -683,14 +749,98 @@ structure named_params.ParsedNamedParams where
   params : alloc.vec.Vec (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
     Std.U8))
 
+/-- [mysql_common::packets::Tag]
+    Source: 'src/packets/mod.rs', lines 4207:0-4207:33
+    Visibility: public -/
+@[reducible]
+def packets.Tag := alloc.borrow.Cow Str String
+
+/-- [mysql_common::packets::GnoInterval]
+    Source: 'src/packets/mod.rs', lines 4139:0-4142:1
+    Visibility: public -/
+structure packets.GnoInterval where
+  start : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  «end» : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+
+/-- [mysql_common::packets::Sid]
+    Source: 'src/packets/mod.rs', lines 4314:0-4324:1
+    Visibility: public -/
+structure packets.Sid where
+  uuid : Array Std.U8 16#usize
+  tag : Option packets.Tag
+  intervals : misc.raw.seq.Seq packets.GnoInterval misc.raw.int.LeU64
+
+/-- [mysql_common::packets::BinlogDumpFlags]
+    Source: 'src/bitflags_ext.rs', lines 84:8-84:30; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+@[reducible]
+def packets.BinlogDumpFlags := Std.U16
+
+/-- [mysql_common::packets::binlog_request::BinlogRequest]
+    Source: 'src/packets/binlog_request.rs', lines 19:0-34:1
+    Visibility: public -/
+structure packets.binlog_request.BinlogRequest where
+  server_id : Std.U32
+  use_gtid : Bool
+  flags : packets.BinlogDumpFlags
+  filename : alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)
+  pos : Std.U64
+  sids : alloc.vec.Vec packets.Sid
+
+/-- [mysql_common::packets::InvalidComBinlogDumpGtidHeader]
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidComBinlogDumpGtidHeader := Unit
+
+/-- [mysql_common::packets::ComBinlogDumpGtid]
+    Source: 'src/packets/mod.rs', lines 4609:0-4628:1
+    Visibility: public -/
+structure packets.ComBinlogDumpGtid where
+  header : misc.raw.int.ConstU8 packets.InvalidComBinlogDumpGtidHeader 30#u8
+  flags : misc.raw._const.Const packets.BinlogDumpFlags misc.raw.int.LeU16
+  server_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  filename : misc.raw.bytes.RawBytes misc.raw.bytes.U32Bytes Unit
+  pos : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  sid_block : misc.raw.seq.Seq packets.Sid misc.raw.int.LeU64
+
+/-- [mysql_common::packets::InvalidComBinlogDumpHeader]
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidComBinlogDumpHeader := Unit
+
+/-- [mysql_common::packets::ComBinlogDump]
+    Source: 'src/packets/mod.rs', lines 4038:0-4053:1
+    Visibility: public -/
+structure packets.ComBinlogDump where
+  header : misc.raw.int.ConstU8 packets.InvalidComBinlogDumpHeader 18#u8
+  pos : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  flags : misc.raw._const.Const packets.BinlogDumpFlags misc.raw.int.LeU16
+  server_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  filename : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest]
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1
+    Visibility: public -/
+@[reducible]
+def packets.caching_sha2_password.InvalidPublicKeyRequest := Unit
+
+/-- [mysql_common::packets::caching_sha2_password::PublicKeyRequest]
+    Source: 'src/packets/caching_sha2_password.rs', lines 19:0-21:1
+    Visibility: public -/
+structure packets.caching_sha2_password.PublicKeyRequest where
+  __header : misc.raw.int.ConstU8
+    packets.caching_sha2_password.InvalidPublicKeyRequest 2#u8
+
 /-- [mysql_common::packets::InvalidFixedLengthFieldsLen]
-    Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
+    Source: 'src/packets/mod.rs', lines 75:8-75:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1
     Visibility: public -/
 @[reducible]
 def packets.InvalidFixedLengthFieldsLen := Unit
 
 /-- [mysql_common::packets::ColumnMeta]
-    Source: 'src/packets/mod.rs', lines 124:0-131:1 -/
+    Source: 'src/packets/mod.rs', lines 119:0-126:1 -/
 structure packets.ColumnMeta where
   catalog : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
   schema : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
@@ -700,7 +850,7 @@ structure packets.ColumnMeta where
   org_name : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
 
 /-- [mysql_common::packets::Column]
-    Source: 'src/packets/mod.rs', lines 263:0-273:1
+    Source: 'src/packets/mod.rs', lines 258:0-268:1
     Visibility: public -/
 structure packets.Column where
   «meta» : alloc.sync.Arc packets.ColumnMeta
@@ -713,8 +863,82 @@ structure packets.Column where
   decimals : misc.raw.int.RawInt Std.U8 Std.U8
   __filler : misc.raw.Skip 2#usize
 
+/-- [mysql_common::packets::SessionStateInfo]
+    Source: 'src/packets/mod.rs', lines 481:0-484:1
+    Visibility: public -/
+structure packets.SessionStateInfo where
+  data_type : misc.raw._const.Const constants.SessionStateType Std.U8
+  data : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::session_state_change::TransactionState]
+    Source: 'src/packets/session_state_change.rs', lines 376:0-376:54
+    Visibility: public -/
+@[reducible]
+def packets.session_state_change.TransactionState :=
+  misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::session_state_change::TransactionCharacteristics]
+    Source: 'src/packets/session_state_change.rs', lines 330:0-330:64
+    Visibility: public -/
+@[reducible]
+def packets.session_state_change.TransactionCharacteristics :=
+  misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::session_state_change::SystemVariable]
+    Source: 'src/packets/session_state_change.rs', lines 256:0-259:1
+    Visibility: public -/
+structure packets.session_state_change.SystemVariable where
+  «name» : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+  value : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::session_state_change::Schema]
+    Source: 'src/packets/session_state_change.rs', lines 212:0-212:44
+    Visibility: public -/
+@[reducible]
+def packets.session_state_change.Schema :=
+  misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::session_state_change::Gtids]
+    Source: 'src/packets/session_state_change.rs', lines 162:0-162:43
+    Visibility: public -/
+@[reducible]
+def packets.session_state_change.Gtids :=
+  misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::session_state_change::Unsupported]
+    Source: 'src/packets/session_state_change.rs', lines 419:0-419:49
+    Visibility: public -/
+@[reducible]
+def packets.session_state_change.Unsupported :=
+  misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
+
+/-- [mysql_common::packets::session_state_change::SessionStateChange]
+    Source: 'src/packets/session_state_change.rs', lines 27:0-35:1
+    Visibility: public -/
+@[discriminant isize]
+inductive packets.session_state_change.SessionStateChange where
+| IsTracked : Bool → packets.session_state_change.SessionStateChange
+| Schema :
+  packets.session_state_change.Schema →
+  packets.session_state_change.SessionStateChange
+| SystemVariables :
+  alloc.vec.Vec packets.session_state_change.SystemVariable →
+  packets.session_state_change.SessionStateChange
+| Gtids :
+  packets.session_state_change.Gtids →
+  packets.session_state_change.SessionStateChange
+| TransactionCharacteristics :
+  packets.session_state_change.TransactionCharacteristics →
+  packets.session_state_change.SessionStateChange
+| TransactionState :
+  packets.session_state_change.TransactionState →
+  packets.session_state_change.SessionStateChange
+| Unsupported :
+  packets.session_state_change.Unsupported →
+  packets.session_state_change.SessionStateChange
+
 /-- [mysql_common::packets::OkPacketBody]
-    Source: 'src/packets/mod.rs', lines 536:0-543:1
+    Source: 'src/packets/mod.rs', lines 531:0-538:1
     Visibility: public -/
 structure packets.OkPacketBody where
   affected_rows : misc.raw.int.RawInt misc.raw.int.LenEnc Std.U64
@@ -725,7 +949,7 @@ structure packets.OkPacketBody where
   session_state_info : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
 
 /-- Trait declaration: [mysql_common::packets::OkPacketKind]
-    Source: 'src/packets/mod.rs', lines 548:0-555:1
+    Source: 'src/packets/mod.rs', lines 543:0-550:1
     Visibility: public -/
 structure packets.OkPacketKind (Self : Type _) where
   HEADER : Result Std.U8
@@ -734,31 +958,31 @@ structure packets.OkPacketKind (Self : Type _) where
     io.ParseBuf)
 
 /-- [mysql_common::packets::ResultSetTerminator]
-    Source: 'src/packets/mod.rs', lines 559:0-559:31
+    Source: 'src/packets/mod.rs', lines 554:0-554:31
     Visibility: public -/
 @[reducible]
 def packets.ResultSetTerminator := Unit
 
 /-- [mysql_common::packets::OldEofPacket]
-    Source: 'src/packets/mod.rs', lines 613:0-613:24
+    Source: 'src/packets/mod.rs', lines 608:0-608:24
     Visibility: public -/
 @[reducible]
 def packets.OldEofPacket := Unit
 
 /-- [mysql_common::packets::NetworkStreamTerminator]
-    Source: 'src/packets/mod.rs', lines 640:0-640:35
+    Source: 'src/packets/mod.rs', lines 635:0-635:35
     Visibility: public -/
 @[reducible]
 def packets.NetworkStreamTerminator := Unit
 
 /-- [mysql_common::packets::CommonOkPacket]
-    Source: 'src/packets/mod.rs', lines 655:0-655:26
+    Source: 'src/packets/mod.rs', lines 650:0-650:26
     Visibility: public -/
 @[reducible]
 def packets.CommonOkPacket := Unit
 
 /-- [mysql_common::packets::OkPacket]
-    Source: 'src/packets/mod.rs', lines 738:0-745:1
+    Source: 'src/packets/mod.rs', lines 733:0-740:1
     Visibility: public -/
 structure packets.OkPacket where
   affected_rows : Std.U64
@@ -770,19 +994,19 @@ structure packets.OkPacket where
     Unit)
 
 /-- [mysql_common::packets::OkPacketDeserializer]
-    Source: 'src/packets/mod.rs', lines 823:0-823:71
+    Source: 'src/packets/mod.rs', lines 832:0-832:71
     Visibility: public -/
 def packets.OkPacketDeserializer (T : Type _) :=
   packets.OkPacket × core.marker.PhantomData T
 
 /-- [mysql_common::packets::InvalidOkPacketHeader]
-    Source: 'src/packets/mod.rs', lines 839:0-839:33
+    Source: 'src/packets/mod.rs', lines 848:0-848:33
     Visibility: public -/
 @[reducible]
 def packets.InvalidOkPacketHeader := Unit
 
 /-- [mysql_common::packets::ProgressReport]
-    Source: 'src/packets/mod.rs', lines 861:0-866:1
+    Source: 'src/packets/mod.rs', lines 870:0-875:1
     Visibility: public -/
 structure packets.ProgressReport where
   stage : misc.raw.int.RawInt Std.U8 Std.U8
@@ -791,26 +1015,26 @@ structure packets.ProgressReport where
   stage_info : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit
 
 /-- [mysql_common::packets::InvalidErrPacketHeader]
-    Source: 'src/packets/mod.rs', lines 65:8-65:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1
     Visibility: public -/
 @[reducible]
 def packets.InvalidErrPacketHeader := Unit
 
 /-- [mysql_common::packets::InvalidSqlStateMarker]
-    Source: 'src/packets/mod.rs', lines 65:8-65:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1
     Visibility: public -/
 @[reducible]
 def packets.InvalidSqlStateMarker := Unit
 
 /-- [mysql_common::packets::SqlState]
-    Source: 'src/packets/mod.rs', lines 1060:0-1063:1
+    Source: 'src/packets/mod.rs', lines 1069:0-1072:1
     Visibility: public -/
 structure packets.SqlState where
   __state_marker : misc.raw.int.ConstU8 packets.InvalidSqlStateMarker 35#u8
   state : Array Std.U8 5#usize
 
 /-- [mysql_common::packets::ServerError]
-    Source: 'src/packets/mod.rs', lines 1108:0-1112:1
+    Source: 'src/packets/mod.rs', lines 1117:0-1121:1
     Visibility: public -/
 structure packets.ServerError where
   code : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
@@ -818,15 +1042,189 @@ structure packets.ServerError where
   message : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
 
 /-- [mysql_common::packets::ErrPacket]
-    Source: 'src/packets/mod.rs', lines 968:0-971:1
+    Source: 'src/packets/mod.rs', lines 977:0-980:1
     Visibility: public -/
 @[discriminant isize]
 inductive packets.ErrPacket where
 | Error : packets.ServerError → packets.ErrPacket
 | Progress : packets.ProgressReport → packets.ErrPacket
 
+/-- [mysql_common::packets::InvalidLocalInfileHeader]
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidLocalInfileHeader := Unit
+
+/-- [mysql_common::packets::LocalInfilePacket]
+    Source: 'src/packets/mod.rs', lines 1224:0-1227:1
+    Visibility: public -/
+structure packets.LocalInfilePacket where
+  __header : misc.raw.int.ConstU8 packets.InvalidLocalInfileHeader 251#u8
+  file_name : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::packets::AuthPlugin]
+    Source: 'src/packets/mod.rs', lines 1284:0-1305:1
+    Visibility: public -/
+@[discriminant isize]
+inductive packets.AuthPlugin where
+| MysqlOldPassword : packets.AuthPlugin
+| MysqlClearPassword : packets.AuthPlugin
+| MysqlNativePassword : packets.AuthPlugin
+| Sha256Password : packets.AuthPlugin
+| CachingSha2Password : packets.AuthPlugin
+| Ed25519 : packets.AuthPlugin
+| Parsec : packets.AuthPlugin
+| Other :
+  alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8) →
+  packets.AuthPlugin
+
+/-- [mysql_common::packets::InvalidAuthMoreDataHeader]
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidAuthMoreDataHeader := Unit
+
+/-- [mysql_common::packets::AuthMoreData]
+    Source: 'src/packets/mod.rs', lines 1413:0-1416:1
+    Visibility: public -/
+structure packets.AuthMoreData where
+  __header : misc.raw.int.ConstU8 packets.InvalidAuthMoreDataHeader 1#u8
+  data : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::packets::InvalidPublicKeyResponse]
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidPublicKeyResponse := Unit
+
+/-- [mysql_common::packets::PublicKeyResponse]
+    Source: 'src/packets/mod.rs', lines 1467:0-1470:1
+    Visibility: public -/
+structure packets.PublicKeyResponse where
+  __header : misc.raw.int.ConstU8 packets.InvalidPublicKeyResponse 1#u8
+  rsa_key : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::packets::InvalidAuthSwitchRequestHeader]
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidAuthSwitchRequestHeader := Unit
+
+/-- [mysql_common::packets::OldAuthSwitchRequest]
+    Source: 'src/packets/mod.rs', lines 1516:0-1518:1
+    Visibility: public -/
+structure packets.OldAuthSwitchRequest where
+  __header : misc.raw.int.ConstU8 packets.InvalidAuthSwitchRequestHeader 254#u8
+
+/-- [mysql_common::packets::AuthSwitchRequest]
+    Source: 'src/packets/mod.rs', lines 1560:0-1564:1
+    Visibility: public -/
+structure packets.AuthSwitchRequest where
+  __header : misc.raw.int.ConstU8 packets.InvalidAuthSwitchRequestHeader 254#u8
+  auth_plugin : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit
+  plugin_data : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::packets::HandshakePacket]
+    Source: 'src/packets/mod.rs', lines 1667:0-1685:1
+    Visibility: public -/
+structure packets.HandshakePacket where
+  protocol_version : misc.raw.int.RawInt Std.U8 Std.U8
+  server_version : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit
+  connection_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  scramble_1 : Array Std.U8 8#usize
+  __filler : misc.raw.Skip 1#usize
+  capabilities_1 : misc.raw._const.Const constants.CapabilityFlags
+    misc.raw.int.LeU32LowerHalf
+  default_collation : misc.raw.int.RawInt Std.U8 Std.U8
+  status_flags : misc.raw._const.Const constants.StatusFlags misc.raw.int.LeU16
+  capabilities_2 : misc.raw._const.Const constants.CapabilityFlags
+    misc.raw.int.LeU32UpperHalf
+  auth_plugin_data_len : misc.raw.int.RawInt Std.U8 Std.U8
+  __reserved : misc.raw.Skip 6#usize
+  mariadb_ext_capabilities : misc.raw._const.Const
+    constants.MariadbCapabilities misc.raw.int.LeU32
+  scramble_2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes
+    247#usize) Std.Usize)
+  auth_plugin_name : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes
+    Unit)
+
+/-- [mysql_common::packets::InvalidComChangeUserHeader]
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidComChangeUserHeader := Unit
+
+/-- [mysql_common::packets::ComChangeUserMoreData]
+    Source: 'src/packets/mod.rs', lines 2180:0-2184:1
+    Visibility: public -/
+structure packets.ComChangeUserMoreData where
+  character_set : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  auth_plugin : Option packets.AuthPlugin
+  connect_attributes : Option (std.collections.hash.map.HashMap
+    (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+    misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global)
+
+/-- [mysql_common::packets::ComChangeUser]
+    Source: 'src/packets/mod.rs', lines 2058:0-2065:1
+    Visibility: public -/
+structure packets.ComChangeUser where
+  __header : misc.raw.int.ConstU8 packets.InvalidComChangeUserHeader 17#u8
+  user : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit
+  auth_plugin_data : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+  database : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit
+  more_data : Option packets.ComChangeUserMoreData
+
+/-- [mysql_common::packets::HandshakeResponse]
+    Source: 'src/packets/mod.rs', lines 2371:0-2381:1
+    Visibility: public -/
+structure packets.HandshakeResponse where
+  capabilities : misc.raw._const.Const constants.CapabilityFlags
+    misc.raw.int.LeU32
+  max_packet_size : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  collation : misc.raw.int.RawInt Std.U8 Std.U8
+  scramble_buf : misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.int.LenEnc
+    Unit) (misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes
+    Unit) (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit))
+  user : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit
+  db_name : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit)
+  auth_plugin : Option packets.AuthPlugin
+  connect_attributes : Option (std.collections.hash.map.HashMap
+    (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+    misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global)
+  mariadb_ext_capabilities : misc.raw._const.Const
+    constants.MariadbCapabilities misc.raw.int.LeU32
+
+/-- [mysql_common::packets::SslRequest]
+    Source: 'src/packets/mod.rs', lines 2668:0-2674:1
+    Visibility: public -/
+structure packets.SslRequest where
+  capabilities : misc.raw._const.Const constants.CapabilityFlags
+    misc.raw.int.LeU32
+  max_packet_size : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  character_set : misc.raw.int.RawInt Std.U8 Std.U8
+  __skip : misc.raw.Skip 19#usize
+  mariadb_capabilities : misc.raw._const.Const constants.MariadbCapabilities
+    misc.raw.int.LeU32
+
+/-- [mysql_common::packets::InvalidStmtPacketStatus]
+    Source: 'src/packets/mod.rs', lines 2748:0-2748:35
+    Visibility: public -/
+@[reducible]
+def packets.InvalidStmtPacketStatus := Unit
+
+/-- [mysql_common::packets::StmtPacket]
+    Source: 'src/packets/mod.rs', lines 2752:0-2759:1
+    Visibility: public -/
+structure packets.StmtPacket where
+  status : misc.raw.int.ConstU8 packets.InvalidStmtPacketStatus 0#u8
+  statement_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  num_columns : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  num_params : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  __skip : misc.raw.Skip 1#usize
+  warning_count : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+
 /-- [mysql_common::packets::NullBitmap]
-    Source: 'src/packets/mod.rs', lines 2546:0-2546:70
+    Source: 'src/packets/mod.rs', lines 2815:0-2815:70
     Visibility: public -/
 def packets.NullBitmap (T : Type _) (U : Type _) :=
   U × core.marker.PhantomData T
@@ -838,7 +1236,7 @@ structure value.SerializationSide (Self : Type _) where
   BIT_OFFSET : Result Std.Usize
 
 /-- [mysql_common::packets::ComStmtExecuteRequestBuilder]
-    Source: 'src/packets/mod.rs', lines 2627:0-2629:1
+    Source: 'src/packets/mod.rs', lines 2896:0-2898:1
     Visibility: public -/
 structure packets.ComStmtExecuteRequestBuilder where
   stmt_id : Std.U32
@@ -879,19 +1277,19 @@ inductive value.Value where
 def value.ClientSide := Unit
 
 /-- [mysql_common::packets::InvalidIterationCount]
-    Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2682:0-2687:1
+    Source: 'src/packets/mod.rs', lines 75:8-75:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2951:0-2956:1
     Visibility: public -/
 @[reducible]
 def packets.InvalidIterationCount := Unit
 
 /-- [mysql_common::packets::InvalidComStmtExecuteHeader]
-    Source: 'src/packets/mod.rs', lines 71:8-71:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2676:0-2680:1
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2945:0-2949:1
     Visibility: public -/
 @[reducible]
 def packets.InvalidComStmtExecuteHeader := Unit
 
 /-- [mysql_common::packets::ComStmtExecuteRequest]
-    Source: 'src/packets/mod.rs', lines 2690:0-2700:1
+    Source: 'src/packets/mod.rs', lines 2959:0-2969:1
     Visibility: public -/
 structure packets.ComStmtExecuteRequest where
   com_stmt_execute : misc.raw.int.ConstU8 packets.InvalidComStmtExecuteHeader
@@ -905,11 +1303,40 @@ structure packets.ComStmtExecuteRequest where
   params : Slice value.Value
   as_long_data : Bool
 
-/-- [mysql_common::params::MissingNamedParameterError]
-    Source: 'src/params.rs', lines 19:0-19:51
+/-- [mysql_common::packets::InvalidComStmtSendLongDataHeader]
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3067:0-3071:1
     Visibility: public -/
 @[reducible]
-def params.MissingNamedParameterError := alloc.vec.Vec Std.U8
+def packets.InvalidComStmtSendLongDataHeader := Unit
+
+/-- [mysql_common::packets::ComStmtSendLongData]
+    Source: 'src/packets/mod.rs', lines 3074:0-3079:1
+    Visibility: public -/
+structure packets.ComStmtSendLongData where
+  __header : misc.raw.int.ConstU8 packets.InvalidComStmtSendLongDataHeader
+    24#u8
+  stmt_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  param_index : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  data : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
+
+/-- [mysql_common::packets::ComStmtClose]
+    Source: 'src/packets/mod.rs', lines 3111:0-3113:1
+    Visibility: public -/
+structure packets.ComStmtClose where
+  stmt_id : Std.U32
+
+/-- [mysql_common::packets::ComStmtBulkExecuteRequestBuilder]
+    Source: 'src/packets/mod.rs', lines 3132:0-3141:1
+    Visibility: public -/
+structure packets.ComStmtBulkExecuteRequestBuilder where
+  stmt_id : Std.U32
+  with_types : Bool
+  with_results : Bool
+  params_set : alloc.vec.Vec (alloc.vec.Vec value.Value)
+  payload_len : Std.Usize
+  arity : Option Std.Usize
+  named_params : Option (Slice (alloc.vec.Vec Std.U8))
+  max_payload_len : Std.Usize
 
 /-- [mysql_common::params::ParamsConfusionError]
     Source: 'src/params.rs', lines 22:0-27:1
@@ -919,6 +1346,12 @@ inductive params.ParamsConfusionError where
 | NamedParamsForPositionalQuery : params.ParamsConfusionError
 | PositionalParamsForNamedQuery : params.ParamsConfusionError
 
+/-- [mysql_common::params::MissingNamedParameterError]
+    Source: 'src/params.rs', lines 19:0-19:51
+    Visibility: public -/
+@[reducible]
+def params.MissingNamedParameterError := alloc.vec.Vec Std.U8
+
 /-- [mysql_common::params::ParamsError]
     Source: 'src/params.rs', lines 30:0-35:1
     Visibility: public -/
@@ -926,6 +1359,139 @@ inductive params.ParamsConfusionError where
 inductive params.ParamsError where
 | Missing : params.MissingNamedParameterError → params.ParamsError
 | Confusion : params.ParamsConfusionError → params.ParamsError
+
+/-- [mysql_common::packets::BulkExecuteRequestError]
+    Source: 'src/packets/mod.rs', lines 3601:0-3608:1
+    Visibility: public -/
+@[discriminant isize]
+inductive packets.BulkExecuteRequestError where
+| NoParams : packets.BulkExecuteRequestError
+| MixedArity : packets.BulkExecuteRequestError
+| RowTooLarge : alloc.vec.Vec value.Value → packets.BulkExecuteRequestError
+
+/-- [mysql_common::packets::BulkExecuteRequestBuilderError]
+    Source: 'src/packets/mod.rs', lines 3611:0-3616:1
+    Visibility: public -/
+@[discriminant isize]
+inductive packets.BulkExecuteRequestBuilderError where
+| Request :
+  packets.BulkExecuteRequestError →
+  packets.BulkExecuteRequestBuilderError
+| Params : params.ParamsError → packets.BulkExecuteRequestBuilderError
+
+/-- [mysql_common::packets::StmtBulkExecuteParamValue]
+    Source: 'src/packets/mod.rs', lines 3487:0-3490:1
+    Visibility: public -/
+structure packets.StmtBulkExecuteParamValue where
+  indicator : misc.raw._const.Const constants.MariadbBulkIndicator Std.U8
+  value : value.Value
+
+/-- [mysql_common::packets::StmtBulkExecuteParamValues]
+    Source: 'src/packets/mod.rs', lines 3445:0-3447:1
+    Visibility: public -/
+structure packets.StmtBulkExecuteParamValues where
+  values : alloc.vec.Vec packets.StmtBulkExecuteParamValue
+
+/-- [mysql_common::packets::StmtBulkExecuteParamType]
+    Source: 'src/packets/mod.rs', lines 3370:0-3373:1
+    Visibility: public -/
+structure packets.StmtBulkExecuteParamType where
+  type : misc.raw._const.Const constants.ColumnType Std.U8
+  flags : misc.raw._const.Const constants.StmtExecuteParamFlags Std.U8
+
+/-- [mysql_common::packets::InvalidComStmtBulkExecuteHeader]
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidComStmtBulkExecuteHeader := Unit
+
+/-- [mysql_common::packets::ComStmtBulkExecuteRequest]
+    Source: 'src/packets/mod.rs', lines 3619:0-3625:1
+    Visibility: public -/
+structure packets.ComStmtBulkExecuteRequest where
+  header : misc.raw.int.ConstU8 packets.InvalidComStmtBulkExecuteHeader 250#u8
+  stmt_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  bulk_flags : misc.raw._const.Const constants.StmtBulkExecuteFlags
+    misc.raw.int.LeU16
+  types : misc.raw.seq.Seq packets.StmtBulkExecuteParamType
+    misc.raw.seq.Unknown
+  values : packets.StmtBulkExecuteParamValues
+
+/-- [mysql_common::value::ValueDeserializer]
+    Source: 'src/value/mod.rs', lines 150:0-150:59
+    Visibility: public -/
+def value.ValueDeserializer (T : Type _) :=
+  value.Value × core.marker.PhantomData T
+
+/-- [mysql_common::value::BinValue]
+    Source: 'src/value/mod.rs', lines 56:0-56:20
+    Visibility: public -/
+@[reducible]
+def value.BinValue := Unit
+
+/-- [mysql_common::packets::InvalidComRegisterSlaveHeader]
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidComRegisterSlaveHeader := Unit
+
+/-- [mysql_common::packets::ComRegisterSlave]
+    Source: 'src/packets/mod.rs', lines 3757:0-3790:1
+    Visibility: public -/
+structure packets.ComRegisterSlave where
+  header : misc.raw.int.ConstU8 packets.InvalidComRegisterSlaveHeader 21#u8
+  server_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  hostname : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+  user : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+  password : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+  port : misc.raw.int.RawInt misc.raw.int.LeU16 Std.U16
+  replication_rank : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+  master_id : misc.raw.int.RawInt misc.raw.int.LeU32 Std.U32
+
+/-- [mysql_common::packets::InvalidComTableDumpHeader]
+    Source: 'src/packets/mod.rs', lines 66:8-66:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidComTableDumpHeader := Unit
+
+/-- [mysql_common::packets::ComTableDump]
+    Source: 'src/packets/mod.rs', lines 3946:0-3960:1
+    Visibility: public -/
+structure packets.ComTableDump where
+  header : misc.raw.int.ConstU8 packets.InvalidComTableDumpHeader 19#u8
+  database : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+  table : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit
+
+/-- [mysql_common::packets::UnknownBinlogDumpFlags]
+    Source: 'src/bitflags_ext.rs', lines 57:8-57:33; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+@[reducible]
+def packets.UnknownBinlogDumpFlags := Std.U16
+
+/-- [mysql_common::packets::InvalidTag]
+    Source: 'src/packets/mod.rs', lines 4296:0-4305:1
+    Visibility: public -/
+@[discriminant isize]
+inductive packets.InvalidTag where
+| Empty : packets.InvalidTag
+| TooLong : Std.Usize → packets.InvalidTag
+| InvalidFirstChar : Char → packets.InvalidTag
+| InvalidChar : Char → packets.InvalidTag
+
+/-- [mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader]
+    Source: 'src/packets/mod.rs', lines 60:8-60:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Visibility: public -/
+@[reducible]
+def packets.InvalidSemiSyncAckPacketPacketHeader := Unit
+
+/-- [mysql_common::packets::SemiSyncAckPacket]
+    Source: 'src/packets/mod.rs', lines 4913:0-4917:1
+    Visibility: public -/
+structure packets.SemiSyncAckPacket where
+  header : misc.raw.int.ConstU8 packets.InvalidSemiSyncAckPacketPacketHeader
+    239#u8
+  position : misc.raw.int.RawInt misc.raw.int.LeU64 Std.U64
+  filename : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit
 
 /-- [mysql_common::params::Params]
     Source: 'src/params.rs', lines 39:0-43:1
@@ -1131,23 +1697,11 @@ structure row.ColumnIndex (Self : Type _) where
 def row.RowDeserializer (S : Type _) (P : Type _) :=
   row.Row × core.marker.PhantomData (S × P)
 
-/-- [mysql_common::value::ValueDeserializer]
-    Source: 'src/value/mod.rs', lines 150:0-150:59
-    Visibility: public -/
-def value.ValueDeserializer (T : Type _) :=
-  value.Value × core.marker.PhantomData T
-
 /-- [mysql_common::value::TextValue]
     Source: 'src/value/mod.rs', lines 53:0-53:21
     Visibility: public -/
 @[reducible]
 def value.TextValue := Unit
-
-/-- [mysql_common::value::BinValue]
-    Source: 'src/value/mod.rs', lines 56:0-56:20
-    Visibility: public -/
-@[reducible]
-def value.BinValue := Unit
 
 /-- [mysql_common::value::convert::ParseIr]
     Source: 'src/value/convert/mod.rs', lines 120:0-120:40

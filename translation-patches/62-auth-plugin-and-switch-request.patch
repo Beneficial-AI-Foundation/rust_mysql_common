@@ -1,0 +1,122 @@
+Translation patch: `AuthPlugin::{from_bytes, into_owned}`, `AuthSwitchRequest::{auth_plugin, plugin_data}`
+
+Change:
+  - `from_bytes`: `if let [name @ .., 0] = name { name } else { name }` becomes `if len > 0 && name[len - 1] == 0 { &name[..len - 1] } else { name }`; the `match name { CONST => .., .. }` over the seven byte-string constants becomes an `if name == CONST { .. } else if ..` chain in the same order, ending in `AuthPlugin::Other(Cow::Borrowed(name))`.
+  - `into_owned`: `Cow::Owned(name.into_owned())` becomes `Cow::Owned(cow_into_vec(name))` (the helper of patch 14).
+  - `AuthSwitchRequest::auth_plugin`: `ParseBuf(bytes).parse(()).expect("infallible")` becomes `AuthPlugin::from_bytes(bytes)`.
+  - `AuthSwitchRequest::plugin_data`: `[MysqlNativePassword, CachingSha2Password, Sha256Password, MysqlOldPassword].contains(&self.auth_plugin()) && let [head @ .., 0] = data` becomes `plugin_uses_c_string_scramble(auth_plugin_bytes) && len > 0 && data[len - 1] == 0`, returning `&data[..len - 1]`; the new private helper `plugin_uses_c_string_scramble(name)` strips one trailing 0 from `name` (as `from_bytes` does) and compares the result with the four plugin-name constants.
+Why: Aeneas does not support slice patterns (patches 06, 49) or matching on constant byte strings (both give "Inconsistent projection"), nor `Cow::into_owned` (patch 14). `plugin_data` fails ("Unreachable"/"Internal error") when it matches on, or compares, the temporary `AuthPlugin` holding a borrow of `self`; `expect` needs `Debug for io::Error`.
+Behaviour: Identical. A slice pattern `[head @ .., 0]` matches exactly the non-empty slices ending in 0, binding the slice without its last byte. Matching a `&[u8]` against constant patterns is slice equality, tried in order. `cow_into_vec` is `into_owned` for `Cow<[u8]>`. `AuthPlugin`'s `MyDeserialize` has `SIZE = None`, so `parse` is `deserialize`, which is `Ok(from_bytes(buf.eat_all()))`: the `expect` never panics and the result is `from_bytes(bytes)`. The derived `PartialEq` on `AuthPlugin` compares variants, so `contains` holds exactly when `from_bytes(name)` is one of the four unit variants, i.e. when the stripped name equals one of the four constants; `from_bytes` checks the constants in an order in which no two are equal, so the helper is the same test.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 29c2812..7a11f5d 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -1313,20 +1313,28 @@ impl MySerialize for AuthPlugin<'_> {
+ 
+ impl<'a> AuthPlugin<'a> {
+     pub fn from_bytes(name: &'a [u8]) -> AuthPlugin<'a> {
+-        let name = if let [name @ .., 0] = name {
+-            name
++        let len = name.len();
++        let name = if len > 0 && name[len - 1] == 0 {
++            &name[..len - 1]
+         } else {
+             name
+         };
+-        match name {
+-            CACHING_SHA2_PASSWORD_PLUGIN_NAME => AuthPlugin::CachingSha2Password,
+-            MYSQL_NATIVE_PASSWORD_PLUGIN_NAME => AuthPlugin::MysqlNativePassword,
+-            MYSQL_OLD_PASSWORD_PLUGIN_NAME => AuthPlugin::MysqlOldPassword,
+-            MYSQL_CLEAR_PASSWORD_PLUGIN_NAME => AuthPlugin::MysqlClearPassword,
+-            ED25519_PLUGIN_NAME => AuthPlugin::Ed25519,
+-            PARSEC_PLUGIN_NAME => AuthPlugin::Parsec,
+-            SHA256_PASSWORD_PLUGIN_NAME => AuthPlugin::Sha256Password,
+-            name => AuthPlugin::Other(Cow::Borrowed(name)),
++        if name == CACHING_SHA2_PASSWORD_PLUGIN_NAME {
++            AuthPlugin::CachingSha2Password
++        } else if name == MYSQL_NATIVE_PASSWORD_PLUGIN_NAME {
++            AuthPlugin::MysqlNativePassword
++        } else if name == MYSQL_OLD_PASSWORD_PLUGIN_NAME {
++            AuthPlugin::MysqlOldPassword
++        } else if name == MYSQL_CLEAR_PASSWORD_PLUGIN_NAME {
++            AuthPlugin::MysqlClearPassword
++        } else if name == ED25519_PLUGIN_NAME {
++            AuthPlugin::Ed25519
++        } else if name == PARSEC_PLUGIN_NAME {
++            AuthPlugin::Parsec
++        } else if name == SHA256_PASSWORD_PLUGIN_NAME {
++            AuthPlugin::Sha256Password
++        } else {
++            AuthPlugin::Other(Cow::Borrowed(name))
+         }
+     }
+ 
+@@ -1352,7 +1360,9 @@ impl<'a> AuthPlugin<'a> {
+             AuthPlugin::Ed25519 => AuthPlugin::Ed25519,
+             AuthPlugin::Parsec => AuthPlugin::Parsec,
+             AuthPlugin::Sha256Password => AuthPlugin::Sha256Password,
+-            AuthPlugin::Other(name) => AuthPlugin::Other(Cow::Owned(name.into_owned())),
++            AuthPlugin::Other(name) => {
++                AuthPlugin::Other(Cow::Owned(crate::misc::raw::cow_into_vec(name)))
++            }
+         }
+     }
+ 
+@@ -1557,27 +1567,21 @@ impl<'a> AuthSwitchRequest<'a> {
+     }
+ 
+     pub fn auth_plugin(&self) -> AuthPlugin<'_> {
+-        ParseBuf(self.auth_plugin.as_bytes())
+-            .parse(())
+-            .expect("infallible")
++        AuthPlugin::from_bytes(self.auth_plugin.as_bytes())
+     }
+ 
+     pub fn plugin_data(&self) -> &[u8] {
+-        if [
+-            AuthPlugin::MysqlNativePassword,
+-            AuthPlugin::CachingSha2Password,
+-            AuthPlugin::Sha256Password,
+-            AuthPlugin::MysqlOldPassword,
+-        ]
+-        .contains(&self.auth_plugin())
+-            && let [head @ .., 0] = self.plugin_data.as_bytes()
++        let data = self.plugin_data.as_bytes();
++        let len = data.len();
++        if plugin_uses_c_string_scramble(self.auth_plugin.as_bytes()) && len > 0
++            && data[len - 1] == 0
+         {
+             // mysql uses C-string for 20-byte scramble and puts terminator into the packet
+             // even though the field is encoded as EOF-terminated value. It is wrong however
+             // to always trim the last byte because other compatible servers might not do so
+-            head
++            &data[..len - 1]
+         } else {
+-            self.plugin_data.as_bytes()
++            data
+         }
+     }
+ 
+@@ -1611,6 +1615,21 @@ impl MySerialize for AuthSwitchRequest<'_> {
+     }
+ }
+ 
++// Whether `AuthPlugin::from_bytes(name)` is one of `MysqlNativePassword`, `CachingSha2Password`,
++// `Sha256Password`, `MysqlOldPassword`.
++fn plugin_uses_c_string_scramble(name: &[u8]) -> bool {
++    let len = name.len();
++    let name = if len > 0 && name[len - 1] == 0 {
++        &name[..len - 1]
++    } else {
++        name
++    };
++    name == MYSQL_NATIVE_PASSWORD_PLUGIN_NAME
++        || name == CACHING_SHA2_PASSWORD_PLUGIN_NAME
++        || name == SHA256_PASSWORD_PLUGIN_NAME
++        || name == MYSQL_OLD_PASSWORD_PLUGIN_NAME
++}
++
+ // Parses and verifies Parsec additional exchange reply packet, including algorithm,
+ // factor and ext-salt. Returns the validated 20-byte prefix of the Parsec password hash.
+ pub fn parse_parsec_salt(data: &[u8]) -> Option<&[u8; 20]> {

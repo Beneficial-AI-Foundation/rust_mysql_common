@@ -1,0 +1,52 @@
+Translation patch: `OkPacket::session_state_info`
+
+Change: `self.session_state_info_ref().map(|data| { ..loop.. }).transpose().map(|x| x.unwrap_or_default())` becomes `match self.session_state_info_ref() { Some(data) => parse_session_state_infos(&mut ParseBuf(data), Vec::new()), None => Ok(Vec::new()) }`, where the private recursive helper `parse_session_state_infos` is the loop `while !data.is_empty() { entries.push(data.parse(())?) }`.
+Why: Aeneas fails on closures and on `?` inside them, and on the loop pushing values that borrow the buffer ("loan and borrow in the same region").
+Behaviour: Identical: `None` gives `Ok(vec![])` (`transpose` gives `Ok(None)`, `unwrap_or_default` the empty vector); `Some` gives the loop's result, `Err` included. The recursion uses stack proportional to the number of entries.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 49a144e..6d13eaf 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -800,17 +800,31 @@ impl OkPacket<'_> {
+ 
+     /// Tries to parse session state info, if any.
+     pub fn session_state_info(&self) -> io::Result<Vec<SessionStateInfo<'_>>> {
+-        self.session_state_info_ref()
+-            .map(|data| {
++        match self.session_state_info_ref() {
++            Some(data) => {
+                 let mut data = ParseBuf(data);
+-                let mut entries = Vec::new();
+-                while !data.is_empty() {
+-                    entries.push(data.parse(())?);
+-                }
+-                Ok(entries)
+-            })
+-            .transpose()
+-            .map(|x| x.unwrap_or_default())
++                parse_session_state_infos(&mut data, Vec::new())
++            }
++            None => Ok(Vec::new()),
++        }
++    }
++}
++
++// The loop of `OkPacket::session_state_info` (recursive): parses entries until `data` is empty.
++fn parse_session_state_infos<'a>(
++    data: &mut ParseBuf<'a>,
++    mut entries: Vec<SessionStateInfo<'a>>,
++) -> io::Result<Vec<SessionStateInfo<'a>>> {
++    if data.is_empty() {
++        Ok(entries)
++    } else {
++        match data.parse(()) {
++            Ok(entry) => {
++                entries.push(entry);
++                parse_session_state_infos(data, entries)
++            }
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 

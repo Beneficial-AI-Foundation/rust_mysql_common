@@ -1,0 +1,25 @@
+Translation patch: `parse_parsec_salt`
+
+Change: `let out: &[u8; 20] = data.try_into().expect("infallible"); let [algorithm, factor, ..] = *out;` becomes `let out: &[u8; 20] = match data.try_into() { Ok(out) => out, Err(_) => return None }; let algorithm = data[0]; let factor = data[1];`.
+Why: Aeneas fails on the array pattern and on indexing through the `&[u8; 20]` ("Internal error"); `expect` needs `Debug for TryFromSliceError`.
+Behaviour: Identical: the length was checked to be 20 just before, so `try_into` is `Ok` (the `Err` arm, like the `expect` panic, is unreachable), and `out` has the bytes of `data`.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 6d13eaf..139be2c 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -1646,8 +1646,12 @@ pub fn parse_parsec_salt(data: &[u8]) -> Option<&[u8; 20]> {
+         return None;
+     }
+ 
+-    let out: &[u8; 20] = data.try_into().expect("infallible");
+-    let [algorithm, factor, ..] = *out;
++    let out: &[u8; 20] = match data.try_into() {
++        Ok(out) => out,
++        Err(_) => return None,
++    };
++    let algorithm = data[0];
++    let factor = data[1];
+     // It used to be hardocoded 3 in the server, but that is gonna change to be configurable(in the server).
+     // The limit 20 is rather practical - it should be more than enough for good security and yet the
+     // calculation won't take ages.

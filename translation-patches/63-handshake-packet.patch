@@ -1,0 +1,286 @@
+Translation patch: `HandshakePacket` (`MyDeserialize`, `MySerialize`, `new`, `into_owned`, the accessors, `nonce`)
+
+Change:
+  - Combinators become `match`es: `buf.parse(len).map(Some)?`, `opt.map(RawBytes::new)`, `opt.map(|x| x.into_owned())`, `opt.as_ref().map(|x| x.as_bytes())`, `opt.as_ref().map(|x| x.as_str())`, `opt.as_ref().map(|x| f(x)).unwrap_or_default()` (the default `u8` is 0).
+  - Slice patterns `[head @ .., 0] => .., all => ..` (in `deserialize` and `auth_plugin`) become `if len > 0 && all[len - 1] == 0 { .. &all[..len - 1] .. } else { .. all .. }`; `split_last()` with `Some((0_u8, rest))` in `nonce` becomes the same test.
+  - `auth_plugin`: `ParseBuf(name).parse_unchecked(()).expect("infallible")` becomes `AuthPlugin::from_bytes(name)`.
+  - `scramble_1_ref`: `self.scramble_1.as_ref()` becomes `&self.scramble_1[..]`; `nonce`: `Vec::from(slice)` becomes `slice.to_vec()`, and the `if let Some(scramble_2)` that appends it moves into a private method `nonce_scramble_2()` returning the (trimmed) bytes, or an empty slice for `None`, which `nonce` appends unconditionally.
+  - `new`: `scramble_2` and the length byte computed from it (`x.len() as u8`, or 0) are computed together in one `match` before the struct literal.
+  - `serialize`: the auth-plugin-data length byte is computed by a new free function `handshake_auth_plugin_data_len(client_plugin_auth, &self.scramble_2)`, and the two trailing `if let Some(..)` writes move into a free function `serialize_handshake_tail(&self.scramble_2, &self.auth_plugin_name, buf)` that writes them in tail position (`serialize_handshake_auth_plugin_name`).
+Why: Aeneas fails on closures and constructors used as values (patch 09), slice patterns (patch 06), `expect` on `io::Result` (`Debug for io::Error`), `AsRef for [T; N]`, `From<&[T]> for Vec<T>` (patch 58) and `split_last` are not modelled, and it fails ("Could not match the contexts" / "Unreachable") on joins after an `if`/`match` that borrows `self` in `serialize`, `nonce` and `new`.
+Behaviour: Identical. Each `match` is the definition of the combinator; the slice-pattern and `split_last` rewrites test exactly the same condition; `AuthPlugin`'s parse is `Ok(from_bytes(name))` (see patch 62), so `expect` never panics; `to_vec` is `Vec::from` for slices; appending an empty slice is a no-op; the helpers compute and write the same values in the same order.
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 7a11f5d..f09a633 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -1696,14 +1696,20 @@ impl<'de> MyDeserialize<'de> for HandshakePacket<'de> {
+         let mut scramble_2 = None;
+         if capabilities_1.0 & CapabilityFlags::CLIENT_SECURE_CONNECTION.bits() > 0 {
+             let len = max(13, auth_plugin_data_len.0 as i8 - 8) as usize;
+-            scramble_2 = buf.parse(len).map(Some)?;
++            scramble_2 = match buf.parse(len) {
++                Ok(x) => Some(x),
++                Err(e) => return Err(e),
++            };
+         }
+         let mut auth_plugin_name = None;
+         if capabilities_2.0 & CapabilityFlags::CLIENT_PLUGIN_AUTH.bits() > 0 {
+-            auth_plugin_name = match buf.eat_all() {
+-                [head @ .., 0] => Some(RawBytes::new(head)),
++            let all = buf.eat_all();
++            let len = all.len();
++            auth_plugin_name = if len > 0 && all[len - 1] == 0 {
++                Some(RawBytes::new(&all[..len - 1]))
++            } else {
+                 // missing trailing `0` is a known bug in mysql
+-                all => Some(RawBytes::new(all)),
++                Some(RawBytes::new(all))
+             }
+         }
+ 
+@@ -1728,6 +1734,46 @@ impl<'de> MyDeserialize<'de> for HandshakePacket<'de> {
+     }
+ }
+ 
++// The auth-plugin-data length byte written by `MySerialize for HandshakePacket`.
++fn handshake_auth_plugin_data_len(
++    client_plugin_auth: bool,
++    scramble_2: &Option<RawBytes<'_, BareBytes<{ (u8::MAX as usize) - 8 }>>>,
++) -> u8 {
++    if client_plugin_auth {
++        match scramble_2 {
++            Some(x) => (x.len() + 8) as u8,
++            None => 0,
++        }
++    } else {
++        0
++    }
++}
++
++// The optional trailing fields written by `MySerialize for HandshakePacket`.
++fn serialize_handshake_tail(
++    scramble_2: &Option<RawBytes<'_, BareBytes<{ (u8::MAX as usize) - 8 }>>>,
++    auth_plugin_name: &Option<RawBytes<'_, NullBytes>>,
++    buf: &mut Vec<u8>,
++) {
++    match scramble_2 {
++        Some(scramble_2) => {
++            scramble_2.serialize(&mut *buf);
++            serialize_handshake_auth_plugin_name(auth_plugin_name, buf)
++        }
++        None => serialize_handshake_auth_plugin_name(auth_plugin_name, buf),
++    }
++}
++
++fn serialize_handshake_auth_plugin_name(
++    auth_plugin_name: &Option<RawBytes<'_, NullBytes>>,
++    buf: &mut Vec<u8>,
++) {
++    match auth_plugin_name {
++        Some(client_plugin_auth) => client_plugin_auth.serialize(buf),
++        None => (),
++    }
++}
++
+ impl MySerialize for HandshakePacket<'_> {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         self.protocol_version.serialize(&mut *buf);
+@@ -1740,34 +1786,19 @@ impl MySerialize for HandshakePacket<'_> {
+         self.status_flags.serialize(&mut *buf);
+         self.capabilities_2.serialize(&mut *buf);
+ 
+-        if self
+-            .capabilities_2
+-            .contains(CapabilityFlags::CLIENT_PLUGIN_AUTH)
+-        {
+-            buf.put_u8(
+-                self.scramble_2
+-                    .as_ref()
+-                    .map(|x| (x.len() + 8) as u8)
+-                    .unwrap_or_default(),
+-            );
+-        } else {
+-            buf.put_u8(0);
+-        }
++        buf.put_u8(handshake_auth_plugin_data_len(
++            self.capabilities_2
++                .contains(CapabilityFlags::CLIENT_PLUGIN_AUTH),
++            &self.scramble_2,
++        ));
+ 
+         self.__reserved.serialize(&mut *buf);
+         self.mariadb_ext_capabilities.serialize(&mut *buf);
+ 
+         // Assume that the packet is well formed:
+         // * the CLIENT_SECURE_CONNECTION is set.
+-        if let Some(scramble_2) = &self.scramble_2 {
+-            scramble_2.serialize(&mut *buf);
+-        }
+-
+-        // Assume that the packet is well formed:
+         // * the CLIENT_PLUGIN_AUTH is set.
+-        if let Some(client_plugin_auth) = &self.auth_plugin_name {
+-            client_plugin_auth.serialize(buf);
+-        }
++        serialize_handshake_tail(&self.scramble_2, &self.auth_plugin_name, buf);
+     }
+ }
+ 
+@@ -1792,7 +1823,14 @@ impl<'a> HandshakePacket<'a> {
+             CapabilityFlags::from_bits_retain(capabilities.bits() & 0xFFFF_0000),
+         );
+ 
+-        let scramble_2 = scramble_2.map(RawBytes::new);
++        let (scramble_2, auth_plugin_data_len) = match scramble_2 {
++            Some(x) => {
++                let x = RawBytes::new(x);
++                let len = x.len() as u8;
++                (Some(x), len)
++            }
++            None => (None, 0),
++        };
+ 
+         HandshakePacket {
+             protocol_version: RawInt::new(protocol_version),
+@@ -1804,16 +1842,14 @@ impl<'a> HandshakePacket<'a> {
+             default_collation: RawInt::new(default_collation),
+             status_flags: Const::new(status_flags),
+             capabilities_2: Const::new(capabilities_2),
+-            auth_plugin_data_len: RawInt::new(
+-                scramble_2
+-                    .as_ref()
+-                    .map(|x| x.len() as u8)
+-                    .unwrap_or_default(),
+-            ),
++            auth_plugin_data_len: RawInt::new(auth_plugin_data_len),
+             __reserved: Skip,
+             mariadb_ext_capabilities: Const::new(MariadbCapabilities::empty()),
+             scramble_2,
+-            auth_plugin_name: auth_plugin_name.map(RawBytes::new),
++            auth_plugin_name: match auth_plugin_name {
++                Some(x) => Some(RawBytes::new(x)),
++                None => None,
++            },
+         }
+     }
+ 
+@@ -1836,8 +1872,14 @@ impl<'a> HandshakePacket<'a> {
+             auth_plugin_data_len: self.auth_plugin_data_len,
+             __reserved: self.__reserved,
+             mariadb_ext_capabilities: self.mariadb_ext_capabilities,
+-            scramble_2: self.scramble_2.map(|x| x.into_owned()),
+-            auth_plugin_name: self.auth_plugin_name.map(RawBytes::into_owned),
++            scramble_2: match self.scramble_2 {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
++            auth_plugin_name: match self.auth_plugin_name {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
+         }
+     }
+ 
+@@ -1894,27 +1936,23 @@ impl<'a> HandshakePacket<'a> {
+ 
+     /// Value of the scramble_1 field of an initial handshake packet as a byte slice.
+     pub fn scramble_1_ref(&self) -> &[u8] {
+-        self.scramble_1.as_ref()
++        &self.scramble_1[..]
+     }
+ 
+     /// Value of the scramble_2 field of an initial handshake packet as a byte slice.
+     ///
+     /// Note that this may include a terminating null character.
+     pub fn scramble_2_ref(&self) -> Option<&[u8]> {
+-        self.scramble_2.as_ref().map(|x| x.as_bytes())
++        match &self.scramble_2 {
++            Some(x) => Some(x.as_bytes()),
++            None => None,
++        }
+     }
+ 
+     /// Returns concatenated auth plugin nonce.
+     pub fn nonce(&self) -> Vec<u8> {
+-        let mut out = Vec::from(self.scramble_1_ref());
+-        if let Some(scramble_2) = self.scramble_2_ref() {
+-            // Trim terminating null character
+-            if let Some((0_u8, scramble_2)) = scramble_2.split_last() {
+-                out.extend_from_slice(scramble_2);
+-            } else {
+-                out.extend_from_slice(scramble_2);
+-            }
+-        }
++        let mut out = self.scramble_1_ref().to_vec();
++        out.extend_from_slice(self.nonce_scramble_2());
+ 
+         // Fill with zeroes if nonce is somehow smaller than 20 bytes.
+         if out.len() < SCRAMBLE_LENGTH {
+@@ -1924,6 +1962,24 @@ impl<'a> HandshakePacket<'a> {
+         out
+     }
+ 
++
++    // The part of `nonce` after `scramble_1`: `scramble_2` without its terminating null
++    // character, or empty if there is no `scramble_2`.
++    fn nonce_scramble_2(&self) -> &[u8] {
++        match self.scramble_2_ref() {
++            Some(scramble_2) => {
++                // Trim terminating null character
++                let len = scramble_2.len();
++                if len > 0 && scramble_2[len - 1] == 0_u8 {
++                    &scramble_2[..len - 1]
++                } else {
++                    scramble_2
++                }
++            }
++            None => &[],
++        }
++    }
++
+     /// Value of a server capabilities.
+     pub fn capabilities(&self) -> CapabilityFlags {
+         self.capabilities_1.0 | self.capabilities_2.0
+@@ -1945,21 +2001,35 @@ impl<'a> HandshakePacket<'a> {
+ 
+     /// Value of the auth_plugin_name field of an initial handshake packet as a byte slice.
+     pub fn auth_plugin_name_ref(&self) -> Option<&[u8]> {
+-        self.auth_plugin_name.as_ref().map(|x| x.as_bytes())
++        match &self.auth_plugin_name {
++            Some(x) => Some(x.as_bytes()),
++            None => None,
++        }
+     }
+ 
+     /// Value of the auth_plugin_name field of an initial handshake packet as a string
+     /// (lossy converted).
+     pub fn auth_plugin_name_str(&self) -> Option<Cow<'_, str>> {
+-        self.auth_plugin_name.as_ref().map(|x| x.as_str())
++        match &self.auth_plugin_name {
++            Some(x) => Some(x.as_str()),
++            None => None,
++        }
+     }
+ 
+     /// Auth plugin of a handshake packet
+     pub fn auth_plugin(&self) -> Option<AuthPlugin<'_>> {
+-        self.auth_plugin_name.as_ref().map(|x| match x.as_bytes() {
+-            [name @ .., 0] => ParseBuf(name).parse_unchecked(()).expect("infallible"),
+-            all => ParseBuf(all).parse_unchecked(()).expect("infallible"),
+-        })
++        match &self.auth_plugin_name {
++            Some(x) => {
++                let all = x.as_bytes();
++                let len = all.len();
++                if len > 0 && all[len - 1] == 0 {
++                    Some(AuthPlugin::from_bytes(&all[..len - 1]))
++                } else {
++                    Some(AuthPlugin::from_bytes(all))
++                }
++            }
++            None => None,
++        }
+     }
+ }
+ 

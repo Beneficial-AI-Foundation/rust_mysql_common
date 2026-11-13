@@ -1,0 +1,184 @@
+Translation patch: `misc::trusted` (new module: the trust boundary of the packets), lossy UTF-8 and the version regexes
+
+Change: Adds `src/misc/trusted.rs`, declared `pub(crate) mod trusted` in `misc/mod.rs`, with one function per dependency operation, each body being that call: `from_utf8_lossy` (`String::from_utf8_lossy`), `version_re_captures` / `mariadb_version_re_captures` (`captures` of the two version regexes, returning the bytes of groups 1–3), and `btoi_u16` (`btoi::<u16>(b).ok()`). The two regex statics `VERSION_RE` and `MARIADB_VERSION_RE` move there verbatim from `packets/mod.rs`. `RawBytes::as_str` calls `trusted::from_utf8_lossy`; `HandshakePacket::server_version_parsed` / `maria_db_server_version_parsed` become `match trusted::*_version_re_captures(..) { Some((a, b, c)) => Some((btoi_u16(a).unwrap(), ..)), None => None }`. The now-unused imports of `btoi`, `Regex` and `LazyLock` in `packets/mod.rs` are removed. (Patches 68, 70 and 71 add further functions to this module.)
+Why: The module is `opaque` in Cargo.toml, so the trusted surface of the packets is exactly this list, each with a Lean model or axiom in `FunsExternal.lean` (the pattern of patch 40). The dependencies cannot be translated (`LazyLock` statics with closures, regex, `String::from_utf8_lossy`).
+Behaviour: Identical. `captures.get(i)` is `Some` for groups 1–3 on every match (they are not optional in either pattern), so the `unwrap`s moved into the helper never panic; `.map(|captures| ..)` is the `match`; `btoi_u16(..).unwrap()` panics exactly when `btoi::<u16>(..).unwrap()` does (e.g. on a version with non-ASCII Unicode digits, which `\d` matches); only the panic message changes, from `Result::unwrap` on a `ParseIntegerError` to `Option::unwrap` on `None`.
+
+diff --git a/src/misc/mod.rs b/src/misc/mod.rs
+index edf8eb3..67396df 100644
+--- a/src/misc/mod.rs
++++ b/src/misc/mod.rs
+@@ -11,6 +11,7 @@ use std::io::{self};
+ use crate::io::ParseBuf;
+ 
+ pub mod raw;
++pub(crate) mod trusted;
+ 
+ /// Returns length of length-encoded-integer representation of `x`.
+ pub fn lenenc_int_len(x: u64) -> u64 {
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index 5ac2ae3..48a7ef2 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -63,7 +63,7 @@ impl<'a, T: BytesRepr> RawBytes<'a, T> {
+ 
+     /// Returns the value as a UTF-8 string (lossy converted).
+     pub fn as_str(&'a self) -> Cow<'a, str> {
+-        String::from_utf8_lossy(self.as_bytes())
++        crate::misc::trusted::from_utf8_lossy(self.as_bytes())
+     }
+ }
+ 
+diff --git a/src/misc/trusted.rs b/src/misc/trusted.rs
+new file mode 100644
+index 0000000..65c6fff
+--- /dev/null
++++ b/src/misc/trusted.rs
+@@ -0,0 +1,59 @@
++//! Translation helpers: the trust boundary of the packets (`src/packets/`).
++//!
++//! Every operation of a dependency crate (or of `std`, where Aeneas has no model) that the
++//! packets use goes through exactly one function of this module, whose body is that one call.
++//! The module is `opaque` in Cargo.toml: these functions are not translated, and each has a Lean
++//! model or axiom in `lean/MysqlCommon/FunsExternal.lean`.
++
++#![allow(dead_code)]
++
++use std::{borrow::Cow, sync::LazyLock};
++
++use regex::bytes::Regex;
++
++// ---- std ---------------------------------------------------------------------------------------
++
++/// `String::from_utf8_lossy(bytes)`.
++pub(crate) fn from_utf8_lossy(bytes: &[u8]) -> Cow<'_, str> {
++    String::from_utf8_lossy(bytes)
++}
++
++// ---- regex + btoi ------------------------------------------------------------------------------
++
++// Copied verbatim from `src/packets/mod.rs`.
++static MARIADB_VERSION_RE: LazyLock<Regex> = LazyLock::new(|| {
++    Regex::new(r"^(?:5.5.5-)?(\d{1,2})\.(\d{1,2})\.(\d{1,3})(?:-\d+)?-MariaDB").unwrap()
++});
++static VERSION_RE: LazyLock<Regex> =
++    LazyLock::new(|| Regex::new(r"^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)").unwrap());
++
++/// `VERSION_RE.captures(bytes)`, with the bytes of capture groups 1, 2 and 3 (which take part in
++/// every match, so `get(i).unwrap()` cannot panic).
++pub(crate) fn version_re_captures(bytes: &[u8]) -> Option<(&[u8], &[u8], &[u8])> {
++    match VERSION_RE.captures(bytes) {
++        Some(captures) => Some((
++            captures.get(1).unwrap().as_bytes(),
++            captures.get(2).unwrap().as_bytes(),
++            captures.get(3).unwrap().as_bytes(),
++        )),
++        None => None,
++    }
++}
++
++/// `MARIADB_VERSION_RE.captures(bytes)`, with the bytes of capture groups 1, 2 and 3 (which take
++/// part in every match, so `get(i).unwrap()` cannot panic).
++pub(crate) fn mariadb_version_re_captures(bytes: &[u8]) -> Option<(&[u8], &[u8], &[u8])> {
++    match MARIADB_VERSION_RE.captures(bytes) {
++        Some(captures) => Some((
++            captures.get(1).unwrap().as_bytes(),
++            captures.get(2).unwrap().as_bytes(),
++            captures.get(3).unwrap().as_bytes(),
++        )),
++        None => None,
++    }
++}
++
++/// `btoi::btoi::<u16>(bytes).ok()`.
++pub(crate) fn btoi_u16(bytes: &[u8]) -> Option<u16> {
++    btoi::btoi::<u16>(bytes).ok()
++}
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index f09a633..49a144e 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -6,9 +6,9 @@
+ // option. All files in the project carrying such notice may not be copied,
+ // modified, or distributed except according to those terms.
+ 
+-use btoi::btoi;
++
+ use crate::io::BufMut;
+-use regex::bytes::Regex;
++
+ use uuid::Uuid;
+ 
+ use std::{
+@@ -20,7 +20,7 @@ use std::{
+     marker::PhantomData,
+     mem,
+     str::FromStr,
+-    sync::{Arc, LazyLock},
++    sync::Arc,
+ };
+ 
+ use crate::{
+@@ -52,11 +52,6 @@ use crate::{
+ 
+ use self::session_state_change::SessionStateChange;
+ 
+-static MARIADB_VERSION_RE: LazyLock<Regex> = LazyLock::new(|| {
+-    Regex::new(r"^(?:5.5.5-)?(\d{1,2})\.(\d{1,2})\.(\d{1,3})(?:-\d+)?-MariaDB").unwrap()
+-});
+-static VERSION_RE: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)").unwrap());
+ 
+ macro_rules! define_header {
+     ($name:ident, $err:ident($msg:literal), $val:literal) => {
+@@ -1903,30 +1898,32 @@ impl<'a> HandshakePacket<'a> {
+     ///
+     /// Will parse first \d+.\d+.\d+ of a server version string (if any).
+     pub fn server_version_parsed(&self) -> Option<(u16, u16, u16)> {
+-        VERSION_RE
+-            .captures(self.server_version_ref())
+-            .map(|captures| {
++        match crate::misc::trusted::version_re_captures(self.server_version_ref()) {
++            Some((major, minor, patch)) => {
+                 // Should not panic because validated with regex
+-                (
+-                    btoi::<u16>(captures.get(1).unwrap().as_bytes()).unwrap(),
+-                    btoi::<u16>(captures.get(2).unwrap().as_bytes()).unwrap(),
+-                    btoi::<u16>(captures.get(3).unwrap().as_bytes()).unwrap(),
+-                )
+-            })
++                Some((
++                    crate::misc::trusted::btoi_u16(major).unwrap(),
++                    crate::misc::trusted::btoi_u16(minor).unwrap(),
++                    crate::misc::trusted::btoi_u16(patch).unwrap(),
++                ))
++            }
++            None => None,
++        }
+     }
+ 
+     /// Parsed mariadb server version.
+     pub fn maria_db_server_version_parsed(&self) -> Option<(u16, u16, u16)> {
+-        MARIADB_VERSION_RE
+-            .captures(self.server_version_ref())
+-            .map(|captures| {
++        match crate::misc::trusted::mariadb_version_re_captures(self.server_version_ref()) {
++            Some((major, minor, patch)) => {
+                 // Should not panic because validated with regex
+-                (
+-                    btoi::<u16>(captures.get(1).unwrap().as_bytes()).unwrap(),
+-                    btoi::<u16>(captures.get(2).unwrap().as_bytes()).unwrap(),
+-                    btoi::<u16>(captures.get(3).unwrap().as_bytes()).unwrap(),
+-                )
+-            })
++                Some((
++                    crate::misc::trusted::btoi_u16(major).unwrap(),
++                    crate::misc::trusted::btoi_u16(minor).unwrap(),
++                    crate::misc::trusted::btoi_u16(patch).unwrap(),
++                ))
++            }
++            None => None,
++        }
+     }
+ 
+     /// Value of the connection_id field of an initial handshake packet.
