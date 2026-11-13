@@ -10,8 +10,7 @@ import Proofs.Defs.LemmasStmtSession
     the bulk-execute bugs and quirks (types read from 3 bytes, only the first row read, type
     merging). Totality: the bulk, SID (both formats) and GTID readers never give `unknown`
     (since translation-patches/156 the tag check is bytewise, `tagBytesValid`). Proofs:
-    `Proofs/Defs/LemmasStmtSession.lean` (the totality lemmas and `bulkNew_indicators` are
-    proved; the rest are `sorry`).
+    `Proofs/Defs/LemmasStmtSession.lean` (all proved).
 
     **Trusted axioms:** none.
 -/

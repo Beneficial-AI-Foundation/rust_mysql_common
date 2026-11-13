@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 
-/-! Statements for `enum Either and its impls` (spec file: `Specs/Misc/Raw.lean`). Proofs: TODO. -/
+/-! Statements for `enum Either and its impls` (spec file: `Specs/Misc/Raw.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 
-/-! Statements for `struct Const and its impls` (spec file: `Specs/Misc/Raw/Const.lean`). Proofs: TODO. -/
+/-! Statements for `struct Const and its impls` (spec file: `Specs/Misc/Raw/Const.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

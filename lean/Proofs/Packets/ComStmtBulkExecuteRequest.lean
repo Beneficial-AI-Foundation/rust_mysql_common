@@ -7,7 +7,7 @@ import Proofs.Packets.StmtBulkExecuteParamType
 import Proofs.Packets.StmtBulkExecuteParamValues
 
 /-! Statements for `struct ComStmtBulkExecuteRequest and its impls` (spec file:
-`Specs/Packets/StmtBinlog.lean`). Proofs: TODO. -/
+`Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

@@ -3,7 +3,7 @@ import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 import Proofs.Io.BufMutExt
 
-/-! Statements for `impl BytesRepr for U32Bytes` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: TODO. -/
+/-! Statements for `impl BytesRepr for U32Bytes` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

@@ -9,7 +9,7 @@ import Proofs.Misc.Raw.Int.ConstU8
 import Proofs.Misc.Raw.Int.ConstU32
 import Proofs.Misc.Raw.Bytes.RawBytes
 
-/-! Statements for `struct ComStmtExecuteRequestBuilder and its impls` (spec file: `Specs/Packets.lean`). Proofs: TODO. -/
+/-! Statements for `struct ComStmtExecuteRequestBuilder and its impls` (spec file: `Specs/Packets.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

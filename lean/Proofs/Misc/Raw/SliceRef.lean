@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 
-/-! Statements for `impl MyDeserialize for &[u8]` (spec file: `Specs/Misc/Raw.lean`). Proofs: TODO. -/
+/-! Statements for `impl MyDeserialize for &[u8]` (spec file: `Specs/Misc/Raw.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

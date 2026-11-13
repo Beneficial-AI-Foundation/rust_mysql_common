@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 
-/-! Statements for `impl SeqRepr for Unknown` (spec file: `Specs/Misc/Raw/Seq.lean`). Proofs: TODO. -/
+/-! Statements for `impl SeqRepr for Unknown` (spec file: `Specs/Misc/Raw/Seq.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

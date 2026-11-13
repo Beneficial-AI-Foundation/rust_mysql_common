@@ -4,7 +4,7 @@ import Proofs.Util.ParseBuf
 import Proofs.Util.Replication
 
 /-! Sanity lemmas about `Defs/CmdPackets.lean`, `Defs/SessionState.lean`, `Defs/BinlogCmd.lean`
-(recalled in `Specs/DefsStmtSession.lean`). Proofs: TODO. -/
+(recalled in `Specs/DefsStmtSession.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

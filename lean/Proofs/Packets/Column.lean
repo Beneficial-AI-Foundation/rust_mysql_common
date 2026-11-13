@@ -13,7 +13,7 @@ import Proofs.Constants.ColumnType
 import Proofs.Constants.ColumnFlags
 import Proofs.Defs.LemmasCF
 
-/-! Statements for `struct Column and its impls` (spec file: `Specs/Packets.lean`). Proofs: TODO. -/
+/-! Statements for `struct Column and its impls` (spec file: `Specs/Packets.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

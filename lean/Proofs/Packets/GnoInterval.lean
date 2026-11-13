@@ -4,7 +4,7 @@ import Proofs.Misc.Raw.Int.LeU64
 import Proofs.Misc.Raw.Int.RawInt
 
 /-! Statements for `struct GnoInterval and its impls` (spec file:
-`Specs/Packets/StmtBinlog.lean`). Proofs: TODO. -/
+`Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

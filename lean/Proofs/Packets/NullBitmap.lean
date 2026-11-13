@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.PacketsColStmt
 import Proofs.Io.ParseBuf
 
-/-! Statements for `struct NullBitmap and its impls` (spec file: `Specs/Packets.lean`). Proofs: TODO. -/
+/-! Statements for `struct NullBitmap and its impls` (spec file: `Specs/Packets.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

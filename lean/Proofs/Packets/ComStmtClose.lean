@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.IntAndMisc
 
 /-! Statements for `struct ComStmtClose and its impls` (spec file:
-`Specs/Packets/StmtBinlog.lean`). Proofs: TODO. -/
+`Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

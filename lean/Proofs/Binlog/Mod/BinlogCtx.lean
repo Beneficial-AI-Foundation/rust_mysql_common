@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `struct BinlogCtx and its impls` (spec file: `Specs/Binlog/Mod.lean`). Proofs: TODO. -/
+/-! Statements for `struct BinlogCtx and its impls` (spec file: `Specs/Binlog/Mod.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

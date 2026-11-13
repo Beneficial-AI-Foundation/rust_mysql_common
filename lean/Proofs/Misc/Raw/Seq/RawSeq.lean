@@ -3,7 +3,7 @@ import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 import Proofs.Misc.Raw.Const.RawConst
 
-/-! Statements for `struct RawSeq and its impls` (spec file: `Specs/Misc/Raw/Seq.lean`). Proofs: TODO. -/
+/-! Statements for `struct RawSeq and its impls` (spec file: `Specs/Misc/Raw/Seq.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

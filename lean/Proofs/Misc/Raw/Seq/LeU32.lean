@@ -4,7 +4,7 @@ import Proofs.Io.ParseBuf
 import Proofs.Misc.Raw.Int.LeU32
 import Proofs.Misc.Raw.Seq.Unknown
 
-/-! Statements for `impl SeqRepr for LeU32` (spec file: `Specs/Misc/Raw/Seq.lean`). Proofs: TODO. -/
+/-! Statements for `impl SeqRepr for LeU32` (spec file: `Specs/Misc/Raw/Seq.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

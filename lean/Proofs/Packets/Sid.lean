@@ -10,7 +10,7 @@ import Proofs.Packets.Tag
 import Proofs.Misc.WriteVarlenUint
 
 /-! Statements for `struct Sid and its impls` (spec file: `Specs/Packets/StmtBinlog.lean`).
-Proofs: TODO. -/
+Proofs: complete. -/
 
 set_option autoImplicit false
 

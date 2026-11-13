@@ -4,7 +4,7 @@ import Proofs.Io.ParseBuf
 import Proofs.Io.BufMutExt
 import Proofs.Misc.Raw.Int.LenEnc
 
-/-! Statements for `impl BytesRepr for LenEnc` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: TODO. -/
+/-! Statements for `impl BytesRepr for LenEnc` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

@@ -3,7 +3,7 @@ import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 import Proofs.Misc.Raw.Bytes.RawBytes
 
-/-! Statements for `impl BytesRepr for FixedLengthText<LEN>` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: TODO. -/
+/-! Statements for `impl BytesRepr for FixedLengthText<LEN>` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

@@ -3,7 +3,7 @@ import Proofs.Util.PacketsOkErr
 import Proofs.Util.PacketsColStmt
 
 /-! Statements for `struct ComStmtSendLongData and its impls` (spec file:
-`Specs/Packets/StmtBinlog.lean`). Proofs: TODO. -/
+`Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

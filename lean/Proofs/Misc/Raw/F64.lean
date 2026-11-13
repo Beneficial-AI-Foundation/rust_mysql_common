@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 
-/-! Statements for `impls for f64` (spec file: `Specs/Misc/Raw.lean`). Proofs: TODO. -/
+/-! Statements for `impls for f64` (spec file: `Specs/Misc/Raw.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

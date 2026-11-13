@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 
-/-! Statements for `impl BytesRepr for BareBytes<MAX_LEN>` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: TODO. -/
+/-! Statements for `impl BytesRepr for BareBytes<MAX_LEN>` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

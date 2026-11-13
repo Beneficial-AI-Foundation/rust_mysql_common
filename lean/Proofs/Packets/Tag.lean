@@ -3,7 +3,7 @@ import Proofs.Util.ConvBytesTime
 import Proofs.Util.RawBytesSeq
 
 /-! Statements for `struct Tag and its impls` (spec file: `Specs/Packets/StmtBinlog.lean`).
-Proofs: TODO. -/
+Proofs: complete. -/
 
 set_option autoImplicit false
 

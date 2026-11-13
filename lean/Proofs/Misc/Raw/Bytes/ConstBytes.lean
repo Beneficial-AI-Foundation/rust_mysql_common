@@ -3,7 +3,7 @@ import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 import Proofs.Misc.Raw.Array
 
-/-! Statements for `struct ConstBytes and its impls` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: TODO. -/
+/-! Statements for `struct ConstBytes and its impls` (spec file: `Specs/Misc/Raw/Bytes.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

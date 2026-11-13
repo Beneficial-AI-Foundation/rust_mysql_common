@@ -6,7 +6,7 @@ import Proofs.Constants.CursorType
 import Proofs.Constants.StmtExecuteParamsFlags
 import Proofs.Constants.StmtExecuteParamFlags
 
-/-! Statements for `struct ComStmtExecuteRequest and its impls` (spec file: `Specs/Packets.lean`). Proofs: TODO. -/
+/-! Statements for `struct ComStmtExecuteRequest and its impls` (spec file: `Specs/Packets.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

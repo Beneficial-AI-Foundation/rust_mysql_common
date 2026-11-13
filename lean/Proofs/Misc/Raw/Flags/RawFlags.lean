@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
 
-/-! Statements for `struct RawFlags and its impls` (spec file: `Specs/Misc/Raw/Flags.lean`). Proofs: TODO. -/
+/-! Statements for `struct RawFlags and its impls` (spec file: `Specs/Misc/Raw/Flags.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

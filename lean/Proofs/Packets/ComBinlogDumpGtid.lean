@@ -12,7 +12,7 @@ import Proofs.Packets.Sid
 import Proofs.Util.Replication
 
 /-! Statements for `struct ComBinlogDumpGtid and its impls` (spec file:
-`Specs/Packets/StmtBinlog.lean`). Proofs: TODO. -/
+`Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 

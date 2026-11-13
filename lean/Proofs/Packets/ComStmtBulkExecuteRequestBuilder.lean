@@ -4,7 +4,7 @@ import Proofs.Packets.ComStmtBulkExecuteRequest
 import Proofs.Defs.LemmasStmtSession
 
 /-! Statements for `struct ComStmtBulkExecuteRequestBuilder and its impls` (spec file:
-`Specs/Packets/StmtBinlog.lean`). Proofs: TODO. -/
+`Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 
