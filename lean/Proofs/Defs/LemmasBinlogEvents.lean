@@ -203,7 +203,42 @@ theorem tmMetaAt_example : tmMetaAt [byte 3, byte 15, byte 252] [byte 10, byte 0
 theorem rowsRead_rowsEnc (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
     (p pw : Nat) (hp : p ≠ 6) (hv : p = pw ↔ rowsIsV2 e.event_type = true) :
     rowsRead e.event_type p pw (rowsEnc e) = some (rowsView e, []) := by
-  sorry
+  obtain ⟨c1, c2, c3, c4⟩ := hc
+  have hf : e.flags.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have ht' : e.table_id.1.val < 2 ^ (8 * 6) := by simpa using ht
+  have hn : e.num_columns.1.val < 2 ^ 64 := by scalar_tac
+  have hbl : (e.num_columns.1.val + 7) / 8 ≤ 2 ^ 61 := by omega
+  have r6 : ∀ R, readLE 6 (leBytes 6 e.table_id.1.val ++ R) = some (e.table_id.1.val, R) := fun R => readLE_app 6 _ R ht'
+  have r2 : ∀ R, readLE 2 (leBytes 2 e.flags.1.val ++ R) = some (e.flags.1.val, R) := fun R => readLE_app 2 _ R hf
+  have cn : ∀ R, checkedLenencInt (lenencInt e.num_columns.1.val ++ R) = (some e.num_columns.1.val, R) :=
+    fun R => PBUtil.checkedLenencInt_lenencInt _ R hn
+  have hmin : min (cowList e.extra_data.1).length 65533 = (cowList e.extra_data.1).length := Nat.min_eq_left c1
+  have rx : ∀ R, readLE 2 (leBytes 2 ((cowList e.extra_data.1).length + 2) ++ R) =
+      some ((cowList e.extra_data.1).length + 2, R) := fun R => readLE_app 2 _ R (by omega)
+  have tx' : ∀ R, takeExact (cowList e.extra_data.1).length (cowList e.extra_data.1 ++ R) =
+      some (cowList e.extra_data.1, R) := fun R => takeExact_app _ R _ rfl
+  have hbt : ∀ (b : misc.raw.bytes.RawBytes misc.raw.bytes.BareBitmapBytes Usize),
+      (cowList b.1).length = (e.num_columns.1.val + 7) / 8 →
+      ∀ R, takeExact ((e.num_columns.1.val + 7) / 8) ((cowList b.1).take 2305843009213693952 ++ R) = some (cowList b.1, R) := by
+    intro b hb R
+    rw [List.take_of_length_le (by omega)]
+    exact takeExact_app _ R _ hb
+  have hpw' : (p = pw) = (rowsIsV2 e.event_type = true) := propext hv
+  by_cases hv2 : rowsIsV2 e.event_type = true
+  · have hpw : p = pw := hv.mpr hv2
+    have hp' : pw ≠ 6 := hpw ▸ hp
+    cases hb : e.columns_before_image <;> cases ha : e.columns_after_image <;>
+      simp only [hb, ha, Option.map_none, Option.map_some] at c3 c4 <;>
+      cases hU : rowsIsUpdate e.event_type <;> cases hD : rowsIsDelete e.event_type <;> simp [hU, hD] at c3 c4 <;>
+      simp [rowsRead, rowsEnc, hp', hpw, hv2, Option.bind_eq_bind, r6, r2, hmin, List.take_of_length_le c1, rx, tx', cn,
+        optFst, hb, ha, hU, hD, rowsView, hbt, c3, c4]
+  · have hpw : ¬ p = pw := fun h => hv2 (hv.mp h)
+    have he : cowList e.extra_data.1 = [] := c2 (by simpa using hv2)
+    cases hb : e.columns_before_image <;> cases ha : e.columns_after_image <;>
+      simp only [hb, ha, Option.map_none, Option.map_some] at c3 c4 <;>
+      cases hU : rowsIsUpdate e.event_type <;> cases hD : rowsIsDelete e.event_type <;> simp [hU, hD] at c3 c4 <;>
+      simp [rowsRead, rowsEnc, hp, hpw, hv2, Option.bind_eq_bind, r6, r2, cn, he,
+        optFst, hb, ha, hU, hD, rowsView, hbt, c3, c4]
 
 /-- The rows length quirk: for a consistent v1 event the crate's length is 2 more than the encoding (under the cap). -/
 theorem rowsLenCrate_v1 (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (h1 : rowsIsV2 e.event_type = false)
