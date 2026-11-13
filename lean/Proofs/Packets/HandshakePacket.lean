@@ -31,7 +31,30 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.HandshakePacket) (buf : alloc.vec.Vec U8)
     (h : buf.length + (handshakeEnc (Handshake.of self)).length ≤ Usize.max) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ handshakeEnc (Handshake.of self) ⦄ := by
-  sorry
+  unfold packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize
+  have hl : buf.val.length + (handshakeEnc (Handshake.of self)).length ≤ Usize.max := h
+  simp only [handshakeEnc, Handshake.of, List.length_cons, List.length_append, PBUtil.length_leBytes,
+    List.length_replicate, List.length_singleton] at hl
+  step*
+  all_goals trace_state
+  all_goals sorry
+
+private theorem serialize_tail_spec
+    (s2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize))
+    (pn : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit)) (buf : alloc.vec.Vec U8)
+    (h : buf.length + ((s2.map (fun rb => (cowList rb.1).take 247)).getD [] ++
+      (pn.map (fun rb => nulStr (cowList rb.1))).getD []).length ≤ Usize.max) :
+    packets.serialize_handshake_tail s2 pn buf ⦃ b => b.val = buf.val ++
+      ((s2.map (fun rb => (cowList rb.1).take 247)).getD [] ++ (pn.map (fun rb => nulStr (cowList rb.1))).getD []) ⦄ := by
+  unfold packets.serialize_handshake_tail packets.serialize_handshake_auth_plugin_name
+  rcases s2 with _ | rb <;> rcases pn with _ | rb2 <;> simp only [Option.map_none, Option.map_some, Option.getD_none,
+    Option.getD_some, List.append_nil, List.nil_append, List.length_append] at h ⊢
+  · simp
+  · step*
+  · step*
+  · step*
+    · simp_all [alloc.vec.Vec.length]; omega
+    · simp_all
 
 /-- Round trip: a `Handshake.Compatible` handshake written by `handshakeEnc` reads back with the same fields (the stored length byte is the one written). With `CLIENT_PLUGIN_AUTH` the plugin name is the rest of the packet, so nothing may follow. (With `CLIENT_PLUGIN_AUTH`, a scramble of 120–127 bytes makes the reader panic instead: `Defs.handshakePanics_handshakeEnc`.) -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip (hs : Handshake) (hc : hs.Compatible) (tail : List U8)

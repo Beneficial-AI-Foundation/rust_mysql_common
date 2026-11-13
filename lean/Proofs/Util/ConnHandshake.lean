@@ -363,4 +363,59 @@ theorem extend_from_slice_u8 (v : alloc.vec.Vec U8) (s : Slice U8) (h : v.length
   intro l hl
   simp [hl.1]
 
+@[step]
+theorem const_status_ser (x : misc.raw._const.Const constants.StatusFlags misc.raw.int.LeU16) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 2 ≤ Usize.max) :
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize constants.StatusFlags.Insts.CoreMarkerCopy
+      (core.convert.IntoFrom U16.Insts.CoreConvertFromStatusFlags)
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 x buf
+      ⦃ b => b.val = buf.val ++ leBytes 2 x.1.val ⦄ := by
+  rw [misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize_eq _ _ _ _ x.1 rfl]
+  exact misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec _ _ h
+
+@[step]
+theorem nullbytes_raw_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (nulStr (cowList rb.1)).length ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb buf
+      ⦃ b => b.val = buf.val ++ nulStr (cowList rb.1) ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
+    (by rw [hs]; simp [nulStr] at h; simp; omega))
+  intro b hb; rw [hb, hs]; simp [nulStr]
+
+@[step]
+theorem barebytes_raw_ser (rb : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize) (buf : alloc.vec.Vec U8)
+    (h : buf.length + ((cowList rb.1).take 247).length ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 247#usize) rb buf
+      ⦃ b => b.val = buf.val ++ (cowList rb.1).take 247 ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize_spec _ s buf
+    (by simp only [Slice.length, hs]; simp at h; simp; omega))
+  intro b hb; rw [hb, hs]; rfl
+
+theorem barebytes_len (rb : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize) :
+    misc.raw.bytes.RawBytes.len (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 247#usize) rb
+      ⦃ n => n.val = min (cowList rb.1).length 247 ⦄ := by
+  have hm : (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 247#usize).MAX_LEN = ok 247#usize := by
+    simp [misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN_spec]
+  exact misc.raw.bytes.RawBytes.len_spec _ _ hm rb
+
+@[step]
+theorem handshake_auth_plugin_data_len_spec (b : Bool)
+    (s2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize)) :
+    packets.handshake_auth_plugin_data_len b s2 ⦃ i =>
+      i.val = if b then (match s2 with | some rb => min (cowList rb.1).length 247 + 8 | none => 0) else 0 ⦄ := by
+  unfold packets.handshake_auth_plugin_data_len
+  cases b
+  · simp
+  · rcases s2 with _ | rb
+    · simp
+    · simp only [ite_true]
+      step with barebytes_len as ⟨n, hn⟩
+      step*
+
 end mysql_common.ConnHSUtil
