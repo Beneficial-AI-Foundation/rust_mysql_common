@@ -827,6 +827,16 @@ theorem from_residual_eq {T E : Type} (e : E) :
       (core.result.Result.Err e : core.result.Result Never E) = ok (core.result.Result.Err e) := by
   simp [CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
 
+theorem mask_shift (x : Nat) : (x &&& 72057594037927680) >>> 8 = x / 2 ^ 8 % 2 ^ 48 := by
+  have hm : (72057594037927680 : Nat) = 2 ^ 8 * (2 ^ 48 - 1) := by norm_num
+  apply Nat.eq_of_testBit_eq; intro j
+  rw [hm, Nat.testBit_shiftRight, Nat.testBit_and, Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow]
+  rw [Nat.testBit_two_pow_mul, Nat.testBit_two_pow_sub_one]
+  by_cases hj : j < 48 <;> simp [hj, Nat.add_comm]
+
+theorem mask_low (x : Nat) : x &&& 72057594037927935 = x % 2 ^ 56 := by
+  rw [show (72057594037927935 : Nat) = 2 ^ 56 - 1 by norm_num, Nat.and_two_pow_sub_one_eq_mod]
+
 end GtidUtil
 
 open GtidUtil
@@ -1243,6 +1253,63 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
   gtid_ok_br
   obtain ⟨raw, pd2⟩ := rawv
   simp only at hraw
+  step as ⟨i3, hi3⟩
+  step as ⟨fb, hfb⟩
+  have hs : U64.size = 2 ^ 64 := by simp [U64.size_def, U64.numBits_def]
+  have hfbv : fb.val = raw.val / 2 ^ 56 := by
+    rw [hfb]; simp only [UScalar.cast_val_eq]
+    rw [hi3, Nat.shiftRight_eq_div_pow]
+    have : raw.val < 2 ^ 64 := by scalar_tac
+    apply Nat.mod_eq_of_lt
+    show raw.val / 2 ^ 56 < 2 ^ 8
+    omega
+  rw [← hraw, ← hsb] at h
+  have hraw64 : raw.val < 2 ^ 64 := by scalar_tac
+  by_cases htg : raw.val / 2 ^ 56 = 1
+  · have hfb1 : fb = 1#u8 := UScalar.eq_of_val_eq (by rw [hfbv, htg]; rfl)
+    simp only [htg, decide_true, ↓reduceIte] at h
+    split
+    swap
+    · rename_i hne; exact absurd hfb1 hne
+    step as ⟨i4, hi4⟩
+    step as ⟨ns, hns⟩
+    have hnsv : ns.val = raw.val / 2 ^ 8 % 2 ^ 48 := by
+      rw [hns, hi4, UScalar.val_and]; exact mask_shift _
+    step as ⟨i5, hi5⟩
+    subst hfb1
+    split
+    · obtain ⟨hd9, -⟩ := tagged_loop h64 (raw.val / 2 ^ 8 % 2 ^ 48) sid_buf ns
+        (alloc.vec.Vec.with_capacity packets.Sid i5) hnsv (by simp [alloc.vec.Vec.with_capacity])
+      cases hsr : sidsRead true (raw.val / 2 ^ 8 % 2 ^ 48) sid_buf.val with
+      | done o rr =>
+        rw [hsr] at h
+        step with hd9 o rr hsr as ⟨r9, b9, h9⟩
+        cases o with
+        | some ss =>
+          simp only [ReadOut.done.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          cases r9 with
+          | Err _ => simp [okPart] at h9
+          | Ok v =>
+          gtid_ok_br
+          rw [seq_sid_new_vec]
+          apply spec_bind_ok
+          apply (WP.spec_ok _).mpr
+          simp only [okPart, Option.map_some, Option.some.injEq] at h9
+          refine ⟨?_, hb5⟩
+          simp only [okPart, Option.map_some, GtidDump.of, h3a, h4a, hrb, hpos]
+          simp [cowList, h9, alloc.vec.Vec.with_capacity]
+        | none =>
+          simp only [ReadOut.done.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          cases r9 with
+          | Ok _ => simp [okPart] at h9
+          | Err e =>
+            gtid_err_br
+            exact ⟨by simp [okPart], hb5⟩
+      | panic e => rw [hsr] at h; simp at h
+      | unknown => rw [hsr] at h; simp at h
+    · rename_i hne; exact absurd rfl hne
   sorry
 
 /-- **Crash path.** `MyDeserialize for ComBinlogDumpGtid` panics where `gtidDumpRead` does: a SID
