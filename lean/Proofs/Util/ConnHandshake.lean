@@ -512,4 +512,12 @@ theorem setflag_spec (x bit : constants.CapabilityFlags) (c : Prop) (d : Decidab
     apply WP.spec_mono (constants.CapabilityFlags.remove_spec x bit)
     intro r hr; simp [hr, setFlag]
 
+@[step]
+theorem rawbytes_new_borrowed (s : Slice U8) :
+    misc.raw.bytes.RawBytes.new misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8)) s
+      ⦃ r => cowList r.1 = s.val ⦄ := by
+  apply WP.spec_mono (PKUtil.rawbytes_new_spec _ _ s (alloc.borrow.Cow.Borrowed s) rfl)
+  intro r hr; rw [hr]; rfl
+
 end mysql_common.ConnHSUtil

@@ -20,6 +20,74 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
   unfold packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE; rfl
 
+private theorem plug_tail_spec (sl : Slice U8) (b5 : io.ParseBuf) :
+    ((if sl.len > 0#usize then do
+            let i10 ← sl.len - 1#usize
+            let i11 ← sl.index_usize i10
+            let (c1, pd1) ←
+              if i11 = 0#u8 then do
+                  let s ← core.slice.index.SliceIndexRangeToUsizeSlice.index { «end» := i10 } sl
+                  let rb2 ←
+                    misc.raw.bytes.RawBytes.new misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                        (core.convert.IntoFrom
+                          (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8))
+                        s
+                  let (c2, pd2) := rb2
+                  ok (c2, pd2)
+                else do
+                  let rb2 ←
+                    misc.raw.bytes.RawBytes.new misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                        (core.convert.IntoFrom
+                          (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8))
+                        sl
+                  let (c2, pd2) := rb2
+                  ok (c2, pd2)
+            ok (b5, c1, pd1)
+          else do
+            let rb2 ←
+              misc.raw.bytes.RawBytes.new misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                  (core.convert.IntoFrom
+                    (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8))
+                  sl
+            let (c1, pd1) := rb2
+            ok (b5, c1, pd1)) : Result (io.ParseBuf × alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8) ×
+        core.marker.PhantomData misc.raw.bytes.NullBytes))
+      ⦃ r => r.1 = b5 ∧ cowList r.2.1 = dropTrailingNul sl.val ⦄ := by
+  split
+  · step as ⟨i6, hi6, hi6'⟩
+    step as ⟨i7, hi7⟩
+    split
+    · rename_i hl h0
+      step as ⟨s0, hs0, hs0'⟩
+      step as ⟨rb1, hrb1⟩
+      obtain ⟨c1, pd1⟩ := rb1
+      step*
+      rw [dropTrailingNul_last_zero _ (by scalar_tac)]
+      · rw [hrb1, hs0]; simp only [List.slice, List.drop_zero, Nat.sub_zero]; congr 1
+      · rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by scalar_tac)]
+        simp only [Option.getD_some]
+        rw [← h0, hi7]; congr 1; scalar_tac
+    · rename_i hl h0
+      step as ⟨rb1, hrb1⟩
+      obtain ⟨c1, pd1⟩ := rb1
+      step*
+      rw [dropTrailingNul_last_ne _ (by scalar_tac)]
+      · exact hrb1
+      rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by scalar_tac)]
+      simp only [Option.getD_some]
+      intro h1; apply h0; rw [hi7]; rw [← h1]
+      have : i6.val = sl.val.length - 1 := by scalar_tac
+      simp only [this]
+  · rename_i hl
+    apply WP.spec_bind (rawbytes_new_borrowed sl)
+    intro rb1 hrb1
+    obtain ⟨c1, pd1⟩ := rb1
+    step*
+    have : sl.val = [] := by
+      have : sl.len.val = 0 := by scalar_tac
+      simpa using this
+    rw [this]; rw [this] at hrb1; exact hrb1
+
 set_option maxHeartbeats 4000000 in
 /-- `MyDeserialize for HandshakePacket`: on any input where it does not panic, exactly `handshakeRead` (fields, errors, and what is left of the buffer). -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : io.ParseBuf) (h : ¬ handshakePanics buf.val) :
@@ -263,7 +331,65 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
     have hc18' : leNat (List.take 2 (List.drop 18 (List.take 31 r2v))) * 65536 = cu.val := hc18
     simp [hc18', hc16, hsf, hpf, okPart, Handshake.of, hf1, hf2, hf3, hc1, hc2, hc3, hpv, hsv, hstat, hmc, k1a, k2a, k5a,
       hcl, hcu, ← hc20]
-  all_goals sorry
+    rfl
+  on_goal 1 =>
+    step with io.ParseBuf.eat_all_spec as ⟨pr0, hsl, hb6⟩
+    obtain ⟨sl, b6⟩ := pr0
+    step with plug_tail_spec as ⟨pr, hpr1, hpr2⟩
+    obtain ⟨b5, cc, pdd⟩ := pr
+    simp only at hpr1 hpr2
+    subst hpr1
+    rw [hsl] at hpr2
+    step as ⟨f1, hf1⟩
+    step as ⟨c1, hc1⟩
+    step as ⟨f2, hf2⟩
+    step as ⟨c2, hc2⟩
+    step as ⟨f3, hf3⟩
+    step as ⟨c3, hc3⟩
+    have hs : i2 > 0#u32 := by assumption
+    have hsf := (hsec_iff i1 i2 i1_post i2_post).1 hs
+    have hl := scramble_len_val lb i4 i5 i6 len i4_post i5_post i6_post len_post
+    have hpf : hasFlag cu.val CLIENT_PLUGIN_AUTH = true := (hpa_iff i8 i9 i8_post i9_post).1 (by assumption)
+    have hr13 : r13 = core.result.Result.Ok rb1 := by assumption
+    subst hr13
+    simp only [okPart] at r13_post
+    split_ifs at r13_post with hle
+    · obtain ⟨hrb1, hb4⟩ := r13_post
+      have hle' : ¬ r2v.length - 31 < len.val := by
+        simp only [Slice.length, h3b, List.length_drop] at hle; omega
+      rw [hb4, h3b] at hpr2
+      rw [hc13, hc20, ← hl]
+      have hc18' : leNat (List.take 2 (List.drop 18 (List.take 31 r2v))) * 65536 = cu.val := hc18
+      simp [hc18', hc16, hsf, hle', hpf, okPart, Handshake.of, hf1, hf2, hf3, hc1, hc2, hc3, hpv, hsv, hstat, hmc, k1a, k2a, k5a,
+        hcl, hcu, Option.some.inj hrb1, hb6]
+      refine ⟨by rw [h3b], ?_⟩
+      show some (cowList cc) = _
+      rw [hpr2, List.drop_drop]
+    · simp at r13_post
+  on_goal 1 =>
+    step with io.ParseBuf.eat_all_spec as ⟨pr0, hsl, hb6⟩
+    obtain ⟨sl, b6⟩ := pr0
+    step with plug_tail_spec as ⟨pr, hpr1, hpr2⟩
+    obtain ⟨b5, cc, pdd⟩ := pr
+    simp only at hpr1 hpr2
+    subst hpr1
+    rw [hsl] at hpr2
+    step as ⟨f1, hf1⟩
+    step as ⟨c1, hc1⟩
+    step as ⟨f2, hf2⟩
+    step as ⟨c2, hc2⟩
+    step as ⟨f3, hf3⟩
+    step as ⟨c3, hc3⟩
+    have hsf : hasFlag cl.val CLIENT_SECURE_CONNECTION = false := by
+      have := (hsec_iff i1 i2 i1_post i2_post).not.1 (by assumption); simpa using this
+    have hpf : hasFlag cu.val CLIENT_PLUGIN_AUTH = true := (hpa_iff i4 i5 i4_post i5_post).1 (by assumption)
+    rw [h3b] at hpr2
+    rw [hc13]
+    have hc18' : leNat (List.take 2 (List.drop 18 (List.take 31 r2v))) * 65536 = cu.val := hc18
+    simp [hc18', hc16, hsf, hpf, okPart, Handshake.of, hf1, hf2, hf3, hc1, hc2, hc3, hpv, hsv, hstat, hmc, k1a, k2a, k5a,
+      hcl, hcu, ← hc20, hb6]
+    show some (cowList cc) = _
+    rw [hpr2]
 
 /-- **Bug: `MyDeserialize for HandshakePacket` panics on a server-supplied length byte in `128..135`** (with `CLIENT_SECURE_CONNECTION`): `auth_plugin_data_len as i8 - 8` overflows (`handshakePanics`). A server, or anyone in the middle before TLS, can crash a client built with overflow checks (e.g. a debug build) with the first packet. (Without overflow checks the subtraction wraps to exactly `b - 8`, the protocol's value, and the packet is read correctly.) -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : handshakePanics buf.val) :
