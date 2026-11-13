@@ -1,0 +1,82 @@
+Translation patch: local names in `Params::into_values` and `Params::into_positional`
+
+Change: in `into_values`, the binding `Some(params)` becomes `Some(names)` and the loop variable `value` becomes `val`; in `into_positional`, the local `params` becomes `positional`, the bindings `Some(value)` become `Some(val)`, and the catch-all arm `params => Ok(params)` becomes `other => Ok(other)`.
+Why: Aeneas bug (as in patch 59): the generated Lean names definitions by module path (`params.Params.Named`, `params.MissingNamedParameterError`, `value.Value.NULL`), and a local variable `params` (or `value`) shadows that prefix, so Lean reads `params.Params..` as a field projection on the local ("Invalid field `Params`").
+Behaviour: Identical: renaming.
+
+diff --git a/src/params.rs b/src/params.rs
+index c004b4f..81e8a89 100644
+--- a/src/params.rs
++++ b/src/params.rs
+@@ -66,9 +66,9 @@ impl Params {
+     pub fn into_values(self, named_params: Option<&[Vec<u8>]>) -> Result<Vec<Value>, ParamsError> {
+         match self {
+             Params::Empty => match named_params {
+-                Some(params) => {
+-                    if !params.is_empty() {
+-                        Err(MissingNamedParameterError(params[0].clone()).into())
++                Some(names) => {
++                    if !names.is_empty() {
++                        Err(MissingNamedParameterError(names[0].clone()).into())
+                     } else {
+                         Ok(vec![])
+                     }
+@@ -85,7 +85,7 @@ impl Params {
+                 Some(named_params) if !named_params.is_empty() => {
+                     let mut values = vec![Value::NULL; named_params.len()];
+                     let mut indexes = Vec::with_capacity(named_params.len());
+-                    for (name, value) in crate::sql_trusted::params_map_into_entries(map) {
++                    for (name, val) in crate::sql_trusted::params_map_into_entries(map) {
+                         let mut first = None;
+                         let mut i = 0;
+                         while i < named_params.len() {
+@@ -93,13 +93,13 @@ impl Params {
+                                 indexes.push(i);
+                                 match first {
+                                     None => first = Some(i),
+-                                    Some(_) => values[i] = value.clone(),
++                                    Some(_) => values[i] = val.clone(),
+                                 }
+                             }
+                             i += 1;
+                         }
+                         if let Some(first) = first {
+-                            values[first] = value;
++                            values[first] = val;
+                         }
+                     }
+                     if indexes.len() != named_params.len() {
+@@ -137,7 +137,7 @@ impl Params {
+     ) -> Result<Params, MissingNamedParameterError> {
+         match self {
+             Params::Named(mut map) => {
+-                let mut params: Vec<Value> = Vec::new();
++                let mut positional: Vec<Value> = Vec::new();
+                 let mut i = 0;
+                 while i < named_params.len() {
+                     let name = &named_params[i];
+@@ -152,20 +152,20 @@ impl Params {
+                     }
+                     if repeated {
+                         match crate::sql_trusted::params_map_get(&map, name) {
+-                            Some(value) => params.push(value.clone()),
++                            Some(val) => positional.push(val.clone()),
+                             None => return Err(MissingNamedParameterError(name.clone())),
+                         }
+                     } else {
+                         match crate::sql_trusted::params_map_remove(&mut map, name) {
+-                            Some(value) => params.push(value),
++                            Some(val) => positional.push(val),
+                             None => return Err(MissingNamedParameterError(name.clone())),
+                         }
+                     }
+                     i += 1;
+                 }
+-                Ok(Params::Positional(params))
++                Ok(Params::Positional(positional))
+             }
+-            params => Ok(params),
++            other => Ok(other),
+         }
+     }
+ }

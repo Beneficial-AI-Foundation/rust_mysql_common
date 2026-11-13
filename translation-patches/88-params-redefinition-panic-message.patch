@@ -1,0 +1,22 @@
+Translation patch: `From<Vec<(N, V)>> for Params` (panic message)
+
+Change: `panic!("Redefinition of named parameter `{}'", String::from_utf8_lossy(&name))` becomes `panic!("Redefinition of named parameter")`.
+Why: Formatting goes through `fmt` and `String::from_utf8_lossy`, which Aeneas does not model (as in patch 47).
+Behaviour: Identical except for the text of the panic message: it panics in exactly the same cases.
+
+diff --git a/src/params.rs b/src/params.rs
+index 6dc7889..7a08265 100644
+--- a/src/params.rs
++++ b/src/params.rs
+@@ -202,10 +202,7 @@ where
+         for (name, value) in x.into_iter() {
+             let name: Vec<u8> = name.into();
+             if crate::sql_trusted::params_map_contains_key(&map, &name) {
+-                panic!(
+-                    "Redefinition of named parameter `{}'",
+-                    String::from_utf8_lossy(&name)
+-                );
++                panic!("Redefinition of named parameter");
+             } else {
+                 crate::sql_trusted::params_map_insert(&mut map, name, Value::from(value));
+             }

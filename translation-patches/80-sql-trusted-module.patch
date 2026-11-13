@@ -1,0 +1,174 @@
+Translation patch: `sql_trusted` (new module: the trust boundary of `Value::as_sql` and `Params`)
+
+Change: Adds `src/sql_trusted.rs`, declared `pub(crate) mod sql_trusted` in `lib.rs`: one function per `std` operation that `Value::as_sql` and `Params` use and Aeneas does not model, each body being that single call: `String::from(&str)`, `s.extend(t.chars())`, one `format!` per format string of `as_sql` (`{}` of i64/u64/f32/f64, the date, datetime, time and `{:02X}` formats), and the six `HashMap<Vec<u8>, Value>` operations `Params` needs (`default`, `contains_key`, `insert`, `get`, `remove`, and `into_iter().collect()` into a `Vec` of entries).
+Why: The module is `opaque` in Cargo.toml, so the trusted surface of this code is exactly this list of Rust functions, each with a Lean model or axiom in `FunsExternal.lean` (the pattern of patch 40). Aeneas does not model `fmt`/`format!`, `String`'s methods, or `HashMap` (std, not this crate). A separate module from `value::convert::trusted` keeps these helpers apart from the value conversions.
+Behaviour: Unchanged: the module is not used until the next patches.
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 705e7e3..5b132bb 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -151,6 +151,7 @@ pub mod packets;
+ pub mod params;
+ pub mod proto;
+ pub mod row;
++pub(crate) mod sql_trusted;
+ pub mod value;
+ 
+ #[cfg(feature = "binlog")]
+diff --git a/src/sql_trusted.rs b/src/sql_trusted.rs
+new file mode 100644
+index 0000000..a03df5d
+--- /dev/null
++++ b/src/sql_trusted.rs
+@@ -0,0 +1,150 @@
++//! Translation helpers: the trust boundary of the SQL-text code (`Value::as_sql`, `Params`).
++//!
++//! Every operation of `std` that has no Aeneas model and that `Value::as_sql` (formatting) or
++//! `Params` (`HashMap`) uses goes through exactly one function of this module, whose body is
++//! that one call. The module is `opaque` in Cargo.toml: these functions are not translated, and
++//! each has a Lean model or axiom in `lean/MysqlCommon/FunsExternal.lean`.
++
++#![allow(dead_code)]
++
++use std::collections::HashMap;
++
++use crate::value::Value;
++
++// ---- String ------------------------------------------------------------------------------------
++
++/// `String::from(s)`.
++pub(crate) fn string_from_str(s: &str) -> String {
++    String::from(s)
++}
++
++/// `s.extend(t.chars())`.
++pub(crate) fn string_extend_chars(s: &mut String, t: String) {
++    s.extend(t.chars())
++}
++
++// ---- format! (one function per format string) -------------------------------------------------
++
++/// `format!("{}", x)`.
++pub(crate) fn format_i64(x: i64) -> String {
++    format!("{}", x)
++}
++
++/// `format!("{}", x)`.
++pub(crate) fn format_u64(x: u64) -> String {
++    format!("{}", x)
++}
++
++/// `format!("{}", x)`.
++pub(crate) fn format_f32(x: f32) -> String {
++    format!("{}", x)
++}
++
++/// `format!("{}", x)`.
++pub(crate) fn format_f64(x: f64) -> String {
++    format!("{}", x)
++}
++
++/// `format!("'{:04}-{:02}-{:02}'", y, m, d)`.
++pub(crate) fn format_date(y: u16, m: u8, d: u8) -> String {
++    format!("'{:04}-{:02}-{:02}'", y, m, d)
++}
++
++/// `format!("'{:04}-{:02}-{:02} {:02}:{:02}:{:02}'", year, month, day, hour, minute, second)`.
++pub(crate) fn format_datetime(
++    year: u16,
++    month: u8,
++    day: u8,
++    hour: u8,
++    minute: u8,
++    second: u8,
++) -> String {
++    format!(
++        "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}'",
++        year, month, day, hour, minute, second
++    )
++}
++
++/// `format!("'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}'", year, month, day, hour, minute,
++/// second, micros)`.
++pub(crate) fn format_datetime_micros(
++    year: u16,
++    month: u8,
++    day: u8,
++    hour: u8,
++    minute: u8,
++    second: u8,
++    micros: u32,
++) -> String {
++    format!(
++        "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}'",
++        year, month, day, hour, minute, second, micros
++    )
++}
++
++/// `format!("'-{:03}:{:02}:{:02}'", hours, i, s)`.
++pub(crate) fn format_time_neg(hours: u32, i: u8, s: u8) -> String {
++    format!("'-{:03}:{:02}:{:02}'", hours, i, s)
++}
++
++/// `format!("'{:03}:{:02}:{:02}'", hours, i, s)`.
++pub(crate) fn format_time(hours: u32, i: u8, s: u8) -> String {
++    format!("'{:03}:{:02}:{:02}'", hours, i, s)
++}
++
++/// `format!("'-{:03}:{:02}:{:02}.{:06}'", hours, minutes, seconds, micros)`.
++pub(crate) fn format_time_micros_neg(hours: u32, minutes: u8, seconds: u8, micros: u32) -> String {
++    format!(
++        "'-{:03}:{:02}:{:02}.{:06}'",
++        hours, minutes, seconds, micros
++    )
++}
++
++/// `format!("'{:03}:{:02}:{:02}.{:06}'", hours, minutes, seconds, micros)`.
++pub(crate) fn format_time_micros(hours: u32, minutes: u8, seconds: u8, micros: u32) -> String {
++    format!("'{:03}:{:02}:{:02}.{:06}'", hours, minutes, seconds, micros)
++}
++
++/// `format!("{:02X}", c)`.
++pub(crate) fn format_hex_upper_02(c: u8) -> String {
++    format!("{:02X}", c)
++}
++
++// ---- HashMap<Vec<u8>, Value> (the map of `Params::Named`) -------------------------------------
++
++/// `HashMap::default()`.
++pub(crate) fn params_map_new() -> HashMap<Vec<u8>, Value> {
++    HashMap::default()
++}
++
++/// `map.contains_key(key)`.
++pub(crate) fn params_map_contains_key(map: &HashMap<Vec<u8>, Value>, key: &[u8]) -> bool {
++    map.contains_key(key)
++}
++
++/// `map.insert(key, value)`.
++pub(crate) fn params_map_insert(
++    map: &mut HashMap<Vec<u8>, Value>,
++    key: Vec<u8>,
++    value: Value,
++) -> Option<Value> {
++    map.insert(key, value)
++}
++
++/// `map.get(key)`.
++pub(crate) fn params_map_get<'a>(
++    map: &'a HashMap<Vec<u8>, Value>,
++    key: &[u8],
++) -> Option<&'a Value> {
++    map.get(key)
++}
++
++/// `map.remove(key)`.
++pub(crate) fn params_map_remove(map: &mut HashMap<Vec<u8>, Value>, key: &[u8]) -> Option<Value> {
++    map.remove(key)
++}
++
++/// `map.into_iter().collect()`: the entries, in the map's iteration order.
++pub(crate) fn params_map_into_entries(map: HashMap<Vec<u8>, Value>) -> Vec<(Vec<u8>, Value)> {
++    map.into_iter().collect()
++}

@@ -38,6 +38,14 @@ def core.f64.F64.from_le_bytes (a : Array Std.U8 8#usize) : Result F64 :=
 def core.f64.F64.from_be_bytes (a : Array Std.U8 8#usize) : Result F64 :=
   ok ⟨core.num.U64.from_be_bytes a⟩
 
+/-- `Clone for f32`: a copy (reached from the derived `Clone for Value`). -/
+@[rust_fun "core::clone::impls::{core::clone::Clone<f32>}::clone"]
+def F32.Insts.CoreCloneClone.clone (x : F32) : Result F32 := ok x
+
+/-- `Clone for f64`: a copy (reached from the derived `Clone for Value`). -/
+@[rust_fun "core::clone::impls::{core::clone::Clone<f64>}::clone"]
+def F64.Insts.CoreCloneClone.clone (x : F64) : Result F64 := ok x
+
 /-! ## `Cow<'_, [T]>` and its trait instances: the std bodies.
     (These cannot be patched into the crate: Aeneas fails on matching a `&Cow` whose
     `Borrowed` variant holds a shared borrow, see translation notes.) -/
@@ -948,3 +956,189 @@ noncomputable def value.convert.trusted.json_from_slice (b : Slice Std.U8) :
     Result (Option serde_json.value.Value) := ok (Trusted.jsonFromSlice b)
 noncomputable def value.convert.trusted.json_to_string (x : serde_json.value.Value) :
     Result (Option String) := ok (Trusted.jsonToString x)
+
+/-! ## The trust boundary of `Value::as_sql` and `Params`: `mysql_common::sql_trusted`
+
+`translation-patches/80-sql-trusted-module.patch` adds this module (`opaque` in Cargo.toml); each
+function is one call into std. Each gets one of:
+
+* an **exact model**: `String::from(&str)`, `extend(chars())` (concatenation), the integer
+  `format!`s (decimal, zero-padded to the field width) and `{:02X}`;
+* an **opaque value with no specification**: `format!("{}", x)` of `f32`/`f64` (assumed only
+  not to panic);
+* the `HashMap<Vec<u8>, Value>` of `Params::Named`: an opaque list of entries
+  `Trusted.paramsMapEntries` (in the map's iteration order, which is unspecified) with
+  distinct keys, and axioms giving the entries after `default`, `insert` and `remove` **up to
+  permutation** (`List.Perm`). `contains_key`/`get`/`insert`/`remove`/`into_iter` are then
+  definitions in terms of these. A model satisfying all the axioms: a duplicate-free
+  association list, with `insert` consing after removing the key.
+
+Unless a declaration says otherwise, a helper is assumed not to panic (it returns `ok`). -/
+
+namespace Trusted
+
+/-- `n` in decimal, left-padded with `0` to at least `w` characters: Rust's `{:0w}` for an
+    unsigned integer (wider numbers are not truncated). -/
+def padDec (w n : Nat) : String :=
+  let s := toString n
+  "".pushn '0' (w - s.length) ++ s
+
+/-- An upper-case hexadecimal digit (`n < 16`). -/
+def hexDigitUpper (n : Nat) : Char :=
+  if n < 10 then Char.ofNat (48 + n) else Char.ofNat (55 + n)
+
+/-- `format!("{:02X}", b)` for a byte `b < 256`: exactly two upper-case hex digits. -/
+def hexByteUpper (b : Nat) : String :=
+  (String.singleton (hexDigitUpper (b / 16))).push (hexDigitUpper (b % 16))
+
+/-- `format!("{}", x)` of an `f32`: opaque. -/
+axiom f32Display : F32 → String
+
+/-- `format!("{}", x)` of an `f64`: opaque. -/
+axiom f64Display : F64 → String
+
+/-- The map of `Params::Named`. -/
+abbrev ParamsMap :=
+  std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value std.hash.random.RandomState
+    alloc.alloc.Global
+
+/-- The entries of a map, in its (unspecified) iteration order. -/
+axiom paramsMapEntries : ParamsMap → List (alloc.vec.Vec Std.U8 × value.Value)
+
+/-- A `HashMap` holds each key at most once. -/
+axiom paramsMapEntries_keys_nodup (m : ParamsMap) :
+  ((paramsMapEntries m).map fun e => e.1.val).Nodup
+
+/-- `HashMap::default()`. -/
+axiom paramsMapEmpty : ParamsMap
+
+/-- `HashMap::default()` has no entries. -/
+axiom paramsMapEntries_empty : paramsMapEntries paramsMapEmpty = []
+
+/-- The map after `insert(k, v)`. -/
+axiom paramsMapInsert : ParamsMap → alloc.vec.Vec Std.U8 → value.Value → ParamsMap
+
+/-- `insert(k, v)` replaces the entry of `k` (if any) by `(k, v)`; the order is unspecified.
+    (Keys are compared by their bytes: for an existing key std keeps the old, equal, key.) -/
+axiom paramsMapEntries_insert (m : ParamsMap) (k : alloc.vec.Vec Std.U8) (v : value.Value) :
+  ((paramsMapEntries (paramsMapInsert m k v)).map fun e => (e.1.val, e.2)).Perm
+    ((k.val, v) :: ((paramsMapEntries m).filter fun e => e.1.val ≠ k.val).map
+      fun e => (e.1.val, e.2))
+
+/-- The map after `remove(k)`. -/
+axiom paramsMapRemove : ParamsMap → List Std.U8 → ParamsMap
+
+/-- `remove(k)` drops the entry of `k` (if any); the order of the others is unspecified. -/
+axiom paramsMapEntries_remove (m : ParamsMap) (k : List Std.U8) :
+  (paramsMapEntries (paramsMapRemove m k)).Perm
+    ((paramsMapEntries m).filter fun e => e.1.val ≠ k)
+
+/-- The value of key `k`, if any. -/
+noncomputable def paramsMapLookup (m : ParamsMap) (k : List Std.U8) : Option value.Value :=
+  ((paramsMapEntries m).find? fun e => e.1.val = k).map (·.2)
+
+end Trusted
+
+/-! ### `String` -/
+
+/-- `String::from(s)`: exact (`Str` is the UTF-8 bytes of a Rust `&str`, which are always valid
+    UTF-8, so the `fail` branch is unreachable from Rust). -/
+def sql_trusted.string_from_str (s : Str) : Result String :=
+  match String.fromUTF8? (Trusted.bytesOf s.val) with
+  | some t => ok t
+  | none => fail .panic
+
+/-- `s.extend(t.chars())`: exact (appends the characters of `t`). -/
+def sql_trusted.string_extend_chars (s t : String) : Result String := ok (s ++ t)
+
+/-! ### `format!` -/
+
+/-- `format!("{}", x)` of an `i64`: exact (decimal, with a leading `-` for negative values). -/
+def sql_trusted.format_i64 (x : Std.I64) : Result String := ok (toString x.val)
+
+/-- `format!("{}", x)` of a `u64`: exact (decimal). -/
+def sql_trusted.format_u64 (x : Std.U64) : Result String := ok (toString x.val)
+
+/-- `format!("{}", x)` of an `f32`: opaque (float formatting is not modelled). -/
+noncomputable def sql_trusted.format_f32 (x : F32) : Result String := ok (Trusted.f32Display x)
+
+/-- `format!("{}", x)` of an `f64`: opaque (float formatting is not modelled). -/
+noncomputable def sql_trusted.format_f64 (x : F64) : Result String := ok (Trusted.f64Display x)
+
+/-- `format!("'{:04}-{:02}-{:02}'", y, m, d)`: exact. -/
+def sql_trusted.format_date (y : Std.U16) (m d : Std.U8) : Result String :=
+  ok ("'" ++ Trusted.padDec 4 y.val ++ "-" ++ Trusted.padDec 2 m.val ++ "-" ++
+    Trusted.padDec 2 d.val ++ "'")
+
+/-- `format!("'{:04}-{:02}-{:02} {:02}:{:02}:{:02}'", ..)`: exact. -/
+def sql_trusted.format_datetime (y : Std.U16) (m d h i s : Std.U8) : Result String :=
+  ok ("'" ++ Trusted.padDec 4 y.val ++ "-" ++ Trusted.padDec 2 m.val ++ "-" ++
+    Trusted.padDec 2 d.val ++ " " ++ Trusted.padDec 2 h.val ++ ":" ++ Trusted.padDec 2 i.val ++
+    ":" ++ Trusted.padDec 2 s.val ++ "'")
+
+/-- `format!("'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}'", ..)`: exact. -/
+def sql_trusted.format_datetime_micros (y : Std.U16) (m d h i s : Std.U8) (us : Std.U32) :
+    Result String :=
+  ok ("'" ++ Trusted.padDec 4 y.val ++ "-" ++ Trusted.padDec 2 m.val ++ "-" ++
+    Trusted.padDec 2 d.val ++ " " ++ Trusted.padDec 2 h.val ++ ":" ++ Trusted.padDec 2 i.val ++
+    ":" ++ Trusted.padDec 2 s.val ++ "." ++ Trusted.padDec 6 us.val ++ "'")
+
+/-- `format!("'-{:03}:{:02}:{:02}'", hours, i, s)`: exact. -/
+def sql_trusted.format_time_neg (hours : Std.U32) (i s : Std.U8) : Result String :=
+  ok ("'-" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "'")
+
+/-- `format!("'{:03}:{:02}:{:02}'", hours, i, s)`: exact. -/
+def sql_trusted.format_time (hours : Std.U32) (i s : Std.U8) : Result String :=
+  ok ("'" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "'")
+
+/-- `format!("'-{:03}:{:02}:{:02}.{:06}'", hours, minutes, seconds, micros)`: exact. -/
+def sql_trusted.format_time_micros_neg (hours : Std.U32) (i s : Std.U8) (us : Std.U32) :
+    Result String :=
+  ok ("'-" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "." ++ Trusted.padDec 6 us.val ++ "'")
+
+/-- `format!("'{:03}:{:02}:{:02}.{:06}'", hours, minutes, seconds, micros)`: exact. -/
+def sql_trusted.format_time_micros (hours : Std.U32) (i s : Std.U8) (us : Std.U32) :
+    Result String :=
+  ok ("'" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "." ++ Trusted.padDec 6 us.val ++ "'")
+
+/-- `format!("{:02X}", c)`: exact (two upper-case hex digits). -/
+def sql_trusted.format_hex_upper_02 (c : Std.U8) : Result String :=
+  ok (Trusted.hexByteUpper c.val)
+
+/-! ### `HashMap<Vec<u8>, Value>` (see `Trusted.paramsMapEntries`) -/
+
+/-- `HashMap::default()`. -/
+noncomputable def sql_trusted.params_map_new : Result Trusted.ParamsMap :=
+  ok Trusted.paramsMapEmpty
+
+/-- `map.contains_key(key)`. -/
+noncomputable def sql_trusted.params_map_contains_key (m : Trusted.ParamsMap)
+    (k : Slice Std.U8) : Result Bool :=
+  ok (Trusted.paramsMapLookup m k.val).isSome
+
+/-- `map.insert(key, value)`: the previous value of `key`, and the new map. -/
+noncomputable def sql_trusted.params_map_insert (m : Trusted.ParamsMap)
+    (k : alloc.vec.Vec Std.U8) (v : value.Value) :
+    Result (Option value.Value × Trusted.ParamsMap) :=
+  ok (Trusted.paramsMapLookup m k.val, Trusted.paramsMapInsert m k v)
+
+/-- `map.get(key)`. -/
+noncomputable def sql_trusted.params_map_get (m : Trusted.ParamsMap) (k : Slice Std.U8) :
+    Result (Option value.Value) :=
+  ok (Trusted.paramsMapLookup m k.val)
+
+/-- `map.remove(key)`: the value of `key` (if any), and the new map. -/
+noncomputable def sql_trusted.params_map_remove (m : Trusted.ParamsMap) (k : Slice Std.U8) :
+    Result (Option value.Value × Trusted.ParamsMap) :=
+  ok (Trusted.paramsMapLookup m k.val, Trusted.paramsMapRemove m k.val)
+
+/-- `map.into_iter().collect()`: the entries, in the map's iteration order (the `fail` branch
+    is for more than `usize::MAX` entries, which no Rust map has). -/
+noncomputable def sql_trusted.params_map_into_entries (m : Trusted.ParamsMap) :
+    Result (alloc.vec.Vec (alloc.vec.Vec Std.U8 × value.Value)) :=
+  let l := Trusted.paramsMapEntries m
+  if h : l.length ≤ Usize.max then ok (alloc.vec.Vec.from l h) else fail .panic

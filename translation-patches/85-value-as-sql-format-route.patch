@@ -1,0 +1,103 @@
+Translation patch: `Value::as_sql` (formatting)
+
+Change: Each `format!(..)` becomes the call of the `sql_trusted` function for that format string (patch 80) with the same arguments (`format_i64`, `format_u64`, `format_f32`, `format_f64`, `format_date`, `format_datetime`, `format_datetime_micros`, `format_time(_neg)`, `format_time_micros(_neg)`; the hour arithmetic `days * 24 + u32::from(hours)` stays in `as_sql`); `"NULL".into()` and `String::from("0x")` become `sql_trusted::string_from_str(..)`; `from_utf8(bytes)` (`Ok`/`Err`) becomes `trusted::str_from_utf8(bytes)` (`Some`/`None`, patch 40) and the `use std::str::from_utf8` import is dropped; the hex loop `for c in bytes.iter() { s.extend(format!("{:02X}", *c).chars()) }` becomes an index loop calling `sql_trusted::string_extend_chars(&mut s, sql_trusted::format_hex_upper_02(bytes[k]))`.
+Why: Aeneas does not model `fmt`/`format!`, `String`'s methods or the slice iterator (see patch 80).
+Behaviour: Identical: each helper's body is the replaced expression; `trusted::str_from_utf8` is `from_utf8(..).ok()`, and the `Err` payload was unused; the bytes are visited in the same order.
+
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index c50db50..ca6d3df 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -8,7 +8,7 @@
+ 
+ use crate::io::BufMut;
+ 
+-use std::{fmt, io, marker::PhantomData, str::from_utf8};
++use std::{fmt, io, marker::PhantomData};
+ 
+ use crate::{
+     constants::{ColumnFlags, ColumnType},
+@@ -258,52 +258,55 @@ impl Value {
+ 
+     pub fn as_sql(&self, no_backslash_escape: bool) -> String {
+         match *self {
+-            Value::NULL => "NULL".into(),
+-            Value::Int(x) => format!("{}", x),
+-            Value::UInt(x) => format!("{}", x),
+-            Value::Float(x) => format!("{}", x),
+-            Value::Double(x) => format!("{}", x),
+-            Value::Date(y, m, d, 0, 0, 0, 0) => format!("'{:04}-{:02}-{:02}'", y, m, d),
+-            Value::Date(year, month, day, hour, minute, second, 0) => format!(
+-                "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}'",
+-                year, month, day, hour, minute, second
+-            ),
+-            Value::Date(year, month, day, hour, minute, second, micros) => format!(
+-                "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}'",
+-                year, month, day, hour, minute, second, micros
+-            ),
++            Value::NULL => crate::sql_trusted::string_from_str("NULL"),
++            Value::Int(x) => crate::sql_trusted::format_i64(x),
++            Value::UInt(x) => crate::sql_trusted::format_u64(x),
++            Value::Float(x) => crate::sql_trusted::format_f32(x),
++            Value::Double(x) => crate::sql_trusted::format_f64(x),
++            Value::Date(y, m, d, 0, 0, 0, 0) => crate::sql_trusted::format_date(y, m, d),
++            Value::Date(year, month, day, hour, minute, second, 0) => {
++                crate::sql_trusted::format_datetime(year, month, day, hour, minute, second)
++            }
++            Value::Date(year, month, day, hour, minute, second, micros) => {
++                crate::sql_trusted::format_datetime_micros(
++                    year, month, day, hour, minute, second, micros,
++                )
++            }
+             Value::Time(neg, d, h, i, s, 0) => {
+                 if neg {
+-                    format!("'-{:03}:{:02}:{:02}'", d * 24 + u32::from(h), i, s)
++                    crate::sql_trusted::format_time_neg(d * 24 + u32::from(h), i, s)
+                 } else {
+-                    format!("'{:03}:{:02}:{:02}'", d * 24 + u32::from(h), i, s)
++                    crate::sql_trusted::format_time(d * 24 + u32::from(h), i, s)
+                 }
+             }
+             Value::Time(neg, days, hours, minutes, seconds, micros) => {
+                 if neg {
+-                    format!(
+-                        "'-{:03}:{:02}:{:02}.{:06}'",
++                    crate::sql_trusted::format_time_micros_neg(
+                         days * 24 + u32::from(hours),
+                         minutes,
+                         seconds,
+-                        micros
++                        micros,
+                     )
+                 } else {
+-                    format!(
+-                        "'{:03}:{:02}:{:02}.{:06}'",
++                    crate::sql_trusted::format_time_micros(
+                         days * 24 + u32::from(hours),
+                         minutes,
+                         seconds,
+-                        micros
++                        micros,
+                     )
+                 }
+             }
+-            Value::Bytes(ref bytes) => match from_utf8(bytes) {
+-                Ok(string) => escaped(string, no_backslash_escape),
+-                Err(_) => {
+-                    let mut s = String::from("0x");
+-                    for c in bytes.iter() {
+-                        s.extend(format!("{:02X}", *c).chars())
++            Value::Bytes(ref bytes) => match crate::value::convert::trusted::str_from_utf8(bytes) {
++                Some(string) => escaped(string, no_backslash_escape),
++                None => {
++                    let mut s = crate::sql_trusted::string_from_str("0x");
++                    let mut k = 0;
++                    while k < bytes.len() {
++                        crate::sql_trusted::string_extend_chars(
++                            &mut s,
++                            crate::sql_trusted::format_hex_upper_02(bytes[k]),
++                        );
++                        k += 1;
+                     }
+                     s
+                 }
