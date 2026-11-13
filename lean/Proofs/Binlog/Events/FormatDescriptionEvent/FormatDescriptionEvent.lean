@@ -97,10 +97,47 @@ theorem binlog.events.format_description_event.FormatDescriptionEvent.impl.foote
     binlog.events.format_description_event.FormatDescriptionEvent.impl.footer e = ok e.footer := by
   rfl
 
+@[step] private theorem qhl_spec : binlog.events.format_description_event.FormatDescriptionEvent.QUERY_HEADER_LEN ⦃ r => r.val = 13 ⦄ := by
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.QUERY_HEADER_LEN binlog.events.format_description_event.FormatDescriptionEvent.QUERY_HEADER_MINIMAL_LEN; step*
+
+@[step] private theorem v3hl_spec : binlog.events.format_description_event.FormatDescriptionEvent.START_V3_HEADER_LEN ⦃ r => r.val = 56 ⦄ := by
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.START_V3_HEADER_LEN binlog.events.format_description_event.FormatDescriptionEvent.SERVER_VER_LEN binlog.events.format_description_event.SERVER_VER_LEN; step*
+
+@[step] private theorem fdhl_spec : binlog.events.format_description_event.FormatDescriptionEvent.FORMAT_DESCRIPTION_HEADER_LEN ⦃ r => r.val = 99 ⦄ := by
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.FORMAT_DESCRIPTION_HEADER_LEN; step*
+
+@[step] private theorem elqhl_spec : binlog.events.format_description_event.FormatDescriptionEvent.EXECUTE_LOAD_QUERY_HEADER_LEN ⦃ r => r.val = 26 ⦄ := by
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.EXECUTE_LOAD_QUERY_HEADER_LEN binlog.events.format_description_event.FormatDescriptionEvent.EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN; step*
+
+private theorem default_len_spec (t : binlog.consts.EventType) :
+    binlog.events.format_description_event.default_event_type_header_length t ⦃ r => r.val = defaultPostHeaderLen t ⦄ := by
+  cases t <;> simp only [binlog.events.format_description_event.default_event_type_header_length, binlog.events.format_description_event.FormatDescriptionEvent.APPEND_BLOCK_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.BEGIN_LOAD_QUERY_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.DELETE_FILE_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.GTID_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.IGNORABLE_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.INCIDENT_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.INTVAR_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.RAND_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.ROTATE_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.ROWS_HEADER_LEN_V1, binlog.events.format_description_event.FormatDescriptionEvent.ROWS_HEADER_LEN_V2, binlog.events.format_description_event.FormatDescriptionEvent.STOP_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.TABLE_MAP_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.TRANSACTION_CONTEXT_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.TRANSACTION_PAYLOAD_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.USER_VAR_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.VIEW_CHANGE_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.XA_PREPARE_HEADER_LEN, binlog.events.format_description_event.FormatDescriptionEvent.XID_HEADER_LEN, bind_ok] <;>
+    step* <;> simp_all [defaultPostHeaderLen]
+
 /-- `get_event_type_header_length(t)`: `postHeaderLen` (0 for `UNKNOWN_EVENT`; else the array entry `t - 1`, or the default if the array is shorter). -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec (e : binlog.events.format_description_event.FormatDescriptionEvent) (t : binlog.consts.EventType) :
     binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length e t ⦃ n => n.val = postHeaderLen (fdeLens e) t ⦄ := by
-  sorry
+  unfold binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length
+  have hd : (UScalar.cast .U8 (read_discriminant t)).val = eventTypeCode t := by
+    cases t <;> rfl
+  simp only [binlog.consts.EventType.Insts.CoreCmpPartialEqEventType.eq, bind_ok]
+  by_cases h0 : t = .UNKNOWN_EVENT
+  · subst h0
+    simp [postHeaderLen, eventTypeCode]
+  · have hne : binlog.consts.EventType.read_discriminant t ≠ binlog.consts.EventType.read_discriminant .UNKNOWN_EVENT := by
+      cases t <;> simp_all [binlog.consts.EventType.read_discriminant]
+    have hc : eventTypeCode t ≠ 0 := by cases t <;> simp_all [eventTypeCode]
+    simp only [hne, decide_false, Bool.false_eq_true, ite_false]
+    step with default_len_spec as ⟨dl, hdl⟩
+    step with PKUtil.eof_as_bytes_spec as ⟨sl, hsl⟩
+    simp only [lift, bind_ok, core.slice.Slice.get, core.slice.index.Usize.get]
+    have hi : (core.num.Usize.saturating_sub
+        (core.convert.num.FromUsizeU8.from (UScalar.cast UScalarTy.U8 (read_discriminant t))) 1#usize).val =
+        eventTypeCode t - 1 := by
+      rw [sat_sub_usize, core.convert.num.FromUsizeU8.from_val_eq, hd]; rfl
+    rw [Slice.getElem?_Usize_eq, hi, hsl]
+    simp only [postHeaderLen, hc, ite_false, fdeLens]
+    split <;> simp_all
 
 /-- `into_owned`: the same fields and footer. -/
 theorem binlog.events.format_description_event.FormatDescriptionEvent.into_owned_spec (e : binlog.events.format_description_event.FormatDescriptionEvent) :

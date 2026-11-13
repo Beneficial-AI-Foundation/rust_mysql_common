@@ -106,6 +106,13 @@ theorem sat_add_usize (x y : Usize) :
   rw [UScalar.max_USize_eq] at this
   exact this
 
+theorem sat_sub_usize (x y : Usize) :
+    (core.num.Usize.saturating_sub x y).val = x.val - y.val := by
+  have hb : x.val - y.val < 2 ^ UScalarTy.Usize.numBits := lt_of_le_of_lt (Nat.sub_le _ _) x.hBounds
+  show (UScalar.saturating_sub x y).val = _
+  simp only [UScalar.saturating_sub, Nat.zero_max]
+  exact Nat.mod_eq_of_lt hb
+
 /-! ## `parse_unchecked` of fixed-size integers, as `Ok` results -/
 
 theorem pu_rawint {T P : Type} (inst : misc.raw.int.IntRepr T P) (buf : io.ParseBuf) (k : Nat) (g : P → Nat)
