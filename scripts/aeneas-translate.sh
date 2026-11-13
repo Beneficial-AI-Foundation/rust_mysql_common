@@ -13,9 +13,14 @@ set -euo pipefail
 # ---- Verified configuration -------------------------------------------------------------------
 TARGET="x86_64-unknown-linux-gnu"            # 64-bit, little-endian
 # The default features with the zlib backend of flate2 swapped for its pure-Rust backend
-# (`flate2/zlib` is a C library that does not cross-compile from macOS; compression is out of
-# scope, so the verified code is identical), plus the optional value conversions we verify.
+# (`flate2/zlib` is a C library that does not cross-compile from macOS), plus the optional value
+# conversions we verify. The compressed codec's results (its flate2 axioms in FunsExternal.lean)
+# hold for this rust_backend (miniz_oxide) build only, not for the default zlib build.
 FEATURES="derive,flate2/rust_backend,chrono,time,rust_decimal,bigdecimal,frunk"
+# The flate2 axioms were checked against these versions. `flate2/rust_backend` is only enabled
+# here, so Cargo.lock has no miniz_oxide entry and cargo resolves it afresh: the translation
+# stops if the resolved versions are not exactly these.
+PINNED_DEPS=$'flate2 v1.1.11\nminiz_oxide v0.9.1'
 # -----------------------------------------------------------------------------------------------
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,8 +42,14 @@ rsync -a --delete \
   ./ "$WORK/"
 ( cd "$WORK" && git init -q . 2>/dev/null || true )
 shopt -s nullglob
-# Numeric order of the leading number (`sort -n`), not glob order, which would put 120-* before 13-*.
-for name in $(cd "$ROOT/translation-patches" && ls -- *.patch | sort -n); do
+# Numeric order of the leading number, not glob order (which would put 120-* before 13-*).
+PATCHES=( "$ROOT"/translation-patches/*.patch )
+if (( ${#PATCHES[@]} > 0 )); then
+  PATCHES_SORTED="$(for p in "${PATCHES[@]}"; do basename "$p"; done | LC_ALL=C sort -t- -k1,1n)"
+else
+  PATCHES_SORTED=""
+fi
+for name in $PATCHES_SORTED; do
   patch="$ROOT/translation-patches/$name"
   echo "applying $(basename "$patch")"
   if ! git -C "$WORK" apply --whitespace=nowarn "$patch"; then
@@ -47,6 +58,18 @@ for name in $(cd "$ROOT/translation-patches" && ls -- *.patch | sort -n); do
   fi
 done
 shopt -u nullglob
+
+# The flate2 backend versions the axioms rely on (see PINNED_DEPS).
+RESOLVED_DEPS="$(cd "$WORK" && RUSTUP_TOOLCHAIN="$TOOLCHAIN" cargo tree -q --locked \
+  --target "$TARGET" --no-default-features --features "$FEATURES" -e normal --prefix none -f '{p}' \
+  | grep -E '^(flate2|miniz_oxide) ' | sed 's/ (\*)$//' | LC_ALL=C sort -u)"
+if [[ "$RESOLVED_DEPS" != "$PINNED_DEPS" ]]; then
+  echo "error: flate2 backend resolved to" >&2
+  echo "$RESOLVED_DEPS" >&2
+  echo "expected (FunsExternal.lean's flate2 axioms were checked against):" >&2
+  echo "$PINNED_DEPS" >&2
+  exit 1
+fi
 
 # 3. Charon.
 LLBC="$ROOT/.llbc/mysql_common.llbc"

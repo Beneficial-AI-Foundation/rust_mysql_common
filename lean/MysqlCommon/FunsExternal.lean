@@ -952,56 +952,66 @@ noncomputable def value.convert.trusted.json_to_string (x : serde_json.value.Val
 /-! ## The trust boundary of the compressed codec: `mysql_common::proto::codec::trusted`
 
 `translation-patches/120-codec-trusted-flate2-module.patch` adds this module (opaque in
-Cargo.toml); each function is one flate2 operation (flate2 1.1.11, `rust_backend`, i.e.
-miniz_oxide, in the verified configuration) or `Vec::capacity`. Each gets one of:
+Cargo.toml); each function is one flate2 operation (flate2 1.1.11 with `rust_backend`, i.e.
+miniz_oxide 0.9.1, both checked by `PINNED_DEPS` in
+`scripts/aeneas-translate.sh`) or `Vec::capacity`. Each gets one of:
 
 * an **exact model**: `compression_none`, `compression_eq` (`Compression` is its `u32` level,
   see TypesExternal.lean);
-* an **opaque value**: the new streams (`compress_new`, `decompress_new`), `Vec::capacity`;
+* an **opaque value**: the new streams (`compress_new`, which panics for a level above 10,
+  `decompress_new`), `Vec::capacity`;
 * an **opaque value with partial specification axioms**: `deflate`, `inflate`. The axioms are
-  the weakest the codec's round trip needs: a successful deflate is shorter than its input
-  (`deflateResult_short`, from the helper's body), a successful inflate has the declared length
+  the weakest the codec's round trip needs: a successful deflate is non-empty and shorter than
+  its input (`deflateResult_short`), a successful inflate has the declared length
   (`inflateResult_len`, from the helper's body), and inflating a successful deflate gives the
   input back (`inflate_deflate`). Nothing is assumed about errors: deflate may fail, and inflate
   may fail on any input that is not such an output (malformed or wrong length).
 
-Every helper is assumed not to panic (allocation is infallible in Aeneas' model). -/
+Except `compress_new` (above), every helper is assumed not to panic (allocation is infallible in
+Aeneas' model). -/
 
 namespace Trusted
-/-- `Compress::new(level, true)`: opaque. -/
+/-- `Compress::new(level, true)` (flate2 1.1.11 / miniz_oxide 0.9.1): opaque. -/
 axiom compressNew : flate2.Compression → flate2.mem.Compress
-/-- `Decompress::new(true)`: opaque. -/
+/-- `Decompress::new(true)` (flate2 1.1.11 / miniz_oxide 0.9.1): opaque. -/
 axiom decompressNew : flate2.mem.Decompress
-/-- The result of `trusted::deflate(d, chunk)`: `Ok (Some deflated)`, `Ok None` (incompressible
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) The result of `trusted::deflate(d, chunk)`: `Ok (Some deflated)`, `Ok None` (incompressible
     or not shorter) or an error. Opaque, see `deflateResult_short` and `inflate_deflate`. -/
 axiom deflateResult : flate2.mem.Compress → Slice Std.U8 →
   core.result.Result (Option (alloc.vec.Vec Std.U8)) core.io.error.Error
-/-- The stream after `trusted::deflate(d, chunk)`: opaque. -/
+/-- The stream after `trusted::deflate(d, chunk)` (flate2 1.1.11 / miniz_oxide 0.9.1): opaque. -/
 axiom deflateState : flate2.mem.Compress → Slice Std.U8 → flate2.mem.Compress
-/-- The result of `trusted::inflate(i, compressed, plain_len)`. Opaque, see `inflateResult_len`
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) The result of `trusted::inflate(i, compressed, plain_len)`. Opaque, see `inflateResult_len`
     and `inflate_deflate`. -/
 axiom inflateResult : flate2.mem.Decompress → Slice Std.U8 → Std.Usize →
   core.result.Result (alloc.vec.Vec Std.U8) core.io.error.Error
-/-- The stream after `trusted::inflate(i, compressed, plain_len)`: opaque. -/
+/-- The stream after `trusted::inflate(i, compressed, plain_len)` (flate2 1.1.11 /
+    miniz_oxide 0.9.1): opaque. -/
 axiom inflateState : flate2.mem.Decompress → Slice Std.U8 → Std.Usize → flate2.mem.Decompress
 /-- `Vec::capacity`: opaque (Aeneas does not model capacity). Nothing is assumed about it.
     Caveat: as a Lean function it gives equal vectors equal capacities; it is only used by the
     codec's shrink-on-threshold logic, whose two branches leave the same (empty) buffer. -/
 axiom vecCapacity : alloc.vec.Vec Std.U8 → Std.Usize
 
-/-- A successful deflate is shorter than its input: the helper returns `Some` only when
-    `compressed_len < chunk.len()`, truncating its `chunk.len()`-byte buffer to `compressed_len`. -/
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) A successful deflate is non-empty and shorter than its
+    input. Shorter: the helper returns `Some` only when `compressed_len < chunk.len()`, truncating
+    its `chunk.len()`-byte buffer to `compressed_len`. Non-empty: `Some` needs
+    `Status::StreamEnd`, i.e. a complete zlib stream, which has at least 7 bytes: the 2-byte
+    header (miniz_oxide 0.9.1 `src/deflate/core.rs:1790-1797`, written since `Compress::new(..,
+    true)` selects the zlib format), at least one block, and the 4-byte Adler-32 trailer
+    (`core.rs:1877-1880`). -/
 axiom deflateResult_short (d : flate2.mem.Compress) (chunk : Slice Std.U8)
     (out : alloc.vec.Vec Std.U8) :
-    deflateResult d chunk = .Ok (some out) → out.val.length < chunk.val.length
+    deflateResult d chunk = .Ok (some out) →
+      0 < out.val.length ∧ out.val.length < chunk.val.length
 
-/-- A successful inflate has the declared length: the helper returns `Ok` only when the stream
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) A successful inflate has the declared length: the helper returns `Ok` only when the stream
     ended with `total_out == plain_len`, and the buffer has `plain_len` bytes. -/
 axiom inflateResult_len (i : flate2.mem.Decompress) (s : Slice Std.U8) (n : Std.Usize)
     (v : alloc.vec.Vec Std.U8) :
     inflateResult i s n = .Ok v → v.val.length = n.val
 
-/-- zlib round trip: a successful deflate (a complete zlib stream, `FlushCompress::Finish` and
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) zlib round trip: a successful deflate (a complete zlib stream, `FlushCompress::Finish` and
     `Status::StreamEnd`) inflates, with any inflate stream (the helper resets it with a zlib
     header first), into a buffer of the input's length, to exactly the input. Checked by the
     crate's `compressed_roundtrip_reuses_streams` test (lengths 0 to `MAX_PAYLOAD_LEN + 100`,
@@ -1019,8 +1029,14 @@ def proto.codec.trusted.compression_none : Result flate2.Compression := ok ⟨0#
 def proto.codec.trusted.compression_eq (a b : flate2.Compression) : Result Bool :=
   ok (a.level.val == b.level.val)
 
+/-- `Compress::new(level, true)`: panics for a level above 10. flate2 1.1.11's miniz_oxide
+    backend has `debug_assert!(level.level() <= 10)` (`src/ffi/miniz_oxide.rs:153`), and the
+    proofs use debug semantics (overflow checks and debug assertions on, lean/README.md §4);
+    otherwise an opaque stream. (The default `zlib` C backend instead panics for a level above 9
+    in every profile, `src/ffi/c.rs:376`; that backend is outside the verified configuration.) -/
 noncomputable def proto.codec.trusted.compress_new (level : flate2.Compression) :
-    Result flate2.mem.Compress := ok (Trusted.compressNew level)
+    Result flate2.mem.Compress :=
+  if level.level.val > 10 then fail .panic else ok (Trusted.compressNew level)
 
 noncomputable def proto.codec.trusted.decompress_new : Result flate2.mem.Decompress :=
   ok Trusted.decompressNew
