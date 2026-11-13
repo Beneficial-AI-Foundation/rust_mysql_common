@@ -11,6 +11,8 @@ open core.result.Result.Insts
 
 namespace mysql_common
 
+attribute [local step] barebytes_len
+
 local macro "lenTac" : tactic => `(tactic| (simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega))
 
 /-- `MyDeserialize for HandshakePacket`: `SIZE` is `None`. -/
@@ -123,7 +125,23 @@ theorem packets.HandshakePacket.new_spec {T1 T2 T3 : Type} (into1 : core.convert
           authDataLen := (scramble_2.map (fun _ => min (cowList c2).length 247)).getD 0,
           mariadbCaps := 0, scramble2 := scramble_2.map (fun _ => cowList c2),
           pluginName := auth_plugin_name.map (fun _ => cowList c3) } ⦄ := by
-  sorry
+  unfold packets.HandshakePacket.new
+  simp only [constants.CapabilityFlags.bits, constants.CapabilityFlags.from_bits_retain_eq,
+    constants.MariadbCapabilities.empty, bind_ok]
+  step*
+  rcases scramble_2 with _ | x2 <;> rcases auth_plugin_name with _ | x3 <;> simp only
+  all_goals first
+    | (have h2' := h2 x2 rfl; have h3' := h3 x3 rfl
+       step*
+       simp_all [Handshake.of])
+    | (have h2' := h2 x2 rfl
+       step*
+       simp_all [Handshake.of])
+    | (have h3' := h3 x3 rfl
+       step*
+       simp_all [Handshake.of])
+    | (step*
+       simp_all [Handshake.of])
 
 /-- `with_mariadb_ext_capabilities`: replaces MariaDB's capabilities. -/
 theorem packets.HandshakePacket.with_mariadb_ext_capabilities_spec (self : packets.HandshakePacket) (flags : constants.MariadbCapabilities) :
