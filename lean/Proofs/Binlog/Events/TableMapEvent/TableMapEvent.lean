@@ -133,7 +133,7 @@ theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDes
 /-- `MyDeserialize`: total; `tmRead` with the FDE's table-map post-header length. -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs tmView (tmRead (postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT) buf.val) r rest ⦄ := by
-  sorry
+  exact BERUtil.tm_deser h64 ctx buf
 
 /-- `MySerialize`: appends the layout `tmEnc`. (64-bit target, as configured). -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
@@ -145,7 +145,11 @@ theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySer
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
     (ctx : binlog.BinlogCtx) (hp : postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT ≠ 6) (buf : io.ParseBuf) (h : buf.val = tmEnc e) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map tmView = some (tmView e) ∧ rest.val = [] ⦄ := by
-  sorry
+  apply WP.spec_mono (BERUtil.tm_deser h64 ctx buf)
+  rintro ⟨r, rest⟩ hr
+  simp only [WP.uncurry'] at hr ⊢
+  rw [h, Defs.tmRead_tmEnc e hc ht _ hp] at hr
+  exact hr
 
 /-- `BinlogEvent::EVENT_TYPE`: `TABLE_MAP_EVENT` (19). -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
