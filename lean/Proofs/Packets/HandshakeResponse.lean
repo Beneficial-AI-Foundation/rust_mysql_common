@@ -80,7 +80,6 @@ theorem packets.HandshakeResponse.new_spec {T1 T2 T3 : Type} (into1 : core.conve
     repeat' (first | step | split | (simp only [↓reduceIte, constants.MariadbCapabilities.empty, bind_ok]))
   all_goals simp_all [HsResp.of, setFlag, atLeast553]
   all_goals omega
-  all_goals sorry
 
 /-- `with_mariadb_ext_capabilities`: replaces MariaDB's capabilities. -/
 theorem packets.HandshakeResponse.with_mariadb_ext_capabilities_spec (self : packets.HandshakeResponse) (mariadb_ext_capabilities : constants.MariadbCapabilities) :
