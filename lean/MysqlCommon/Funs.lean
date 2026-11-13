@@ -32226,7 +32226,7 @@ def packets.BinlogDumpFlags.remove
   packets.BinlogDumpFlags.difference self other
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_sids]:
-    Source: 'src/packets/mod.rs', lines 4716:4-4724:5
+    Source: 'src/packets/mod.rs', lines 4744:4-4752:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.with_sids
   {T1 : Type _} (coreconvertIntoT1CowASliceSidVecSidInst : core.convert.Into T1
@@ -32253,7 +32253,7 @@ def packets.ComBinlogDumpGtid.with_sids
     ok { self with flags := (bdf1, pd), sid_block := s }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_pos]:
-    Source: 'src/packets/mod.rs', lines 4703:4-4706:5
+    Source: 'src/packets/mod.rs', lines 4731:4-4734:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.with_pos
   (self : packets.ComBinlogDumpGtid) (pos : Std.U64) :
@@ -32263,7 +32263,7 @@ def packets.ComBinlogDumpGtid.with_pos
   ok { self with pos := (pos, pd) }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_flags]:
-    Source: 'src/packets/mod.rs', lines 4692:4-4700:5
+    Source: 'src/packets/mod.rs', lines 4720:4-4728:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.with_flags
   (self : packets.ComBinlogDumpGtid) (flags : packets.BinlogDumpFlags) :
@@ -32286,7 +32286,7 @@ def packets.ComBinlogDumpGtid.with_flags
     ok { self with flags := (flags1, pd) }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_filename]:
-    Source: 'src/packets/mod.rs', lines 4674:4-4683:5
+    Source: 'src/packets/mod.rs', lines 4702:4-4711:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.with_filename
   {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
@@ -32301,14 +32301,14 @@ def packets.ComBinlogDumpGtid.with_filename
   ok { self with filename := rb }
 
 /-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComBinlogDumpGtidHeader}::default]:
-    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1
     Visibility: public -/
 def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault.default
   : Result packets.InvalidComBinlogDumpGtidHeader := do
   ok ()
 
 /-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
-    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1 -/
 @[reducible]
 def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault :
   core.default.Default packets.InvalidComBinlogDumpGtidHeader := {
@@ -32332,7 +32332,7 @@ def packets.BinlogDumpFlags.Insts.CoreDefaultDefault : core.default.Default
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::new]:
-    Source: 'src/packets/mod.rs', lines 4632:4-4641:5
+    Source: 'src/packets/mod.rs', lines 4660:4-4669:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.new
   (server_id : Std.U32) : Result packets.ComBinlogDumpGtid := do
@@ -45223,31 +45223,6 @@ def packets.TagStatic.Insts.CoreConvertTryFromStringInvalidTag :
     packets.TagStatic.Insts.CoreConvertTryFromStringInvalidTag.try_from
 }
 
-/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidTag}]
-    Source: 'src/packets/mod.rs', lines 4295:9-4295:14 -/
-@[reducible]
-def packets.InvalidTag.Insts.CoreFmtDebug : core.fmt.Debug packets.InvalidTag
-  := {
-  fmt := packets.InvalidTag.Insts.CoreFmtDebug.fmt
-}
-
-/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidTag}]
-    Source: 'src/packets/mod.rs', lines 4295:44-4295:60 -/
-@[reducible]
-def packets.InvalidTag.Insts.CoreFmtDisplay : core.fmt.Display
-  packets.InvalidTag := {
-  fmt := packets.InvalidTag.Insts.CoreFmtDisplay.fmt
-}
-
-/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidTag}]
-    Source: 'src/packets/mod.rs', lines 4295:44-4295:60 -/
-@[reducible]
-def packets.InvalidTag.Insts.CoreErrorError : core.error.Error
-  packets.InvalidTag := {
-  fmtDebugInst := packets.InvalidTag.Insts.CoreFmtDebug
-  fmtDisplayInst := packets.InvalidTag.Insts.CoreFmtDisplay
-}
-
 /-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::new]:
     Source: 'src/packets/mod.rs', lines 4328:4-4334:5
     Visibility: public -/
@@ -45375,8 +45350,81 @@ def packets.Sid.serialize_tagged
     misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple self.intervals
     buf3
 
+/-- [mysql_common::packets::tag_bytes_valid_from]:
+    Source: 'src/packets/mod.rs', lines 4462:0-4473:1 -/
+def packets.tag_bytes_valid_from
+  (b : Slice Std.U8) (i : Std.Usize) : Result Bool := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let c ← Slice.index_usize b i
+    if c >= 97#u8
+    then
+      if c <= 122#u8
+      then let i2 ← i + 1#usize
+           packets.tag_bytes_valid_from b i2
+      else
+        if c >= 48#u8
+        then
+          if c <= 57#u8
+          then let i2 ← i + 1#usize
+               packets.tag_bytes_valid_from b i2
+          else
+            if c = 95#u8
+            then let i2 ← i + 1#usize
+                 packets.tag_bytes_valid_from b i2
+            else ok false
+        else
+          if c = 95#u8
+          then let i2 ← i + 1#usize
+               packets.tag_bytes_valid_from b i2
+          else ok false
+    else
+      if c >= 48#u8
+      then
+        if c <= 57#u8
+        then let i2 ← i + 1#usize
+             packets.tag_bytes_valid_from b i2
+        else
+          if c = 95#u8
+          then let i2 ← i + 1#usize
+               packets.tag_bytes_valid_from b i2
+          else ok false
+      else
+        if c = 95#u8
+        then let i2 ← i + 1#usize
+             packets.tag_bytes_valid_from b i2
+        else ok false
+  else ok true
+partial_fixpoint
+
+/-- [mysql_common::packets::tag_bytes_valid]:
+    Source: 'src/packets/mod.rs', lines 4451:0-4459:1 -/
+def packets.tag_bytes_valid (b : Slice Std.U8) : Result Bool := do
+  let b1 ← core.slice.Slice.is_empty b
+  if b1
+  then ok false
+  else
+    let i := Slice.len b
+    if i > packets.Tag.MAX_LEN
+    then ok false
+    else
+      let i1 ← Slice.index_usize b 0#usize
+      if i1 >= 97#u8
+      then
+        if i1 <= 122#u8
+        then packets.tag_bytes_valid_from b 1#usize
+        else
+          if i1 = 95#u8
+          then packets.tag_bytes_valid_from b 1#usize
+          else ok false
+      else
+        if i1 = 95#u8
+        then packets.tag_bytes_valid_from b 1#usize
+        else ok false
+
 /-- [mysql_common::packets::{mysql_common::packets::Sid<'de>}::deserialize_tag]:
-    Source: 'src/packets/mod.rs', lines 4426:4-4444:5 -/
+    Source: 'src/packets/mod.rs', lines 4426:4-4446:5 -/
 def packets.Sid.deserialize_tag
   (tag_len : Std.Usize) (buf : io.ParseBuf) :
   Result ((core.result.Result (Option packets.Tag) core.io.error.Error) ×
@@ -45401,17 +45449,14 @@ def packets.Sid.deserialize_tag
       match cf with
       | core.ops.control_flow.ControlFlow.Continue val =>
         let buf1 ← io.ParseBuf.skip buf tag_len
-        let s ← Str.Insts.AllocBorrowToOwnedString.to_owned val
-        let r1 ←
-          packets.Tag.new (core.convert.IntoFrom
-            alloc.borrow.CowAStrString.Insts.CoreConvertFromString) s
-        match r1 with
-        | core.result.Result.Ok t => ok (core.result.Result.Ok (some t), buf1)
-        | core.result.Result.Err e =>
-          let e1 ←
-            misc.io_error_from packets.InvalidTag.Insts.CoreErrorError
-              core.io.error.ErrorKind.InvalidData e
-          ok (core.result.Result.Err e1, buf1)
+        let b ← packets.tag_bytes_valid tag_bytes
+        if b
+        then
+          let s ← Str.Insts.AllocBorrowToOwnedString.to_owned val
+          ok (core.result.Result.Ok (some (alloc.borrow.Cow.Owned s)), buf1)
+        else
+          let e ← misc.trusted.sid_tag_invalid_error val
+          ok (core.result.Result.Err e, buf1)
       | core.ops.control_flow.ControlFlow.Break residual =>
         let r1 ←
           core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -45475,14 +45520,14 @@ def packets.Sid.deserialize_tagged
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{mysql_common::packets::Sid<'a>}::with_tag]:
-    Source: 'src/packets/mod.rs', lines 4452:4-4455:5
+    Source: 'src/packets/mod.rs', lines 4480:4-4483:5
     Visibility: public -/
 def packets.Sid.with_tag
   (self : packets.Sid) (tag : packets.Tag) : Result packets.Sid := do
   ok { self with tag := (some tag) }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::Sid<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 4459:4-4462:5
+    Source: 'src/packets/mod.rs', lines 4487:4-4490:5
     Visibility: public -/
 def packets.Sid.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.Sid) (buf : alloc.vec.Vec Std.U8) :
@@ -45497,7 +45542,7 @@ def packets.Sid.Insts.Mysql_commonProtoMySerialize.serialize
     buf1
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::Sid<'_0>}]
-    Source: 'src/packets/mod.rs', lines 4458:0-4463:1 -/
+    Source: 'src/packets/mod.rs', lines 4486:0-4491:1 -/
 @[reducible]
 def packets.Sid.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
   packets.Sid := {
@@ -45505,7 +45550,7 @@ def packets.Sid.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Sid<'de>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 4469:4-4477:5
+    Source: 'src/packets/mod.rs', lines 4497:4-4505:5
     Visibility: public -/
 def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
   (_ : Unit) (buf : io.ParseBuf) :
@@ -45539,7 +45584,7 @@ def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Sid<'de>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 4466:4-4466:37
+    Source: 'src/packets/mod.rs', lines 4494:4-4494:37
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
@@ -45547,7 +45592,7 @@ def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Sid<'de>}]
-    Source: 'src/packets/mod.rs', lines 4465:0-4478:1 -/
+    Source: 'src/packets/mod.rs', lines 4493:0-4506:1 -/
 @[reducible]
 def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple :
   proto.MyDeserialize packets.Sid Unit := {
@@ -45557,7 +45602,7 @@ def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple :
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComBinlogDumpGtidHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1
     Visibility: public -/
 def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay.fmt
   (self : packets.InvalidComBinlogDumpGtidHeader)
@@ -45570,7 +45615,7 @@ def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay.fmt
   core.fmt.Formatter.write_fmt __formatter a
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
-    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1 -/
 @[reducible]
 def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay :
   core.fmt.Display packets.InvalidComBinlogDumpGtidHeader := {
@@ -45578,7 +45623,7 @@ def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay :
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComBinlogDumpGtidHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1
     Visibility: public -/
 def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug.fmt
   (self : packets.InvalidComBinlogDumpGtidHeader) (f : core.fmt.Formatter) :
@@ -45587,7 +45632,7 @@ def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.write_str f (toStr "InvalidComBinlogDumpGtidHeader")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
-    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1 -/
 @[reducible]
 def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug : core.fmt.Debug
   packets.InvalidComBinlogDumpGtidHeader := {
@@ -45595,7 +45640,7 @@ def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
-    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4629:0-4633:1 -/
 @[reducible]
 def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreErrorError :
   core.error.Error packets.InvalidComBinlogDumpGtidHeader := {
@@ -45604,7 +45649,7 @@ def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreErrorError :
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::server_id]:
-    Source: 'src/packets/mod.rs', lines 4644:4-4646:5
+    Source: 'src/packets/mod.rs', lines 4672:4-4674:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.impl.server_id
   (self : packets.ComBinlogDumpGtid) : Result Std.U32 := do
@@ -45612,7 +45657,7 @@ def packets.ComBinlogDumpGtid.impl.server_id
   ok i
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::flags]:
-    Source: 'src/packets/mod.rs', lines 4649:4-4651:5
+    Source: 'src/packets/mod.rs', lines 4677:4-4679:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.impl.flags
   (self : packets.ComBinlogDumpGtid) : Result packets.BinlogDumpFlags := do
@@ -45620,7 +45665,7 @@ def packets.ComBinlogDumpGtid.impl.flags
   ok bdf
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::filename_raw]:
-    Source: 'src/packets/mod.rs', lines 4654:4-4656:5
+    Source: 'src/packets/mod.rs', lines 4682:4-4684:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.filename_raw
   (self : packets.ComBinlogDumpGtid) : Result (Slice Std.U8) := do
@@ -45629,7 +45674,7 @@ def packets.ComBinlogDumpGtid.filename_raw
     self.filename
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::filename]:
-    Source: 'src/packets/mod.rs', lines 4659:4-4661:5
+    Source: 'src/packets/mod.rs', lines 4687:4-4689:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.impl.filename
   (self : packets.ComBinlogDumpGtid) :
@@ -45640,7 +45685,7 @@ def packets.ComBinlogDumpGtid.impl.filename
     self.filename
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::pos]:
-    Source: 'src/packets/mod.rs', lines 4664:4-4666:5
+    Source: 'src/packets/mod.rs', lines 4692:4-4694:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.impl.pos
   (self : packets.ComBinlogDumpGtid) : Result Std.U64 := do
@@ -45648,7 +45693,7 @@ def packets.ComBinlogDumpGtid.impl.pos
   ok i
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::sids]:
-    Source: 'src/packets/mod.rs', lines 4669:4-4671:5
+    Source: 'src/packets/mod.rs', lines 4697:4-4699:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.sids
   (self : packets.ComBinlogDumpGtid) : Result (Slice packets.Sid) := do
@@ -45656,7 +45701,7 @@ def packets.ComBinlogDumpGtid.sids
     packets.Sid.Insts.CoreCloneClone self.sid_block
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_server_id]:
-    Source: 'src/packets/mod.rs', lines 4686:4-4689:5
+    Source: 'src/packets/mod.rs', lines 4714:4-4717:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.with_server_id
   (self : packets.ComBinlogDumpGtid) (server_id : Std.U32) :
@@ -45666,7 +45711,7 @@ def packets.ComBinlogDumpGtid.with_server_id
   ok { self with server_id := (server_id, pd) }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_sid]:
-    Source: 'src/packets/mod.rs', lines 4709:4-4713:5
+    Source: 'src/packets/mod.rs', lines 4737:4-4741:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.with_sid
   (self : packets.ComBinlogDumpGtid) (sid : packets.Sid) :
@@ -45681,7 +45726,7 @@ def packets.ComBinlogDumpGtid.with_sid
   ok { self with flags := (bdf1, pd), sid_block := s }
 
 /-- [mysql_common::packets::any_sid_tagged]:
-    Source: 'src/packets/mod.rs', lines 4753:0-4763:1 -/
+    Source: 'src/packets/mod.rs', lines 4781:0-4791:1 -/
 def packets.any_sid_tagged
   (sids : Slice packets.Sid) (i : Std.Usize) : Result Bool := do
   let i1 := Slice.len sids
@@ -45698,7 +45743,7 @@ def packets.any_sid_tagged
 partial_fixpoint
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::is_tagged_format]:
-    Source: 'src/packets/mod.rs', lines 4728:4-4730:5 -/
+    Source: 'src/packets/mod.rs', lines 4756:4-4758:5 -/
 def packets.ComBinlogDumpGtid.is_tagged_format
   (self : packets.ComBinlogDumpGtid) : Result Bool := do
   let s ←
@@ -45707,7 +45752,7 @@ def packets.ComBinlogDumpGtid.is_tagged_format
   packets.any_sid_tagged s 0#usize
 
 /-- [mysql_common::packets::sid_block_len_from]:
-    Source: 'src/packets/mod.rs', lines 4767:0-4782:1 -/
+    Source: 'src/packets/mod.rs', lines 4795:0-4810:1 -/
 def packets.sid_block_len_from
   (sids : Slice packets.Sid) (tagged : Bool) (i : Std.Usize) (len : Std.U32) :
   Result Std.U32
@@ -45734,7 +45779,7 @@ def packets.sid_block_len_from
 partial_fixpoint
 
 /-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::sid_block_len]:
-    Source: 'src/packets/mod.rs', lines 4732:4-4736:5 -/
+    Source: 'src/packets/mod.rs', lines 4760:4-4764:5 -/
 def packets.ComBinlogDumpGtid.sid_block_len
   (self : packets.ComBinlogDumpGtid) : Result Std.U32 := do
   let tagged ← packets.ComBinlogDumpGtid.is_tagged_format self
@@ -45744,7 +45789,7 @@ def packets.ComBinlogDumpGtid.sid_block_len
   packets.sid_block_len_from s tagged 0#usize 8#u32
 
 /-- [mysql_common::packets::n_sids_header]:
-    Source: 'src/packets/mod.rs', lines 4740:0-4750:1 -/
+    Source: 'src/packets/mod.rs', lines 4768:0-4778:1 -/
 def packets.n_sids_header
   (tagged : Bool) (n_sids : Std.U64) : Result Std.U64 := do
   let format_byte ← if tagged
@@ -45762,7 +45807,7 @@ def packets.n_sids_header
     ok (n_sids ||| i1)
 
 /-- [mysql_common::packets::serialize_sids_from]:
-    Source: 'src/packets/mod.rs', lines 4785:0-4795:1 -/
+    Source: 'src/packets/mod.rs', lines 4813:0-4823:1 -/
 def packets.serialize_sids_from
   (sids : Slice packets.Sid) (tagged : Bool) (i : Std.Usize)
   (buf : alloc.vec.Vec Std.U8) :
@@ -45787,7 +45832,7 @@ def packets.serialize_sids_from
 partial_fixpoint
 
 /-- [mysql_common::packets::deserialize_tagged_sids]:
-    Source: 'src/packets/mod.rs', lines 4798:0-4814:1 -/
+    Source: 'src/packets/mod.rs', lines 4826:0-4842:1 -/
 def packets.deserialize_tagged_sids
   (sid_buf : io.ParseBuf) (n : Std.U64) (sids : alloc.vec.Vec packets.Sid) :
   Result ((core.result.Result (alloc.vec.Vec packets.Sid) core.io.error.Error)
@@ -45806,7 +45851,7 @@ def packets.deserialize_tagged_sids
 partial_fixpoint
 
 /-- [mysql_common::packets::deserialize_untagged_sids]:
-    Source: 'src/packets/mod.rs', lines 4817:0-4833:1 -/
+    Source: 'src/packets/mod.rs', lines 4845:0-4861:1 -/
 def packets.deserialize_untagged_sids
   (sid_buf : io.ParseBuf) (n : Std.U64) (sids : alloc.vec.Vec packets.Sid) :
   Result ((core.result.Result (alloc.vec.Vec packets.Sid) core.io.error.Error)
@@ -45827,7 +45872,7 @@ def packets.deserialize_untagged_sids
 partial_fixpoint
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComBinlogDumpGtid<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 4836:4-4850:5
+    Source: 'src/packets/mod.rs', lines 4864:4-4878:5
     Visibility: public -/
 def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.ComBinlogDumpGtid) (buf : alloc.vec.Vec Std.U8) :
@@ -45866,7 +45911,7 @@ def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize.serialize
   packets.serialize_sids_from s tagged 0#usize buf7
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComBinlogDumpGtid<'_0>}]
-    Source: 'src/packets/mod.rs', lines 4835:0-4851:1 -/
+    Source: 'src/packets/mod.rs', lines 4863:0-4879:1 -/
 @[reducible]
 def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize :
   proto.MySerialize packets.ComBinlogDumpGtid := {
@@ -45875,7 +45920,7 @@ def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDumpGtid<'de>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 4857:4-4902:5
+    Source: 'src/packets/mod.rs', lines 4885:4-4930:5
     Visibility: public -/
 def
   packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
@@ -46077,7 +46122,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDumpGtid<'de>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 4854:4-4854:37
+    Source: 'src/packets/mod.rs', lines 4882:4-4882:37
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
@@ -46085,7 +46130,7 @@ def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDumpGtid<'de>}]
-    Source: 'src/packets/mod.rs', lines 4853:0-4903:1 -/
+    Source: 'src/packets/mod.rs', lines 4881:0-4931:1 -/
 @[reducible]
 def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple :
   proto.MyDeserialize packets.ComBinlogDumpGtid Unit := {
@@ -46096,7 +46141,7 @@ def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple :
 }
 
 /-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}::default]:
-    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1
     Visibility: public -/
 def
   packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault.default
@@ -46104,7 +46149,7 @@ def
   ok ()
 
 /-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1 -/
 @[reducible]
 def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault :
   core.default.Default packets.InvalidSemiSyncAckPacketPacketHeader := {
@@ -46113,7 +46158,7 @@ def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault :
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1
     Visibility: public -/
 def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay.fmt
   (self : packets.InvalidSemiSyncAckPacketPacketHeader)
@@ -46124,7 +46169,7 @@ def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay.fmt
     "Invalid semi-sync ack packet header")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1 -/
 @[reducible]
 def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay :
   core.fmt.Display packets.InvalidSemiSyncAckPacketPacketHeader := {
@@ -46132,7 +46177,7 @@ def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay :
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1
     Visibility: public -/
 def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug.fmt
   (self : packets.InvalidSemiSyncAckPacketPacketHeader)
@@ -46142,7 +46187,7 @@ def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.write_str f (toStr "InvalidSemiSyncAckPacketPacketHeader")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1 -/
 @[reducible]
 def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug :
   core.fmt.Debug packets.InvalidSemiSyncAckPacketPacketHeader := {
@@ -46150,7 +46195,7 @@ def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug :
 }
 
 /-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4933:0-4937:1 -/
 @[reducible]
 def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreErrorError :
   core.error.Error packets.InvalidSemiSyncAckPacketPacketHeader := {
@@ -46161,7 +46206,7 @@ def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreErrorError :
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::new]:
-    Source: 'src/packets/mod.rs', lines 4920:4-4926:5
+    Source: 'src/packets/mod.rs', lines 4948:4-4954:5
     Visibility: public -/
 def packets.SemiSyncAckPacket.new
   {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
@@ -46182,7 +46227,7 @@ def packets.SemiSyncAckPacket.new
   ok { header := cu, position := ri, filename := rb }
 
 /-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::with_position]:
-    Source: 'src/packets/mod.rs', lines 4929:4-4932:5
+    Source: 'src/packets/mod.rs', lines 4957:4-4960:5
     Visibility: public -/
 def packets.SemiSyncAckPacket.with_position
   (self : packets.SemiSyncAckPacket) (position : Std.U64) :
@@ -46192,7 +46237,7 @@ def packets.SemiSyncAckPacket.with_position
   ok { self with position := (position, pd) }
 
 /-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::with_filename]:
-    Source: 'src/packets/mod.rs', lines 4935:4-4938:5
+    Source: 'src/packets/mod.rs', lines 4963:4-4966:5
     Visibility: public -/
 def packets.SemiSyncAckPacket.with_filename
   {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
@@ -46207,7 +46252,7 @@ def packets.SemiSyncAckPacket.with_filename
   ok { self with filename := rb }
 
 /-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::position]:
-    Source: 'src/packets/mod.rs', lines 4941:4-4943:5
+    Source: 'src/packets/mod.rs', lines 4969:4-4971:5
     Visibility: public -/
 def packets.SemiSyncAckPacket.impl.position
   (self : packets.SemiSyncAckPacket) : Result Std.U64 := do
@@ -46215,7 +46260,7 @@ def packets.SemiSyncAckPacket.impl.position
   ok i
 
 /-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::filename_raw]:
-    Source: 'src/packets/mod.rs', lines 4946:4-4948:5
+    Source: 'src/packets/mod.rs', lines 4974:4-4976:5
     Visibility: public -/
 def packets.SemiSyncAckPacket.filename_raw
   (self : packets.SemiSyncAckPacket) : Result (Slice Std.U8) := do
@@ -46224,7 +46269,7 @@ def packets.SemiSyncAckPacket.filename_raw
     self.filename
 
 /-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::filename]:
-    Source: 'src/packets/mod.rs', lines 4951:4-4953:5
+    Source: 'src/packets/mod.rs', lines 4979:4-4981:5
     Visibility: public -/
 def packets.SemiSyncAckPacket.impl.filename
   (self : packets.SemiSyncAckPacket) :
@@ -46235,7 +46280,7 @@ def packets.SemiSyncAckPacket.impl.filename
     self.filename
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SemiSyncAckPacket<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 4957:4-4961:5
+    Source: 'src/packets/mod.rs', lines 4985:4-4989:5
     Visibility: public -/
 def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.SemiSyncAckPacket) (buf : alloc.vec.Vec Std.U8) :
@@ -46253,7 +46298,7 @@ def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMySerialize.serialize
     self.filename buf2
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SemiSyncAckPacket<'_0>}]
-    Source: 'src/packets/mod.rs', lines 4956:0-4962:1 -/
+    Source: 'src/packets/mod.rs', lines 4984:0-4990:1 -/
 @[reducible]
 def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMySerialize :
   proto.MySerialize packets.SemiSyncAckPacket := {
@@ -46262,7 +46307,7 @@ def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMySerialize :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SemiSyncAckPacket<'de>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 4968:4-4975:5
+    Source: 'src/packets/mod.rs', lines 4996:4-5003:5
     Visibility: public -/
 def
   packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
@@ -46329,7 +46374,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SemiSyncAckPacket<'de>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 4965:4-4965:37
+    Source: 'src/packets/mod.rs', lines 4993:4-4993:37
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
@@ -46337,7 +46382,7 @@ def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SemiSyncAckPacket<'de>}]
-    Source: 'src/packets/mod.rs', lines 4964:0-4976:1 -/
+    Source: 'src/packets/mod.rs', lines 4992:0-5004:1 -/
 @[reducible]
 def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple :
   proto.MyDeserialize packets.SemiSyncAckPacket Unit := {

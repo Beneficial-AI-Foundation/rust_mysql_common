@@ -1,0 +1,73 @@
+Translation patch: `Sid::deserialize_tag` checks the tag bytewise
+
+Change: In `Sid::deserialize_tag` (patch 71), `match Tag::new(tag_str.to_owned()) { Ok(tag) => Ok(Some(tag)), Err(e) => Err(io_error_from(InvalidData, e)) }` becomes `if tag_bytes_valid(tag_bytes) { Ok(Some(Tag(Cow::Owned(tag_str.to_owned())))) } else { Err(misc::trusted::sid_tag_invalid_error(tag_str)) }`. `tag_bytes_valid` (with its recursive helper `tag_bytes_valid_from`) is a new private function checking the bytes: 1 to `Tag::MAX_LEN` bytes, the first in `a-z` or `_`, the others in `a-z`, `0-9` or `_`. `sid_tag_invalid_error` is a new function of the module of patch 64 whose body builds the old error: `io_error_from(InvalidData, e)` of the `Err(e)` of `Tag::new(tag_str.to_owned())`.
+Why: `Tag::validate` walks the `char`s of the string (`str::chars`), and Aeneas' `Chars::next` is an opaque function without a model, so whether a tag read from a `COM_BINLOG_DUMP_GTID` packet is accepted could not be stated. `Tag::new` itself (public, with its `InvalidTag` payload) is unchanged.
+Behaviour: Identical. `tag_str` is the `&str` of `tag_bytes` (checked UTF-8, `sid_tag_from_utf8`). `Tag::validate` accepts it iff it has 1 to 32 bytes (`str::len` counts bytes), its first `char` is in `a-z` or `_` and the others in `a-z`, `0-9` or `_`; all these `char`s are ASCII, so this holds iff the bytes satisfy the same conditions, which is `tag_bytes_valid` (a non-ASCII `char` is encoded by bytes `>= 0x80`, rejected bytewise). On acceptance the tag is `Tag(Cow::Owned(tag_str.to_owned()))`, the value `Tag::new` returns for a `String`. On rejection `Tag::new` returns `Err`, so `sid_tag_invalid_error` returns the same `io::Error` as before (its `unreachable!` is never reached). The buffer is skipped before the check, as before.
+
+diff --git a/src/misc/trusted.rs b/src/misc/trusted.rs
+--- a/src/misc/trusted.rs
++++ b/src/misc/trusted.rs
+@@ -36,6 +36,15 @@
+     })
+ }
+ 
++/// The error of `Sid::deserialize_tagged` for a tag that is valid UTF-8 but not a valid `Tag`:
++/// the `InvalidTag` of `Tag::new`, as an `InvalidData` `io::Error`.
++pub(crate) fn sid_tag_invalid_error(tag_str: &str) -> std::io::Error {
++    match crate::packets::Tag::new(tag_str.to_owned()) {
++        Err(e) => crate::misc::io_error_from(std::io::ErrorKind::InvalidData, e),
++        Ok(_) => unreachable!("sid_tag_invalid_error: the tag is valid"),
++    }
++}
++
+ // ---- HashMap (connect attributes) --------------------------------------------------------------
+ 
+ /// The connect-attributes map of `ComChangeUserMoreData` and `HandshakeResponse`.
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -4434,13 +4434,41 @@
+             let tag_bytes = &buf.0[..tag_len];
+             let tag_str = crate::misc::trusted::sid_tag_from_utf8(tag_bytes)?;
+             buf.skip(tag_len);
+-            match Tag::new(tag_str.to_owned()) {
+-                Ok(tag) => Ok(Some(tag)),
+-                Err(e) => Err(crate::misc::io_error_from(io::ErrorKind::InvalidData, e)),
++            // `Tag::new(tag_str.to_owned())`, with the validity check on the bytes.
++            if tag_bytes_valid(tag_bytes) {
++                Ok(Some(Tag(Cow::Owned(tag_str.to_owned()))))
++            } else {
++                Err(crate::misc::trusted::sid_tag_invalid_error(tag_str))
+             }
+         } else {
+             Ok(None)
++        }
++    }
++}
++
++// `Tag::validate(s).is_ok()` for a `&str` `s` with bytes `b`: 1 to `Tag::MAX_LEN` bytes, the
++// first an ASCII lowercase letter or `_`, the others ASCII lowercase letters, digits or `_`.
++fn tag_bytes_valid(b: &[u8]) -> bool {
++    if b.is_empty() || b.len() > Tag::MAX_LEN {
++        false
++    } else if (b[0] >= b'a' && b[0] <= b'z') || b[0] == b'_' {
++        tag_bytes_valid_from(b, 1)
++    } else {
++        false
++    }
++}
++
++// The bytes of `b` from index `i` on are ASCII lowercase letters, digits or `_` (recursive).
++fn tag_bytes_valid_from(b: &[u8], i: usize) -> bool {
++    if i < b.len() {
++        let c = b[i];
++        if (c >= b'a' && c <= b'z') || (c >= b'0' && c <= b'9') || c == b'_' {
++            tag_bytes_valid_from(b, i + 1)
++        } else {
++            false
+         }
++    } else {
++        true
+     }
+ }
+ 

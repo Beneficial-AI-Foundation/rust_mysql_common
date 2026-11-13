@@ -508,7 +508,16 @@ theorem sidTaggedRead_some_len {bs : List U8} {sv : SidV} {r : List U8}
         · simp at h
         · split at h
           · simp at h
-          · split at h <;> simp at h
+          · split at h
+            · split at h
+              · rename_i is rest hi
+                simp only [ReadOut.done.injEq] at h
+                rw [← h.2]
+                have := (Replication.intervalsRead_suffix hi).length_le
+                simp only [List.length_drop] at this
+                omega
+              all_goals simp at h
+            · simp at h
 
 theorem untagged_loop (h64 : Target64) (n : Nat) : ∀ (buf : io.ParseBuf) (nn : U64)
     (acc : alloc.vec.Vec packets.Sid), nn.val = n → 16 * acc.val.length + buf.length ≤ Usize.max →
@@ -1061,12 +1070,9 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SI
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
   simp [packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE]
 
-/-- `MyDeserialize for ComBinlogDumpGtid`: exactly `gtidDumpRead` whenever that reader returns.
-    It does in the untagged format, and in the tagged format until it meets a non-empty tag
-    (`unknown`: the tag's character check is not modelled, see `sidTaggedRead`).
-    It is never `unknown` in the untagged format (`Defs.sidsRead_untagged_ne_unknown`), and in
-    the tagged format only through a tag of 1–32 valid UTF-8 bytes
-    (`Defs.gtidDumpRead_unknown`, `Defs.sidTaggedRead_unknown_iff`).
+/-- `MyDeserialize for ComBinlogDumpGtid`: exactly `gtidDumpRead` whenever that reader returns,
+    in both formats. `gtidDumpRead` never gives `unknown` (`Defs.gtidDumpRead_ne_unknown`), so
+    with `deserialize_panics` this covers every input.
     **Allocation caveat (GTID).** The SID count comes from the input (up to `2^56`) and is passed
     to `Vec::with_capacity` before any SID is read, which the model treats as free: in real Rust
     a 31-byte packet announcing `2^56` SIDs makes the reader try to allocate `2^56` SIDs and
@@ -1520,7 +1526,7 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
 
 /-- Round trip (untagged format): a request without tags, with known flags, a file name shorter
     than `2^32` bytes and a SID block shorter than `2^32` bytes, is read back from
-    `gtidDumpEnc`. (With a tag, see `deserialize_spec`.) -/
+    `gtidDumpEnc`. (With tags, see `roundtrip_tagged`.) -/
 theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip
     (h64 : Target64) (g : packets.ComBinlogDumpGtid)
     (hnotag : gtidTagged (GtidDump.of g).sids = false)
@@ -1540,6 +1546,34 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.ro
       simp only [SidV.of, List.mem_map] at hi
       obtain ⟨y, _, rfl⟩ := hi
       constructor <;> scalar_tac) tail
+  rw [← h] at hd
+  exact packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec h64 buf _ _ hd
+
+/-- Round trip, with or without tags: a request whose tags are all valid (`tagBytesValid`), with
+    known flags, a file name shorter than `2^32` bytes and a SID block shorter than `2^32` bytes,
+    is read back from `gtidDumpEnc`. -/
+theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip_tagged
+    (h64 : Target64) (g : packets.ComBinlogDumpGtid)
+    (htags : ∀ s ∈ (GtidDump.of g).sids, ∀ t, s.tag = some t → tagBytesValid t = true)
+    (hf : (GtidDump.of g).flags &&& binlogDumpFlagsAll = (GtidDump.of g).flags)
+    (hfn : (GtidDump.of g).filename.length < 2 ^ 32)
+    (hblk : (sidBlock (GtidDump.of g).sids).length < 2 ^ 32)
+    (tail : List U8) (buf : io.ParseBuf) (h : buf.val = gtidDumpEnc (GtidDump.of g) ++ tail) :
+    packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
+      (okPart r).map GtidDump.of = some (GtidDump.of g) ∧ rest.val = tail ⦄ := by
+  have hd := Replication.gtidDumpRead_gtidDumpEnc_tagged (GtidDump.of g) hf
+    (by simp [GtidDump.of]; scalar_tac) hfn (by simp [GtidDump.of]; scalar_tac) hblk (by
+      intro s hs
+      refine ⟨?_, htags s hs, ?_⟩
+      · simp only [GtidDump.of, List.mem_map] at hs
+        obtain ⟨x, _, rfl⟩ := hs
+        simp [SidV.of]
+      · simp only [GtidDump.of, List.mem_map] at hs
+        obtain ⟨x, _, rfl⟩ := hs
+        intro i hi
+        simp only [SidV.of, List.mem_map] at hi
+        obtain ⟨y, _, rfl⟩ := hi
+        constructor <;> scalar_tac) tail
   rw [← h] at hd
   exact packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec h64 buf _ _ hd
 

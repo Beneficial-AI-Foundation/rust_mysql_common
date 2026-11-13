@@ -4,12 +4,12 @@ import Proofs.Defs.LemmasStmtSession
 # Facts about the statement, session-state and replication definitions
   (`lean/Defs/CmdPackets.lean`, `lean/Defs/SessionState.lean`, `lean/Defs/BinlogCmd.lean`)
     Pure-Lean properties a signer should read: the readers invert the protocol encodings
-    (`COM_STMT_PREPARE_OK`, session state entries, `COM_REGISTER_SLAVE`, untagged
-    `COM_BINLOG_DUMP_GTID`); the crate's tagged `n_sids` word is recognised by its reader; the
+    (`COM_STMT_PREPARE_OK`, session state entries, `COM_REGISTER_SLAVE`, `COM_BINLOG_DUMP_GTID`
+    untagged, and tagged with valid tags); the crate's tagged `n_sids` word is recognised by its reader; the
     bulk builder's bookkeeping keeps requests within the packet limit; and concrete examples of
     the bulk-execute bugs and quirks (types read from 3 bytes, only the first row read, type
-    merging). Totality: the bulk and untagged SID readers never give `unknown`, the GTID reader
-    only through a tagged SID with a 1–32-byte valid UTF-8 tag. Proofs:
+    merging). Totality: the bulk, SID (both formats) and GTID readers never give `unknown`
+    (since translation-patches/156 the tag check is bytewise, `tagBytesValid`). Proofs:
     `Proofs/Defs/LemmasStmtSession.lean` (the totality lemmas and `bulkNew_indicators` are
     proved; the rest are `sorry`).
 
@@ -111,6 +111,20 @@ recall gtidDumpRead_gtidDumpEnc (g : GtidDump) (hnotag : gtidTagged g.sids = fal
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.gtidDumpRead_gtidDumpEnc
+/-- `COM_BINLOG_DUMP_GTID` round trip, with or without tags: the reader reads `gtidDumpEnc` back
+    (known flags, numbers in range, 16-byte UUIDs, every tag present valid (`tagBytesValid`), file
+    name and SID block shorter than `2^32` bytes). -/
+recall gtidDumpRead_gtidDumpEnc_tagged (g : GtidDump)
+    (hf : g.flags &&& binlogDumpFlagsAll = g.flags) (hsid : g.serverId < 2 ^ 32)
+    (hfn : g.filename.length < 2 ^ 32) (hpos : g.pos < 2 ^ 64)
+    (hblk : (sidBlock g.sids).length < 2 ^ 32)
+    (hs : ∀ s ∈ g.sids, s.uuid.length = 16 ∧ (∀ t, s.tag = some t → tagBytesValid t = true) ∧
+      ∀ i ∈ s.intervals, i.1 < 2 ^ 64 ∧ i.2 < 2 ^ 64)
+    (tail : List U8) :
+    gtidDumpRead (gtidDumpEnc g ++ tail) = .done (some g) tail
+
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.gtidDumpRead_gtidDumpEnc_tagged
 /-- The tagged `n_sids` word the crate writes has format byte `1` and the count in bits 8–55,
     so its own reader recognises it (for fewer than `2^48` SIDs). -/
 recall nSidsHeader_tagged (n : Nat) (hn : n < 2 ^ 48) :
@@ -152,30 +166,24 @@ recall sidsRead_untagged_ne_unknown (n : Nat) (bs : List U8) : sidsRead false n 
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidsRead_untagged_ne_unknown
-/-- The tagged SID reader is `unknown` exactly for a SID with a tag of 1 to 32 bytes that is present and valid UTF-8 (where `Tag::new` would check its characters). -/
-recall sidTaggedRead_unknown_iff (bs : List U8) :
-    sidTaggedRead bs = .unknown ↔
-      16 ≤ bs.length ∧ ∃ tl r, varlenUintDecode (bs.drop 16) = some (tl, r) ∧ 0 < tl ∧ tl ≤ 32 ∧
-        tl ≤ r.length ∧ (Trusted.bytesOf (r.take tl)).IsValidUTF8
+/-- Totality of the tagged SID reader: it returns or panics, never `unknown` (the tag check is
+    modelled, `tagBytesValid`). -/
+recall sidTaggedRead_ne_unknown (bs : List U8) : sidTaggedRead bs ≠ .unknown
 
 /-- [propext, Classical.choice, Quot.sound] -/
-#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidTaggedRead_unknown_iff
-/-- Untagged SID lists are read totally, and a tagged one is `unknown` only through a SID whose
-    reading is `unknown` (`sidTaggedRead_unknown_iff`), read from a suffix of the input. -/
-recall sidsRead_unknown (tagged : Bool) (n : Nat) (bs : List U8)
-    (h : sidsRead tagged n bs = .unknown) :
-    tagged = true ∧ ∃ bs', bs' <:+ bs ∧ sidTaggedRead bs' = .unknown
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidTaggedRead_ne_unknown
+/-- SIDs are read totally, in either format: returned or panicked, never `unknown`. -/
+recall sidsRead_ne_unknown (tagged : Bool) (n : Nat) (bs : List U8) :
+    sidsRead tagged n bs ≠ .unknown
 
 /-- [propext, Classical.choice, Quot.sound] -/
-#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidsRead_unknown
-/-- `gtidDumpRead` is `unknown` only through a tagged SID, inside the input, whose tag has 1 to
-    32 bytes and is valid UTF-8 (`sidTaggedRead_unknown_iff`); every other input is returned or
-    panics. -/
-recall gtidDumpRead_unknown (bs : List U8) (h : gtidDumpRead bs = .unknown) :
-    ∃ bs', bs' <:+: bs ∧ sidTaggedRead bs' = .unknown
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sidsRead_ne_unknown
+/-- Totality of the `COM_BINLOG_DUMP_GTID` reader: it returns or panics, never `unknown` (so
+    `deserialize_spec` and `deserialize_panics` of `ComBinlogDumpGtid` cover every input). -/
+recall gtidDumpRead_ne_unknown (bs : List U8) : gtidDumpRead bs ≠ .unknown
 
 /-- [propext, Classical.choice, Quot.sound] -/
-#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.gtidDumpRead_unknown
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.gtidDumpRead_ne_unknown
 /-- The values of a request made by `ComStmtBulkExecuteRequest::new` carry the indicators the
     protocol defines: `NULL` (1) exactly for `NULL`, else `NONE` (0). -/
 recall bulkNew_indicators (stmtId flags : Nat) (rows : List (List Val)) :

@@ -1,6 +1,7 @@
 import Defs
 import Proofs.Util.ParseBuf
 import Proofs.Util.IntAndMisc
+import Proofs.Util.ParamsAsSql
 
 /-! Helper lemmas for the replication-command proofs (`Proofs/Packets/{ComRegisterSlave,
 ComTableDump,ComBinlogDump,ComBinlogDumpGtid,GnoInterval,Sid,Tag,SemiSyncAckPacket}.lean`,
@@ -273,6 +274,167 @@ theorem nSidsHeader_tagged (n : Nat) (hn : n < 2 ^ 48) :
   · rw [hv]; omega
   · rw [hv]; omega
 
+/-! ## The tagged format -/
+
+/-- A valid tag has 1 to 32 bytes, all ASCII. -/
+theorem tagBytesValid_spec {t : List U8} (h : tagBytesValid t = true) :
+    0 < t.length ∧ t.length ≤ 32 ∧ ∀ b ∈ t, b.val < 128 := by
+  cases t with
+  | nil => simp [tagBytesValid] at h
+  | cons c cs =>
+    simp only [tagBytesValid, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true] at h
+    obtain ⟨⟨hl, hc⟩, hcs⟩ := h
+    refine ⟨by simp, by simp; omega, ?_⟩
+    intro b hb
+    simp only [List.mem_cons] at hb
+    rcases hb with rfl | hb
+    · simp [tagFirstByte] at hc; omega
+    · have := hcs b hb; simp [tagRestByte, tagFirstByte] at this; omega
+
+/-- A valid tag is valid UTF-8 (it is ASCII). -/
+theorem tagBytesValid_utf8 {t : List U8} (h : tagBytesValid t = true) :
+    (Trusted.bytesOf t).IsValidUTF8 := by
+  obtain ⟨s, hs⟩ := PASUtil.isUtf8_ascii t (tagBytesValid_spec h).2.2
+  rw [← hs, CBTUtil.bytesOf_utf8]
+  exact s.isValidUTF8
+
+/-- A tagged SID whose tag (if any) is valid is read back. -/
+theorem sidTaggedRead_sidTaggedEnc (s : SidV) (hu : s.uuid.length = 16)
+    (ht : ∀ t, s.tag = some t → tagBytesValid t = true)
+    (hb : ∀ i ∈ s.intervals, i.1 < 2 ^ 64 ∧ i.2 < 2 ^ 64) (hn : 16 * s.intervals.length ≤ Usize.max)
+    (t : List U8) :
+    sidTaggedRead (sidTaggedEnc s ++ t) = .done (some s) t := by
+  obtain ⟨uuid, tag, is⟩ := s
+  simp only at hu ht hb hn ⊢
+  have hl : ¬ (sidTaggedEnc ⟨uuid, tag, is⟩ ++ t).length < 16 := by simp [sidTaggedEnc, hu]
+  have hd : (sidTaggedEnc ⟨uuid, tag, is⟩ ++ t).drop 16 =
+      varlenUint (tag.getD []).length ++ (tag.getD [] ++ (intervalsEnc is ++ t)) := by
+    simp [sidTaggedEnc, hu]
+  have htk : (sidTaggedEnc ⟨uuid, tag, is⟩ ++ t).take 16 = uuid := by simp [sidTaggedEnc, hu]
+  have hlen : (tag.getD []).length < 2 ^ 64 := by
+    cases tag with
+    | none => simp
+    | some tg => have := (tagBytesValid_spec (ht tg rfl)).2.1; simp; omega
+  rw [sidTaggedRead]
+  simp only [hl, ↓reduceIte, hd, htk, IntAndMisc.varlenUintDecode_varlenUint' _ _ hlen]
+  cases tag with
+  | none => simp [intervalsRead_intervalsEnc _ hb hn]
+  | some tg =>
+    have hv := ht tg rfl
+    have h0 := (tagBytesValid_spec hv).1
+    simp [show tg.length ≠ 0 by omega, hv, tagBytesValid_utf8 hv, intervalsRead_intervalsEnc _ hb hn]
+
+/-- Tagged SIDs whose tags (if any) are valid are read back, one after the other. -/
+theorem sidsRead_sidTaggedEnc (ss : List SidV)
+    (h : ∀ s ∈ ss, s.uuid.length = 16 ∧ (∀ t, s.tag = some t → tagBytesValid t = true) ∧
+      (∀ i ∈ s.intervals, i.1 < 2 ^ 64 ∧ i.2 < 2 ^ 64) ∧ 16 * s.intervals.length ≤ Usize.max)
+    (t : List U8) :
+    sidsRead true ss.length (ss.flatMap sidTaggedEnc ++ t) = .done (some ss) t := by
+  induction ss with
+  | nil => simp [sidsRead]
+  | cons s ss ih =>
+    obtain ⟨hu, htag, hb, hn⟩ := h s (by simp)
+    have e : (s :: ss).flatMap sidTaggedEnc ++ t = sidTaggedEnc s ++ (ss.flatMap sidTaggedEnc ++ t) := by
+      simp
+    rw [List.length_cons, sidsRead, e]
+    simp only [↓reduceIte, sidTaggedRead_sidTaggedEnc s hu htag hb hn,
+      ih (fun x hx => h x (by simp [hx]))]
+
+theorem length_sidTaggedEnc_ge (s : SidV) : 8 + 16 * s.intervals.length ≤ (sidTaggedEnc s).length := by
+  simp only [sidTaggedEnc, intervalsEnc, List.length_append, length_leBytes, length_flatMap_gnoEnc]; omega
+
+theorem length_le_flatMap_sidTaggedEnc (ss : List SidV) : ss.length ≤ (ss.flatMap sidTaggedEnc).length := by
+  induction ss with
+  | nil => simp
+  | cons s ss ih =>
+    simp only [List.flatMap_cons, List.length_append, List.length_cons]
+    have := length_sidTaggedEnc_ge s
+    omega
+
+/-- `COM_BINLOG_DUMP_GTID` round trip, with or without tags: every tag present is valid
+    (`tagBytesValid`). -/
+theorem gtidDumpRead_gtidDumpEnc_tagged (g : GtidDump)
+    (hf : g.flags &&& binlogDumpFlagsAll = g.flags) (hsid : g.serverId < 2 ^ 32)
+    (hfn : g.filename.length < 2 ^ 32) (hpos : g.pos < 2 ^ 64)
+    (hblk : (sidBlock g.sids).length < 2 ^ 32)
+    (hs : ∀ s ∈ g.sids, s.uuid.length = 16 ∧ (∀ t, s.tag = some t → tagBytesValid t = true) ∧
+      ∀ i ∈ s.intervals, i.1 < 2 ^ 64 ∧ i.2 < 2 ^ 64)
+    (tail : List U8) :
+    gtidDumpRead (gtidDumpEnc g ++ tail) = .done (some g) tail := by
+  cases htg : gtidTagged g.sids with
+  | false =>
+    exact gtidDumpRead_gtidDumpEnc g htg hf hsid hfn hpos hblk
+      (fun s hm => ⟨(hs s hm).1, (hs s hm).2.2⟩) tail
+  | true =>
+  obtain ⟨f, sid, fn, pos, ss⟩ := g
+  simp only at htg hf hsid hfn hpos hblk hs
+  have hf8 : f < 2 ^ 16 := by
+    have := Nat.and_le_right (n := f) (m := binlogDumpFlagsAll)
+    simp [binlogDumpFlagsAll] at this hf; omega
+  have hB : sidBlock ss = nSidsHeader true ss.length ++ ss.flatMap sidTaggedEnc := by
+    simp [sidBlock, htg]
+  have hssl : ss.length < 2 ^ 32 := by
+    have := length_le_flatMap_sidTaggedEnc ss
+    rw [hB, List.length_append] at hblk; omega
+  have hss : ∀ s ∈ ss, s.uuid.length = 16 ∧ (∀ t, s.tag = some t → tagBytesValid t = true) ∧
+      (∀ i ∈ s.intervals, i.1 < 2 ^ 64 ∧ i.2 < 2 ^ 64) ∧ 16 * s.intervals.length ≤ Usize.max := by
+    intro s hm
+    obtain ⟨hu, ht, hb⟩ := hs s hm
+    refine ⟨hu, ht, hb, ?_⟩
+    have h1 := length_le_flatMap sidTaggedEnc ss s hm
+    have h2 := length_sidTaggedEnc_ge s
+    have := usize_max_ge
+    rw [hB, List.length_append] at hblk
+    omega
+  set B := sidBlock ss with hBdef
+  set R := leBytes 8 pos ++ (leBytes 4 B.length ++ (B ++ tail)) with hR
+  have e : gtidDumpEnc ⟨f, sid, fn, pos, ss⟩ ++ tail =
+      byte 0x1E :: (leBytes 2 f ++ (leBytes 4 sid ++ (leBytes 4 fn.length ++ (fn ++ R)))) := by
+    have h1 : min fn.length 4294967295 = fn.length := by omega
+    have h2 : fn.take 4294967295 = fn := List.take_of_length_le (by omega)
+    simp [gtidDumpEnc, h1, h2, hR, hBdef]
+  rw [e]
+  unfold gtidDumpRead
+  have hl : ¬ (byte 0x1E :: (leBytes 2 f ++ (leBytes 4 sid ++ (leBytes 4 fn.length ++ (fn ++ R))))).length < 7 := by
+    simp [length_leBytes]; omega
+  have ht : (byte 0x1E :: (leBytes 2 f ++ (leBytes 4 sid ++ (leBytes 4 fn.length ++ (fn ++ R))))).take 7 =
+      byte 0x1E :: (leBytes 2 f ++ leBytes 4 sid) := by
+    rw [List.take_succ_cons, ← List.append_assoc, List.take_append_of_le_length (by simp [length_leBytes]),
+      List.take_of_length_le (by simp [length_leBytes])]
+  have hsid' : leNat (((byte 0x1E :: (leBytes 2 f ++ leBytes 4 sid)).drop 3).take 4) = sid := by
+    rw [show 3 = 2 + 1 from rfl, List.drop_succ_cons, drop_leBytes_append, ← List.append_nil (leBytes 4 sid),
+      leNat_take_leBytes_append 4 sid _ hsid]
+  have hf' : leNat (((byte 0x1E :: (leBytes 2 f ++ leBytes 4 sid)).drop 1).take 2) = f := by
+    simp only [List.drop_succ_cons, List.drop_zero, leNat_take_leBytes_append 2 f _ hf8]
+  have hd : (byte 0x1E :: (leBytes 2 f ++ (leBytes 4 sid ++ (leBytes 4 fn.length ++ (fn ++ R))))).drop 7 =
+      leBytes 4 fn.length ++ (fn ++ R) := by
+    rw [show 7 = 6 + 1 from rfl, List.drop_succ_cons, show 6 = 2 + 4 from rfl, ← List.drop_drop,
+      drop_leBytes_append, drop_leBytes_append]
+  have hb : ¬ ((byte 0x1E).val ≠ 0x1E ∨ f &&& binlogDumpFlagsAll ≠ f) := by simp [byte_val, hf]
+  simp only [hl, ↓reduceIte, ht, hsid', hf', hd, List.getD_cons_zero, hb]
+  rw [checkedLenPrefixed_leBytes 4 fn R (by simpa using hfn)]
+  simp only [hR, readLE_leBytes 8 pos _ (by simpa using hpos), readLE_leBytes 4 B.length _ (by simpa using hblk)]
+  have hle : ¬ (B ++ tail).length < B.length := by simp
+  simp only [hle, ↓reduceIte, List.take_left', List.drop_left']
+  obtain ⟨hHl, hH1, hH2⟩ := nSidsHeader_tagged ss.length (by omega)
+  have hr8 : readLE 8 (nSidsHeader true ss.length ++ ss.flatMap sidTaggedEnc) =
+      some (leNat (nSidsHeader true ss.length), ss.flatMap sidTaggedEnc) := by
+    simp [readLE, hHl]
+  have hsr := sidsRead_sidTaggedEnc ss hss []
+  rw [List.append_nil] at hsr
+  rw [hB, hr8]
+  generalize leNat (nSidsHeader true ss.length) = v at hH1 hH2 ⊢
+  split
+  · rename_i heq; simp at heq
+  · rename_i raw blk heq
+    simp only [Option.some.injEq, Prod.mk.injEq] at heq
+    obtain ⟨rfl, rfl⟩ := heq
+    have hdec : decide (v / 2 ^ 56 = 1) = true := decide_eq_true hH1
+    have hif : (if v / 2 ^ 56 = 1 then v / 2 ^ 8 % 2 ^ 48 else v % 2 ^ 56) = ss.length := by
+      split_ifs
+      exact hH2
+    rw [hdec, hif, hsr]
+
 /-! ## What the readers leave is a suffix of their input -/
 
 theorem readLE_rest {k : Nat} {bs : List U8} {n : Nat} {r : List U8} (h : readLE k bs = some (n, r)) :
@@ -351,7 +513,7 @@ theorem sidTaggedRead_suffix {bs : List U8} {o : Option SidV} {r : List U8}
         · split at h
           · simp only [ReadOut.done.injEq] at h; rw [← h.2]; exact h1
           · split at h
+            · exact hints _ _ ((List.drop_suffix _ _).trans h1) h
             · simp only [ReadOut.done.injEq] at h; rw [← h.2]; exact (List.drop_suffix _ _).trans h1
-            · simp at h
 
 end mysql_common.Replication

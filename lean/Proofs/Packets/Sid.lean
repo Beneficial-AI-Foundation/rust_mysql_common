@@ -339,9 +339,89 @@ theorem tag_invalid (tl : Usize) (buf : io.ParseBuf) (h0 : 0 < tl.val) (hle : tl
   simp [misc.trusted.sid_tag_from_utf8, htb', hnv, core.result.Result.Insts.CoreOpsTry.branch,
     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, okPart]
 
-theorem tag_long (tl : Usize) (buf : io.ParseBuf) (h32 : 32 < tl.val) (hle : tl.val ≤ buf.length)
+theorem tagRestByte_iff (c : U8) :
+    tagRestByte c = true ↔ (97 ≤ c.val ∧ c.val ≤ 122) ∨ c.val = 95 ∨ (48 ≤ c.val ∧ c.val ≤ 57) := by
+  simp [tagRestByte, tagFirstByte, or_assoc]
+
+theorem tagFirstByte_iff (c : U8) :
+    tagFirstByte c = true ↔ (97 ≤ c.val ∧ c.val ≤ 122) ∨ c.val = 95 := by
+  simp [tagFirstByte]
+
+/-- `tag_bytes_valid_from b i`: the bytes of `b` from `i` on are all `tagRestByte`. -/
+theorem tag_bytes_valid_from_spec (b : Slice U8) (k : Nat) : ∀ (i : Usize), b.length = i.val + k →
+    packets.tag_bytes_valid_from b i ⦃ r => r = (b.val.drop i.val).all tagRestByte ⦄ := by
+  induction k with
+  | zero =>
+    intro i h
+    rw [packets.tag_bytes_valid_from]
+    have : ¬ i < Slice.len b := by scalar_tac
+    simp only [this, ↓reduceIte, WP.spec_ok]
+    have : b.val.length ≤ i.val := by simp [Slice.length] at h; omega
+    simp [List.drop_eq_nil_of_le this]
+  | succ k ih =>
+    intro i h
+    rw [packets.tag_bytes_valid_from]
+    have hlt : i < Slice.len b := by scalar_tac
+    simp only [hlt, ↓reduceIte]
+    step as ⟨ c, hc ⟩
+    have hil : i.val < b.val.length := by simp [Slice.length] at h; omega
+    have hd : b.val.drop i.val = c :: b.val.drop (i.val + 1) := by
+      rw [List.drop_eq_getElem_cons hil, hc]
+    rw [hd]
+    split_ifs
+    all_goals first
+      | (exfalso; scalar_tac)
+      | (have hr : tagRestByte c = false := by
+            rw [← Bool.not_eq_true, tagRestByte_iff]; scalar_tac
+         simp [hr])
+      | (have hr : tagRestByte c = true := by rw [tagRestByte_iff]; scalar_tac
+         step as ⟨ i2, hi2 ⟩
+         apply WP.spec_mono (ih i2 (by scalar_tac))
+         intro r hr2
+         rw [hr2, hi2]
+         simp [hr])
+
+/-- `tag_bytes_valid b` is `tagBytesValid` of its bytes. -/
+theorem tag_bytes_valid_spec (b : Slice U8) :
+    packets.tag_bytes_valid b ⦃ r => r = tagBytesValid b.val ⦄ := by
+  unfold packets.tag_bytes_valid
+  simp only [core.slice.Slice.is_empty, bind_ok]
+  rcases hb : b.val with _ | ⟨c, cs⟩
+  · have : b.length = 0 := by simp [Slice.length, hb]
+    simp [this, tagBytesValid]
+  · have hl : b.length = cs.length + 1 := by simp [Slice.length, hb]
+    have : ¬ (b.length = 0) := by omega
+    simp only [this, decide_false, Bool.false_eq_true, ↓reduceIte, packets.Tag.MAX_LEN]
+    by_cases h32 : 32 < cs.length + 1
+    · have : Slice.len b > 32#usize := by scalar_tac
+      simp only [this, ↓reduceIte, WP.spec_ok]
+      simp [tagBytesValid]; omega
+    · have : ¬ Slice.len b > 32#usize := by scalar_tac
+      simp only [this, ↓reduceIte]
+      step as ⟨ c0, hc0 ⟩
+      have hc : c0 = c := by simp [hc0, hb]
+      subst hc
+      have hcs : cs.length < 32 := by omega
+      split_ifs
+      all_goals first
+        | (exfalso; scalar_tac)
+        | (have hr : tagFirstByte c0 = false := by
+              rw [← Bool.not_eq_true, tagFirstByte_iff]; scalar_tac
+           simp [tagBytesValid, hr])
+        | (have hr : tagFirstByte c0 = true := by rw [tagFirstByte_iff]; scalar_tac
+           apply WP.spec_mono (tag_bytes_valid_from_spec b cs.length 1#usize (by simp [hl]; omega))
+           intro r hr2
+           rw [hr2, hb]
+           simp [tagBytesValid, hr, hcs])
+
+/-- `deserialize_tag` of a present, valid-UTF-8 tag (`tl` bytes, `0 < tl`): the tag consumed;
+    `Some` of a tag with those bytes if they are a valid tag (`tagBytesValid`), else an error. -/
+theorem tag_utf8 (tl : Usize) (buf : io.ParseBuf) (h0 : 0 < tl.val) (hle : tl.val ≤ buf.length)
     (hv : (Trusted.bytesOf (buf.val.take tl.val)).IsValidUTF8) :
-    packets.Sid.deserialize_tag tl buf ⦃ r rest => okPart r = none ∧ rest.val = buf.val.drop tl.val ⦄ := by
+    packets.Sid.deserialize_tag tl buf ⦃ r rest =>
+      (okPart r).map (Option.map strCowBytes) =
+        (if tagBytesValid (buf.val.take tl.val) then some (some (buf.val.take tl.val)) else none) ∧
+      rest.val = buf.val.drop tl.val ⦄ := by
   unfold packets.Sid.deserialize_tag
   have : tl > 0#usize := by scalar_tac
   simp only [this, ↓reduceIte]
@@ -353,18 +433,18 @@ theorem tag_long (tl : Usize) (buf : io.ParseBuf) (h32 : 32 < tl.val) (hle : tl.
   simp only [misc.trusted.sid_tag_from_utf8, htb', hv, ↓reduceIte, bind_ok,
     core.result.Result.Insts.CoreOpsTry.branch]
   step with io.ParseBuf.skip_spec as ⟨ b1, hb1 ⟩
-  obtain ⟨x, hx1, hx2⟩ : ∃ x, String.fromUTF8? (Trusted.bytesOf tb.val) = some x ∧ utf8 x = tb.val := by
-    rw [htb']
-    refine ⟨String.fromUTF8 _ hv, by simp [String.fromUTF8?, hv], CBTUtil.utf8_ofByteArray _ hv⟩
-  simp only [Str.Insts.AllocBorrowToOwnedString.to_owned, hx1, bind_ok]
-  have hlen : (utf8 x).length = tl.val := by rw [hx2, htb']; simp; omega
-  have hfit : tl.val ≤ Usize.max := by scalar_tac
-  obtain ⟨r, hr, n, rfl, -⟩ := PBUtil.spec_eq_ok (packets.Tag.new_too_long
-    (core.convert.IntoFrom alloc.borrow.CowAStrString.Insts.CoreConvertFromString) x (.Owned x) rfl
-    (by simp [strCowBytes, hlen, h32]) (by simp [strCowBytes, hlen, hfit]))
-  rw [hr]
-  step*
-  simp [okPart, hb1]
+  step with tag_bytes_valid_spec tb as ⟨ bv, hbv ⟩
+  rw [htb'] at hbv
+  subst hbv
+  split
+  · rename_i htv
+    obtain ⟨x, hx1, hx2⟩ : ∃ x, String.fromUTF8? (Trusted.bytesOf tb.val) = some x ∧ utf8 x = tb.val := by
+      rw [htb']
+      refine ⟨String.fromUTF8 _ hv, by simp [String.fromUTF8?, hv], CBTUtil.utf8_ofByteArray _ hv⟩
+    simp only [Str.Insts.AllocBorrowToOwnedString.to_owned, hx1, bind_ok, WP.spec_ok]
+    simp [okPart, hb1, strCowBytes, hx2, htb']
+  · rename_i htv
+    simp [misc.trusted.sid_tag_invalid_error, okPart, hb1]
 
 theorem seq_new_vec (v : alloc.vec.Vec packets.GnoInterval) :
     misc.raw.seq.Seq.new misc.raw.int.LeU64 packets.GnoInterval.Insts.CoreCloneClone
@@ -688,15 +768,43 @@ theorem packets.Sid.deserialize_tagged_spec (h64 : Target64) (buf : io.ParseBuf)
             · simp only [hs, ↓reduceIte] at h
               by_cases hu : (Trusted.bytesOf (rr.take tl)).IsValidUTF8
               · simp only [hu, not_true_eq_false, ↓reduceIte] at h
-                by_cases h32 : 32 < tl
-                · simp only [h32, ↓reduceIte, ReadOut.done.injEq] at h
+                step with SidUtil.tag_utf8 (UScalar.cast UScalarTy.Usize n) buf2 (by rw [htl]; omega) (by rw [htl]; omega) (by rw [htl, hb2]; exact hu) as ⟨ r2, buf3, hr2a, hr2b ⟩
+                rw [htl, hb2] at hr2a hr2b
+                by_cases htv : tagBytesValid (rr.take tl)
+                · simp only [htv, ↓reduceIte] at h hr2a
+                  cases r2 with
+                  | Err _ => simp [okPart] at hr2a
+                  | Ok t =>
+                    simp only [okPart, Option.map_some, Option.some.injEq] at hr2a
+                    simp only
+                    rcases hi : intervalsRead (rr.drop tl) with ⟨o, rest⟩ | e | _
+                    · rw [hi] at h
+                      step with SidUtil.intervals_parse_done h64 buf3 o rest (by rw [hr2b]; exact hi) as ⟨ r3, buf4, h3, h4 ⟩
+                      cases r3 with
+                      | Ok sq =>
+                        simp only [okPart, Option.map_some] at h3
+                        subst h3
+                        simp only at h
+                        obtain ⟨rfl, rfl⟩ := h
+                        simp only [bind_ok]
+                        apply (WP.spec_ok _).mpr
+                        refine ⟨?_, h4⟩
+                        simp only [okPart, Option.map_some, SidV.of, hr1, hr2a]
+                        rfl
+                      | Err e =>
+                        simp only [okPart, Option.map_none] at h3
+                        subst h3
+                        simp only [ReadOut.done.injEq] at h
+                        obtain ⟨rfl, rfl⟩ := h
+                        simp [okPart, h4, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+                    · rw [hi] at h; simp at h
+                    · rw [hi] at h; simp at h
+                · simp only [htv, Bool.false_eq_true, ↓reduceIte, ReadOut.done.injEq] at h hr2a
                   obtain ⟨rfl, rfl⟩ := h
-                  step with SidUtil.tag_long (UScalar.cast UScalarTy.Usize n) buf2 (by rw [htl]; omega) (by rw [htl]; omega) (by rw [htl, hb2]; exact hu) as ⟨ r2, buf3, hr2a, hr2b ⟩
                   cases r2 with
                   | Ok _ => simp [okPart] at hr2a
                   | Err e =>
-                    simp [okPart, hr2b, hb2, htl, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
-                · simp [h32] at h
+                    simp [okPart, hr2b, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
               · simp only [hu, not_false_eq_true, ↓reduceIte, ReadOut.done.injEq] at h
                 obtain ⟨rfl, rfl⟩ := h
                 step with SidUtil.tag_invalid (UScalar.cast UScalarTy.Usize n) buf2 (by rw [htl]; omega) (by rw [htl]; omega) (by rw [htl, hb2]; exact hu) as ⟨ r2, buf3, hr2a, hr2b ⟩
@@ -706,7 +814,7 @@ theorem packets.Sid.deserialize_tagged_spec (h64 : Target64) (buf : io.ParseBuf)
                 | Err e => simp [okPart, hb2, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `Sid::deserialize_tagged` panics where `sidTaggedRead` does (an interval count overflow after
-    an empty tag). -/
+    an empty or a valid tag). -/
 theorem packets.Sid.deserialize_tagged_panics (h64 : Target64) (buf : io.ParseBuf) (e : Error)
     (h : sidTaggedRead buf.val = .panic e) :
     packets.Sid.deserialize_tagged buf = fail e := by
@@ -747,7 +855,32 @@ theorem packets.Sid.deserialize_tagged_panics (h64 : Target64) (buf : io.ParseBu
               simp [core.result.Result.Insts.CoreOpsTry.branch, he1, lift, he2, hp]
             · rw [hi] at h; simp at h
           · simp only [h0, ↓reduceIte] at h
-            split_ifs at h
+            by_cases hs : rr.length < tl
+            · simp [hs] at h
+            by_cases hu : (Trusted.bytesOf (rr.take tl)).IsValidUTF8
+            swap
+            · simp [hs, hu] at h
+            by_cases htv : tagBytesValid (rr.take tl)
+            swap
+            · simp [hs, hu, htv] at h
+            simp only [hs, hu, htv, not_true_eq_false, ↓reduceIte] at h
+            have hl2 : buf2.length = rr.length := by simp [Slice.length, hb2]
+            obtain ⟨⟨r2, buf3⟩, he2, hr2a, hr2b⟩ := PBUtil.spec_eq_ok
+              (SidUtil.tag_utf8 (UScalar.cast UScalarTy.Usize n) buf2 (by rw [htl]; omega)
+                (by rw [htl]; omega) (by rw [htl, hb2]; exact hu))
+            rw [htl, hb2] at hr2a hr2b
+            simp only [htv, ↓reduceIte] at hr2a
+            cases r2 with
+            | Err _ => simp [okPart] at hr2a
+            | Ok t =>
+              rcases hi : intervalsRead (rr.drop tl) with ⟨o, rest⟩ | e' | _
+              · rw [hi] at h; rcases o with _ | is <;> simp at h
+              · rw [hi] at h
+                simp only [ReadOut.panic.injEq] at h
+                subst h
+                have hp := SidUtil.intervals_parse_panic h64 buf3 e' (by rw [hr2b]; exact hi)
+                simp [core.result.Result.Insts.CoreOpsTry.branch, he1, lift, he2, hp]
+              · rw [hi] at h; simp at h
 
 theorem SidUtil.extend_from_slice_spec (v : alloc.vec.Vec U8) (s : Slice U8)
     (h : v.length + s.length ≤ Usize.max) :
