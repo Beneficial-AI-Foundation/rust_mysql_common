@@ -271,6 +271,140 @@ theorem value_len_spec (it : binlog.events.query_event.StatusVarsIterator) (key 
     simp only [statusVarKeyCode, svValueLen, ↓reduceIte]
     simp
 
+theorem dbNamesLen_le : ∀ (c : Nat) (l : List U8) (n : Nat), dbNamesLen c l = some n → n ≤ l.length := by
+  intro c
+  induction c with
+  | zero => intro l n h; simp [dbNamesLen] at h; omega
+  | succ c ih =>
+    intro l n h
+    simp only [dbNamesLen] at h
+    split at h
+    · rename_i hn
+      simp only [Option.map_eq_some_iff] at h
+      obtain ⟨m, hm, rfl⟩ := h
+      have h1 := ih _ _ hm
+      have h2 : (beforeZero l).length < l.length :=
+        mysql_common.beforeZero_length_lt l (by simpa [hasNul] using hn)
+      simp only [List.length_drop] at h1
+      omega
+    · simp at h
+
+theorem svValueLen_le (k : Nat) (v : List U8) (n : Nat) (h : svValueLen k v = some n) :
+    n ≤ v.length + 512 := by
+  have hhd : ∀ (l : List U8) (b : U8), l.head? = some b → b.val < 256 := fun _ b _ => by scalar_tac
+  unfold svValueLen at h
+  by_cases hc0 : k = 0
+  · simp only [hc0, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc0, ↓reduceIte] at h
+  by_cases hc1 : k = 1
+  · simp only [hc1, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc1, ↓reduceIte] at h
+  by_cases hc2 : k = 2
+  · simp only [hc2, ↓reduceIte] at h
+    cases hv : v.head? with
+    | none => simp [hv] at h
+    | some b =>
+      have := hhd _ _ hv
+      simp only [hv, Option.map_some, Option.some.injEq] at h; omega
+  simp only [hc2, ↓reduceIte] at h
+  by_cases hc3 : k = 3
+  · simp only [hc3, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc3, ↓reduceIte] at h
+  by_cases hc4 : k = 4
+  · simp only [hc4, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc4, ↓reduceIte] at h
+  by_cases hc5 : k = 5 ∨ k = 6
+  · simp only [hc5, ↓reduceIte] at h
+    cases hv : v.head? with
+    | none => simp [hv] at h
+    | some b =>
+      have := hhd _ _ hv
+      simp only [hv, Option.map_some, Option.some.injEq] at h; omega
+  simp only [hc5, ↓reduceIte] at h
+  by_cases hc6 : k = 7 ∨ k = 8
+  · simp only [hc6, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc6, ↓reduceIte] at h
+  by_cases hc7 : k = 9
+  · simp only [hc7, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc7, ↓reduceIte] at h
+  by_cases hc8 : k = 10
+  · simp only [hc8, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc8, ↓reduceIte] at h
+  by_cases hc9 : k = 11
+  · simp only [hc9, ↓reduceIte] at h
+    cases hv : v.head? with
+    | none => simp [hv] at h
+    | some u =>
+      have := hhd _ _ hv
+      simp only [hv] at h
+      cases hw : (v.drop (1 + u.val)).head? with
+      | none => simp [hw] at h
+      | some w =>
+        have := hhd _ _ hw
+        simp only [hw, Option.map_some, Option.some.injEq] at h; omega
+  simp only [hc9, ↓reduceIte] at h
+  by_cases hc10 : k = 12
+  · simp only [hc10, ↓reduceIte] at h
+    cases v with
+    | nil => simp at h
+    | cons c rest =>
+      simp only [Option.map_eq_some_iff] at h
+      obtain ⟨m, hm, rfl⟩ := h
+      have := dbNamesLen_le _ _ _ hm
+      simp only [List.length_cons]; omega
+  simp only [hc10, ↓reduceIte] at h
+  by_cases hc11 : k = 13
+  · simp only [hc11, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc11, ↓reduceIte] at h
+  by_cases hc12 : k = 14 ∨ k = 15
+  · simp only [hc12, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc12, ↓reduceIte] at h
+  by_cases hc13 : k = 16
+  · simp only [hc13, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc13, ↓reduceIte] at h
+  by_cases hc14 : k = 17
+  · simp only [hc14, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc14, ↓reduceIte] at h
+  by_cases hc15 : k = 18
+  · simp only [hc15, ↓reduceIte] at h
+    simp only [Option.some.injEq] at h; omega
+  simp only [hc15, ↓reduceIte] at h
+  simp only [Option.some.injEq] at h; omega
+
+theorem svStep_eq (bs : List U8) (pos : Nat) : svStep bs pos =
+    match bs.drop pos with
+    | [] => none
+    | k :: rest => if statusVarKeyOfCode k.val = none then none else
+        match svValueLen k.val rest with
+        | none => none
+        | some n => if n ≤ rest.length then some ((k.val, rest.take n), pos + 1 + n) else none := by
+  unfold svStep statusVarsOf
+  generalize bs.drop pos = l
+  cases l with
+  | nil => simp [svWalk]
+  | cons k rest =>
+    simp only [List.length_cons, svWalk]
+    by_cases h : statusVarKeyOfCode k.val = none
+    · simp [h]
+    · simp only [h, ite_false]
+      cases svValueLen k.val rest with
+      | none => simp
+      | some n =>
+        by_cases hn : n ≤ rest.length
+        · simp [hn]
+        · simp [hn]
+
 end SVIter
 
 /-- `Iterator::next`: the next variable of the walk from the current position (`svStep`; nothing at or past the end), and the position after it; `None` at an unknown key, a truncated value, or the end (the position after a `None` is not stated: the iterator is not fused). The length bound: status variables come from a query event, whose length field is a u16, so real blocks have at most 65535 bytes. -/
@@ -280,6 +414,56 @@ theorem binlog.events.query_event.StatusVarsIterator.Insts.CoreIterTraitsIterato
       match svStep it.status_vars.val it.pos.val with
       | some (kv, p) => o.map (fun x => (statusVarKeyCode x.key, x.value.val)) = some kv ∧ it'.pos.val = p ∧ it'.status_vars = it.status_vars
       | none => o = none ∧ it'.status_vars = it.status_vars ⦄ := by
-  sorry
+  have hslen : it.status_vars.length = it.status_vars.val.length := rfl
+  unfold binlog.events.query_event.StatusVarsIterator.Insts.CoreIterTraitsIteratorIteratorStatusVar.next
+  rw [SVIter.get_usize, SVIter.svStep_eq]
+  simp only [bind_ok]
+  cases hx : it.status_vars.val[it.pos.val]? with
+  | none =>
+    have : it.status_vars.val.drop it.pos.val = [] := by
+      rw [List.getElem?_eq_none_iff] at hx; exact List.drop_eq_nil_of_le hx
+    simp [this]
+  | some x =>
+    have hlt : it.pos.val < it.status_vars.val.length := by
+      by_contra h; rw [List.getElem?_eq_none (by omega)] at hx; simp at hx
+    have hd : it.status_vars.val.drop it.pos.val = x :: it.status_vars.val.drop (it.pos.val + 1) := by
+      rw [List.drop_eq_getElem_cons hlt]; rw [List.getElem?_eq_getElem hlt] at hx
+      simp only [Option.some.injEq] at hx; rw [hx]
+    simp only [hd, binlog.consts.StatusVarKey.Insts.CoreConvertTryFromU8UnknownStatusVarKey.try_from_spec, bind_ok]
+    cases hk : statusVarKeyOfCode x.val with
+    | none => simp
+    | some key =>
+      have hkc : statusVarKeyCode key = x.val := by
+        have := List.find?_some hk; simpa using this
+      simp only [reduceCtorEq, ite_false]
+      step as ⟨i, hi⟩
+      apply WP.spec_bind (SVIter.value_len_spec { it with pos := i } key (by simp; omega) hlen)
+      intro o1 ho1
+      simp only [hkc, hi] at ho1
+      cases o1 with
+      | none =>
+        simp only [Option.map_none] at ho1
+        simp [← ho1]
+      | some len =>
+        simp only [Option.map_some] at ho1
+        rw [← ho1]
+        have hb := SVIter.svValueLen_le _ _ _ ho1.symm
+        simp only [List.length_drop] at hb
+        step as ⟨i1, hi1⟩
+        step as ⟨i2, hi2⟩
+        simp only [core.slice.Slice.get, core.slice.index.SliceIndexRangeUsizeSlice.get]
+        by_cases hle : len.val ≤ (it.status_vars.val.drop (it.pos.val + 1)).length
+        · have hc : i2 ≤ i1 ∧ i1.val ≤ it.status_vars.length :=
+            ⟨by scalar_tac, by simp only [List.length_drop] at hle; omega⟩
+          simp only [hc, and_self, ↓reduceIte, hle, bind_ok, WP.spec_ok]
+          have h2 : i2.val = it.pos.val + 1 := by omega
+          simp only [WP.uncurry', Option.map_some, Option.some.injEq, Prod.mk.injEq, hkc, true_and,
+            and_true]
+          refine ⟨?_, by omega⟩
+          rw [Slice.from_val, List.slice, h2, show i1.val - (it.pos.val + 1) = len.val by omega]
+        · have hc : ¬ (i2 ≤ i1 ∧ i1.val ≤ it.status_vars.length) := by
+            simp only [List.length_drop] at hle; intro h; have := h.2; omega
+          simp only [hc, ↓reduceIte, hle, bind_ok, WP.spec_ok]
+          simp
 
 end mysql_common
