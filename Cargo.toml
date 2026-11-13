@@ -124,7 +124,8 @@ features = [
     "frunk",
 ]
 
-# Charon settings for the Aeneas/Lean verification (see VERIFICATION.md and scripts/).
+# Charon settings for the Aeneas/Lean verification (see formal/README.md and scripts/; the
+# method is described in VERIFICATION.md, kept outside this repo).
 [package.metadata.charon]
 start_from = [
   # src/io.rs: the inherent methods of ParseBuf, and the BufMutExt methods.
@@ -147,7 +148,7 @@ start_from = [
   "mysql_common::misc::unexpected_buf_eof",
   # src/misc/raw/mod.rs (the impls for `&[u8]`, `[u8]`, `[u8; N]` and `f64` are not on named
   # types, which `start_from` patterns cannot express: they are marked `#[verify::start_from]` by
-  # translation-patches/08-start-from-attributes.patch, see `start_from_attribute` below)
+  # formal/trusted/patches/08-start-from-attributes.patch, see `start_from_attribute` below)
   "{impl mysql_common::proto::MyDeserialize for mysql_common::misc::raw::Skip<_>}",
   "{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::Skip<_>}",
   "{impl mysql_common::proto::MyDeserialize for mysql_common::io::ParseBuf}",
@@ -441,7 +442,7 @@ start_from = [
   # src/constants.rs: the constants used above.
   "mysql_common::constants::ColumnType::_",
   "{impl core::convert::TryFrom for mysql_common::constants::ColumnType}",
-  # The flags types (plain structs, translation-patches/20): their `bitflags` API except the
+  # The flags types (plain structs, formal/trusted/patches/20): their `bitflags` API except the
   # iterators `iter`/`iter_names` (only used by `Debug`), and the raw-value conversions.
   "{impl core::convert::TryFrom for mysql_common::constants::ColumnFlags}",
   "{impl core::convert::TryFrom for mysql_common::constants::StatusFlags}",
@@ -504,12 +505,12 @@ start_from = [
   "mysql_common::constants::CapabilityFlags::symmetric_difference",
   "mysql_common::constants::CapabilityFlags::complement",
   # src/proto/codec/mod.rs: plain (uncompressed) framing, generic over the buffer traits of
-  # translation-patches/21; its `VecBuf` model of `BytesMut` is marked `#[verify::start_from]`.
+  # formal/trusted/patches/21; its `VecBuf` model of `BytesMut` is marked `#[verify::start_from]`.
   "mysql_common::proto::codec::packet_to_chunks",
   "mysql_common::proto::codec::ChunkDecoder::decode",
   "mysql_common::proto::codec::PlainPacketCodec::_",
   # src/proto/codec/mod.rs: the compressed codec (`compress`, `CompDecoder`, `CompData`,
-  # `CompPacketCodec`, reached from these) and the public `PacketCodec` (translation-patches/
+  # `CompPacketCodec`, reached from these) and the public `PacketCodec` (formal/trusted/patches/
   # 120-124; flate2 goes through the opaque `proto::codec::trusted`, see below). `VecBuf`'s
   # `Clear` impl is marked `#[verify::start_from]`. Out of scope: `sync_framed` (I/O), and the
   # `Debug` derives.
@@ -519,11 +520,11 @@ start_from = [
   "{impl core::default::Default for mysql_common::proto::codec::PacketCodec}",
   # src/proto/codec/error.rs: `From<io::Error>` (`Display`/`Error` (formatting) are out of scope).
   "{impl core::convert::From for mysql_common::proto::codec::error::PacketCodecError}",
-  # src/misc/mod.rs: `split_version` (translation-patches/125).
+  # src/misc/mod.rs: `split_version` (formal/trusted/patches/125).
   "mysql_common::misc::split_version",
   # src/value/convert/ (mod.rs, uuid.rs, chrono.rs, time.rs, bigint.rs, decimal.rs,
   # bigdecimal.rs): every item, minus the exclusions below. `mysql_common::value::convert::trusted` (added by
-  # translation-patches/40) is opaque, see below.
+  # formal/trusted/patches/40) is opaque, see below.
   "mysql_common::value::convert",
   # src/value/json/serde_integration.rs (`Serialized`/`Deserialized` are reached from it; the
   # serde derives in json/mod.rs are out of scope).
@@ -536,18 +537,18 @@ start_from = [
   "mysql_common::named_params::ParsedNamedParams::params",
   # src/params.rs: `Params` and its conversions, and the thiserror-generated `From` impls of
   # `ParamsError`. The `From` impls for `Params` are marked `#[verify::start_from]` by
-  # translation-patches/90 (all except `From<&[&dyn ToValue]>`: `dyn`). Out of scope: `Debug`,
+  # formal/trusted/patches/90 (all except `From<&[&dyn ToValue]>`: `dyn`). Out of scope: `Debug`,
   # the derived `Clone`/`PartialEq` (they go through `HashMap`), and `Display`/`Error` of the
   # error types (formatting).
   "mysql_common::params::Params::into_values",
   "mysql_common::params::Params::into_positional",
   "{impl core::convert::From for mysql_common::params::ParamsError}",
   # src/value/mod.rs: SQL literals (`escaped` is reached from it). Formatting goes through the
-  # opaque `mysql_common::sql_trusted` (translation-patches/80), see below.
+  # opaque `mysql_common::sql_trusted` (formal/trusted/patches/80), see below.
   "mysql_common::value::Value::as_sql",
   # src/row/mod.rs: the rest of the public `Row` API. (The `Index` and `ColumnIndex` impls, and
   # `From<RowDeserializer> for Row`, are marked `#[verify::start_from]` by
-  # translation-patches/106: `start_from` patterns cannot name them.)
+  # formal/trusted/patches/106: `start_from` patterns cannot name them.)
   "mysql_common::row::new_row",
   "mysql_common::row::Row::as_ref",
   "mysql_common::row::Row::get",
@@ -559,7 +560,7 @@ start_from = [
   # src/row/convert/ (mod.rs, frunk.rs): `FromRow`, `from_row(_opt)`, `FromRowError`, and every
   # `FromRow` impl (`Row`, the tuples of arity 1..=12, `HNil`; the blanket impl for
   # `T: FromValue`, which no pattern can name, is marked `#[verify::start_from]` by
-  # translation-patches/106) except `HCons` (excluded below). The items are listed rather than
+  # formal/trusted/patches/106) except `HCons` (excluded below). The items are listed rather than
   # the whole module: listing the module makes Charon add `Error::description` (overridden by
   # the out-of-scope `Error for FromRowError`) to the `core::error::Error` trait, whose Lean model
   # has no such field.
@@ -568,7 +569,7 @@ start_from = [
   "mysql_common::row::convert::from_row_opt",
   "mysql_common::row::convert::FromRowError",
   "{impl mysql_common::row::convert::FromRow for _}",
-  # ---- src/binlog (feature `binlog_core`, translation-patches/140-153) ----------------------------
+  # ---- src/binlog (feature `binlog_core`, formal/trusted/patches/140-153) ------------------------
   # binlog/mod.rs: `BinlogCtx`; binlog/consts.rs: every enum, its `TryFrom`/`From` impls and the
   # plain flags types (patch 142); binlog/misc.rs: the packed DATETIME2/TIME2/TIMESTAMP2 helpers
   # (patch 149; `LimitedWrite`, used only by `Event::write`, is out of scope); binlog/value.rs
@@ -999,15 +1000,15 @@ opaque = [
   # support `dyn` types. Specs only ever say that a function returns `Err _`.
   "mysql_common::misc::io_error_msg",
   "mysql_common::misc::io_error_from",
-  # The trust boundary of the value conversions (translation-patches/40): one function per
+  # The trust boundary of the value conversions (formal/trusted/patches/40): one function per
   # dependency operation; each has a Lean model or axiom in FunsExternal.lean.
   "mysql_common::value::convert::trusted",
-  # The trust boundary of the packets (translation-patches/64): likewise.
+  # The trust boundary of the packets (formal/trusted/patches/64): likewise.
   "mysql_common::misc::trusted",
-  # The trust boundary of the compressed codec (translation-patches/120): flate2 and
+  # The trust boundary of the compressed codec (formal/trusted/patches/120): flate2 and
   # `Vec::capacity`, one function per operation, each with a Lean model or axiom.
   "mysql_common::proto::codec::trusted",
-  # The trust boundary of `Value::as_sql` and `Params` (translation-patches/80): one function per
+  # The trust boundary of `Value::as_sql` and `Params` (formal/trusted/patches/80): one function per
   # std operation (`format!`, `String`, `HashMap<Vec<u8>, Value>`); each has a Lean model or
   # axiom in FunsExternal.lean.
   "mysql_common::sql_trusted",
@@ -1079,7 +1080,7 @@ opaque = [
   "mysql_common::binlog::events::write_rows_event::{impl core::fmt::Display for _}",
   "mysql_common::binlog::events::write_rows_event_v1::{impl core::fmt::Display for _}",
   "mysql_common::binlog::events::xid_event::{impl core::fmt::Display for _}",
-  # The trust boundary of the binlog code (translation-patches/140, 141, 145, 148, 149): one
+  # The trust boundary of the binlog code (formal/trusted/patches/140, 141, 145, 148, 149): one
   # function per dependency/std operation; each has a Lean model or axiom in FunsExternal.lean.
   "mysql_common::binlog::trusted",
   # `UserVarEvent` (binlog/events/user_var_event.rs): opaque, because its `value_type` is a

@@ -3,10 +3,7 @@ name: Lean project builds
 on:
   push:
     paths: &paths
-      - "lean/**"
-      - "lakefile.toml"
-      - "lake-manifest.json"
-      - "lean-toolchain"
+      - "formal/**"
       - ".github/workflows/lean-build.yml"
   pull_request:
     paths: *paths
@@ -27,14 +24,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            .lake/packages
-            .lake/build
-          key: lake-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ github.sha }}
+            formal/.lake/packages
+            formal/.lake/build
+          key: lake-${{ runner.os }}-${{ hashFiles('formal/lean-toolchain', 'formal/lake-manifest.json') }}-${{ github.sha }}
           restore-keys: |
-            lake-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
+            lake-${{ runner.os }}-${{ hashFiles('formal/lean-toolchain', 'formal/lake-manifest.json') }}-
 
       - name: Fetch the Mathlib cache
+        working-directory: formal
         run: lake exe cache get
 
       - name: Build (warnings, including sorry, are errors; runs the axiom checks in Specs/)
+        working-directory: formal
         run: lake build --wfail

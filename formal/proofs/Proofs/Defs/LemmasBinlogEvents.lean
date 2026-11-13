@@ -1,0 +1,439 @@
+import Defs
+import Proofs.Util.BinlogEvHdr
+import Proofs.Util.PacketsOkErr
+
+/-! Facts about the binlog-event definitions (`formal/specs/Defs/BinlogEvents.lean`) (spec file:
+`Specs/DefsBinlogEvents.lean`). -/
+
+set_option autoImplicit false
+
+open Aeneas Aeneas.Std mysql_common mysql_common.EvHdrUtil
+
+namespace Defs
+
+/-- The common header is 19 bytes. -/
+theorem evHeaderEnc_length (h : binlog.events.BinlogEventHeader) : (evHeaderEnc h).length = 19 := by
+  exact mysql_common.EvHdrUtil.evHeaderEnc_len h
+
+/-- A fixed-length text has exactly its length. -/
+theorem fixedText_length (L : Nat) (s : List U8) : (fixedText L s).length = L := by
+  simp only [fixedText, List.length_append, List.length_take, List.length_replicate]; omega
+
+/-- Without a post-header array, a query event's post-header is 13 bytes and a rows v2 event's 10. -/
+theorem postHeaderLen_query_default : postHeaderLen [] .QUERY_EVENT = 13 ∧ postHeaderLen [] .WRITE_ROWS_EVENT = 10 := by
+  exact ⟨rfl, rfl⟩
+
+/-- The FDE reader inverts the encoder (the server version padded to 50 bytes). -/
+theorem fdeRead_fdeEnc (e : binlog.events.format_description_event.FormatDescriptionEvent) :
+    fdeRead (fdeEnc e) = some ({ fdeView e with serverVersion := fixedText 50 (cowList e.server_version.1) }, []) := by
+  have hA := PBUtil.length_leBytes 2 (binlogVersionCode e.binlog_version.1)
+  have hB := fixedText_length 50 (cowList e.server_version.1)
+  have hC := PBUtil.length_leBytes 4 e.create_timestamp.1.val
+  have hv : binlogVersionCode e.binlog_version.1 < 2 ^ 16 := by cases e.binlog_version.1 <;> simp [binlogVersionCode]
+  have hts : e.create_timestamp.1.val < 2 ^ 32 := by scalar_tac
+  have hvc : binlogVersionOfCode (binlogVersionCode e.binlog_version.1) = some e.binlog_version.1 := by
+    cases e.binlog_version.1 <;> rfl
+  unfold fdeRead fdeEnc
+  have hlen : ¬ (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ fixedText 50 (cowList e.server_version.1) ++
+      leBytes 4 e.create_timestamp.1.val ++ [byte 19] ++ fdeLens e).length < 57 := by
+    simp only [List.length_append, hA, hB, hC, List.length_cons, List.length_nil]; omega
+  simp only [hlen, ite_false]
+  simp only [List.append_assoc]
+  rw [List.take_left' hA, mysql_common.EvHdrUtil.leNat_leBytes_lt 2 _ hv, hvc]
+  have e56 : (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ (fixedText 50 (cowList e.server_version.1) ++
+      (leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e))))[56]? = some (byte 19) := by
+    rw [List.getElem?_append_right (by omega), hA, List.getElem?_append_right (by omega), hB,
+      List.getElem?_append_right (by omega), hC]
+    rfl
+  simp only [e56, Option.map_some]
+  simp only [show (byte 19).val = 19 from rfl, ne_eq, not_true_eq_false, ite_false]
+  simp only [List.drop_left' hA]
+  rw [List.take_left' hB]
+  have d52 : List.drop 52 (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ (fixedText 50 (cowList e.server_version.1) ++
+      (leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e)))) =
+      leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e) := by
+    rw [show 52 = 2 + 50 from rfl, ← List.drop_drop, List.drop_left' hA, List.drop_left' hB]
+  have d57 : List.drop 57 (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ (fixedText 50 (cowList e.server_version.1) ++
+      (leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e)))) = fdeLens e := by
+    rw [show 57 = 52 + 4 + 1 from rfl, ← List.drop_drop, ← List.drop_drop, d52, List.drop_left' hC]; rfl
+  rw [d52, d57, List.take_left' hC, mysql_common.EvHdrUtil.leNat_leBytes_lt 4 _ hts]
+  rfl
+
+/-- The query reader inverts the encoder, for consistent lengths and a post-header of at most 13 bytes. -/
+theorem queryRead_queryEnc (e : binlog.events.query_event.QueryEvent) (p : Nat) (hp : p ≤ 13)
+    (hsv : e.status_vars_len.1.val = (cowList e.status_vars.1).length) (hsv' : (cowList e.status_vars.1).length ≤ 65535)
+    (hs : e.schema_len.1.val = (cowList e.schema.1).length) (hs' : (cowList e.schema.1).length ≤ 255) :
+    queryRead p (queryEnc e) = some (queryView e, []) := by
+  have hsvt : (cowList e.status_vars.1).take 65535 = cowList e.status_vars.1 := List.take_of_length_le hsv'
+  have hsct : (cowList e.schema.1).take 255 = cowList e.schema.1 := List.take_of_length_le hs'
+  have a1 := PBUtil.length_leBytes 4 e.thread_id.1.val
+  have a2 := PBUtil.length_leBytes 4 e.execution_time.1.val
+  have a3 := PBUtil.length_leBytes 2 e.error_code.1.val
+  have a4 := PBUtil.length_leBytes 2 e.status_vars_len.1.val
+  have b1 : e.thread_id.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b2 : e.execution_time.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b3 : e.error_code.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have b4 : e.status_vars_len.1.val < 2 ^ (8 * 2) := by scalar_tac
+  set H := leBytes 4 e.thread_id.1.val ++ leBytes 4 e.execution_time.1.val ++ [e.schema_len.1] ++
+    leBytes 2 e.error_code.1.val ++ leBytes 2 e.status_vars_len.1.val with hH
+  have hHl : H.length = 13 := by simp [hH, a1, a2, a3, a4]
+  have hq : queryEnc e = H ++ (cowList e.status_vars.1 ++ (cowList e.schema.1 ++ ([byte 0] ++ cowList e.query.1))) := by
+    simp only [queryEnc, hsvt, hsct, hH, List.append_assoc]
+  have t4 : H.take 4 = leBytes 4 e.thread_id.1.val := by simp [hH, a1]
+  have t44 : (H.drop 4).take 4 = leBytes 4 e.execution_time.1.val := by simp [hH, a1, a2]
+  have t8 : (H.drop 8).headD (byte 0) = e.schema_len.1 := by simp [hH, List.drop_append, a1, a2]
+  have t92 : (H.drop 9).take 2 = leBytes 2 e.error_code.1.val := by simp [hH, List.drop_append, a1, a2, a3]
+  have t112 : (H.drop 11).take 2 = leBytes 2 e.status_vars_len.1.val := by simp [hH, List.drop_append, a1, a2, a3, a4]
+  have hp0 : p - 13 = 0 := by omega
+  rw [hq]
+  simp only [queryRead, Option.bind_eq_bind]
+  rw [takeExact_app _ _ 13 hHl]
+  simp only [Option.bind_some, hp0, t112, t8, t4, t44, t92]
+  have z : ∀ l : List U8, takeExact 0 l = some ([], l) := fun l => by simp [takeExact]
+  simp only [z, Option.bind_some, leNat_leBytes_lt 2 _ b4, leNat_leBytes_lt 2 _ b3, leNat_leBytes_lt 4 _ b1,
+    leNat_leBytes_lt 4 _ b2]
+  rw [hsv, takeExact_app _ _ _ rfl]
+  simp only [Option.bind_some]
+  rw [hs, takeExact_app _ _ _ rfl]
+  simp only [Option.bind_some]
+  rw [takeExact_app [byte 0] _ 1 rfl]
+  simp only [Option.bind_some, queryView, hsv, hs]
+
+/-- An example walk: `Q_FLAGS2_CODE` (4 bytes), then `Q_CATALOG_NZ_CODE` with a 2-byte name, then an unknown key 99 stops the walk. -/
+theorem statusVarsOf_example : statusVarsOf [byte 0, byte 1, byte 2, byte 3, byte 4, byte 6, byte 2, byte 97, byte 98, byte 99, byte 7] =
+      [(0, [byte 1, byte 2, byte 3, byte 4]), (6, [byte 2, byte 97, byte 98])] := by
+  decide
+
+/-- The `Q_UPDATED_DB_NAMES` bug on an example: two names `a`, `b`; the format gives both, the crate `a` and an empty name. -/
+theorem dbNamesCrate_ne_dbNames : dbNames 2 [byte 97, byte 0, byte 98, byte 0] = some [[byte 97], [byte 98]] ∧
+      dbNamesCrate 2 [byte 97, byte 0, byte 98, byte 0] = some [[byte 97], []] := by
+  decide
+
+private theorem testBit_add_pow (x i : Nat) (h : x < 2 ^ i) : (x + 2 ^ i).testBit i = true := by
+  rw [Nat.add_comm, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow h]; rfl
+
+private theorem gtid_aux (F : U8) (S : List U8) (hS : S.length = 16) (G LC SQ I O T IV OV : Nat)
+    (hG : G < 2 ^ (8 * 8)) (hLC : LC < 2 ^ (8 * 8)) (hSQ : SQ < 2 ^ (8 * 8)) (hI : I < 2 ^ 55) (hO : O < 2 ^ (8 * 7))
+    (hT : T < 2 ^ 64) (hIV : IV < 2 ^ 31) (hOV : OV < 2 ^ (8 * 4)) (tail : List U8) :
+    gtidRead (F :: (S ++ (leBytes 8 G ++ (byte 2 :: (leBytes 8 LC ++ (leBytes 8 SQ ++
+      (leBytes 7 (I % 2 ^ 55 + if I ≠ O then 2 ^ 55 else 0) ++ ((if I ≠ O then leBytes 7 O else []) ++
+      (lenencInt T ++ (leBytes 4 (IV % 2 ^ 31 + if IV ≠ OV then 2 ^ 31 else 0) ++
+      ((if IV ≠ OV then leBytes 4 OV else []) ++ tail))))))))))) =
+    some ({ flags := F.val, sid := S, gno := G, lc := true, lastCommitted := LC, sequenceNumber := SQ,
+            immediateCommitTs := I, originalCommitTs := O, txLength := T, immediateServerVersion := IV,
+            originalServerVersion := OV }, tail) := by
+  have l8G := PBUtil.length_leBytes 8 G
+  have l8L := PBUtil.length_leBytes 8 LC
+  have l8S := PBUtil.length_leBytes 8 SQ
+  have hIm : I % 2 ^ 55 = I := Nat.mod_eq_of_lt hI
+  have hIVm : IV % 2 ^ 31 = IV := Nat.mod_eq_of_lt hIV
+  rw [hIm, hIVm]
+  set R3 := lenencInt T ++ (leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++ ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)) with hR3
+  set R2 := leBytes 7 (I + if I ≠ O then 2 ^ 55 else 0) ++ ((if I ≠ O then leBytes 7 O else []) ++ R3) with hR2
+  set R1 := leBytes 8 LC ++ (leBytes 8 SQ ++ R2) with hR1
+  have hl : ¬ (F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).length < 25 := by
+    simp [hS, l8G]; omega
+  have d25 : (F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).drop 25 = byte 2 :: R1 := by
+    rw [show 25 = 1 + 16 + 8 from rfl, ← List.drop_drop, ← List.drop_drop]
+    simp only [List.drop_succ_cons, List.drop_zero]
+    rw [List.drop_left' hS, List.drop_left' l8G]
+  have t16 : ((F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).drop 1).take 16 = S := by
+    simp only [List.drop_succ_cons, List.drop_zero]; exact List.take_left' hS
+  have t8 : ((F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).drop 17).take 8 = leBytes 8 G := by
+    rw [show 17 = 1 + 16 from rfl, ← List.drop_drop]
+    simp only [List.drop_succ_cons, List.drop_zero]
+    rw [List.drop_left' hS, List.take_left' l8G]
+  have hR1l : ¬ R1.length < 16 := by simp [hR1, l8L, l8S]; omega
+  have hR1d : R1.drop 16 = R2 := by
+    rw [hR1, show 16 = 8 + 8 from rfl, ← List.drop_drop, List.drop_left' l8L, List.drop_left' l8S]
+  have hR1t : R1.take 8 = leBytes 8 LC := by rw [hR1]; exact List.take_left' l8L
+  have hR1t' : (R1.drop 8).take 8 = leBytes 8 SQ := by rw [hR1, List.drop_left' l8L]; exact List.take_left' l8S
+  have hb2 : (byte 2).val = 2 := rfl
+  simp only [gtidRead, hl, ite_false, t16, t8, leNat_leBytes_lt 8 _ hG, d25, hb2, ne_eq, not_true_eq_false,
+    hR1l, hR1d, hR1t, hR1t', leNat_leBytes_lt 8 _ hLC, leNat_leBytes_lt 8 _ hSQ]
+  have hF : (F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).headD (byte 0) = F := rfl
+  have l7 := PBUtil.length_leBytes 7 (I + if I ≠ O then 2 ^ 55 else 0)
+  have l4 := PBUtil.length_leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0)
+  have hne : lenencInt T ≠ [] := by unfold lenencInt; split_ifs <;> simp
+  have hR3ne : ∃ b r, R3 = b :: r := by
+    obtain ⟨b, r, h⟩ := List.exists_cons_of_ne_nil hne
+    exact ⟨b, _, by rw [hR3, h, List.cons_append]⟩
+  obtain ⟨b3, r3', hbr⟩ := hR3ne
+  have hR3c : optFst (checkedLenencInt R3) = some (T, leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++
+      ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)) := by
+    rw [hR3, PBUtil.checkedLenencInt_lenencInt _ _ hT]; rfl
+  have hR2l : 7 ≤ R2.length := by rw [hR2]; simp
+  have hR2t : leNat (R2.take 7) = I + if I ≠ O then 2 ^ 55 else 0 := by
+    rw [hR2, List.take_left' l7, leNat_leBytes_lt 7 _ (by split_ifs <;> omega)]
+  simp only [hF, hR2l, ite_true, hR2t]
+  by_cases hIO : I = O
+  · subst hIO
+    simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero, Nat.testBit_lt_two_pow hI, Bool.false_eq_true]
+    have hd : R2.drop 7 = R3 := by
+      rw [hR2]; simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero] at l7 ⊢; rw [List.drop_left' l7]; rfl
+    rw [hd, hbr]
+    simp only []
+    rw [← hbr, hR3c]
+    simp only []
+    have hl4 : 4 ≤ (leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++ ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)).length := by
+      simp
+    simp only [hl4, ite_true]
+    rw [List.take_left' l4, leNat_leBytes_lt 4 _ (by split_ifs <;> omega)]
+    by_cases hV : IV = OV
+    · subst hV
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero, Nat.testBit_lt_two_pow hIV, Bool.false_eq_true,
+        List.nil_append]
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero] at l4
+      rw [List.drop_left' l4]
+      rfl
+    · have l4O := PBUtil.length_leBytes 4 OV
+      simp only [ne_eq, hV, not_false_eq_true, ite_true, testBit_add_pow IV 31 hIV]
+      simp only [ne_eq, hV, not_false_eq_true, ite_true] at l4
+      have hl8 : 4 ≤ ((leBytes 4 (IV + 2 ^ 31) ++ (leBytes 4 OV ++ tail)).drop 4).length := by
+        rw [List.drop_left' l4]; simp [l4O]
+      simp only [hl8, ite_true]
+      rw [List.drop_left' l4, List.take_left' l4O, leNat_leBytes_lt 4 _ hOV, Nat.add_sub_cancel,
+        show 8 = 4 + 4 from rfl, ← List.drop_drop, List.drop_left' l4, List.drop_left' l4O]
+      rfl
+  · have l7O := PBUtil.length_leBytes 7 O
+    simp only [ne_eq, hIO, not_false_eq_true, ite_true, testBit_add_pow I 55 hI]
+    have hd : R2.drop 7 = leBytes 7 O ++ R3 := by
+      rw [hR2]; simp only [ne_eq, hIO, not_false_eq_true, ite_true] at l7 ⊢; rw [List.drop_left' l7]
+    have hd14 : R2.drop 14 = R3 := by
+      rw [show 14 = 7 + 7 from rfl, ← List.drop_drop, hd, List.drop_left' l7O]
+    have hl7 : 7 ≤ (leBytes 7 O ++ R3).length := by simp [l7O]
+    simp only [hd14, hd, hl7, ite_true, List.take_left' l7O, leNat_leBytes_lt 7 _ hO, Nat.add_sub_cancel]
+    rw [hbr]
+    simp only []
+    rw [← hbr, hR3c]
+    simp only []
+    have hl4 : 4 ≤ (leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++ ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)).length := by
+      simp
+    simp only [hl4, ite_true]
+    rw [List.take_left' l4, leNat_leBytes_lt 4 _ (by split_ifs <;> omega)]
+    by_cases hV : IV = OV
+    · subst hV
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero, Nat.testBit_lt_two_pow hIV, Bool.false_eq_true,
+        List.nil_append]
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero] at l4
+      rw [List.drop_left' l4]
+      rfl
+    · have l4O := PBUtil.length_leBytes 4 OV
+      simp only [ne_eq, hV, not_false_eq_true, ite_true, testBit_add_pow IV 31 hIV]
+      simp only [ne_eq, hV, not_false_eq_true, ite_true] at l4
+      have hl8 : 4 ≤ ((leBytes 4 (IV + 2 ^ 31) ++ (leBytes 4 OV ++ tail)).drop 4).length := by
+        rw [List.drop_left' l4]; simp [l4O]
+      simp only [hl8, ite_true]
+      rw [List.drop_left' l4, List.take_left' l4O, leNat_leBytes_lt 4 _ hOV, Nat.add_sub_cancel,
+        show 8 = 4 + 4 from rfl, ← List.drop_drop, List.drop_left' l4, List.drop_left' l4O]
+      rfl
+
+/-- The GTID reader inverts the encoder (untagged, with the logical-clock part, timestamps below `2^55` / `2^56`, immediate server version below `2^31`). -/
+theorem gtidRead_gtidEnc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode.isSome)
+    (hi : e.immediate_commit_timestamp.1.val < 2 ^ 55) (ho : e.original_commit_timestamp.1.val < 2 ^ 56)
+    (hs : e.immediate_server_version.1.val < 2 ^ 31) (tail : List U8) :
+    gtidRead (gtidEnc e ++ tail) = some (gtidView e, tail) := by
+  obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hlc
+  have hS : e.sid.val.length = 16 := by simp
+  have h := gtid_aux e.flags.1 e.sid.val hS e.gno.1.val e.last_committed.1.val e.sequence_number.1.val
+    e.immediate_commit_timestamp.1.val e.original_commit_timestamp.1.val e.tx_length.1.val
+    e.immediate_server_version.1.val e.original_server_version.1.val (by scalar_tac) (by scalar_tac) (by scalar_tac)
+    hi (by simpa using ho) (by scalar_tac) hs (by scalar_tac) tail
+  simp only [gtidEnc, gtidView, hc, List.append_assoc, List.cons_append, List.nil_append]
+  rw [h]
+  simp
+
+/-- With the logical-clock part, the crate's GTID length is the encoded length. -/
+theorem gtidLenCrate_eq (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode.isSome) :
+    gtidLenCrate e = min (gtidEnc e).length evLenCap := by
+  obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hlc
+  have hs : e.sid.val.length = 16 := by simp
+  simp only [gtidLenCrate, gtidEnc, hc, List.length_append, List.length_cons, List.length_nil, hs,
+    PBUtil.length_leBytes]
+  split_ifs <;> simp <;> omega
+
+/-- Without it, the encoding is 25 bytes but the crate's length at least 54. -/
+theorem gtidLenCrate_ne (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode = none) :
+    (gtidEnc e).length = 25 ∧ 54 ≤ gtidLenCrate e := by
+  have hs : e.sid.val.length = 16 := by simp
+  have hl : 1 ≤ (lenencInt e.tx_length.1.val).length := by unfold lenencInt; split_ifs <;> simp
+  refine ⟨by simp [gtidEnc, hlc, hs, PBUtil.length_leBytes], ?_⟩
+  simp only [gtidLenCrate, evLenCap]
+  split_ifs <;> omega
+
+/-- A `Q_UPDATED_DB_NAMES` count of 254 (`OVER_MAX_DBS_IN_EVENT_MTS`, no names follow) stops the walk: the `Q_FLAGS2_CODE` variable after it is lost. -/
+theorem statusVarsOf_over_max_dbs : statusVarsOf [byte 12, byte 254, byte 0, byte 1, byte 2, byte 3, byte 4] = [] := by
+  decide
+
+/-- The walk from inside a failed variable: on `[11, 16, 1]` the walk from 0 is empty (`Q_INVOKER` truncated) but from 1 it yields `Q_EXPLICIT_DEFAULTS_FOR_TIMESTAMP`. -/
+theorem statusVarsIter_not_fused : svStep [byte 11, byte 16, byte 1] 0 = none ∧ svStep [byte 11, byte 16, byte 1] 1 = some ((16, [byte 1]), 3) := by
+  decide
+
+private theorem pgIntervals_read (is : List packets.GnoInterval) (tail : List U8) :
+    pgIntervalsRead is.length ((is.map gnoIntervalEnc).flatten ++ tail) =
+      some (is.map (fun i => (i.start.1.val, i.«end».1.val)), tail) := by
+  induction is with
+  | nil => rfl
+  | cons i is ih =>
+    have a1 := PBUtil.length_leBytes 8 i.start.1.val
+    have a2 := PBUtil.length_leBytes 8 i.«end».1.val
+    have b1 : i.start.1.val < 2 ^ (8 * 8) := by scalar_tac
+    have b2 : i.«end».1.val < 2 ^ (8 * 8) := by scalar_tac
+    have hL : ((i :: is).map gnoIntervalEnc).flatten ++ tail =
+        leBytes 8 i.start.1.val ++ (leBytes 8 i.«end».1.val ++ ((is.map gnoIntervalEnc).flatten ++ tail)) := by
+      simp [gnoIntervalEnc]
+    have d16 : (leBytes 8 i.start.1.val ++ (leBytes 8 i.«end».1.val ++ ((is.map gnoIntervalEnc).flatten ++ tail))).drop 16 =
+        (is.map gnoIntervalEnc).flatten ++ tail := by
+      rw [show 16 = 8 + 8 from rfl, ← List.drop_drop, List.drop_left' a1, List.drop_left' a2]
+    have hl : 16 ≤ (leBytes 8 i.start.1.val ++ (leBytes 8 i.«end».1.val ++ ((is.map gnoIntervalEnc).flatten ++ tail))).length := by
+      simp [a1, a2]; omega
+    rw [List.length_cons, pgIntervalsRead, hL]
+    simp only [hl, ↓reduceIte]
+    rw [d16, ih, List.take_left' a1, List.drop_left' a1,
+      List.take_left' a2, leNat_leBytes_lt 8 _ b1, leNat_leBytes_lt 8 _ b2]
+    rfl
+
+private theorem pgSids_read (ss : List binlog.events.previous_gtids_event.PreviousGtidsSid) (tail : List U8) :
+    pgSidsRead ss.length ((ss.map pgSidEnc).flatten ++ tail) = some (ss.map pgSidView, tail) := by
+  induction ss with
+  | nil => rfl
+  | cons sd ss ih =>
+    have hu : sd.uuid.val.length = 16 := by simp
+    have a1 := PBUtil.length_leBytes 8 sd.intervals.length
+    have b1 : sd.intervals.length < 2 ^ (8 * 8) := mysql_common.lt_two_pow_64_of_le_max (by scalar_tac)
+    have hL : ((sd :: ss).map pgSidEnc).flatten ++ tail =
+        sd.uuid.val ++ (leBytes 8 sd.intervals.length ++ ((sd.intervals.val.map gnoIntervalEnc).flatten ++
+          ((ss.map pgSidEnc).flatten ++ tail))) := by
+      simp [pgSidEnc]
+    have hl : ¬ (sd.uuid.val ++ (leBytes 8 sd.intervals.length ++ ((sd.intervals.val.map gnoIntervalEnc).flatten ++
+          ((ss.map pgSidEnc).flatten ++ tail)))).length < 24 := by
+      simp [hu, a1]; omega
+    have d24 : (sd.uuid.val ++ (leBytes 8 sd.intervals.length ++ ((sd.intervals.val.map gnoIntervalEnc).flatten ++
+          ((ss.map pgSidEnc).flatten ++ tail)))).drop 24 =
+        (sd.intervals.val.map gnoIntervalEnc).flatten ++ ((ss.map pgSidEnc).flatten ++ tail) := by
+      rw [show 24 = 16 + 8 from rfl, ← List.drop_drop, List.drop_left' hu, List.drop_left' a1]
+    have hlen : sd.intervals.length = sd.intervals.val.length := rfl
+    rw [List.length_cons, pgSidsRead, hL]
+    simp only [hl, ↓reduceIte]
+    rw [d24, List.drop_left' hu, List.take_left' a1,
+      leNat_leBytes_lt 8 _ b1, List.take_left' hu, hlen, pgIntervals_read]
+    simp only [ih, Option.map_some, List.map_cons, pgSidView]
+
+/-- The untagged previous-GTIDs reader inverts the encoder (fewer than `2^56` SIDs). -/
+theorem pgRead_pgEnc (e : binlog.events.previous_gtids_event.PreviousGtidsEvent) (hl : e.sids.length < 2 ^ 56) (tail : List U8) :
+    pgRead (pgEnc e ++ tail) = some (e.sids.val.map pgSidView, tail) := by
+  have a1 := PBUtil.length_leBytes 8 e.sids.length
+  have b1 : e.sids.length < 2 ^ (8 * 8) := by omega
+  rw [pgRead]
+  simp only [pgEnc, List.append_assoc]
+  rw [List.take_left' a1, List.drop_left' a1, leNat_leBytes_lt 8 _ b1, Nat.mod_eq_of_lt hl]
+  exact pgSids_read _ _
+
+/-- The table map reader inverts the encoder for a consistent event (post-header not 6 bytes, table id below `2^48`). -/
+theorem tmRead_tmEnc (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
+    (p : Nat) (hp : p ≠ 6) : tmRead p (tmEnc e) = some (tmView e, []) := by
+  obtain ⟨h1, h2, h3, h4⟩ := hc
+  have hf : e.flags.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have ht' : e.table_id.1.val < 2 ^ (8 * 6) := by simpa using ht
+  have hn : e.columns_count.1.val < 2 ^ 64 := by scalar_tac
+  have hm : (cowList e.columns_metadata.1).length < 2 ^ 64 :=
+    mysql_common.lt_two_pow_64_of_le_max (PKUtil.cowList_length_le _)
+  have hb : (cowList e.null_bitmask.1).take (2 ^ 61) = cowList e.null_bitmask.1 := by
+    apply List.take_of_length_le; rw [h4]; omega
+  have r6 : ∀ R, readLE 6 (leBytes 6 e.table_id.1.val ++ R) = some (e.table_id.1.val, R) := fun R => readLE_app 6 _ R ht'
+  have r2 : ∀ R, readLE 2 (leBytes 2 e.flags.1.val ++ R) = some (e.flags.1.val, R) := fun R => readLE_app 2 _ R hf
+  have c1 : ∀ R, checkedLenPrefixed 1 (u8Str (cowList e.database_name.1) ++ R) = (some (cowList e.database_name.1), R) :=
+    fun R => clp_u8Str _ R h1
+  have c2 : ∀ R, checkedLenPrefixed 1 (u8Str (cowList e.table_name.1) ++ R) = (some (cowList e.table_name.1), R) :=
+    fun R => clp_u8Str _ R h2
+  have c3 : ∀ R, checkedLenencInt (lenencInt e.columns_count.1.val ++ R) = (some e.columns_count.1.val, R) :=
+    fun R => PBUtil.checkedLenencInt_lenencInt _ R hn
+  have c4 : ∀ R, checkedLenencStr (lenencStr (cowList e.columns_metadata.1) ++ R) = (some (cowList e.columns_metadata.1), R) :=
+    fun R => cls_lenencStr _ R hm
+  have t1 : ∀ R, takeExact 1 ([byte 0] ++ R) = some ([byte 0], R) := fun R => takeExact_app _ R 1 rfl
+  have tn : ∀ R, takeExact e.columns_count.1.val (cowList e.columns_type.1 ++ R) = some (cowList e.columns_type.1, R) :=
+    fun R => takeExact_app _ R _ h3
+  have tb : ∀ R, takeExact ((e.columns_count.1.val + 7) / 8) (cowList e.null_bitmask.1 ++ R) = some (cowList e.null_bitmask.1, R) :=
+    fun R => takeExact_app _ R _ h4
+  simp only [tmRead, tmEnc, hp, ite_false, Option.bind_eq_bind, List.append_assoc, r6, Option.bind_some, r2, c1, optFst,
+    t1, c2, c3, tn, c4, hb, tb, tmView]
+
+/-- The table map length bug on the smallest case: a consistent event without columns is counted one byte too long. -/
+theorem tmLenCrate_zero (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (h0 : e.columns_count.1.val = 0)
+    (hcap : (tmEnc e).length + 1 ≤ evLenCap) : tmLenCrate e = (tmEnc e).length + 1 := by
+  obtain ⟨h1, h2, h3, h4⟩ := hc
+  rw [h0] at h3 h4
+  have h3' : cowList e.columns_type.1 = [] := List.length_eq_zero_iff.mp h3
+  have h4' : cowList e.null_bitmask.1 = [] := List.length_eq_zero_iff.mp (by simpa using h4)
+  simp only [tmLenCrate, tmEnc, h0, h3', h4', u8Str, List.length_append, List.length_cons, List.length_take,
+    List.length_nil, PBUtil.length_leBytes] at hcap ⊢
+  simp only [h0, Nat.reduceAdd, Nat.reduceDiv] at *
+  omega
+
+/-- Metadata walk on an example: columns `LONG` (none), `VARCHAR` (2 bytes), `BLOB` (1 byte). -/
+theorem tmMetaAt_example : tmMetaAt [byte 3, byte 15, byte 252] [byte 10, byte 0, byte 4] 1 = some [byte 10, byte 0] ∧
+      tmMetaAt [byte 3, byte 15, byte 252] [byte 10, byte 0, byte 4] 2 = some [byte 4] := by
+  have c3 : columnTypeOfCode 3 = some .MYSQL_TYPE_LONG := rfl
+  have c15 : columnTypeOfCode 15 = some .MYSQL_TYPE_VARCHAR := rfl
+  have c252 : columnTypeOfCode 252 = some .MYSQL_TYPE_BLOB := rfl
+  have b3 : (byte 3).val = 3 := rfl
+  have b15 : (byte 15).val = 15 := rfl
+  have b252 : (byte 252).val = 252 := rfl
+  constructor <;> simp [tmMetaAt, tmColumnMeta, c3, c15, c252, b3, b15, b252, getMetadataLen, takeExact]
+
+/-- The rows reader inverts the encoder for a consistent event, with post-header lengths that agree with its type. -/
+theorem rowsRead_rowsEnc (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
+    (p pw : Nat) (hp : p ≠ 6) (hv : p = pw ↔ rowsIsV2 e.event_type = true) :
+    rowsRead e.event_type p pw (rowsEnc e) = some (rowsView e, []) := by
+  obtain ⟨c1, c2, c3, c4⟩ := hc
+  have hf : e.flags.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have ht' : e.table_id.1.val < 2 ^ (8 * 6) := by simpa using ht
+  have hn : e.num_columns.1.val < 2 ^ 64 := by scalar_tac
+  have hbl : (e.num_columns.1.val + 7) / 8 ≤ 2 ^ 61 := by omega
+  have r6 : ∀ R, readLE 6 (leBytes 6 e.table_id.1.val ++ R) = some (e.table_id.1.val, R) := fun R => readLE_app 6 _ R ht'
+  have r2 : ∀ R, readLE 2 (leBytes 2 e.flags.1.val ++ R) = some (e.flags.1.val, R) := fun R => readLE_app 2 _ R hf
+  have cn : ∀ R, checkedLenencInt (lenencInt e.num_columns.1.val ++ R) = (some e.num_columns.1.val, R) :=
+    fun R => PBUtil.checkedLenencInt_lenencInt _ R hn
+  have hmin : min (cowList e.extra_data.1).length 65533 = (cowList e.extra_data.1).length := Nat.min_eq_left c1
+  have rx : ∀ R, readLE 2 (leBytes 2 ((cowList e.extra_data.1).length + 2) ++ R) =
+      some ((cowList e.extra_data.1).length + 2, R) := fun R => readLE_app 2 _ R (by omega)
+  have tx' : ∀ R, takeExact (cowList e.extra_data.1).length (cowList e.extra_data.1 ++ R) =
+      some (cowList e.extra_data.1, R) := fun R => takeExact_app _ R _ rfl
+  have hbt : ∀ (b : misc.raw.bytes.RawBytes misc.raw.bytes.BareBitmapBytes Usize),
+      (cowList b.1).length = (e.num_columns.1.val + 7) / 8 →
+      ∀ R, takeExact ((e.num_columns.1.val + 7) / 8) ((cowList b.1).take 2305843009213693952 ++ R) = some (cowList b.1, R) := by
+    intro b hb R
+    rw [List.take_of_length_le (by omega)]
+    exact takeExact_app _ R _ hb
+  have hpw' : (p = pw) = (rowsIsV2 e.event_type = true) := propext hv
+  by_cases hv2 : rowsIsV2 e.event_type = true
+  · have hpw : p = pw := hv.mpr hv2
+    have hp' : pw ≠ 6 := hpw ▸ hp
+    cases hb : e.columns_before_image <;> cases ha : e.columns_after_image <;>
+      simp only [hb, ha, Option.map_none, Option.map_some] at c3 c4 <;>
+      cases hU : rowsIsUpdate e.event_type <;> cases hD : rowsIsDelete e.event_type <;> simp [hU, hD] at c3 c4 <;>
+      simp [rowsRead, rowsEnc, hp', hpw, hv2, Option.bind_eq_bind, r6, r2, hmin, List.take_of_length_le c1, rx, tx', cn,
+        optFst, hb, ha, hU, hD, rowsView, hbt, c3, c4]
+  · have hpw : ¬ p = pw := fun h => hv2 (hv.mp h)
+    have he : cowList e.extra_data.1 = [] := c2 (by simpa using hv2)
+    cases hb : e.columns_before_image <;> cases ha : e.columns_after_image <;>
+      simp only [hb, ha, Option.map_none, Option.map_some] at c3 c4 <;>
+      cases hU : rowsIsUpdate e.event_type <;> cases hD : rowsIsDelete e.event_type <;> simp [hU, hD] at c3 c4 <;>
+      simp [rowsRead, rowsEnc, hp, hpw, hv2, Option.bind_eq_bind, r6, r2, cn, he,
+        optFst, hb, ha, hU, hD, rowsView, hbt, c3, c4]
+
+/-- The rows length quirk: for a consistent v1 event the crate's length is 2 more than the encoding (under the cap). -/
+theorem rowsLenCrate_v1 (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (h1 : rowsIsV2 e.event_type = false)
+    (hcap : (rowsEnc e).length + 2 ≤ evLenCap) : rowsLenCrate e = (rowsEnc e).length + 2 := by
+  obtain ⟨c1, c2, h3, h4⟩ := hc
+  have hex := c2 h1
+  have hn : e.num_columns.1.val < 2 ^ 64 := by scalar_tac
+  have hbl : (e.num_columns.1.val + 7) / 8 ≤ 2 ^ 61 := by omega
+  simp only [rowsLenCrate, rowsEnc, h1, hex, Bool.false_eq_true, ite_false, List.length_append, List.length_nil,
+    PBUtil.length_leBytes] at hcap ⊢
+  cases hb : e.columns_before_image <;> cases ha : e.columns_after_image <;>
+    simp only [hb, ha, Option.map, Option.isSome, Option.getD, List.length_take, List.length_nil, ite_true,
+      ite_false, Bool.false_eq_true] at h3 h4 hcap ⊢ <;>
+    split_ifs at h3 h4 <;> simp_all <;> omega
+
+end Defs
