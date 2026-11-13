@@ -5,6 +5,7 @@ import Proofs.Misc.Raw.Bytes.EofBytes
 import Proofs.Misc.Raw.Bytes.BareBytes
 import Proofs.Binlog.Events.QueryEvent.QueryEvent
 import Proofs.Misc.Raw.Const.Const
+import Proofs.Binlog.Consts.LoadDuplicateHandling
 
 /-! Statements for `struct ExecuteLoadQueryEvent and its impls` (spec file: `Specs/Binlog/Events/ExecuteLoadQueryEvent.lean`). -/
 
@@ -105,10 +106,201 @@ theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql
     binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none := by
   unfold binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE; rfl
 
+private theorem pu_load_dup (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      binlog.consts.LoadDuplicateHandling.Insts.CoreConvertTryFromU8UnknownDuplicateHandling
+      binlog.consts.UnknownDuplicateHandling.Insts.CoreErrorError) buf () ⦃ r _rest =>
+      (okPart r).map (·.1) = loadDupOfCode (leNat (buf.val.take 1)) ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
+    U8.Insts.Mysql_commonMiscRawIntIntReprU8
+    binlog.consts.LoadDuplicateHandling.Insts.CoreConvertTryFromU8UnknownDuplicateHandling
+    binlog.consts.UnknownDuplicateHandling.Insts.CoreErrorError buf
+    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 1)) ∧ rest.val = buf.val.drop 1)
+    (U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_spec buf h)
+    (fun p o => o = loadDupOfCode p.val)
+    (fun p => by
+      have hh := binlog.consts.LoadDuplicateHandling.Insts.CoreConvertTryFromU8UnknownDuplicateHandling.try_from_spec p
+      simp only [hh]
+      apply (WP.spec_ok _).mpr
+      split <;> simp_all [okPart])
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ ⟨o, ⟨ho, -⟩, hm⟩
+  cases o with
+  | none => simp at ho
+  | some p =>
+    simp only [Option.map_some, Option.some.injEq] at ho hm
+    simpa [← ho] using hm
+
+private theorem loadDup_some (n : Nat) (x : binlog.consts.LoadDuplicateHandling) (h : loadDupOfCode n = some x) :
+    loadDupCode x = n ∧ n ≤ 2 := by
+  unfold loadDupOfCode at h
+  have := List.find?_some h
+  have hm := List.mem_of_find?_eq_some h
+  simp at this hm
+  rcases hm with rfl | rfl | rfl <;> simp_all [loadDupCode]
+
+private theorem loadDup_none (n : Nat) (h : loadDupOfCode n = none) : 2 < n := by
+  unfold loadDupOfCode at h
+  simp [List.find?_eq_none, loadDupCode] at h
+  omega
+
 /-- `MyDeserialize`: total; `elqRead`. -/
 theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs elqView (elqRead buf.val) r rest ⦄ := by
-  sorry
+  unfold binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  step with PKUtil.parse_usize_spec as ⟨r, b1, h1⟩
+  by_cases hl : 26 ≤ buf.length
+  · simp only [hl, ite_true] at h1
+    obtain ⟨h1, hb1⟩ := h1
+    have hlen : 26 ≤ buf.val.length := hl
+    cases r with
+    | Err e => simp at h1
+    | Ok pb =>
+      simp only [PKUtil.okPart_Ok, Option.map_some, Option.some.injEq] at h1
+      simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+      have lp : pb.val.length = 26 := by rw [h1]; simp; omega
+      step with pu_leu32 as ⟨r1, s1, v1, hr1, h1v, hs1⟩
+      subst hr1
+      simp only [bind_ok]
+      have l1 : s1.val.length = 22 := by rw [hs1]; simp [lp]
+      step with pu_leu32 as ⟨r2, s2, v2, hr2, h2v, hs2⟩
+      subst hr2
+      simp only [bind_ok]
+      have l2 : s2.val.length = 18 := by rw [hs2]; simp [l1]
+      step with pu_u8 as ⟨r3, s3, v3, hr3, h3v, hs3⟩
+      subst hr3
+      simp only [bind_ok]
+      have l3 : s3.val.length = 17 := by rw [hs3]; simp [l2]
+      step with pu_leu16 as ⟨r4, s4, v4, hr4, h4v, hs4⟩
+      subst hr4
+      simp only [bind_ok]
+      have l4 : s4.val.length = 15 := by rw [hs4]; simp [l3]
+      step with pu_leu16 as ⟨r5, s5, v5, hr5, h5v, hs5⟩
+      subst hr5
+      simp only [bind_ok]
+      have l5 : s5.val.length = 13 := by rw [hs5]; simp [l4]
+      step with pu_leu32 as ⟨r6, s6, v6, hr6, h6v, hs6⟩
+      subst hr6
+      simp only [bind_ok]
+      have l6 : s6.val.length = 9 := by rw [hs6]; simp [l5]
+      step with pu_leu32 as ⟨r7, s7, v7, hr7, h7v, hs7⟩
+      subst hr7
+      simp only [bind_ok]
+      have l7 : s7.val.length = 5 := by rw [hs7]; simp [l6]
+      step with pu_leu32 as ⟨r8, s8, v8, hr8, h8v, hs8⟩
+      subst hr8
+      simp only [bind_ok]
+      have l8 : s8.val.length = 1 := by rw [hs8]; simp [l7]
+      step with pu_load_dup as ⟨r9, s9, h9v⟩
+      have e2 : s2.val = pb.val.drop 8 := by rw [hs2, hs1, List.drop_drop]
+      have e3 : s3.val = pb.val.drop 9 := by rw [hs3, e2, List.drop_drop]
+      have e4 : s4.val = pb.val.drop 11 := by rw [hs4, e3, List.drop_drop]
+      have e5 : s5.val = pb.val.drop 13 := by rw [hs5, e4, List.drop_drop]
+      have e6 : s6.val = pb.val.drop 17 := by rw [hs6, e5, List.drop_drop]
+      have e7 : s7.val = pb.val.drop 21 := by rw [hs7, e6, List.drop_drop]
+      have e8 : s8.val = pb.val.drop 25 := by rw [hs8, e7, List.drop_drop]
+      have f8 : (pb.val.drop 8).headD (byte 0) = v3.1 := by
+        rw [← e2]
+        obtain ⟨b, t, hbt⟩ : ∃ b t, s2.val = b :: t := by
+          cases hx : s2.val with
+          | nil => rw [hx] at l2; simp at l2
+          | cons b t => exact ⟨b, t, rfl⟩
+        rw [hbt] at h3v ⊢
+        apply UScalar.eq_of_val_eq
+        simp [h3v, leNat]
+      have f8' : pb.val[8]?.getD (byte 0) = v3.1 := by rw [← f8]; simp
+      have f25 : ((pb.val.drop 25).headD (byte 0)).val = leNat (s8.val.take 1) := by
+        rw [← e8]
+        obtain ⟨b, t, hbt⟩ : ∃ b t, s8.val = b :: t := by
+          cases hx : s8.val with
+          | nil => rw [hx] at l8; simp at l8
+          | cons b t => exact ⟨b, t, rfl⟩
+        rw [hbt]; simp [leNat]
+      have f25' : (pb.val[25]?.getD (byte 0)).val = leNat (s8.val.take 1) := by rw [← f25]; simp
+      have f44 : leNat ((pb.val.drop 4).take 4) = v2.1.val := by rw [h2v, hs1]
+      have f9 : leNat ((pb.val.drop 9).take 2) = v4.1.val := by rw [h4v, e3]
+      have f11 : leNat ((pb.val.drop 11).take 2) = v5.1.val := by rw [h5v, e4]
+      have f13 : leNat ((pb.val.drop 13).take 4) = v6.1.val := by rw [h6v, e5]
+      have f17 : leNat ((pb.val.drop 17).take 4) = v7.1.val := by rw [h7v, e6]
+      have f21 : leNat ((pb.val.drop 21).take 4) = v8.1.val := by rw [h8v, e7]
+      have hT26 : takeExact 26 buf.val = some (pb.val, b1.val) := by
+        simp [takeExact, hlen, h1, hb1]
+      cases r9 with
+      | Err e =>
+        simp only [PKUtil.okPart_Err, Option.map_none] at h9v
+        have hd := loadDup_none _ h9v.symm
+        rw [← f25'] at hd
+        simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, elqRead, Option.bind_eq_bind, hT26, hd]
+      | Ok v9 =>
+        simp only [PKUtil.okPart_Ok, Option.map_some] at h9v
+        obtain ⟨hdc, hd2⟩ := loadDup_some _ _ h9v.symm
+        rw [← f25'] at hdc hd2
+        have hnd : ¬ 2 < (pb.val[25]?.getD (byte 0)).val := by omega
+        have hgd : (pb.val.drop 25).headD (byte 0) = pb.val[25]?.getD (byte 0) := by simp
+        have hnd' : ¬ 2 < ((pb.val.drop 25).headD (byte 0)).val := by rw [hgd]; exact hnd
+        simp only [bind_ok]
+        step with IntAndMisc.rawint_deref_spec as ⟨d5, hd5⟩
+        subst hd5
+        step with parse_status_vars as ⟨r10, b2, h10⟩
+        split_ifs at h10 with hk10
+        · obtain ⟨sv, rfl, hsv, hb2⟩ := h10
+          have hT10 : takeExact v5.1.val b1.val = some (b1.val.take v5.1.val, b2.val) := by
+            simp [takeExact, hb2]; simpa [Slice.length] using hk10
+          simp only [bind_ok]
+          step with IntAndMisc.rawint_deref_spec as ⟨d3, hd3⟩
+          subst hd3
+          have hc3 : (UScalar.cast .Usize v3.1).val = v3.1.val := IntAndMisc.cast_usize_small _ (by scalar_tac)
+          simp only [lift, bind_ok]
+          step with parse_bare as ⟨r11, b3, h11⟩
+          rw [hc3] at h11
+          split_ifs at h11 with hk11
+          · obtain ⟨rb, rfl, hrb, hb3⟩ := h11
+            have hT11 : takeExact v3.1.val b2.val = some (b2.val.take v3.1.val, b3.val) := by
+              simp [takeExact, hb3]; simpa [Slice.length] using hk11
+            simp only [bind_ok]
+            step with parse_skip1 as ⟨r12, b4, h12⟩
+            split_ifs at h12 with hk12
+            · obtain ⟨v12, rfl, hb4⟩ := h12
+              have hT12 : takeExact 1 b3.val = some (b3.val.take 1, b4.val) := by
+                simp only [takeExact, show 1 ≤ b3.val.length from by simpa [Slice.length] using hk12, ite_true, hb4]
+              simp only [bind_ok]
+              step with PKUtil.parse_eof_bytes_spec as ⟨r13, b5, h13, hb5⟩
+              cases r13 with
+              | Err e => simp at h13
+              | Ok rb1 =>
+                simp only [PKUtil.okPart_Ok, Option.map_some, Option.some.injEq] at h13
+                simp only [bind_ok]
+                apply (WP.spec_ok _).mpr
+                simp only [ReadsAs, elqRead, Option.bind_eq_bind, hT26, Option.bind_some, f11, hT10, f8, hT11, hT12, hnd', ite_false]
+                refine ⟨?_, hb5⟩
+                simp [elqView, f44, f9, f13, f17, f21, ← h1v, hsv, hrb, h13, hb4, hdc]
+            · cases r12 with
+              | Ok v => simp at h12
+              | Err e =>
+                have hT12 : takeExact 1 b3.val = none := by
+                  simp [takeExact]; simpa [Slice.length] using hk12
+                simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, elqRead, Option.bind_eq_bind, hT26, hnd, f11, hT10, f8', hT11, hT12]
+          · cases r11 with
+            | Ok v => simp at h11
+            | Err e =>
+              have hT11 : takeExact v3.1.val b2.val = none := by
+                simp [takeExact]; simpa [Slice.length] using hk11
+              simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, elqRead, Option.bind_eq_bind, hT26, hnd, f11, hT10, f8', hT11]
+        · cases r10 with
+          | Ok v => simp at h10
+          | Err e =>
+            have hT10 : takeExact v5.1.val b1.val = none := by
+              simp [takeExact]; simpa [Slice.length] using hk10
+            simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, elqRead, Option.bind_eq_bind, hT26, hnd, f11, hT10]
+  · simp only [hl, ite_false] at h1
+    obtain ⟨h1, -⟩ := h1
+    have hfr : ¬ 26 ≤ buf.val.length := by simp [Slice.length] at hl; omega
+    cases r with
+    | Ok pb => simp at h1
+    | Err e =>
+      simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, elqRead, takeExact, hfr]
 
 set_option linter.unusedSimpArgs false in
 /-- `MySerialize`: appends the layout `elqEnc`. -/
