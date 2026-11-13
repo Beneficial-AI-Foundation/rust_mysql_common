@@ -31,5 +31,8 @@ import Specs.NamedParams
 import Specs.Params
 import Specs.Value.AsSql
 import Specs.DefsSqlText
+import Specs.Packets.Connection
+import Specs.Packets.CachingSha2Password
+import Specs.DefsConn
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/
