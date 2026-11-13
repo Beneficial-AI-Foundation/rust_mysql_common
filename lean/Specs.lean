@@ -59,6 +59,12 @@ import Specs.Binlog.Events.UpdateRowsEvent
 import Specs.Binlog.Events.DeleteRowsEvent
 import Specs.Binlog.Events.PartialUpdateRowsEvent
 import Specs.DefsBinlogEvents
+import Specs.Binlog.Mod
+import Specs.Binlog.Consts
+import Specs.Binlog.Misc
+import Specs.Binlog.Value
+import Specs.Binlog.Row
+import Specs.DefsBinlogCore
 import Specs.Packets.StmtBinlog
 import Specs.Packets.SessionStateChange
 import Specs.Packets.BinlogRequest

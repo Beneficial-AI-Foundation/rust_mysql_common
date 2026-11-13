@@ -14,6 +14,8 @@ import Defs.Compression
 import Defs.SqlText
 import Defs.Connection
 import Defs.BinlogEvents
+import Defs.BinlogCore
+import Defs.BinlogValue
 import Defs.CmdPackets
 import Defs.SessionState
 import Defs.BinlogCmd
