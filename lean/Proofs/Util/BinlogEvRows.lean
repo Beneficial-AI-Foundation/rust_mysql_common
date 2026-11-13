@@ -597,4 +597,102 @@ theorem real_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Us
       · simp only [hm] at i_post ⊢; simp at i_post; subst i_post; simpa using hr
   all_goals simp [binlog.events.table_map_event.TableMapEvent.get_real_type, columnTypeCode]
 
+/-! ## Table map length -/
+
+theorem uadd_overflow' {ty : UScalarTy} (x y : UScalar ty) (h : 2 ^ ty.numBits ≤ x.val + y.val) :
+    x + y = fail .integerOverflow := by
+  show UScalar.add x y = _
+  simp only [UScalar.add, UScalar.tryMk]
+  have := UScalar.tryMkOpt_eq ty (x.val + y.val)
+  cases hc : UScalar.tryMkOpt ty (x.val + y.val) with
+  | none => rfl
+  | some z => rw [hc] at this; exfalso; simp [UScalar.inBounds] at this; omega
+
+theorem lsl_cases (s : Slice U8) :
+    (∃ v, misc.lenenc_str_len s = ok v ∧ v.val = (lenencStr s.val).length) ∨
+      misc.lenenc_str_len s = fail .integerOverflow := by
+  by_cases h : (lenencStr s.val).length < 2 ^ 64
+  · left; exact PBUtil.spec_eq_ok (misc.lenenc_str_len_spec s h)
+  · right
+    unfold misc.lenenc_str_len
+    have hs : s.val.length < 2 ^ 64 := lt_two_pow_64_of_le_max s.property
+    have hl : (UScalar.cast UScalarTy.U64 (Slice.len s)).val = s.val.length := by
+      rw [UScalar.cast_val_eq]; simp [Slice.len]; simpa using hs
+    obtain ⟨i1, h1, hi1⟩ := PBUtil.spec_eq_ok (misc.lenenc_int_len_spec (UScalar.cast UScalarTy.U64 (Slice.len s)))
+    rw [hl] at hi1
+    have ho := uadd_overflow' i1 (UScalar.cast UScalarTy.U64 (Slice.len s)) (by
+      rw [hl, hi1]; simp [lenencStr] at h; simp; omega)
+    simp [lift, h1, ho]
+
+theorem tm_len_gen (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion)
+    (hn : e.columns_count.1.val + 8 < 2 ^ 64) (hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64) :
+    binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = tmLenCrate e ⦄ := by
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  have hcap := usize_max_ge_cap
+  have hmax : Usize.max = 2 ^ 64 - 1 := by simp [Target64] at h64; simp [Usize.max, Usize.numBits, h64]
+  have hcc : binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1 := rfl
+  simp only [hcc, bind_ok]
+  obtain ⟨tid, fl, ⟨c, u⟩, n1, ⟨c1, u1⟩, n2, cc, ct, md, nb, om⟩ := e
+  simp only at hn hm ⊢
+  step*
+  step with misc.lenenc_int_len_spec as ⟨ i6, hi6 ⟩
+  step*
+  step with misc.lenenc_str_len_spec _ (by rw [s2_post]; exact hm) as ⟨ i9, hi9 ⟩
+  step*
+  step with misc.raw.bytes.RawBytes.len_spec misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple _ rfl as ⟨ i14, hi14 ⟩
+  step*
+  · rw [i15_post, cast_u32max]; simp [binlog.events.BinlogEventHeader.LEN]
+  · have hL : binlog.events.BinlogEventHeader.LEN.val = 19 := by simp [binlog.events.BinlogEventHeader.LEN]
+    have h1 : i1.val = 255 := by rw [i1_post, cast_u8max]
+    have h4 : i4.val = 255 := by rw [i4_post, cast_u8max]
+    have h15 : i15.val = 2 ^ 32 - 1 := by rw [i15_post, cast_u32max]
+    have hl9 := lenencInt_length_le cc.1.val
+    have h7 : i7.val = (lenencInt cc.1.val).length := by rw [i7_post, cast_small _ (by omega), hi6]
+    have h8 : i8.val = cc.1.val := by rw [i8_post, PBUtil.cast_usize_64 h64]
+    have h11 : i11.val = cc.1.val := by rw [i11_post, PBUtil.cast_usize_64 h64]
+    have h10 : i10.val = (lenencStr (cowList md.1)).length := by
+      rw [i10_post, cast_small _ (by rw [hi9, s2_post]; omega), hi9, s2_post]
+    have hom := PKUtil.cowList_length_le om.1
+    have hEM := misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
+    have hs : s.len.val = (cowList c).length := by simp [Slice.len, ← s_post]
+    have hs1 : s1.len.val = (cowList c1).length := by simp [Slice.len, ← s1_post]
+    simp only [tmLenCrate, evLenCap]
+    rw [hEM] at hi14
+    have hdb := min_le_right (cowList c).length 255
+    have htb := min_le_right (cowList c1).length 255
+    have e2 : len2.val = 9 := by clear * - len_post len1_post len2_post hcap; omega
+    have e3 : len3.val = 9 + min (cowList c).length 255 := by
+      rw [len3_post, i2_post, hs, h1, e2]; clear * - hcap; omega
+    have e5 : len5.val = 11 + min (cowList c).length 255 := by
+      rw [len5_post, len4_post, e3]; clear * - hcap; omega
+    have e7 : len7.val = 12 + min (cowList c).length 255 + min (cowList c1).length 255 := by
+      rw [len7_post, len6_post, i5_post, hs1, h4, e5]; clear * - hcap; omega
+    have e8 : len8.val = 6 + 2 + 1 + min (cowList c).length 255 + 1 + 1 + min (cowList c1).length 255 + 1 +
+        (lenencInt cc.1.val).length := by
+      rw [len8_post, h7, e7]; clear * - hcap hl9; omega
+    have key : ∀ (a b c d f M K : Nat), K ≤ M →
+        min (min (min (min (min (a + b) M + c) M + d) M + f) M) K = min (a + b + c + d + f) K := by
+      intros; omega
+    have hK : i16.val ≤ Usize.max := by rw [i16_post, h15, hL]; clear * - hcap; omega
+    rw [n_post, len12_post, len11_post, len10_post, len9_post, key _ _ _ _ _ _ _ hK]
+    rw [e8, h8, h10, i13_post, i12_post, h11, hi14, Nat.min_eq_left hom, i16_post, h15, hL]
+
+theorem tm_len_panics (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion)
+    (hn : 2 ^ 64 ≤ e.columns_count.1.val + 8) :
+    binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v = fail .integerOverflow := by
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  have hcc : binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1 := rfl
+  simp only [hcc, bind_ok]
+  obtain ⟨tid, fl, ⟨c, u⟩, n1, ⟨c1, u1⟩, n2, cc, ct, md, nb, om⟩ := e
+  simp only at hn ⊢
+  obtain ⟨s, hs, -⟩ := PBUtil.spec_eq_ok (cow_deref_spec core.clone.CloneU8 c)
+  obtain ⟨s1, hs1, -⟩ := PBUtil.spec_eq_ok (cow_deref_spec core.clone.CloneU8 c1)
+  obtain ⟨i6, hi6, -⟩ := PBUtil.spec_eq_ok (misc.lenenc_int_len_spec cc.1)
+  obtain ⟨s2, hs2, -⟩ := PBUtil.spec_eq_ok (PKUtil.lenenc_as_bytes_spec md)
+  have hadd : UScalar.cast UScalarTy.Usize cc.1 + 8#usize = fail .integerOverflow :=
+    uadd_overflow' _ _ (by
+      rw [PBUtil.cast_usize_64 h64]; simp [Target64] at h64; simp [UScalarTy.numBits, h64]; omega)
+  rcases lsl_cases s2 with ⟨i9, h9, -⟩ | h9 <;>
+    simp [hs, hs1, hi6, hs2, h9, lift, hadd]
+
 end mysql_common.BERUtil

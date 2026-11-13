@@ -161,11 +161,24 @@ theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinl
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_bug (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64)
     (hcap : (tmEnc e).length + (e.columns_count.1.val + 8) / 7 ≤ evLenCap) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val + (e.columns_count.1.val + 7) / 8 = (tmEnc e).length + (e.columns_count.1.val + 8) / 7 ⦄ := by
-  sorry
+  obtain ⟨hdb, htb, hty, hnb⟩ := hc
+  have hb61 : (e.columns_count.1.val + 7) / 8 ≤ 2 ^ 61 := BERUtil.bl_le _
+  have hlen : (tmEnc e).length = 6 + 2 + (1 + min (cowList e.database_name.1).length 255) + 1 + (1 + min (cowList e.table_name.1).length 255) + 1 +
+      (lenencInt e.columns_count.1.val).length + e.columns_count.1.val + (lenencStr (cowList e.columns_metadata.1)).length +
+      (e.columns_count.1.val + 7) / 8 + (cowList e.optional_metadata.1).length := by
+    simp only [tmEnc, u8Str, List.length_append, List.length_cons, List.length_take, length_leBytes, hty, hnb, List.length_nil]
+    omega
+  have hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64 := by
+    simp only [evLenCap] at hcap; omega
+  apply WP.spec_mono (BERUtil.tm_len_gen h64 e v hn hm)
+  intro n hn'
+  rw [hn']
+  simp only [tmLenCrate, evLenCap] at hcap ⊢
+  omega
 
 /-- `BinlogStruct::len` panics (overflow of `columns_count as usize + 8`) for a column count of `2^64 - 8` or more. -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_panics (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : 2 ^ 64 ≤ e.columns_count.1.val + 8) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v = fail .integerOverflow := by
-  sorry
+  exact BERUtil.tm_len_panics h64 e v hn
 
 end mysql_common
