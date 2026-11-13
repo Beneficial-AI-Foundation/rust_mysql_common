@@ -1272,9 +1272,28 @@ theorem io.ParseBuf.eat_lenenc_str_spec (buf : io.ParseBuf) (h : (checkedLenencS
       rw [i_post]; exact UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by omega)
     first | (simp only [Slice.length, hi]; omega) | simp_all)
 
-/-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`. (Needs the 64-bit
-    target: on a 32-bit `usize` a length `≥ 2^32` is truncated by `len as usize` and may fit.) -/
-theorem io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1 = none) :
+/-- On the 64-bit target every length-encoded integer fits in a `usize` (the hypothesis `hfit` of the length-encoded-string readers). -/
+theorem lenenc_fits_of_target64 (h64 : Target64) (buf : io.ParseBuf) :
+    ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max := by
+  intro n hn
+  obtain ⟨⟨o, rest⟩, _, ho⟩ := spec_eq_ok (io.ParseBuf.checked_eat_lenenc_int_spec buf)
+  simp only [WP.uncurry'_pair] at ho
+  rw [← ho] at hn
+  cases o with
+  | none => simp at hn
+  | some x =>
+    simp at hn
+    have := cast_usize_64 h64 x
+    have : (UScalar.cast .Usize x).val ≤ Usize.max := by scalar_tac
+    omega
+
+/-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`, provided the
+    length read fits in a `usize` (`hfit`; always true on the 64-bit target,
+    `lenenc_fits_of_target64`; on a 32-bit `usize` a length `≥ 2^32` is truncated by
+    `len as usize` and may fit). -/
+theorem io.ParseBuf.eat_lenenc_str_panics (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max)
+    (h : (checkedLenencStr buf.val).1 = none) :
     io.ParseBuf.eat_lenenc_str buf = fail .panic := by
   unfold io.ParseBuf.eat_lenenc_str
   simp only [checkedLenencStr] at h
@@ -1282,22 +1301,28 @@ theorem io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (
   · exact bind_fail_left (io.ParseBuf.eat_lenenc_int_panics buf (by simp [hc]))
   · rw [hc] at h
     simp at h
+    have hn := hfit n (by rw [hc])
     apply bind_fail_of_spec (io.ParseBuf.eat_lenenc_int_spec buf (by simp [hc]))
     rintro ⟨len, self1⟩ hpost
     rw [hc] at hpost
     simp at hpost
     simp only [lift, bind_ok]
     apply eat_fail
-    rw [cast_usize_64 h64]
     obtain ⟨h1, h2⟩ := hpost
+    rw [UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by
+      have := Usize.max_def; rw [Usize.numBits_def] at this
+      have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+      omega)]
     simp only [Slice.length, h1, h2]
     split_ifs at h with hle; omega
 
 /-- `checked_eat_lenenc_str`: total; exactly `checkedLenencStr`: `None` after consuming the
     length's first byte if the length is truncated, `None` after consuming the whole length if the
-    bytes are missing. (Needs the 64-bit target: on a 32-bit `usize` a length `≥ 2^32` would be
-    truncated by `len as usize`.) -/
-theorem io.ParseBuf.checked_eat_lenenc_str_spec (h64 : Target64) (buf : io.ParseBuf) :
+    bytes are missing. Provided the length read fits in a `usize` (`hfit`; always true on the
+    64-bit target, `lenenc_fits_of_target64`; on a 32-bit `usize` a length `≥ 2^32` would be
+    truncated by `len as usize`). -/
+theorem io.ParseBuf.checked_eat_lenenc_str_spec (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max) :
     io.ParseBuf.checked_eat_lenenc_str buf ⦃ o rest =>
       (o.map (·.val), rest.val) = checkedLenencStr buf.val ⦄ := by
   unfold io.ParseBuf.checked_eat_lenenc_str
@@ -1308,10 +1333,14 @@ theorem io.ParseBuf.checked_eat_lenenc_str_spec (h64 : Target64) (buf : io.Parse
   cases o with
   | none => simp
   | some x =>
+    have hn := hfit x.val (by rw [← ho]; rfl)
     simp only [lift, bind_ok, Option.map_some]
     apply WP.spec_mono (checked_eat_ok self1 _)
     rintro ⟨o', rest⟩ h'
-    rw [cast_usize_64 h64] at h'
+    rw [UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by
+      have := Usize.max_def; rw [Usize.numBits_def] at this
+      have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+      omega)] at h'
     simp only [WP.uncurry'_pair] at h' ⊢
     split_ifs at h' ⊢ <;> simp_all
 

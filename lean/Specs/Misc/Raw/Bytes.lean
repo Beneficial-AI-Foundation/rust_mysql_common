@@ -118,8 +118,9 @@ recall misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serializ
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec
-/-- `LenEnc::deserialize`: total; `checkedLenencStr` (with the lenenc quirk: `0xFB`/`0xFF` read as length 0, so as the empty string). -/
-recall misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec (buf : io.ParseBuf) (h64 : Target64) :
+/-- `LenEnc::deserialize`: total; `checkedLenencStr` (with the lenenc quirk: `0xFB`/`0xFF` read as length 0, so as the empty string). Provided the length read fits in a `usize` (`hfit`; always true on the 64-bit target, `lenenc_fits_of_target64` in `Specs/Io.lean`). -/
+recall misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max) :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest =>
       ((okPart r).map cowList, rest.val) = checkedLenencStr buf.val ⦄
 

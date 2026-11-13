@@ -59,13 +59,14 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
         simp
   · exact ⟨h, rfl⟩
 
-/-- `LeU64::MAX_LEN`: `u64::MAX as usize` (= `usize::MAX` on the 64-bit target). -/
-theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN_spec (h64 : Target64) :
-    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN ⦃ m => m.val = 2 ^ 64 - 1 ⦄ := by
+/-- `LeU64::MAX_LEN`: `u64::MAX as usize`, which is `usize::MAX` whatever the width of `usize` (`2^64 - 1` on the 64-bit target). -/
+theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN_spec :
+    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN ⦃ m => m.val = Usize.max ⦄ := by
   unfold misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN
   simp only [WP.spec_ok, UScalar.cast_val_eq, UScalarTy.Usize_numBits_eq]
-  rw [show System.Platform.numBits = 64 from h64]
-  simp [core.num.U64.MAX, U64.rMax]
+  have h1 := Usize.max_def; rw [Usize.numBits_def, UScalarTy.Usize_numBits_eq] at h1
+  rw [h1]
+  rcases System.Platform.numBits_eq with h | h <;> rw [h] <;> simp [core.num.U64.MAX, U64.rMax]
 
 /-- `LeU64::SIZE` is `None`. -/
 theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE_eq :

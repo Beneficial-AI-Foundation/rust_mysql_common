@@ -355,12 +355,12 @@ theorem deserialize_text_spec' (h64 : Target64) (buf : io.ParseBuf) :
   have hne : ¬ x.val = 0xFB := fun h => hfb (UScalar.eq_of_val_eq (by simpa using h))
   apply deserialize_text_bytes_case buf x rest hx hfb
     (fun o rest' => (o.map Val.ofValue, rest'.val) = textRead (x :: rest))
-  · apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf h64)
+  · apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf (lenenc_fits_of_target64 h64 buf))
     rintro ⟨r, rest'⟩ h v hv
     simp only [WP.uncurry'_pair, textRead, hne, ite_false] at h ⊢
     rw [← hx, ← h, hv]
     rfl
-  · apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf h64)
+  · apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf (lenenc_fits_of_target64 h64 buf))
     rintro ⟨r, rest'⟩ h hn
     simp only [WP.uncurry'_pair, textRead, hne, ite_false] at h ⊢
     rw [← hx, ← h, hn]
@@ -648,7 +648,7 @@ theorem deserialize_bin_spec' (h64 : Target64) (ct : constants.ColumnType)
   cases hs : isLenencStrType ct
   · exact bin_nonstr_spec ct flags hs hct buf
   · apply bin_str_case ct flags hs buf (fun o rest => (o, rest) = binRead ct (isUnsigned flags) buf.val)
-    apply WP.spec_mono (io.ParseBuf.checked_eat_lenenc_str_spec h64 buf)
+    apply WP.spec_mono (io.ParseBuf.checked_eat_lenenc_str_spec buf (lenenc_fits_of_target64 h64 buf))
     rintro ⟨o, rest⟩ ho
     simp only [WP.uncurry'_pair] at ho ⊢
     simp only [binRead, hs, ite_true, ← ho]

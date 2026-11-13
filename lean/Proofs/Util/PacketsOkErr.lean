@@ -84,7 +84,7 @@ theorem parse_lenenc_bytes_spec (h64 : Target64) (buf : io.ParseBuf) :
       misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
   exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
     (fun o rest => (o, rest.val) = checkedLenencStr buf.val)
-    (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf h64)
+    (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf (lenenc_fits_of_target64 h64 buf))
 
 theorem parse_eof_bytes_spec (buf : io.ParseBuf) :
     io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize

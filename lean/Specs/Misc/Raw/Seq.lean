@@ -11,7 +11,7 @@ import Proofs.Misc.Raw.Seq.RawSeq
 
     **Configuration.** As in `Specs/Io.lean`.
 
-    **Definitions used.** `Defs/Bytes.lean` (`cowList`, `okPart`, `leBytes`, `leNat`, `Target64`).
+    **Definitions used.** `Defs/Bytes.lean` (`cowList`, `okPart`, `leBytes`, `leNat`).
 
     **Reading the statements.** The item type is generic: the `SeqRepr` statements take what the item
     serializer appends (`enc`) and that the item parser reads it back as hypotheses, and conclude the
@@ -128,9 +128,9 @@ recall misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.deserialize_no_panic
 /-! ### `impl SeqRepr for LeU64` -/
 
-/-- `LeU64::MAX_LEN`: `u64::MAX as usize` (= `usize::MAX` on the 64-bit target). -/
-recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN_spec (h64 : Target64) :
-    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN ⦃ m => m.val = 2 ^ 64 - 1 ⦄
+/-- `LeU64::MAX_LEN`: `u64::MAX as usize`, which is `usize::MAX` whatever the width of `usize` (`2^64 - 1` on the 64-bit target). -/
+recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN_spec :
+    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN ⦃ m => m.val = Usize.max ⦄
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN_spec

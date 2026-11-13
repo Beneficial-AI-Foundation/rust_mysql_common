@@ -1071,18 +1071,30 @@ recall io.ParseBuf.eat_lenenc_str_spec (buf : io.ParseBuf) (h : (checkedLenencSt
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_lenenc_str_spec
-/-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`. (Needs the 64-bit
-    target: on a 32-bit `usize` a length `≥ 2^32` is truncated by `len as usize` and may fit.) -/
-recall io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1 = none) :
+/-- On the 64-bit target every length-encoded integer fits in a `usize` (the hypothesis `hfit` of the length-encoded-string readers). -/
+recall lenenc_fits_of_target64 (h64 : Target64) (buf : io.ParseBuf) :
+    ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max
+
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms lenenc_fits_of_target64
+/-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`, provided the
+    length read fits in a `usize` (`hfit`; always true on the 64-bit target,
+    `lenenc_fits_of_target64`; on a 32-bit `usize` a length `≥ 2^32` is truncated by
+    `len as usize` and may fit). -/
+recall io.ParseBuf.eat_lenenc_str_panics (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max)
+    (h : (checkedLenencStr buf.val).1 = none) :
     io.ParseBuf.eat_lenenc_str buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_lenenc_str_panics
 /-- `checked_eat_lenenc_str`: total; exactly `checkedLenencStr`: `None` after consuming the
     length's first byte if the length is truncated, `None` after consuming the whole length if the
-    bytes are missing. (Needs the 64-bit target: on a 32-bit `usize` a length `≥ 2^32` would be
-    truncated by `len as usize`.) -/
-recall io.ParseBuf.checked_eat_lenenc_str_spec (h64 : Target64) (buf : io.ParseBuf) :
+    bytes are missing. Provided the length read fits in a `usize` (`hfit`; always true on the
+    64-bit target, `lenenc_fits_of_target64`; on a 32-bit `usize` a length `≥ 2^32` would be
+    truncated by `len as usize`). -/
+recall io.ParseBuf.checked_eat_lenenc_str_spec (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max) :
     io.ParseBuf.checked_eat_lenenc_str buf ⦃ o rest =>
       (o.map (·.val), rest.val) = checkedLenencStr buf.val ⦄
 
