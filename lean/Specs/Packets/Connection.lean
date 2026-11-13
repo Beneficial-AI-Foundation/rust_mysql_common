@@ -35,8 +35,8 @@ import Proofs.Packets.SslRequest
     wire lengths (connect attributes, length-encoded strings) take `Target64`.
 
     **Caveats.** Allocation is infallible, overflow is a panic (debug semantics: the handshake's
-    `i8` overflow is `fail .integerOverflow`; in release builds it wraps), the stack is not
-    modelled.
+    `i8` overflow is `fail .integerOverflow`; without overflow checks it wraps to the protocol's
+    value), the stack is not modelled.
 
     **Definitions used.** `Defs/Connection.lean` (`eofPayloadRead`, `headerRead`, `authPluginName`,
     `knownPlugin`, `IsPluginNamed`, `PluginFromBytes`, `PluginCanonical`, `isOtherPlugin`,
@@ -55,20 +55,23 @@ import Proofs.Packets.SslRequest
 
     **Trusted axioms** (`misc::trusted`, `FunsExternal.lean`), beyond `io::Error`'s:
     * `Trusted.versionReCaptures`, `Trusted.mariadbVersionReCaptures` (the two version regexes,
-      opaque: no property is assumed). The `_eq` statements are exact in terms of them; the
-      `_ascii` statements take as a hypothesis that the regex captures what its pattern says on
-      ASCII input (`versionReMatch`), which no axiom provides.
+      opaque) and their properties `Trusted.versionReCaptures_ascii`,
+      `Trusted.mariadbVersionReCaptures_ascii` (on ASCII input they capture exactly
+      `versionReMatch` / `mariadbVersionReMatch`; checked against `regex` 1.13.1 on 621 856
+      inputs, `lean/Proofs/Consistency/RegexEval/`). The `_eq` statements are exact in terms of
+      the opaque captures (any input); the `_ascii` statements use the property axioms.
     * `Trusted.utf8LossyOwned` (the replaced string of `from_utf8_lossy`, opaque; only through
       `LossyUtf8`, the `*_str` accessors).
     * The connect-attributes `HashMap` (`Trusted.connectAttrsNew`, `connectAttrsInsert`,
       `connectAttrsEntries`, `connectAttrsFromStrings`, `connectAttrsIntoOwned`,
-      `connectAttrsToStrings`; opaque, no property assumed). Respecting the caveat of
+      `connectAttrsToStrings`; opaque) and `Trusted.connectAttrsEntries_new` (a new map has no
+      entries; order-free). Respecting the caveat of
       `FunsExternal.lean`, no statement relates the order, bytes or equality of separately built
       maps: a serializer's bytes are stated in terms of the entries of the one map it writes
       (`attrsEntries`), and a reader's map in terms of the wire entries it inserts (`BuiltFrom`,
-      never compared with the map that was written). Consequently the bytes written for an absent
-      map (`attrsEntries Trusted.connectAttrsNew`; the crate writes the lenenc `0`) are not
-      determined: that would need an axiom that a new map has no entries.
+      never compared with the map that was written; whether its keys and values are borrowed or
+      owned is left open). The bytes written for an absent map are exactly `0`
+      (`connectAttrsEntries_new`).
     * `Trusted.btoiUnsigned` is an exact model (a definition), not an axiom.
 
     **Not covered.** `LocalInfilePacket::file_name_str` and `PublicKeyResponse::rsa_key` (not
@@ -81,14 +84,16 @@ import Proofs.Packets.SslRequest
     **Behaviour to note (bugs first).**
     * **`HandshakePacket::deserialize` panics on a length byte in `128..135`** with
       `CLIENT_SECURE_CONNECTION` (`auth_plugin_data_len as i8 - 8` overflows): a server, or a
-      man in the middle before TLS, can crash the client (`deserialize_panics`); the crate's own
-      `serialize` writes such a byte for a 120–127-byte scramble with `CLIENT_PLUGIN_AUTH`
-      (`Defs.handshakePanics_handshakeEnc`). For a byte of 136 or more it reads 13 scramble bytes
-      instead of `b - 8` (`scramble2LenCrate`, `Defs.scramble2LenCrate_ne`).
+      man in the middle before TLS, can crash a client built with overflow checks (e.g. debug)
+      (`deserialize_panics`); without overflow checks it wraps to exactly `b - 8` and reads
+      correctly. The crate's own `serialize` writes such a byte for a 120–127-byte scramble with
+      `CLIENT_PLUGIN_AUTH` (`Defs.handshakePanics_handshakeEnc`). **In every build**, for a byte
+      of 136 or more it reads 13 scramble bytes instead of `b - 8` (`scramble2LenCrate`,
+      `Defs.scramble2LenCrate_ne`), so it silently misreads its own packet with a 128–247-byte
+      scramble (`Defs.handshakeEnc_misread`).
     * **`server_version_parsed` / `maria_db_server_version_parsed` panic** on a server version
       with non-ASCII Unicode digits that the (Unicode-aware) regex matches, since `btoi` accepts
-      only ASCII digits (`unwrap`). On ASCII input, if the regex is right, they return the right
-      version (`_ascii`).
+      only ASCII digits (`unwrap`). On ASCII input they return the right version (`_ascii`).
     * The handshake reader rejects a status with bit 2 (as the OK packet does: `statusRead`), does
       not check the protocol version or the filler, keeps a plugin name's bytes after a `0` (all
       the rest of the packet is the name), and removes one trailing `0` (MySQL sometimes omits
@@ -102,7 +107,12 @@ import Proofs.Packets.SslRequest
     * `ComChangeUser` always frames the auth data with a 1-byte length (only
       `CLIENT_SECURE_CONNECTION` servers are supported, per the crate), reads a tail iff input is
       left, and its tail **always writes connect attributes** (empty if none), even without
-      `CLIENT_CONNECT_ATTRS`; the reader then leaves them unread.
+      `CLIENT_CONNECT_ATTRS`; the reader then leaves them unread. It reads `character_set`
+      assuming `CLIENT_PROTOCOL_41`.
+    * Protocol versions: the crate follows the older protocol pages: the handshake's scramble part 2
+      only with `CLIENT_SECURE_CONNECTION` (the current page: always), and a `string<NUL>` auth
+      response in `HandshakeResponse41` without it (the current page has only lenenc or a 1-byte
+      length; MySQL 8.0 removed `CLIENT_SECURE_CONNECTION`).
     * `OldAuthSwitchRequest` and `AuthSwitchRequest` share the header `0xFE`; `PublicKeyResponse`
       and `AuthMoreData` share `0x01`. Header-only packets leave the rest unread.
     * `AuthSwitchRequest::plugin_data` drops a trailing `0` only for the four C-string-scramble
@@ -443,7 +453,7 @@ recall packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deser
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec`
 
-/-- **Bug: `MyDeserialize for HandshakePacket` panics on a server-supplied length byte in `128..135`** (with `CLIENT_SECURE_CONNECTION`): `auth_plugin_data_len as i8 - 8` overflows (`handshakePanics`). A server, or anyone in the middle before TLS, can crash the client with the first packet. (In release builds the subtraction wraps to a large positive length instead.) -/
+/-- **Bug: `MyDeserialize for HandshakePacket` panics on a server-supplied length byte in `128..135`** (with `CLIENT_SECURE_CONNECTION`): `auth_plugin_data_len as i8 - 8` overflows (`handshakePanics`). A server, or anyone in the middle before TLS, can crash a client built with overflow checks (e.g. a debug build) with the first packet. (Without overflow checks the subtraction wraps to exactly `b - 8`, the protocol's value, and the packet is read correctly.) -/
 recall packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : handshakePanics buf.val) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail .integerOverflow
 
@@ -465,7 +475,7 @@ recall packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.round
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip`
 
-/-- `new`: the given fields; the capabilities are split into their lower and upper 16 bits, MariaDB's capabilities are empty. The stored length byte is the scramble's length (at most 247), **without the protocol's `+ 8`**; it is not used (`serialize` recomputes it, and no accessor returns it). -/
+/-- `new`: the given fields; the capabilities are split into their lower and upper 16 bits, MariaDB's capabilities are empty. The stored length byte is the scramble's length (at most 247), **without the protocol's `+ 8`**; it is not used by `serialize` (which recomputes it) or any accessor, but the derived `PartialEq`/`Debug` see it, so `new(..)` differs from `deserialize(serialize(new(..)))`. -/
 recall packets.HandshakePacket.new_spec {T1 T2 T3 : Type} (into1 : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into2 : core.convert.Into T2 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into3 : core.convert.Into T3 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
     (protocol_version : U8) (server_version : T1) (connection_id : U32) (scramble_1 : Array U8 8#usize)
     (scramble_2 : Option T2) (capabilities : constants.CapabilityFlags) (default_collation : U8)
@@ -523,9 +533,9 @@ recall packets.HandshakePacket.server_version_parsed_eq (self : packets.Handshak
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.HandshakePacket.server_version_parsed_eq`
 
-/-- `server_version_parsed` never returns a wrong version: if the regex captures what `^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)` captures (`versionReMatch`; an assumption about the `regex` crate, which no axiom states), the result is that version, and there is no panic. **Bug** (as for the date/time parsers): off ASCII, `\d` is Unicode-aware but `btoi` is not, so a server version with non-ASCII digits that the regex matches panics (`unwrap`; `server_version_parsed_eq`). -/
+/-- `server_version_parsed` never returns a wrong version: on ASCII input the result is the version that `^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)` captures (`versionReMatch`, by the trusted `Trusted.versionReCaptures_ascii`), and there is no panic. **Bug** (as for the date/time parsers): off ASCII, `\d` is Unicode-aware but `btoi` is not, so a server version with non-ASCII digits that the regex matches panics (`unwrap`; `server_version_parsed_eq`). -/
 recall packets.HandshakePacket.server_version_parsed_ascii (self : packets.HandshakePacket) (s : Slice U8) (hs : s.val = cowList self.server_version.1)
-    (hre : capturesVal (Trusted.versionReCaptures s) = versionReMatch s.val) :
+    (h : ∀ b ∈ s.val, b.val < 128) :
     packets.HandshakePacket.server_version_parsed self ⦃ r => versionVal r = digitsTriple (versionReMatch s.val) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.HandshakePacket.server_version_parsed_ascii`
@@ -536,9 +546,9 @@ recall packets.HandshakePacket.maria_db_server_version_parsed_eq (self : packets
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.HandshakePacket.maria_db_server_version_parsed_eq`
 
-/-- `maria_db_server_version_parsed` never returns a wrong version: as `server_version_parsed_ascii`, with `mariadbVersionReMatch`. Same **bug** off ASCII. -/
+/-- `maria_db_server_version_parsed` never returns a wrong version: as `server_version_parsed_ascii`, with `mariadbVersionReMatch` (`Trusted.mariadbVersionReCaptures_ascii`). Same **bug** off ASCII. -/
 recall packets.HandshakePacket.maria_db_server_version_parsed_ascii (self : packets.HandshakePacket) (s : Slice U8) (hs : s.val = cowList self.server_version.1)
-    (hre : capturesVal (Trusted.mariadbVersionReCaptures s) = mariadbVersionReMatch s.val) :
+    (h : ∀ b ∈ s.val, b.val < 128) :
     packets.HandshakePacket.maria_db_server_version_parsed self ⦃ r => versionVal r = digitsTriple (mariadbVersionReMatch s.val) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.HandshakePacket.maria_db_server_version_parsed_ascii`
@@ -683,11 +693,11 @@ recall packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFla
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize_spec`
 
-/-- `MySerialize for ComChangeUser`: appends `changeUserEnc` of the fields, with the entries of the tail's map in its iteration order (**of an empty map if it has none**: `attrsEntries Trusted.connectAttrsNew`, which the trusted model leaves opaque; the crate writes the lenenc `0`). -/
+/-- `MySerialize for ComChangeUser`: appends `changeUserEnc` of the fields, with the entries of the tail's map in its iteration order (none if it has no map: the crate writes an empty map, whose attributes are the single byte `0` by `Trusted.connectAttrsEntries_new`). -/
 recall packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.ComChangeUser) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (changeUserEnc (ChangeUser.of self) (attrsEntries ((self.more_data.bind (·.connect_attributes)).getD Trusted.connectAttrsNew))).length ≤ Usize.max) :
+    (h : buf.length + (changeUserEnc (ChangeUser.of self) (((self.more_data.bind (·.connect_attributes)).map attrsEntries).getD [])).length ≤ Usize.max) :
     packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
-      buf'.val = buf.val ++ changeUserEnc (ChangeUser.of self) (attrsEntries ((self.more_data.bind (·.connect_attributes)).getD Trusted.connectAttrsNew)) ⦄
+      buf'.val = buf.val ++ changeUserEnc (ChangeUser.of self) (((self.more_data.bind (·.connect_attributes)).map attrsEntries).getD []) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize.serialize_spec`
 
@@ -745,11 +755,11 @@ recall packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapab
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize_spec`
 
-/-- `MySerialize for ComChangeUserMoreData`: appends `changeUserMoreEnc`: **the attributes are always written** (the entries of an empty map if there are none), whatever the flags. -/
+/-- `MySerialize for ComChangeUserMoreData`: appends `changeUserMoreEnc`: **the attributes are always written** (the single byte `0` if there are none, by `Trusted.connectAttrsEntries_new`), whatever the flags. -/
 recall packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.ComChangeUserMoreData) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (changeUserMoreEnc (ChangeUserMore.of self) (attrsEntries (self.connect_attributes.getD Trusted.connectAttrsNew))).length ≤ Usize.max) :
+    (h : buf.length + (changeUserMoreEnc (ChangeUserMore.of self) ((self.connect_attributes.map attrsEntries).getD [])).length ≤ Usize.max) :
     packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
-      buf'.val = buf.val ++ changeUserMoreEnc (ChangeUserMore.of self) (attrsEntries (self.connect_attributes.getD Trusted.connectAttrsNew)) ⦄
+      buf'.val = buf.val ++ changeUserMoreEnc (ChangeUserMore.of self) ((self.connect_attributes.map attrsEntries).getD []) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize_spec`
 

@@ -14,14 +14,16 @@ its sub-pages. All integers are little-endian; `string<NUL>` is the bytes follow
   `capability_flags_1` (the lower 2 bytes), `character_set` (1), `status_flags` (2),
   `capability_flags_2` (the upper 2 bytes), `auth_plugin_data_len` (1; `0` without
   `CLIENT_PLUGIN_AUTH`), 10 reserved zero bytes (MariaDB sends its extended capabilities in the
-  last 4), then, with `CLIENT_SECURE_CONNECTION`, `auth_plugin_data_part_2` of
-  `max(13, auth_plugin_data_len - 8)` bytes (MySQL: 12 bytes and a `0x00`) and, with
-  `CLIENT_PLUGIN_AUTH`, `auth_plugin_name` `string<NUL>` (some MySQL versions omit the `0x00`).
+  last 4), then `auth_plugin_data_part_2` of `max(13, auth_plugin_data_len - 8)` bytes (MySQL:
+  12 bytes and a `0x00`) and, with `CLIENT_PLUGIN_AUTH`, `auth_plugin_name` `string<NUL>` (some
+  MySQL versions omit the `0x00`). The current page sends part 2 unconditionally; the older page,
+  and the crate, only with `CLIENT_SECURE_CONNECTION`.
 * `Protocol::HandshakeResponse41` (client → server): `client_flag` (4), `max_packet_size` (4),
   `character_set` (1), 23 filler zero bytes (MariaDB: 19, then its extended capabilities (4)),
   `username` `string<NUL>`, the auth response (with `CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA`
-  `string<lenenc>`; else, with `CLIENT_SECURE_CONNECTION`, a 1-byte length and the bytes; else
-  `string<NUL>`), with `CLIENT_CONNECT_WITH_DB` `database` `string<NUL>`, with
+  `string<lenenc>`; else a 1-byte length and the bytes. The older page, which the crate follows,
+  has the 1-byte length only with `CLIENT_SECURE_CONNECTION` and `string<NUL>` otherwise; MySQL 8.0
+  removed `CLIENT_SECURE_CONNECTION`), with `CLIENT_CONNECT_WITH_DB` `database` `string<NUL>`, with
   `CLIENT_PLUGIN_AUTH` `client_plugin_name` `string<NUL>`, with `CLIENT_CONNECT_ATTRS` the
   length (lenenc) of the attributes and then each key and value as `string<lenenc>`.
 * `Protocol::SSLRequest`: the first 32 bytes of a `HandshakeResponse41`.
@@ -31,7 +33,8 @@ its sub-pages. All integers are little-endian; `string<NUL>` is the bytes follow
   and the server's PEM key); the `caching_sha2_password` public key request is `0x02`.
 * `COM_CHANGE_USER`: `0x11`, `user` `string<NUL>`, the auth response (with
   `CLIENT_SECURE_CONNECTION` a 1-byte length and the bytes, else `string<NUL>`), `database`
-  `string<NUL>`, then, if there is more data, `character_set` (2), with `CLIENT_PLUGIN_AUTH` the
+  `string<NUL>`, then, if there is more data, with `CLIENT_PROTOCOL_41` `character_set` (2; the
+  crate assumes `CLIENT_PROTOCOL_41`), with `CLIENT_PLUGIN_AUTH` the
   plugin name `string<NUL>`, with `CLIENT_CONNECT_ATTRS` the attributes as above.
 * `LOCAL INFILE` request (`page_protocol_com_query_response_local_infile_request.html`):
   `0xFB`, `filename` `string<EOF>`.
@@ -241,9 +244,11 @@ def Handshake.of (p : packets.HandshakePacket) : Handshake where
 def scramble2Len (b : Nat) : Nat := max 13 (b - 8)
 
 /-- **The crate's length of `auth_plugin_data_part_2`** (`max(13, (b as i8) - 8)`): as
-    `scramble2Len` for `b < 128`; **13 for `b ≥ 136`** (the byte is read as a negative `i8`;
-    the protocol says `b - 8 ≥ 128`). For `128 ≤ b < 136` the `i8` subtraction overflows: a panic
-    (`handshakePanics`; a wrapped value in release builds). -/
+    `scramble2Len` for `b < 128`; **13 for `b ≥ 136`, in every build** (the byte is read as a
+    negative `i8`; the protocol says `b - 8 ≥ 128`). For `128 ≤ b < 136` the `i8` subtraction
+    overflows: with overflow checks (e.g. debug builds) a panic (`handshakePanics`); without them
+    it wraps to exactly `b - 8`, the protocol's value (this definition then describes only builds
+    with overflow checks, which are the semantics Aeneas models). -/
 def scramble2LenCrate (b : Nat) : Nat := if b < 128 then max 13 (b - 8) else 13
 
 /-- The crate's reader of a handshake packet (`MyDeserialize for HandshakePacket`), when it does
@@ -259,7 +264,8 @@ def scramble2LenCrate (b : Nat) : Nat := if b < 128 then max 13 (b - 8) else 13
     * with `CLIENT_PLUGIN_AUTH` in the upper half, the plugin name as **all the rest**, without
       one trailing `0` if there is one (the crate tolerates MySQL's missing `0`; bytes after the
       `0` would be part of the name).
-    **Crate behaviour**: the protocol version is not checked to be 10; without
+    **Crate behaviour**: the scramble is read only with `CLIENT_SECURE_CONNECTION` (the older
+    protocol page; the current one reads it always); the protocol version is not checked to be 10; without
     `CLIENT_PLUGIN_AUTH` the bytes after the scramble are left unread; capability bits are not
     checked (all 32 are known). -/
 def handshakeRead : List U8 → Option Handshake × List U8
@@ -359,72 +365,26 @@ def handshakeNonce (scramble1 : List U8) (scramble2 : Option (List U8)) : List U
 
 /-! ## Server version strings -/
 
-/-- The maximal run of ASCII digits at the front of `bs`. -/
-def digitRun (bs : List U8) : List U8 := bs.takeWhile isDigit
+/-- What `VERSION_RE` (`^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)`, "the first `\d+.\d+.\d+` of a
+    server version") captures in groups 1–3 of ASCII input: two maximal digit runs of 1–2
+    digits each followed by `.`, then the first 1–3 digits of the next digit run. Defined, with its
+    regex-semantics argument, next to the trusted axiom `Trusted.versionReCaptures_ascii` in
+    `FunsExternal.lean` (the axiom has to name it). -/
+abbrev versionReMatch : List U8 → Option (List U8 × List U8 × List U8) := Trusted.versionReMatch
 
-/-- `bs` starts with the byte `c`. -/
-def startsWithByte (c : Nat) (bs : List U8) : Bool := (bs.head?.map (·.val)) == some c
+/-- What `MARIADB_VERSION_RE` (`^(?:5.5.5-)?(\d{1,2})\.(\d{1,2})\.(\d{1,3})(?:-\d+)?-MariaDB`)
+    captures in groups 1–3 of ASCII input: the groups as for `versionReMatch`, but group 3 a
+    whole digit run of 1–3 digits followed by `-MariaDB` or by `-`, digits, `-MariaDB`; the
+    optional prefix tried first. Its unescaped `.` matches one character other than `\n` (one
+    byte on ASCII input; `5x5y5-` is accepted too, a harmless quirk). MariaDB before 11 sends
+    `5.5.5-` before its version for old clients. Defined in `FunsExternal.lean`
+    (`Trusted.mariadbVersionReMatch`, next to its axiom). -/
+abbrev mariadbVersionReMatch : List U8 → Option (List U8 × List U8 × List U8) :=
+  Trusted.mariadbVersionReMatch
 
-/-- `(\d{1,2})\.(\d{1,2})\.` at the front of `bs`, on ASCII input (`\d` an ASCII digit): the two
-    groups and the rest. With backtracking, a group is a maximal digit run of 1 or 2 digits
-    followed by `.`. -/
-def twoVersionGroups (bs : List U8) : Option (List U8 × List U8 × List U8) :=
-  let g1 := digitRun bs
-  let r1 := bs.drop g1.length
-  if 1 ≤ g1.length ∧ g1.length ≤ 2 ∧ startsWithByte 46 r1 then
-    let g2 := digitRun (r1.drop 1)
-    let r2 := (r1.drop 1).drop g2.length
-    if 1 ≤ g2.length ∧ g2.length ≤ 2 ∧ startsWithByte 46 r2 then some (g1, g2, r2.drop 1)
-    else none
-  else none
-
-/-- What the regex `^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)` (`VERSION_RE`, "the first
-    `\d+.\d+.\d+` of a server version") captures in groups 1–3 of ASCII input: two version
-    groups, then the first 1–3 digits of the next digit run. -/
-def versionReMatch (bs : List U8) : Option (List U8 × List U8 × List U8) :=
-  match twoVersionGroups bs with
-  | some (g1, g2, r) =>
-    let g3 := digitRun r
-    if 1 ≤ g3.length then some (g1, g2, g3.take 3) else none
-  | none => none
-
-/-- `(\d{1,3})(?:-\d+)?-MariaDB` at the front of `bs` (ASCII): the group (a maximal digit run of
-    1–3 digits), followed by `-MariaDB` or by `-`, a digit run and `-MariaDB`. -/
-def mariadbTail (bs : List U8) : Option (List U8) :=
-  let g3 := digitRun bs
-  let r := bs.drop g3.length
-  let tag := utf8 "-MariaDB"
-  if 1 ≤ g3.length ∧ g3.length ≤ 3 ∧
-      (r.take tag.length = tag ∨
-        (startsWithByte 45 r ∧ 1 ≤ (digitRun (r.drop 1)).length ∧
-          ((r.drop 1).drop (digitRun (r.drop 1)).length).take tag.length = tag))
-  then some g3 else none
-
-/-- The match of `(\d{1,2})\.(\d{1,2})\.(\d{1,3})(?:-\d+)?-MariaDB` at the front of `bs`. -/
-def mariadbCore (bs : List U8) : Option (List U8 × List U8 × List U8) :=
-  match twoVersionGroups bs with
-  | some (g1, g2, r) => (mariadbTail r).map (fun g3 => (g1, g2, g3))
-  | none => none
-
-/-- What the regex `^(?:5.5.5-)?(\d{1,2})\.(\d{1,2})\.(\d{1,3})(?:-\d+)?-MariaDB`
-    (`MARIADB_VERSION_RE`) captures in groups 1–3 of ASCII input. The optional prefix is tried
-    first (leftmost-first semantics); its unescaped `.` matches any byte but `\n` (so
-    `5x5y5-` is accepted too, a harmless quirk). MariaDB before 11 sends `5.5.5-` before its
-    version for old clients. -/
-def mariadbVersionReMatch (bs : List U8) : Option (List U8 × List U8 × List U8) :=
-  let pre := bs.take 6
-  let prefixOk : Bool := pre.length = 6 &&
-    (pre.getD 0 (byte 0)).val == 53 && (pre.getD 1 (byte 0)).val != 10 &&
-    (pre.getD 2 (byte 0)).val == 53 && (pre.getD 3 (byte 0)).val != 10 &&
-    (pre.getD 4 (byte 0)).val == 53 && (pre.getD 5 (byte 0)).val == 45
-  match (if prefixOk then mariadbCore (bs.drop 6) else none) with
-  | some g => some g
-  | none => mariadbCore bs
-
-/-- The bytes of three captured slices. -/
-def capturesVal (c : Option (Slice U8 × Slice U8 × Slice U8)) :
-    Option (List U8 × List U8 × List U8) :=
-  c.map (fun t => (t.1.val, t.2.1.val, t.2.2.val))
+/-- The bytes of three captured slices (`Trusted.capturesVal`). -/
+abbrev capturesVal : Option (Slice U8 × Slice U8 × Slice U8) → Option (List U8 × List U8 × List U8) :=
+  Trusted.capturesVal
 
 /-- A version triple's numbers. -/
 def versionVal (r : Option (U16 × U16 × U16)) : Option (Nat × Nat × Nat) :=

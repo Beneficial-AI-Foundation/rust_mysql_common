@@ -17,7 +17,8 @@ import Proofs.Packets.ComStmtExecuteRequest
     (`OkPacketKind` and its four kinds, `OkPacketBody`, `OkPacket`, `OkPacketDeserializer`), ERR
     packets (`ProgressReport`, `ErrPacket`, `SqlState`, `ServerError`), NULL bitmaps
     (`NullBitmap`) and `COM_STMT_EXECUTE` (`ComStmtExecuteRequestBuilder`,
-    `ComStmtExecuteRequest`).
+    `ComStmtExecuteRequest`). Connection-phase packets: see `Specs/Packets/Connection.lean` and
+    `Specs/Packets/CachingSha2Password.lean`.
 
     **Patches.** 22 (combinators as `match`), 23 (`io_error_from`), 24 (`RawBytes` conversions),
     25 (`TryFrom<OkPacketBody>` through `non_empty`), 26–29 (`COM_STMT_EXECUTE`: owned bitmap, index

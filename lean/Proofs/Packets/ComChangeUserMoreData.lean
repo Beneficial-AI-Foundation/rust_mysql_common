@@ -45,11 +45,11 @@ theorem packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapa
         rest.val = (changeUserMoreRead caps.val buf.val).2 ⦄ := by
   sorry
 
-/-- `MySerialize for ComChangeUserMoreData`: appends `changeUserMoreEnc`: **the attributes are always written** (the entries of an empty map if there are none), whatever the flags. -/
+/-- `MySerialize for ComChangeUserMoreData`: appends `changeUserMoreEnc`: **the attributes are always written** (the single byte `0` if there are none, by `Trusted.connectAttrsEntries_new`), whatever the flags. -/
 theorem packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.ComChangeUserMoreData) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (changeUserMoreEnc (ChangeUserMore.of self) (attrsEntries (self.connect_attributes.getD Trusted.connectAttrsNew))).length ≤ Usize.max) :
+    (h : buf.length + (changeUserMoreEnc (ChangeUserMore.of self) ((self.connect_attributes.map attrsEntries).getD [])).length ≤ Usize.max) :
     packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
-      buf'.val = buf.val ++ changeUserMoreEnc (ChangeUserMore.of self) (attrsEntries (self.connect_attributes.getD Trusted.connectAttrsNew)) ⦄ := by
+      buf'.val = buf.val ++ changeUserMoreEnc (ChangeUserMore.of self) ((self.connect_attributes.map attrsEntries).getD []) ⦄ := by
   sorry
 
 /-- Round trip, with `ChangeUserMore.Compatible` flags (in particular `CLIENT_CONNECT_ATTRS`: otherwise the always-written attributes are left unread). -/

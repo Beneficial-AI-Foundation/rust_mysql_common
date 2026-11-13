@@ -4,7 +4,8 @@ import Proofs.Defs.LemmasConn
 # Facts about the connection-phase definitions (`lean/Defs/Connection.lean`)
     Pure-Lean properties a signer should read: plugin names and normal form; the crate's
     scramble length agrees with the protocol's below 128 and is wrong from 136; the crate's own
-    handshake encoding of a 120–127-byte scramble makes its reader panic; the attributes reader
+    handshake encoding of a 120–127-byte scramble makes its reader panic and of a 128–247-byte one
+    is silently misread; the attributes reader
     inverts the encoding; examples of the two version regexes' intended captures and of the
     MySQL nonce. Proofs: `Proofs/Defs/LemmasConn.lean`.
 
@@ -48,13 +49,24 @@ recall scramble2LenCrate_ne (b : Nat) (h1 : 136 ≤ b) (h2 : b < 256) : scramble
 
 /-- **The crate cannot read its own handshake** with `CLIENT_SECURE_CONNECTION`, `CLIENT_PLUGIN_AUTH` and a scramble of 120–127 bytes: the written length byte `8 + n` is in `128..135`, and the reader panics. -/
 recall handshakePanics_handshakeEnc (hs : Handshake) (s : List U8) (tail : List U8) (hv : NoNul hs.serverVersion)
-    (hst : statusRead hs.status = some hs.status) (hst2 : hs.status < 2 ^ 16) (hl : hs.capsLower < 2 ^ 16)
+    (hst : statusRead hs.status = some hs.status) (hl : hs.capsLower < 2 ^ 16)
     (hsec : hasFlag hs.capsLower CLIENT_SECURE_CONNECTION = true)
     (hpa : hasFlag hs.capsUpper CLIENT_PLUGIN_AUTH = true) (hs2 : hs.scramble2 = some s)
     (hn : 120 ≤ s.length ∧ s.length ≤ 127) (h1 : hs.scramble1.length = 8) :
     handshakePanics (handshakeEnc hs ++ tail)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.handshakePanics_handshakeEnc`
+
+/-- **The crate misreads its own handshake** with `CLIENT_SECURE_CONNECTION`, `CLIENT_PLUGIN_AUTH` and a scramble of 128–247 bytes, in every build: the written length byte `8 + n` is in `136..255`, there is no panic, and the reader takes only the first 13 scramble bytes (silently; the rest becomes part of the plugin name). -/
+recall handshakeEnc_misread (hs : Handshake) (s : List U8) (tail : List U8) (hv : NoNul hs.serverVersion)
+    (hst : statusRead hs.status = some hs.status) (hl : hs.capsLower < 2 ^ 16)
+    (hsec : hasFlag hs.capsLower CLIENT_SECURE_CONNECTION = true)
+    (hpa : hasFlag hs.capsUpper CLIENT_PLUGIN_AUTH = true) (hs2 : hs.scramble2 = some s)
+    (hn : 128 ≤ s.length ∧ s.length ≤ 247) (h1 : hs.scramble1.length = 8) :
+    136 ≤ handshakeLenByte hs ∧ handshakeLenByte hs < 256 ∧ ¬ handshakePanics (handshakeEnc hs ++ tail) ∧
+      (handshakeRead (handshakeEnc hs ++ tail)).1.map (·.scramble2) = some (some (s.take 13))
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.handshakeEnc_misread`
 
 /-- The attributes reader inverts `attrsEnc`. -/
 recall connectAttrsRead_attrsEnc (kvs : List (List U8 × List U8)) (tail : List U8) (h : (attrsEnc kvs).length < 2 ^ 64) :

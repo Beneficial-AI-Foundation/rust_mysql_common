@@ -68,11 +68,11 @@ theorem packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFl
         rest.val = (changeUserRead caps.val buf.val).2 ⦄ := by
   sorry
 
-/-- `MySerialize for ComChangeUser`: appends `changeUserEnc` of the fields, with the entries of the tail's map in its iteration order (**of an empty map if it has none**: `attrsEntries Trusted.connectAttrsNew`, which the trusted model leaves opaque; the crate writes the lenenc `0`). -/
+/-- `MySerialize for ComChangeUser`: appends `changeUserEnc` of the fields, with the entries of the tail's map in its iteration order (none if it has no map: the crate writes an empty map, whose attributes are the single byte `0` by `Trusted.connectAttrsEntries_new`). -/
 theorem packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.ComChangeUser) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (changeUserEnc (ChangeUser.of self) (attrsEntries ((self.more_data.bind (·.connect_attributes)).getD Trusted.connectAttrsNew))).length ≤ Usize.max) :
+    (h : buf.length + (changeUserEnc (ChangeUser.of self) (((self.more_data.bind (·.connect_attributes)).map attrsEntries).getD [])).length ≤ Usize.max) :
     packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
-      buf'.val = buf.val ++ changeUserEnc (ChangeUser.of self) (attrsEntries ((self.more_data.bind (·.connect_attributes)).getD Trusted.connectAttrsNew)) ⦄ := by
+      buf'.val = buf.val ++ changeUserEnc (ChangeUser.of self) (((self.more_data.bind (·.connect_attributes)).map attrsEntries).getD []) ⦄ := by
   sorry
 
 /-- Round trip: a `ChangeUser.Compatible` request written by `changeUserEnc` reads back with the same fields, its tail's map built from the written entries. Without a tail nothing may follow (any byte would be read as a tail). -/

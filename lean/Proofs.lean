@@ -163,6 +163,7 @@ import Proofs.Defs.LemmasComp
 import Proofs.Defs.LemmasCF
 import Proofs.Defs.LemmasG
 import Proofs.Consistency.ParamsMap
+import Proofs.Consistency.ConnTrusted
 import Proofs.Defs.LemmasSqlText
 import Proofs.NamedParams.ParsedNamedParams
 import Proofs.Params.ParamsError
