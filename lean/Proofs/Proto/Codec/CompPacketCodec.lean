@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Util.CompCodec
 
 /-! Statements for `struct CompPacketCodec and its impls` (spec file: `Specs/Proto/Codec.lean`). -/
 
@@ -12,7 +13,7 @@ namespace mysql_common
 theorem proto.codec.CompPacketCodec.reset_seq_id_eq (self : proto.codec.CompPacketCodec) :
     proto.codec.CompPacketCodec.reset_seq_id self =
       ok { self with comp_seq_id := 0#u8, plain_codec := { self.plain_codec with seq_id := 0#u8 } } := by
-  sorry
+  simp [proto.codec.CompPacketCodec.reset_seq_id, proto.codec.PlainPacketCodec.reset_seq_id]
 
 /-- `sync_seq_id`: if no decompressed input is pending (`in_buf` empty, i.e. on a compressed-packet boundary), the plain sequence id becomes the compressed one; otherwise nothing changes. -/
 theorem proto.codec.CompPacketCodec.sync_seq_id_eq (self : proto.codec.CompPacketCodec) :
@@ -20,7 +21,9 @@ theorem proto.codec.CompPacketCodec.sync_seq_id_eq (self : proto.codec.CompPacke
       ok (if self.in_buf.val = [] then
             { self with plain_codec := { self.plain_codec with seq_id := self.comp_seq_id } }
           else self) := by
-  sorry
+  unfold proto.codec.CompPacketCodec.sync_seq_id
+  simp [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty, alloc.vec.Vec.deref]
+  split_ifs <;> rfl
 
 /-- `decode(src, dst, max_allowed_packet)`: total. It never panics, and states the decoder can produce stay valid. It decodes compressed packets from `src` into the internal buffer `in_buf`, and plain packets from `in_buf` into `dst` (see the round-trip, streaming and error statements below).
     The hypotheses: the pending states are valid (`CompState.Valid`, `ChunkState.Valid`; the decoder only produces valid states, but the enum fields are public), and a size bound that rules out `usize` overflow. That bound is stronger than necessary: each compressed packet of at least 7 input bytes can add up to `2^24` bytes to `in_buf`. -/
