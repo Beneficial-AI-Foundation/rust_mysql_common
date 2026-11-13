@@ -695,4 +695,34 @@ theorem tm_len_panics (h64 : Target64) (e : binlog.events.table_map_event.TableM
   rcases lsl_cases s2 with ⟨i9, h9, -⟩ | h9 <;>
     simp [hs, hs1, hi6, hs2, h9, lift, hadd]
 
+/-! ## Readers -/
+
+theorem pstep {T U : Type} (m : Result (core.result.Result T core.io.error.Error × io.ParseBuf))
+    (P : Option T → io.ParseBuf → Prop) (hm : m ⦃ r rest => P (okPart r) rest ⦄)
+    (k : T → io.ParseBuf → Result (core.result.Result U core.io.error.Error × io.ParseBuf))
+    (Q : core.result.Result U core.io.error.Error → io.ParseBuf → Prop)
+    (hErr : ∀ rest e, P none rest → Q (.Err e) rest)
+    (hOk : ∀ v rest, P (some v) rest → k v rest ⦃ r rest' => Q r rest' ⦄) :
+    (do
+      let (r, buf1) ← m
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | .Continue v => k v buf1
+      | .Break residual => do
+        let r' ← core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual U
+          (core.convert.FromSame core.io.error.Error) residual
+        ok (r', buf1)) ⦃ r rest => Q r rest ⦄ := by
+  obtain ⟨⟨r, b⟩, he, hp⟩ := PBUtil.spec_eq_ok hm
+  rw [he]
+  cases r with
+  | Ok v =>
+    apply spec_bind_ok
+    simp only [core.result.Result.Insts.CoreOpsTry.branch]
+    apply spec_bind_ok
+    exact hOk v b (by simpa using hp)
+  | Err e =>
+    simp [core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+    exact hErr b _ (by simpa using hp)
+
 end mysql_common.BERUtil
