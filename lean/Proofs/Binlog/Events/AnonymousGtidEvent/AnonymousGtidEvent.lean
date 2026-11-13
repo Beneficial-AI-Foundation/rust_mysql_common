@@ -12,12 +12,19 @@ namespace mysql_common
 /-- `SIZE`: `GtidEvent::SIZE`, `None`. -/
 theorem binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none := by
-  sorry
+  unfold binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE; rfl
 
 /-- `MyDeserialize`: `GtidEvent::deserialize` (with the same context, so the event type in `ctx` selects the format). -/
 theorem binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_eq (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf = binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf := by
-  sorry
+  unfold binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  rw [io.ParseBuf.parse_unchecked_eq]
+  show Std.bind (binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf) _ = _
+  conv => rhs; rw [← Std.bind_pure (binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf)]
+  congr 1
+  funext p
+  obtain ⟨r, b⟩ := p
+  cases r <;> rfl
 
 /-- `MySerialize`: `GtidEvent::serialize`. -/
 theorem binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_eq (e : binlog.events.anonymous_gtid_event.AnonymousGtidEvent) (buf : alloc.vec.Vec U8) :
