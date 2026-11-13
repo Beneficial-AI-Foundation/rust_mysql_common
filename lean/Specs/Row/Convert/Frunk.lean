@@ -31,12 +31,14 @@ recall frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt_eq
     frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt r =
       ok (if r.values.val = [] then .Ok () else .Err r)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt_eq`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt_eq
 /-- `FromRow for HNil`: `from_row` is the trait's default (it panics exactly when
     `from_row_opt` is an `Err`, i.e. on a non-empty row). -/
 recall frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_eq :
     frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row =
       row.convert.FromRow.from_row.default frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_eq`
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_eq
 end mysql_common
