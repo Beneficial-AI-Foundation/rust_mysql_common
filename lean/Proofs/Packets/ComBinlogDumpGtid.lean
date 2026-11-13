@@ -1198,6 +1198,51 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
   simp only [okPart, Option.map_some, Option.some.injEq] at h7
   obtain ⟨hlen, hb4⟩ := h7
   gtid_ok_br
+  obtain ⟨i, pd⟩ := lenv
+  simp only at hlen
+  step as ⟨i1, hi1⟩
+  have hi1v : i1.val = leNat (List.take 4 (List.drop 8 r)) := by rw [hi1, ← hlen]; simp
+  step with parse_usize_spec as ⟨r7, buf5, h9⟩
+  simp only [Slice.length, hb4, hi1v] at h9
+  generalize hL : leNat (List.take 4 (List.drop 8 r)) = L at h h9 hi1v
+  generalize hR : List.drop 4 (List.drop 8 r) = R at h h9 hb4
+  by_cases hLR : R.length < L
+  · simp only [hLR, ↓reduceIte, ReadOut.done.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [show ¬ L ≤ R.length by omega, ↓reduceIte] at h9
+    cases r7 with
+    | Ok _ => simp [okPart] at h9
+    | Err e =>
+      gtid_err_br
+      exact ⟨by simp [okPart], by rw [h9.2, hb4]⟩
+  simp only [hLR, ↓reduceIte] at h
+  simp only [show L ≤ R.length by omega, ↓reduceIte] at h9
+  cases r7 with
+  | Err e => simp [okPart] at h9
+  | Ok pb1 =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h9
+  obtain ⟨hpb1, hb5⟩ := h9
+  gtid_ok_br
+  step with misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec as ⟨r8, sid_buf, h10⟩
+  simp only [Slice.length, hpb1] at h10
+  by_cases hb8 : 8 ≤ (R.take L).length
+  swap
+  · simp only [hb8, ↓reduceIte, ReadOut.done.injEq] at h h10
+    obtain ⟨rfl, rfl⟩ := h
+    cases r8 with
+    | Ok _ => simp [okPart] at h10
+    | Err e =>
+      gtid_err_br
+      exact ⟨by simp [okPart], hb5⟩
+  simp only [hb8, ↓reduceIte] at h h10
+  cases r8 with
+  | Err e => simp [okPart] at h10
+  | Ok rawv =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h10
+  obtain ⟨hraw, hsb⟩ := h10
+  gtid_ok_br
+  obtain ⟨raw, pd2⟩ := rawv
+  simp only at hraw
   sorry
 
 /-- **Crash path.** `MyDeserialize for ComBinlogDumpGtid` panics where `gtidDumpRead` does: a SID
