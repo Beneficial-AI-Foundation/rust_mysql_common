@@ -396,21 +396,6 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail .integerOverflow := by
   sorry
 
-private theorem serialize_tail_spec
-    (s2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize))
-    (pn : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit)) (buf : alloc.vec.Vec U8)
-    (h : buf.length + ((s2.map (fun rb => (cowList rb.1).take 247)).getD [] ++
-      (pn.map (fun rb => nulStr (cowList rb.1))).getD []).length ≤ Usize.max) :
-    packets.serialize_handshake_tail s2 pn buf ⦃ b => b.val = buf.val ++
-      ((s2.map (fun rb => (cowList rb.1).take 247)).getD [] ++ (pn.map (fun rb => nulStr (cowList rb.1))).getD []) ⦄ := by
-  unfold packets.serialize_handshake_tail packets.serialize_handshake_auth_plugin_name
-  rcases s2 with _ | rb <;> rcases pn with _ | rb2 <;> simp only [Option.map_none, Option.map_some, Option.getD_none,
-    Option.getD_some, List.append_nil, List.nil_append, List.length_append] at h ⊢
-  · simp
-  · step*
-  · step*
-  · step*
-
 /-- `MySerialize for HandshakePacket`: appends `handshakeEnc` of the fields. -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.HandshakePacket) (buf : alloc.vec.Vec U8)
     (h : buf.length + (handshakeEnc (Handshake.of self)).length ≤ Usize.max) :
