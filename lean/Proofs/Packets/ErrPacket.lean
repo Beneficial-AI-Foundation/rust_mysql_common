@@ -37,30 +37,6 @@ private theorem parse_unchecked_err_header_spec (buf : io.ParseBuf) (h : 1 ≤ b
     packets.InvalidErrPacketHeader.Insts.CoreErrorError packets.InvalidErrPacketHeader.Insts.CoreDefaultDefault
     ((WP.spec_ok _).mpr trivial) buf h
 
-private theorem server_error_ser (self : packets.ServerError) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (match self.state with | some s => byte 0x23 :: s.state.val | none => []).length
-      + (cowList self.message.1).length ≤ Usize.max) :
-    packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
-      buf'.val = buf.val ++ (match self.state with | some s => byte 0x23 :: s.state.val | none => [])
-        ++ cowList self.message.1 ⦄ := by
-  unfold packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize
-  cases hs : self.state with
-  | none =>
-    simp only [hs, List.length_nil, add_zero] at h
-    simp only
-    apply WP.spec_mono (eof_ser _ _ (by omega))
-    intro b hb; simp [hb]
-  | some st =>
-    simp only [hs, List.length_cons, Std.Array.length_eq] at h
-    simp only
-    step with packets.SqlState.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨buf1, h1⟩
-    apply WP.spec_mono (eof_ser _ _ (by
-      have : buf1.length = buf.length + 6 := by
-        simp [alloc.vec.Vec.length, h1]
-      have h5 : ((5#usize : Usize) : Nat) = 5 := rfl
-      omega))
-    intro b hb; simp [hb, h1]
-
 private theorem constu8_new_spec (T : Type) (N : U8) : misc.raw.int.ConstU8.new T N ⦃ _ => True ⦄ := by
   unfold misc.raw.int.ConstU8.new; exact (WP.spec_ok _).mpr trivial
 
@@ -253,7 +229,7 @@ theorem packets.ErrPacket.Insts.Mysql_commonProtoMySerialize.serialize_spec (sel
       length_leBytes, vec_len] at h
     step with rawint_leu16_ser as ⟨buf2, h2⟩
     · simp [h1]; omega
-    apply WP.spec_mono (server_error_ser _ _ (by
+    apply WP.spec_mono (packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize_spec _ _ (by
       cases state <;> simp_all <;> omega))
     intro b hb
     rw [hb, h2, h1]

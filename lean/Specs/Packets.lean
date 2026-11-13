@@ -642,9 +642,9 @@ recall packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.des
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.deserialize_spec
-/-- `MySerialize for ServerError`: appends the SQL state (`#` and 5 bytes) if present, then the message (the code is written by `ErrPacket`). -/
+/-- `MySerialize for ServerError`: appends the SQL state (`#` and 5 bytes) if present, then the message (the code is written by `ErrPacket`). The bound is exact: 6 bytes for the SQL state only if there is one. -/
 recall packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.ServerError) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 6 + (cowList self.message.1).length ≤ Usize.max) :
+    (h : buf.length + (match self.state with | some _ => 6 | none => 0) + (cowList self.message.1).length ≤ Usize.max) :
     packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
       buf'.val = buf.val ++ (match self.state with | some s => byte 0x23 :: s.state.val | none => [])
         ++ cowList self.message.1 ⦄

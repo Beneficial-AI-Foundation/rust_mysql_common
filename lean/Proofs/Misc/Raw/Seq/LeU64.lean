@@ -77,7 +77,7 @@ theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_sp
     (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
     (seq : Slice T) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 8 + (seq.val.flatMap enc).length ≤ Usize.max) :
+    (h : buf.length + 8 + ((seq.val.take (2 ^ 64 - 1)).flatMap enc).length ≤ Usize.max) :
     misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize ser seq buf ⦃ buf' =>
       buf'.val = buf.val ++ leBytes 8 (min seq.length (2 ^ 64 - 1)) ++ (seq.val.take (2 ^ 64 - 1)).flatMap enc ⦄ := by
   unfold misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize
@@ -98,7 +98,9 @@ theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_sp
     · exact hlen'
     · have := lt_two_pow_64_of_le_max (show len.val ≤ Usize.max by scalar_tac)
       simp; omega
-  have hfl := length_flatMap_take_le enc seq.val len.val
+  have hfl : seq.val.take len.val = seq.val.take (2 ^ 64 - 1) := by
+    rw [List.take_eq_take_iff, hlen']; simp only [Slice.length]; omega
+  rw [← hfl] at h
   step with misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec i2 buf (by scalar_tac) as ⟨ buf1, hb1 ⟩
   simp only [core.slice.Slice.iter, core.iter.traits.iterator.Iterator.take.trait_default,
     core.iter.traits.iterator.Iterator.take.default]

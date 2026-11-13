@@ -145,7 +145,7 @@ recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_spe
     (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
     (seq : Slice T) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 8 + (seq.val.flatMap enc).length ≤ Usize.max) :
+    (h : buf.length + 8 + ((seq.val.take (2 ^ 64 - 1)).flatMap enc).length ≤ Usize.max) :
     misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize ser seq buf ⦃ buf' =>
       buf'.val = buf.val ++ leBytes 8 (min seq.length (2 ^ 64 - 1)) ++ (seq.val.take (2 ^ 64 - 1)).flatMap enc ⦄
 
@@ -200,7 +200,7 @@ recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_spe
     (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
     (seq : Slice T) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 4 + (seq.val.flatMap enc).length ≤ Usize.max) :
+    (h : buf.length + 4 + ((seq.val.take (2 ^ 32 - 1)).flatMap enc).length ≤ Usize.max) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize ser seq buf ⦃ buf' =>
       buf'.val = buf.val ++ leBytes 4 (min seq.length (2 ^ 32 - 1)) ++ (seq.val.take (2 ^ 32 - 1)).flatMap enc ⦄
 
