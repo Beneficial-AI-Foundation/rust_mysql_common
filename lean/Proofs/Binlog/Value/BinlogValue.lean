@@ -4,6 +4,7 @@ import Proofs.Util.BinlogValue
 /-! Statements for `enum BinlogValue and its impls` (spec file: `Specs/Binlog/Value.lean`). -/
 
 set_option autoImplicit false
+set_option linter.unusedVariables false
 
 open Aeneas Aeneas.Std Result mysql_common Defs
 
@@ -66,8 +67,8 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
     (hs : ∀ n r, readLE 4 buf.val = some (n, r) → r.length < n) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest =>
       okPart r = none ∧
-        rest.val = (match readLE 4 buf.val with | some (_, r) => r | none => buf.val) ⦄ := by
-  sorry
+        rest.val = (match readLE 4 buf.val with | some (_, r) => r | none => buf.val) ⦄ := 
+  BinlogUtil.deser_json_short h64 ct md uns part buf hj hs
 
 /-- `deserialize` of a NEWDECIMAL column: the opaque decimal reader on the input, with the precision and scale from the metadata, its text wrapped as `Bytes`. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_decimal

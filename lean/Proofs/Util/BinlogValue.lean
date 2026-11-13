@@ -2096,7 +2096,7 @@ theorem okEq {α β : Type} {m : Result (core.result.Result α core.io.error.Err
   | Ok y => exact ⟨y, rest, hm, by simpa [okPart] using h1, h2⟩
   | Err e => simp [okPart] at h1
 
-theorem deser_json (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+theorem deser_json (_h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
     (hj : binlogEffType ct md.val = .MYSQL_TYPE_JSON) (n : Nat) (r : List U8)
     (hl : readLE 4 buf.val = some (n, r)) (hn : n ≤ r.length) :
     ∃ pb rb : io.ParseBuf, pb.val = r.take n ∧ rb.val = r.drop n ∧
@@ -2148,7 +2148,13 @@ theorem ne_ta_of_eff (ct : constants.ColumnType) (md : Slice U8) (t : constants.
     ¬(ct = MYSQL_TYPE_TYPED_ARRAY ∧ md.val = []) := by
   rintro ⟨rfl, h⟩; rw [h] at ht; simp [binlogEffType] at ht; exact hne ht.symm
 
-attribute [local step] ConvInts.i128_to_string_spec ConvInts.string_into_bytes_spec
+@[local step] theorem i128_to_string_spec' (x : Std.I128) :
+    value.convert.trusted.i128_to_string x ⦃ s => Trusted.u8sOf s.toUTF8 = decimalBytes x.val ⦄ :=
+  ConvInts.i128_to_string_spec x
+
+@[local step] theorem string_into_bytes_spec' (s : String) (h : (Trusted.u8sOf s.toUTF8).length ≤ Usize.max) :
+    value.convert.trusted.string_into_bytes s ⦃ v => v.val = Trusted.u8sOf s.toUTF8 ⦄ :=
+  ConvInts.string_into_bytes_spec s h
 
 theorem cast128_i32 (z : I32) : (IScalar.cast .I128 z).val = z.val := by simp [IScalar.cast_val_eq]
 
@@ -2286,5 +2292,58 @@ theorem deser_int24_minus_one (md : Slice U8) (part : Bool)
   rw [h1]
   rw [show List.take 3 ([byte 0xFF, byte 0xFF, byte 0xFF] ++ tail) = [byte 0xFF, byte 0xFF, byte 0xFF] by simp]
   decide
+
+end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+open constants.ColumnType
+
+local notation "BVdes" => binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize
+
+theorem deser_json_short (_h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hj : binlogEffType ct md.val = .MYSQL_TYPE_JSON)
+    (hs : ∀ n r, readLE 4 buf.val = some (n, r) → r.length < n) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest =>
+      okPart r = none ∧
+        rest.val = (match readLE 4 buf.val with | some (_, r) => r | none => buf.val) ⦄ := by
+  rw [deser_eff ct md uns part buf (ne_ta_of_eff ct md _ hj (by intro h; cases h)), hj]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_JSON MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_JSON MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, lift]
+  by_cases h4 : 4 ≤ buf.length
+  · obtain ⟨x, buf1, e1, hx, hb1⟩ := okEq (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf) h4
+    obtain ⟨xv, xu⟩ := x
+    have hrl : readLE 4 buf.val = some (leNat (buf.val.take 4), buf.val.drop 4) := by
+      simp [readLE, show 4 ≤ buf.val.length by simpa [Slice.length] using h4]
+    have hlt := hs _ _ hrl
+    have hlen : (UScalar.cast .Usize xv).val = leNat (buf.val.take 4) := by
+      rw [IntAndMisc.cast_usize_small _ (by have := xv.hBounds; simp at this; omega)]; simpa using hx
+    have hps : io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize buf1 (UScalar.cast .Usize xv) =
+        io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize (UScalar.cast .Usize xv) buf1 :=
+      io.ParseBuf.parse_of_size_none _ _ _ (by simp [io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize, io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE])
+    simp only [e1, Std.bind_ok, core.result.Result.Insts.CoreOpsTry.branch, Std.uncurry_apply_pair,
+      misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref, hps, hrl]
+    have hd := PBUtil.deserialize_usize_ok (UScalar.cast .Usize xv) buf1
+    have hnot : ¬ (UScalar.cast .Usize xv).val ≤ buf1.length := by
+      rw [hlen, show buf1.length = (buf.val.drop 4).length by simp [Slice.length, hb1]]; omega
+    simp only [hnot, ite_false] at hd
+    obtain ⟨⟨r, rest⟩, he, h1, h2⟩ := PBUtil.spec_eq_ok hd
+    cases r with
+    | Ok y => simp [okPart] at h1
+    | Err e =>
+      subst h2
+      simp [he, from_residual_eq, okPart, hb1]
+  · have hrl : readLE 4 buf.val = none := by simp [readLE]; simpa [Slice.length] using h4
+    have hp := misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf
+    simp only [h4, ite_false] at hp
+    obtain ⟨⟨r, rest⟩, he, h1, h2⟩ := PBUtil.spec_eq_ok hp
+    cases r with
+    | Ok y => simp [okPart] at h1
+    | Err e =>
+      subst h2
+      simp [he, core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq, okPart]
+      rw [hrl]
 
 end mysql_common.BinlogUtil
