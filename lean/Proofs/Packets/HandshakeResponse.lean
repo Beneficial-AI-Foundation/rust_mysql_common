@@ -37,7 +37,11 @@ private theorem new_scramble_buf_spec (caps : constants.CapabilityFlags)
 
 attribute [local step] new_scramble_buf_spec
 
-set_option maxHeartbeats 8000000 in
+private theorem setflag_bool (x bit : constants.CapabilityFlags) (b : Bool) :
+    (if b = true then constants.CapabilityFlags.insert x bit else constants.CapabilityFlags.remove x bit)
+      ⦃ r => r.val = setFlag x.val bit.val b ⦄ :=
+  WP.spec_mono (setflag_spec x bit _ _) (fun r hr => by rw [hr]; cases b <;> rfl)
+
 /-- `new`: the auth response framed as the given flags prescribe; `CLIENT_CONNECT_WITH_DB`, `CLIENT_PLUGIN_AUTH` and `CLIENT_CONNECT_ATTRS` set or cleared by whether a database, plugin and attributes are given (overriding the caller's flags); collation `utf8mb4_general_ci` (45) for a server version from 5.5.3, else `utf8mb3_general_ci` (33); user and auth response empty for `None`; MariaDB's capabilities empty; the attributes converted (`Trusted.connectAttrsFromStrings`). -/
 theorem packets.HandshakeResponse.new_spec {T1 T2 T3 : Type} (into1 : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into2 : core.convert.Into T2 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into3 : core.convert.Into T3 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
     (scramble_buf : Option T1) (server_version : U16 × U16 × U16) (user : Option T2) (db_name : Option T3)
@@ -59,27 +63,44 @@ theorem packets.HandshakeResponse.new_spec {T1 T2 T3 : Type} (into1 : core.conve
           db := db_name.map (fun _ => cowList cd), pluginName := auth_plugin.map authPluginName } ∧
         p.auth_plugin = auth_plugin ∧
         p.connect_attributes = connect_attributes.map Trusted.connectAttrsFromStrings ⦄ := by
-  unfold packets.HandshakeResponse.new packets.opt_connect_attrs_from_strings
+  unfold packets.HandshakeResponse.new
   obtain ⟨maj, mn, pt⟩ := server_version
-  have hs2 : ∀ x, scramble_buf = some x → into1.into x ⦃ c => c = cs ⦄ := by
-    intro x hx; rw [hs x hx]; simp
+  refine WP.spec_bind (Pₘ := fun c => cowList c = (scramble_buf.map (fun _ => cowList cs)).getD [])
+    ?_ (fun c1 hc1 => ?_)
+  · rcases scramble_buf with _ | x
+    · simp [alloc.borrow.Cow.Insts.CoreDefaultDefault.default, alloc.vec.Vec.Insts.CoreDefaultDefault.default]
+    · simp [hs x rfl]
+  step as ⟨sb, hsb⟩
+  refine WP.spec_bind (setflag_bool _ _ _) (fun k1 hk1 => ?_)
+  refine WP.spec_bind (setflag_bool _ _ _) (fun k2 hk2 => ?_)
+  refine WP.spec_bind (setflag_bool _ _ _) (fun k3 hk3 => ?_)
+  refine WP.spec_bind (Pₘ := fun o => o = connect_attributes.map Trusted.connectAttrsFromStrings)
+    ?_ (fun ca1 hca1 => ?_)
+  · unfold packets.opt_connect_attrs_from_strings
+    rcases connect_attributes with _ | a <;> simp [misc.trusted.connect_attrs_from_strings]
+  refine WP.spec_bind (Pₘ := fun b => b = atLeast553 maj.val mn.val pt.val) ?_ (fun al hal => ?_)
+  · simp only [atLeast553]
+    split_ifs <;> simp_all
+  refine WP.spec_bind (Pₘ := fun r => r.1.val = if al then 45 else 33) ?_ (fun ri hri => ?_)
+  · split <;> step*
+  refine WP.spec_bind (Pₘ := fun rb => cowList rb.1 = (user.map (fun _ => cowList cu)).getD [])
+    ?_ (fun rb hrb => ?_)
+  · rcases user with _ | x
+    · simp [misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default]
+      exact (WP.spec_ok _).mpr rfl
+    · apply WP.spec_mono (PKUtil.rawbytes_new_spec _ _ x cu (hu x rfl))
+      intro r hr; simp [hr]
+  refine WP.spec_bind (Pₘ := fun o => o.map (fun rb => cowList rb.1) = db_name.map (fun _ => cowList cd))
+    ?_ (fun o ho => ?_)
+  · rcases db_name with _ | x
+    · simp
+    · step with PKUtil.rawbytes_new_spec _ _ x cd (hd x rfl)
+      simp_all
+  simp only [constants.MariadbCapabilities.empty, bind_ok]
+  step*
   have e1 : (constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB).val = CLIENT_CONNECT_WITH_DB := by
     simp [constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB, CLIENT_CONNECT_WITH_DB]
-  have e2 : (constants.CapabilityFlags.CLIENT_PLUGIN_AUTH).val = CLIENT_PLUGIN_AUTH := by
-    simp [constants.CapabilityFlags.CLIENT_PLUGIN_AUTH, CLIENT_PLUGIN_AUTH]
-  have e3 : (constants.CapabilityFlags.CLIENT_CONNECT_ATTRS).val = CLIENT_CONNECT_ATTRS := by
-    simp [constants.CapabilityFlags.CLIENT_CONNECT_ATTRS, CLIENT_CONNECT_ATTRS]
-  rcases scramble_buf with _ | x1 <;> rcases user with _ | x2 <;> rcases db_name with _ | x3 <;>
-    rcases auth_plugin with _ | ap <;> rcases connect_attributes with _ | ca <;>
-    simp only [alloc.borrow.Cow.Insts.CoreDefaultDefault.default, alloc.vec.Vec.Insts.CoreDefaultDefault.default, core.option.Option.is_some, Option.isSome_some,
-      Option.isSome_none, Bool.false_eq_true, ↓reduceIte, misc.trusted.connect_attrs_from_strings]
-  all_goals
-    try have hs' := hs2 _ rfl
-    try have hu0 := hu _ rfl
-    try have hd0 := hd _ rfl
-    repeat' (first | step | split | (simp only [↓reduceIte, constants.MariadbCapabilities.empty, bind_ok]))
-  all_goals simp_all [HsResp.of, setFlag, atLeast553]
-  all_goals omega
+  simp_all [HsResp.of]
 
 /-- `with_mariadb_ext_capabilities`: replaces MariaDB's capabilities. -/
 theorem packets.HandshakeResponse.with_mariadb_ext_capabilities_spec (self : packets.HandshakeResponse) (mariadb_ext_capabilities : constants.MariadbCapabilities) :
@@ -152,7 +173,6 @@ theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SI
     packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
   unfold packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE; rfl
 
-set_option maxHeartbeats 4000000 in
 /-- `MyDeserialize for HandshakeResponse`: total; `hsRespRead` (the fields, the plugin in normal form, the map built from the wire entries; errors; what is left). -/
 theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (h64 : Target64) (buf : io.ParseBuf) :
     packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
