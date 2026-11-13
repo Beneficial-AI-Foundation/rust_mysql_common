@@ -1,0 +1,49 @@
+Translation patch: `From<..> for Params` (`#[verify::start_from]`)
+
+Change: Adds `#[verify::start_from]` to the impls `From<&T>`, `From<Vec<T>>`, `From<Vec<(N, V)>>`, `From<()>` and (inside `into_params_impl!`) the twelve tuple impls `From<(A, ..)>` for `Params` (the mechanism of patch 08: Cargo.toml `start_from_attribute`).
+Why: A `start_from` pattern `{impl core::convert::From for mysql_common::params::Params}` also matches `From<&[&dyn ToValue]>`, which Aeneas cannot translate (`dyn`), and Charon's pattern syntax cannot express that impl to exclude it (`&[_]` and `&'_ [&'_ _]` fail to parse).
+Behaviour: Unchanged: the attribute is an inert tool attribute.
+
+diff --git a/src/params.rs b/src/params.rs
+index 3a46ced..c004b4f 100644
+--- a/src/params.rs
++++ b/src/params.rs
+@@ -183,12 +183,14 @@ fn sort_indexes(v: &mut [usize]) {
+     }
+ }
+ 
++#[verify::start_from]
+ impl<'a, T: Into<Params> + Clone> From<&'a T> for Params {
+     fn from(x: &'a T) -> Params {
+         x.clone().into()
+     }
+ }
+ 
++#[verify::start_from]
+ impl<T> From<Vec<T>> for Params
+ where
+     Value: From<T>,
+@@ -206,6 +208,7 @@ where
+     }
+ }
+ 
++#[verify::start_from]
+ impl<N, V> From<Vec<(N, V)>> for Params
+ where
+     Vec<u8>: From<N>,
+@@ -239,6 +242,7 @@ impl<'a> From<&'a [&'a dyn ToValue]> for Params {
+     }
+ }
+ 
++#[verify::start_from]
+ impl From<()> for Params {
+     fn from(_: ()) -> Params {
+         Params::Empty
+@@ -247,6 +251,7 @@ impl From<()> for Params {
+ 
+ macro_rules! into_params_impl {
+     ($([$A:ident,$a:ident]),*) => (
++        #[verify::start_from]
+         impl<$($A: Into<Value>,)*> From<($($A,)*)> for Params {
+             fn from(x: ($($A,)*)) -> Params {
+                 let ($($a,)*) = x;

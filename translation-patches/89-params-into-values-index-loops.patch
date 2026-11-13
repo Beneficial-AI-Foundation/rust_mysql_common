@@ -1,0 +1,109 @@
+Translation patch: `Params::into_values` (loops, `sort_unstable`, `first`/`last`)
+
+Change:
+  - `for (i, _) in named_params.iter().enumerate().filter(|(_, x)| **x == name) { .. if first.is_none() { first = Some(i) } else { values[i] = value.clone() } }` becomes `let mut i = 0; while i < named_params.len() { if *named_params[i] == *name { .. match first { None => first = Some(i), Some(_) => values[i] = value.clone() } } i += 1; }`.
+  - `indexes.sort_unstable(); match indexes.into_iter().enumerate().find(|x| x.0 != x.1) { Some((missing, _)) => Err(named_params[missing]), None => match named_params.last() { Some(last) => Err(last), None => Ok(values) } }` becomes `sort_indexes(&mut indexes)` (a new in-crate insertion sort on `&mut [usize]`), then `let mut missing = 0; while missing < indexes.len() && indexes[missing] == missing { missing += 1 }` and `if missing < indexes.len() { Err(named_params[missing]) } else if !named_params.is_empty() { Err(named_params[named_params.len() - 1]) } else { Ok(values) }`.
+  - In the `Params::Empty` arm, `if let Some(first) = params.first()` becomes `if !params.is_empty()` with `params[0]`.
+Why: Aeneas does not model `Enumerate`, `Filter`, `find`, closures, `slice::sort_unstable`, `first`/`last` or `Option::is_none` (patches 04/05/27).
+Behaviour: Identical:
+  - the same indices are visited in increasing order, and `Vec<u8> == Vec<u8>` is the comparison of the two byte slices;
+  - sorting a `[usize]` ascending has a unique result, so the insertion sort leaves `indexes` exactly as `sort_unstable` would (it is O(n^2) instead of O(n log n));
+  - `find` returns the first `k` with `indexes[k] != k`, which is the `missing` the scan stops at (`missing < indexes.len()` iff `find` returned `Some`);
+  - `first()`/`last()` are `Some(&v[0])`/`Some(&v[len - 1])` exactly when `v` is non-empty.
+
+diff --git a/src/params.rs b/src/params.rs
+index 7a08265..3a46ced 100644
+--- a/src/params.rs
++++ b/src/params.rs
+@@ -67,8 +67,8 @@ impl Params {
+         match self {
+             Params::Empty => match named_params {
+                 Some(params) => {
+-                    if let Some(first) = params.first() {
+-                        Err(MissingNamedParameterError(first.clone()).into())
++                    if !params.is_empty() {
++                        Err(MissingNamedParameterError(params[0].clone()).into())
+                     } else {
+                         Ok(vec![])
+                     }
+@@ -87,36 +87,37 @@ impl Params {
+                     let mut indexes = Vec::with_capacity(named_params.len());
+                     for (name, value) in crate::sql_trusted::params_map_into_entries(map) {
+                         let mut first = None;
+-                        for (i, _) in named_params.iter().enumerate().filter(|(_, x)| **x == name) {
+-                            indexes.push(i);
+-                            if first.is_none() {
+-                                first = Some(i);
+-                            } else {
+-                                values[i] = value.clone();
++                        let mut i = 0;
++                        while i < named_params.len() {
++                            if *named_params[i] == *name {
++                                indexes.push(i);
++                                match first {
++                                    None => first = Some(i),
++                                    Some(_) => values[i] = value.clone(),
++                                }
+                             }
++                            i += 1;
+                         }
+                         if let Some(first) = first {
+                             values[first] = value;
+                         }
+                     }
+                     if indexes.len() != named_params.len() {
+-                        indexes.sort_unstable();
+-                        match indexes.into_iter().enumerate().find(|x| x.0 != x.1) {
+-                            Some((missing, _)) => {
+-                                Err(MissingNamedParameterError(named_params[missing].clone())
+-                                    .into())
+-                            }
+-                            None => {
+-                                match named_params.last() {
+-                                    Some(last) => {
+-                                        Err(MissingNamedParameterError(last.clone()).into())
+-                                    }
+-                                    None => {
+-                                        // unreachable
+-                                        Ok(values)
+-                                    }
+-                                }
+-                            }
++                        sort_indexes(&mut indexes);
++                        let mut missing = 0;
++                        while missing < indexes.len() && indexes[missing] == missing {
++                            missing += 1;
++                        }
++                        if missing < indexes.len() {
++                            Err(MissingNamedParameterError(named_params[missing].clone()).into())
++                        } else if !named_params.is_empty() {
++                            Err(MissingNamedParameterError(
++                                named_params[named_params.len() - 1].clone(),
++                            )
++                            .into())
++                        } else {
++                            // unreachable
++                            Ok(values)
+                         }
+                     } else {
+                         Ok(values)
+@@ -169,6 +170,19 @@ impl Params {
+     }
+ }
+ 
++/// Sorts `v` in ascending order (insertion sort).
++fn sort_indexes(v: &mut [usize]) {
++    let mut i = 1;
++    while i < v.len() {
++        let mut j = i;
++        while j > 0 && v[j - 1] > v[j] {
++            v.swap(j - 1, j);
++            j -= 1;
++        }
++        i += 1;
++    }
++}
++
+ impl<'a, T: Into<Params> + Clone> From<&'a T> for Params {
+     fn from(x: &'a T) -> Params {
+         x.clone().into()

@@ -651,6 +651,38 @@ def misc.raw.seq.RawSeq (T : Type _) (U : Type _) (Clause0_Primitive : Type _)
   alloc.borrow.Cow (Slice Clause0_Primitive) (alloc.vec.Vec Clause0_Primitive)
   × core.marker.PhantomData U
 
+/-- [mysql_common::named_params::MixedParamsError]
+    Source: 'src/named_params.rs', lines 13:0-13:28
+    Visibility: public -/
+@[reducible]
+def named_params.MixedParamsError := Unit
+
+/-- [mysql_common::named_params::ParserState]
+    Source: 'src/named_params.rs', lines 15:0-30:1 -/
+@[discriminant isize]
+inductive named_params.ParserState where
+| TopLevel : named_params.ParserState
+| InStringLiteral : Std.U8 → Bool → named_params.ParserState
+| MaybeInNamedParam : named_params.ParserState
+| InNamedParam : named_params.ParserState
+| InSharpComment : named_params.ParserState
+| MaybeInDoubleDashComment1 : named_params.ParserState
+| MaybeInDoubleDashComment2 : named_params.ParserState
+| InDoubleDashComment : named_params.ParserState
+| MaybeInCComment1 : named_params.ParserState
+| MaybeInCComment2 : named_params.ParserState
+| InCComment : named_params.ParserState
+| MaybeExitCComment : named_params.ParserState
+| InQuotedIdentifier : named_params.ParserState
+
+/-- [mysql_common::named_params::ParsedNamedParams]
+    Source: 'src/named_params.rs', lines 157:0-160:1
+    Visibility: public -/
+structure named_params.ParsedNamedParams where
+  query : alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)
+  params : alloc.vec.Vec (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+    Std.U8))
+
 /-- [mysql_common::packets::InvalidFixedLengthFieldsLen]
     Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
     Visibility: public -/
@@ -872,6 +904,40 @@ structure packets.ComStmtExecuteRequest where
   params_flags : misc.raw._const.Const constants.StmtExecuteParamsFlags Std.U8
   params : Slice value.Value
   as_long_data : Bool
+
+/-- [mysql_common::params::MissingNamedParameterError]
+    Source: 'src/params.rs', lines 19:0-19:51
+    Visibility: public -/
+@[reducible]
+def params.MissingNamedParameterError := alloc.vec.Vec Std.U8
+
+/-- [mysql_common::params::ParamsConfusionError]
+    Source: 'src/params.rs', lines 22:0-27:1
+    Visibility: public -/
+@[discriminant isize]
+inductive params.ParamsConfusionError where
+| NamedParamsForPositionalQuery : params.ParamsConfusionError
+| PositionalParamsForNamedQuery : params.ParamsConfusionError
+
+/-- [mysql_common::params::ParamsError]
+    Source: 'src/params.rs', lines 30:0-35:1
+    Visibility: public -/
+@[discriminant isize]
+inductive params.ParamsError where
+| Missing : params.MissingNamedParameterError → params.ParamsError
+| Confusion : params.ParamsConfusionError → params.ParamsError
+
+/-- [mysql_common::params::Params]
+    Source: 'src/params.rs', lines 39:0-43:1
+    Visibility: public -/
+@[discriminant isize]
+inductive params.Params where
+| Empty : params.Params
+| Named :
+  std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global →
+  params.Params
+| Positional : alloc.vec.Vec value.Value → params.Params
 
 /-- [mysql_common::proto::codec::buf_model::NonZeroUsize]
     Source: 'src/proto/codec/buf_model.rs', lines 17:0-17:31

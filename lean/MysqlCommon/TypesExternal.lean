@@ -142,3 +142,16 @@ axiom flate2.mem.Compress : Type
 /-- [flate2::mem::Decompress]: a zlib inflate stream; opaque (flate2 1.1.11). -/
 @[rust_type "flate2::mem::Decompress"]
 axiom flate2.mem.Decompress : Type
+/-! ## `HashMap` (the map of `Params::Named`)
+
+`Params` only reaches its `HashMap<Vec<u8>, Value>` through the opaque helpers of
+`mysql_common::sql_trusted` (translation-patches/80, 87). The type is opaque here; its contents
+are described in `FunsExternal.lean` (`Trusted.paramsMapEntries`). -/
+
+/-- [std::collections::hash::map::HashMap]: opaque. -/
+@[rust_type "std::collections::hash::map::HashMap"]
+axiom std.collections.hash.map.HashMap (K : Type _) (V : Type _) (S : Type _) (A : Type _) : Type
+
+/-- [std::hash::random::RandomState]: opaque (the hasher of a `HashMap`; never used directly). -/
+@[rust_type "std::hash::random::RandomState"]
+axiom std.hash.random.RandomState : Type

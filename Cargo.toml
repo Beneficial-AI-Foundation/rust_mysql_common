@@ -384,6 +384,23 @@ start_from = [
   # src/value/json/serde_integration.rs (`Serialized`/`Deserialized` are reached from it; the
   # serde derives in json/mod.rs are out of scope).
   "mysql_common::value::json::serde_integration",
+  # src/named_params.rs: the named-parameter parser (the derived `Debug`/`Clone`/`PartialEq` of
+  # `ParsedNamedParams` and `MixedParamsError` are out of scope).
+  "mysql_common::named_params::MixedParamsError",
+  "mysql_common::named_params::ParsedNamedParams::parse",
+  "mysql_common::named_params::ParsedNamedParams::query",
+  "mysql_common::named_params::ParsedNamedParams::params",
+  # src/params.rs: `Params` and its conversions, and the thiserror-generated `From` impls of
+  # `ParamsError`. The `From` impls for `Params` are marked `#[verify::start_from]` by
+  # translation-patches/90 (all except `From<&[&dyn ToValue]>`: `dyn`). Out of scope: `Debug`,
+  # the derived `Clone`/`PartialEq` (they go through `HashMap`), and `Display`/`Error` of the
+  # error types (formatting).
+  "mysql_common::params::Params::into_values",
+  "mysql_common::params::Params::into_positional",
+  "{impl core::convert::From for mysql_common::params::ParamsError}",
+  # src/value/mod.rs: SQL literals (`escaped` is reached from it). Formatting goes through the
+  # opaque `mysql_common::sql_trusted` (translation-patches/80), see below.
+  "mysql_common::value::Value::as_sql",
   # src/row/mod.rs: the rest of the public `Row` API. (The `Index` and `ColumnIndex` impls, and
   # `From<RowDeserializer> for Row`, are marked `#[verify::start_from]` by
   # translation-patches/106: `start_from` patterns cannot name them.)
@@ -474,6 +491,10 @@ opaque = [
   # The trust boundary of the compressed codec (translation-patches/120): flate2 and
   # `Vec::capacity`, one function per operation, each with a Lean model or axiom.
   "mysql_common::proto::codec::trusted",
+  # The trust boundary of `Value::as_sql` and `Params` (translation-patches/80): one function per
+  # std operation (`format!`, `String`, `HashMap<Vec<u8>, Value>`); each has a Lean model or
+  # axiom in FunsExternal.lean.
+  "mysql_common::sql_trusted",
   # `serde_json::Value` is only passed to/from `trusted`; its `Object(Map<String, Value>)` variant
   # nests the type in an opaque map, which a Lean inductive cannot express.
   "serde_json::value::Value",

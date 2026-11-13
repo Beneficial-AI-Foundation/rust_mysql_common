@@ -8715,6 +8715,383 @@ def misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize {T : Type _} (U
     intIntReprTU8Inst
 }
 
+/-- [mysql_common::named_params::parse_step]:
+    Source: 'src/named_params.rs', lines 35:0-130:1 -/
+def named_params.parse_step
+  (state : named_params.ParserState) (c : Std.U8) (i : Std.Usize)
+  (have_positional : Bool) (cur_param : Std.Usize)
+  (params : alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize)) :
+  Result (named_params.ParserState × Bool × Std.Usize × (alloc.vec.Vec
+    (Std.Usize × Std.Usize × Std.Usize)))
+  := do
+  let (have_positional1, cur_param1, params1, state1, rematch) ←
+    match state with
+    | named_params.ParserState.TopLevel =>
+      do
+      let (b, ps) ←
+        match c with
+        | 58#uscalar =>
+          ok (have_positional, named_params.ParserState.MaybeInNamedParam)
+        | 47#uscalar =>
+          ok (have_positional, named_params.ParserState.MaybeInCComment1)
+        | 45#uscalar =>
+          ok (have_positional,
+            named_params.ParserState.MaybeInDoubleDashComment1)
+        | 35#uscalar =>
+          ok (have_positional, named_params.ParserState.InSharpComment)
+        | 39#uscalar =>
+          ok (have_positional, named_params.ParserState.InStringLiteral 39#u8
+            false)
+        | 34#uscalar =>
+          ok (have_positional, named_params.ParserState.InStringLiteral 34#u8
+            false)
+        | 63#uscalar => ok (true, named_params.ParserState.TopLevel)
+        | 96#uscalar =>
+          ok (have_positional, named_params.ParserState.InQuotedIdentifier)
+        | _ => ok (have_positional, named_params.ParserState.TopLevel)
+      ok (b, cur_param, params, ps, false)
+    | named_params.ParserState.InStringLiteral separator in_escape =>
+      do
+      let ps ←
+        if in_escape
+        then ok (named_params.ParserState.InStringLiteral separator false)
+        else
+          if c = separator
+          then ok named_params.ParserState.TopLevel
+          else
+            do
+            let b ← if c = 92#u8
+                      then ok true
+                      else ok false
+            ok (named_params.ParserState.InStringLiteral separator b)
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInNamedParam =>
+      do
+      let (v, ps, b) ←
+        if 97#u8 <= c
+        then
+          if c <= 122#u8
+          then
+            do
+            let i1 ← i - 1#usize
+            let params2 ← alloc.vec.Vec.push params (i1, i, 0#usize)
+            ok (params2, named_params.ParserState.InNamedParam, false)
+          else
+            match c with
+            | 95#uscalar =>
+              do
+              let i1 ← i - 1#usize
+              let params2 ← alloc.vec.Vec.push params (i1, i, 0#usize)
+              ok (params2, named_params.ParserState.InNamedParam, false)
+            | _ =>
+              ok (params, named_params.ParserState.MaybeInNamedParam, true)
+        else
+          match c with
+          | 95#uscalar =>
+            do
+            let i1 ← i - 1#usize
+            let params2 ← alloc.vec.Vec.push params (i1, i, 0#usize)
+            ok (params2, named_params.ParserState.InNamedParam, false)
+          | _ => ok (params, named_params.ParserState.MaybeInNamedParam, true)
+      ok (have_positional, cur_param, v, ps, b)
+    | named_params.ParserState.InNamedParam =>
+      do
+      let b ←
+        if 97#u8 <= c
+        then
+          if c <= 122#u8
+          then ok true
+          else
+            if 48#u8 <= c
+            then
+              if c <= 57#u8
+              then ok true
+              else match c with
+                   | 95#uscalar => ok true
+                   | _ => ok false
+            else match c with
+                 | 95#uscalar => ok true
+                 | _ => ok false
+        else
+          if 48#u8 <= c
+          then
+            if c <= 57#u8
+            then ok true
+            else match c with
+                 | 95#uscalar => ok true
+                 | _ => ok false
+          else match c with
+               | 95#uscalar => ok true
+               | _ => ok false
+      let (i1, v, b1) ←
+        if b
+        then ok (cur_param, params, false)
+        else
+          do
+          let ((i2, i3, _), index_mut_back) ←
+            alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+              (Std.Usize × Std.Usize × Std.Usize)) params cur_param
+          let cur_param2 ← cur_param + 1#usize
+          let params2 := index_mut_back (i2, i3, i)
+          ok (cur_param2, params2, true)
+      ok (have_positional, i1, v, named_params.ParserState.InNamedParam, b1)
+    | named_params.ParserState.InSharpComment =>
+      do
+      let ps ←
+        if c = 10#u8
+        then ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.InSharpComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInDoubleDashComment1 =>
+      do
+      let ps ←
+        match c with
+        | 45#uscalar => ok named_params.ParserState.MaybeInDoubleDashComment2
+        | _ => ok named_params.ParserState.TopLevel
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInDoubleDashComment2 =>
+      do
+      let b ←
+        match c with
+        | 9#uscalar => ok true
+        | 10#uscalar => ok true
+        | 12#uscalar => ok true
+        | 13#uscalar => ok true
+        | 32#uscalar => ok true
+        | _ => ok false
+      let ps ←
+        if b
+        then
+          if c != 10#u8
+          then ok named_params.ParserState.InDoubleDashComment
+          else ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.TopLevel
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.InDoubleDashComment =>
+      do
+      let ps ←
+        if c = 10#u8
+        then ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.InDoubleDashComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInCComment1 =>
+      do
+      let ps ←
+        match c with
+        | 42#uscalar => ok named_params.ParserState.MaybeInCComment2
+        | _ => ok named_params.ParserState.TopLevel
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInCComment2 =>
+      do
+      let ps ←
+        match c with
+        | 33#uscalar => ok named_params.ParserState.TopLevel
+        | 43#uscalar => ok named_params.ParserState.TopLevel
+        | _ => ok named_params.ParserState.InCComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.InCComment =>
+      do
+      let ps ←
+        if c = 42#u8
+        then ok named_params.ParserState.MaybeExitCComment
+        else ok named_params.ParserState.InCComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeExitCComment =>
+      do
+      let ps ←
+        match c with
+        | 47#uscalar => ok named_params.ParserState.TopLevel
+        | _ => ok named_params.ParserState.InCComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.InQuotedIdentifier =>
+      do
+      let ps ←
+        if c = 96#u8
+        then ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.InQuotedIdentifier
+      ok (have_positional, cur_param, params, ps, false)
+  if rematch
+  then
+    match c with
+    | 58#uscalar =>
+      ok (named_params.ParserState.MaybeInNamedParam, have_positional1,
+        cur_param1, params1)
+    | 39#uscalar =>
+      ok (named_params.ParserState.InStringLiteral 39#u8 false,
+        have_positional1, cur_param1, params1)
+    | 34#uscalar =>
+      ok (named_params.ParserState.InStringLiteral 34#u8 false,
+        have_positional1, cur_param1, params1)
+    | _ =>
+      ok (named_params.ParserState.TopLevel, have_positional1, cur_param1,
+        params1)
+  else ok (state1, have_positional1, cur_param1, params1)
+
+/-- [mysql_common::named_params::substitute_params]:
+    Source: 'src/named_params.rs', lines 135:0-153:1 -/
+def named_params.substitute_params
+  (query : Slice Std.U8) (params : Slice (Std.Usize × Std.Usize × Std.Usize))
+  (k : Std.Usize) (last : Std.Usize) (real_query : alloc.vec.Vec Std.U8)
+  (out_params : alloc.vec.Vec (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+  Std.U8))) :
+  Result ((alloc.vec.Vec Std.U8) × (alloc.vec.Vec (alloc.borrow.Cow (Slice
+    Std.U8) (alloc.vec.Vec Std.U8))))
+  := do
+  let i := Slice.len params
+  if k < i
+  then
+    let t ← Slice.index_usize params k
+    let (colon_offset, _, _) := t
+    let (_, start, _) := t
+    let (_, _, «end») := t
+    let s ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) query { start := last, «end» := colon_offset }
+    let real_query1 ←
+      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 real_query s
+    let real_query2 ← alloc.vec.Vec.push real_query1 63#u8
+    let s1 ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) query { start, «end» }
+    let out_params1 ←
+      alloc.vec.Vec.push out_params (alloc.borrow.Cow.Borrowed s1)
+    let i1 ← k + 1#usize
+    named_params.substitute_params query params i1 «end» real_query2
+      out_params1
+  else
+    let s ←
+      core.slice.index.Slice.index
+        (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) query
+        { start := last }
+    let real_query1 ←
+      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 real_query s
+    ok (real_query1, out_params)
+partial_fixpoint
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::parse]: loop body 0:
+    Source: 'src/named_params.rs', lines 176:8-186:9
+    Visibility: public -/
+@[rust_loop_body]
+def named_params.ParsedNamedParams.parse_loop.body
+  (query : Slice Std.U8) (state : named_params.ParserState)
+  (have_positional : Bool) (cur_param : Std.Usize)
+  (params : alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize))
+  (i : Std.Usize) :
+  Result (ControlFlow (named_params.ParserState × Bool × Std.Usize ×
+    (alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize)) × Std.Usize)
+    (named_params.ParserState × Bool × Std.Usize × (alloc.vec.Vec (Std.Usize
+    × Std.Usize × Std.Usize))))
+  := do
+  let i1 := Slice.len query
+  if i < i1
+  then
+    let i2 ← Slice.index_usize query i
+    let (state1, have_positional1, cur_param1, params1) ←
+      named_params.parse_step state i2 i have_positional cur_param params
+    let i3 ← i + 1#usize
+    ok (cont (state1, have_positional1, cur_param1, params1, i3))
+  else ok (done (state, have_positional, cur_param, params))
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::parse]: loop 0:
+    Source: 'src/named_params.rs', lines 176:8-186:9
+    Visibility: public -/
+@[rust_loop]
+def named_params.ParsedNamedParams.parse_loop
+  (query : Slice Std.U8) (state : named_params.ParserState)
+  (have_positional : Bool) (cur_param : Std.Usize)
+  (params : alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize))
+  (i : Std.Usize) :
+  Result (named_params.ParserState × Bool × Std.Usize × (alloc.vec.Vec
+    (Std.Usize × Std.Usize × Std.Usize)))
+  := do
+  loop
+    (fun (state1, have_positional1, cur_param1, params1, i1) =>
+      named_params.ParsedNamedParams.parse_loop.body query state1
+      have_positional1 cur_param1 params1 i1)
+    (state, have_positional, cur_param, params, i)
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::parse]:
+    Source: 'src/named_params.rs', lines 169:4-210:5
+    Visibility: public -/
+def named_params.ParsedNamedParams.parse
+  (query : Slice Std.U8) :
+  Result (core.result.Result named_params.ParsedNamedParams
+    named_params.MixedParamsError)
+  := do
+  let (state, have_positional, cur_param, params) ←
+    named_params.ParsedNamedParams.parse_loop query
+      named_params.ParserState.TopLevel false 0#usize (alloc.vec.Vec.new
+      (Std.Usize × Std.Usize × Std.Usize)) 0#usize
+  let params1 ←
+    match state with
+    | named_params.ParserState.TopLevel => ok params
+    | named_params.ParserState.InStringLiteral _ _ => ok params
+    | named_params.ParserState.MaybeInNamedParam => ok params
+    | named_params.ParserState.InNamedParam =>
+      do
+      let i := Slice.len query
+      let ((i1, i2, _), index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          (Std.Usize × Std.Usize × Std.Usize)) params cur_param
+      ok (index_mut_back (i1, i2, i))
+    | named_params.ParserState.InSharpComment => ok params
+    | named_params.ParserState.MaybeInDoubleDashComment1 => ok params
+    | named_params.ParserState.MaybeInDoubleDashComment2 => ok params
+    | named_params.ParserState.InDoubleDashComment => ok params
+    | named_params.ParserState.MaybeInCComment1 => ok params
+    | named_params.ParserState.MaybeInCComment2 => ok params
+    | named_params.ParserState.InCComment => ok params
+    | named_params.ParserState.MaybeExitCComment => ok params
+    | named_params.ParserState.InQuotedIdentifier => ok params
+  let b ← alloc.vec.Vec.is_empty params1
+  if b
+  then
+    ok (core.result.Result.Ok
+      {
+        query := (alloc.borrow.Cow.Borrowed query),
+        params :=
+          (alloc.vec.Vec.new
+            (alloc.borrow.Cow
+            (Slice
+            Std.U8)
+            (alloc.vec.Vec
+            Std.U8)))
+      })
+  else
+    if have_positional
+    then ok (core.result.Result.Err ())
+    else
+      let i := Slice.len query
+      let real_query := alloc.vec.Vec.with_capacity Std.U8 i
+      let i1 := alloc.vec.Vec.len params1
+      let out_params :=
+        alloc.vec.Vec.with_capacity (alloc.borrow.Cow (Slice Std.U8)
+          (alloc.vec.Vec Std.U8)) i1
+      let s := alloc.vec.Vec.deref params1
+      let (real_query1, out_params1) ←
+        named_params.substitute_params query s 0#usize 0#usize real_query
+          out_params
+      ok (core.result.Result.Ok
+        { query := (alloc.borrow.Cow.Owned real_query1), params := out_params1
+        })
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::query]:
+    Source: 'src/named_params.rs', lines 213:4-215:5
+    Visibility: public -/
+def named_params.ParsedNamedParams.impl.query
+  (self : named_params.ParsedNamedParams) : Result (Slice Std.U8) := do
+  alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+    (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) self.query
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::params]:
+    Source: 'src/named_params.rs', lines 224:4-226:5
+    Visibility: public -/
+def named_params.ParsedNamedParams.impl.params
+  (self : named_params.ParsedNamedParams) :
+  Result (Slice (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  := do
+  ok (alloc.vec.Vec.deref self.params)
+
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidFixedLengthFieldsLen}::fmt]:
     Source: 'src/packets/mod.rs', lines 78:67-78:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
     Visibility: public -/
@@ -11372,7 +11749,7 @@ def packets.ComStmtExecuteRequestBuilder.new
   ok { stmt_id }
 
 /-- [mysql_common::value::{mysql_common::value::Value}::bin_len]:
-    Source: 'src/value/mod.rs', lines 231:4-247:5
+    Source: 'src/value/mod.rs', lines 241:4-257:5
     Visibility: public -/
 def value.Value.bin_len (self : value.Value) : Result Std.U64 := do
   match self with
@@ -13506,6 +13883,1239 @@ def packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize :
   proto.MySerialize packets.ComStmtExecuteRequest := {
   serialize :=
     packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::params::{impl core::convert::From<mysql_common::params::MissingNamedParameterError> for mysql_common::params::ParamsError}::from]:
+    Source: 'src/params.rs', lines 29:38-29:54
+    Visibility: public -/
+def params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from
+  (source : params.MissingNamedParameterError) :
+  Result params.ParamsError
+  := do
+  ok (params.ParamsError.Missing source)
+
+/-- [mysql_common::params::{impl core::convert::From<mysql_common::params::ParamsConfusionError> for mysql_common::params::ParamsError}::from]:
+    Source: 'src/params.rs', lines 29:38-29:54
+    Visibility: public -/
+def params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from
+  (source : params.ParamsConfusionError) : Result params.ParamsError := do
+  ok (params.ParamsError.Confusion source)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<mysql_common::params::MissingNamedParameterError> for mysql_common::params::ParamsError}]
+    Source: 'src/params.rs', lines 32:12-32:19 -/
+@[reducible]
+def params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError :
+  core.convert.From params.ParamsError params.MissingNamedParameterError := {
+  «from» :=
+    params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from
+}
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<mysql_common::params::ParamsConfusionError> for mysql_common::params::ParamsError}]
+    Source: 'src/params.rs', lines 34:14-34:21 -/
+@[reducible]
+def params.ParamsError.Insts.CoreConvertFromParamsConfusionError :
+  core.convert.From params.ParamsError params.ParamsConfusionError := {
+  «from» := params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from
+}
+
+/-- [mysql_common::value::{impl core::clone::Clone for mysql_common::value::Value}::clone]:
+    Source: 'src/value/mod.rs', lines 61:9-61:14
+    Visibility: public -/
+def value.Value.Insts.CoreCloneClone.clone
+  (self : value.Value) : Result value.Value := do
+  match self with
+  | value.Value.NULL => ok value.Value.NULL
+  | value.Value.Bytes __self_0 =>
+    let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 __self_0
+    ok (value.Value.Bytes v)
+  | value.Value.Int __self_0 =>
+    let i ← lift (core.clone.impls.CloneI64.clone __self_0)
+    ok (value.Value.Int i)
+  | value.Value.UInt __self_0 =>
+    let i ← lift (core.clone.impls.CloneU64.clone __self_0)
+    ok (value.Value.UInt i)
+  | value.Value.Float __self_0 =>
+    let fl ← F32.Insts.CoreCloneClone.clone __self_0
+    ok (value.Value.Float fl)
+  | value.Value.Double __self_0 =>
+    let fl ← F64.Insts.CoreCloneClone.clone __self_0
+    ok (value.Value.Double fl)
+  | value.Value.Date __self_0 __self_1 __self_2 __self_3 __self_4 __self_5
+    __self_6 =>
+    let i ← lift (core.clone.impls.CloneU16.clone __self_0)
+    let i1 ← lift (core.clone.impls.CloneU8.clone __self_1)
+    let i2 ← lift (core.clone.impls.CloneU8.clone __self_2)
+    let i3 ← lift (core.clone.impls.CloneU8.clone __self_3)
+    let i4 ← lift (core.clone.impls.CloneU8.clone __self_4)
+    let i5 ← lift (core.clone.impls.CloneU8.clone __self_5)
+    let i6 ← lift (core.clone.impls.CloneU32.clone __self_6)
+    ok (value.Value.Date i i1 i2 i3 i4 i5 i6)
+  | value.Value.Time __self_0 __self_1 __self_2 __self_3 __self_4 __self_5 =>
+    let b ← lift (core.clone.impls.CloneBool.clone __self_0)
+    let i ← lift (core.clone.impls.CloneU32.clone __self_1)
+    let i1 ← lift (core.clone.impls.CloneU8.clone __self_2)
+    let i2 ← lift (core.clone.impls.CloneU8.clone __self_3)
+    let i3 ← lift (core.clone.impls.CloneU8.clone __self_4)
+    let i4 ← lift (core.clone.impls.CloneU32.clone __self_5)
+    ok (value.Value.Time b i i1 i2 i3 i4)
+
+/-- Trait implementation: [mysql_common::value::{impl core::clone::Clone for mysql_common::value::Value}]
+    Source: 'src/value/mod.rs', lines 61:9-61:14 -/
+@[reducible]
+def value.Value.Insts.CoreCloneClone : core.clone.Clone value.Value := {
+  clone := value.Value.Insts.CoreCloneClone.clone
+}
+
+/-- [mysql_common::params::sort_indexes]: loop body 1:
+    Source: 'src/params.rs', lines 178:8-181:9 -/
+@[rust_loop_body]
+def params.sort_indexes_loop0_loop0.body
+  (v : Slice Std.Usize) (j : Std.Usize) :
+  Result (ControlFlow ((Slice Std.Usize) × Std.Usize) (Slice Std.Usize))
+  := do
+  if j > 0#usize
+  then
+    let i ← j - 1#usize
+    let i1 ← Slice.index_usize v i
+    let i2 ← Slice.index_usize v j
+    if i1 > i2
+    then let v1 ← core.slice.Slice.swap v i j
+         ok (cont (v1, i))
+    else ok (done v)
+  else ok (done v)
+
+/-- [mysql_common::params::sort_indexes]: loop 1:
+    Source: 'src/params.rs', lines 178:8-181:9 -/
+@[rust_loop]
+def params.sort_indexes_loop0_loop0
+  (v : Slice Std.Usize) (j : Std.Usize) : Result (Slice Std.Usize) := do
+  loop
+    (fun (v1, j1) => params.sort_indexes_loop0_loop0.body v1 j1)
+    (v, j)
+
+/-- [mysql_common::params::sort_indexes]: loop body 0:
+    Source: 'src/params.rs', lines 176:4-183:5 -/
+@[rust_loop_body]
+def params.sort_indexes_loop0.body
+  (v : Slice Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow ((Slice Std.Usize) × Std.Usize) (Slice Std.Usize))
+  := do
+  let i1 := Slice.len v
+  if i < i1
+  then
+    let v1 ← params.sort_indexes_loop0_loop0 v i
+    let i2 ← i + 1#usize
+    ok (cont (v1, i2))
+  else ok (done v)
+
+/-- [mysql_common::params::sort_indexes]: loop 0:
+    Source: 'src/params.rs', lines 176:4-183:5 -/
+@[rust_loop]
+def params.sort_indexes_loop0
+  (v : Slice Std.Usize) (i : Std.Usize) : Result (Slice Std.Usize) := do
+  loop
+    (fun (v1, i1) => params.sort_indexes_loop0.body v1 i1)
+    (v, i)
+
+/-- [mysql_common::params::sort_indexes]:
+    Source: 'src/params.rs', lines 174:0-184:1 -/
+@[reducible]
+def params.sort_indexes (v : Slice Std.Usize) : Result (Slice Std.Usize) := do
+  params.sort_indexes_loop0 v 1#usize
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop body 1:
+    Source: 'src/params.rs', lines 91:24-100:25
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_values_loop0_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  («name» : alloc.vec.Vec Std.U8) (val : value.Value)
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize)
+  (first : Option Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize)
+    × (Option Std.Usize) × Std.Usize) ((alloc.vec.Vec value.Value) ×
+    (alloc.vec.Vec Std.Usize) × (Option Std.Usize)))
+  := do
+  let i1 := Slice.len named_params
+  if i < i1
+  then
+    let v ← Slice.index_usize named_params i
+    let s := alloc.vec.Vec.deref v
+    let s1 := alloc.vec.Vec.deref «name»
+    let b ← core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s s1
+    let (values1, indexes1, first1) ←
+      if b
+      then
+        do
+        let indexes2 ← alloc.vec.Vec.push indexes i
+        let (v1, i2) ←
+          match first with
+          | none => ok (values, i)
+          | some i3 =>
+            do
+            let v2 ← value.Value.Insts.CoreCloneClone.clone val
+            let (_, index_mut_back) ←
+              alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+                value.Value) values i
+            let values2 := index_mut_back v2
+            ok (values2, i3)
+        ok (v1, indexes2, some i2)
+      else ok (values, indexes, first)
+    let i2 ← i + 1#usize
+    ok (cont (values1, indexes1, first1, i2))
+  else ok (done (values, indexes, first))
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop 1:
+    Source: 'src/params.rs', lines 91:24-100:25
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_values_loop0_loop0
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize)
+  («name» : alloc.vec.Vec Std.U8) (val : value.Value)
+  (first : Option Std.Usize) (i : Std.Usize) :
+  Result ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize) × (Option
+    Std.Usize))
+  := do
+  loop
+    (fun (values1, indexes1, first1, i1) =>
+      params.Params.into_values_loop0_loop0.body named_params «name» val
+      values1 indexes1 first1 i1)
+    (values, indexes, first, i)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop body 0:
+    Source: 'src/params.rs', lines 88:20-104:21
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_values_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (iter : alloc.vec.into_iter.IntoIter ((alloc.vec.Vec Std.U8) × value.Value))
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize) :
+  Result (ControlFlow ((alloc.vec.into_iter.IntoIter ((alloc.vec.Vec Std.U8) ×
+    value.Value)) × (alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize))
+    ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize)))
+  := do
+  let (o, iter1) ← alloc.vec.into_iter.IteratorIntoIter.next iter
+  match o with
+  | none => ok (done (values, indexes))
+  | some p =>
+    let («name», val) := p
+    let (values1, indexes1, first) ←
+      params.Params.into_values_loop0_loop0 named_params values indexes
+        «name» val none 0#usize
+    match first with
+    | none => ok (cont (iter1, values1, indexes1))
+    | some first1 =>
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          value.Value) values1 first1
+      let values2 := index_mut_back val
+      ok (cont (iter1, values2, indexes1))
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop 0:
+    Source: 'src/params.rs', lines 88:20-104:21
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_values_loop0
+  (iter : alloc.vec.into_iter.IntoIter ((alloc.vec.Vec Std.U8) × value.Value))
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize) :
+  Result ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize))
+  := do
+  loop
+    (fun (iter1, values1, indexes1) => params.Params.into_values_loop0.body
+      named_params iter1 values1 indexes1)
+    (iter, values, indexes)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop body 2:
+    Source: 'src/params.rs', lines 108:24-110:25
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_values_loop1.body
+  (indexes : alloc.vec.Vec Std.Usize) (missing : Std.Usize) :
+  Result (ControlFlow Std.Usize Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len indexes
+  if missing < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize)
+        indexes missing
+    if i1 = missing
+    then let missing1 ← missing + 1#usize
+         ok (cont missing1)
+    else ok (done missing)
+  else ok (done missing)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop 2:
+    Source: 'src/params.rs', lines 108:24-110:25
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_values_loop1
+  (indexes : alloc.vec.Vec Std.Usize) (missing : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun missing1 => params.Params.into_values_loop1.body indexes missing1)
+    missing
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]:
+    Source: 'src/params.rs', lines 66:4-129:5
+    Visibility: public -/
+def params.Params.into_values
+  (self : params.Params) (named_params : Option (Slice (alloc.vec.Vec Std.U8)))
+  :
+  Result (core.result.Result (alloc.vec.Vec value.Value) params.ParamsError)
+  := do
+  match self with
+  | params.Params.Empty =>
+    match named_params with
+    | none => ok (core.result.Result.Ok (alloc.vec.Vec.new value.Value))
+    | some names =>
+      let b ← core.slice.Slice.is_empty names
+      if b
+      then ok (core.result.Result.Ok (alloc.vec.Vec.new value.Value))
+      else
+        let v ← Slice.index_usize names 0#usize
+        let v1 ← alloc.vec.CloneVec.clone core.clone.CloneU8 v
+        let pe ←
+          core.convert.IntoFrom.into
+            params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError
+            v1
+        ok (core.result.Result.Err pe)
+  | params.Params.Named map =>
+    match named_params with
+    | none =>
+      let pe ←
+        core.convert.IntoFrom.into
+          params.ParamsError.Insts.CoreConvertFromParamsConfusionError
+          params.ParamsConfusionError.NamedParamsForPositionalQuery
+      ok (core.result.Result.Err pe)
+    | some named_params1 =>
+      let b ← core.slice.Slice.is_empty named_params1
+      if b
+      then
+        let pe ←
+          core.convert.IntoFrom.into
+            params.ParamsError.Insts.CoreConvertFromParamsConfusionError
+            params.ParamsConfusionError.NamedParamsForPositionalQuery
+        ok (core.result.Result.Err pe)
+      else
+        let i := Slice.len named_params1
+        let values ←
+          alloc.vec.from_elem value.Value.Insts.CoreCloneClone value.Value.NULL
+            i
+        let i1 := Slice.len named_params1
+        let indexes := alloc.vec.Vec.with_capacity Std.Usize i1
+        let v ← sql_trusted.params_map_into_entries map
+        let iter ← alloc.vec.IntoIteratorVec.into_iter v
+        let (values1, indexes1) ←
+          params.Params.into_values_loop0 iter named_params1 values indexes
+        let i2 := alloc.vec.Vec.len indexes1
+        let i3 := Slice.len named_params1
+        if i2 != i3
+        then
+          let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut indexes1)
+          let s1 ← params.sort_indexes s
+          let indexes2 := deref_mut_back s1
+          let missing ← params.Params.into_values_loop1 indexes2 0#usize
+          let i4 := alloc.vec.Vec.len indexes2
+          if missing < i4
+          then
+            let v1 ← Slice.index_usize named_params1 missing
+            let v2 ← alloc.vec.CloneVec.clone core.clone.CloneU8 v1
+            let pe ←
+              core.convert.IntoFrom.into
+                params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError
+                v2
+            ok (core.result.Result.Err pe)
+          else
+            let b1 ← core.slice.Slice.is_empty named_params1
+            if b1
+            then ok (core.result.Result.Ok values1)
+            else
+              let i5 := Slice.len named_params1
+              let i6 ← i5 - 1#usize
+              let v1 ← Slice.index_usize named_params1 i6
+              let v2 ← alloc.vec.CloneVec.clone core.clone.CloneU8 v1
+              let pe ←
+                core.convert.IntoFrom.into
+                  params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError
+                  v2
+              ok (core.result.Result.Err pe)
+        else ok (core.result.Result.Ok values1)
+  | params.Params.Positional values =>
+    match named_params with
+    | none => ok (core.result.Result.Ok values)
+    | some named_params1 =>
+      let b ← core.slice.Slice.is_empty named_params1
+      if b
+      then ok (core.result.Result.Ok values)
+      else
+        let pe ←
+          core.convert.IntoFrom.into
+            params.ParamsError.Insts.CoreConvertFromParamsConfusionError
+            params.ParamsConfusionError.PositionalParamsForNamedQuery
+        ok (core.result.Result.Err pe)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop body 1:
+    Source: 'src/params.rs', lines 146:20-152:21
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_positional_loop0_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8)) (i : Std.Usize)
+  («name» : alloc.vec.Vec Std.U8) (repeated : Bool) (x : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if x > i
+  then
+    if repeated
+    then ok (done repeated)
+    else
+      let s := alloc.vec.Vec.deref «name»
+      let v ← Slice.index_usize named_params x
+      let s1 := alloc.vec.Vec.deref v
+      let b ← core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s s1
+      if b
+      then ok (cont (true, x))
+      else let x1 ← x - 1#usize
+           ok (cont (repeated, x1))
+  else ok (done repeated)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop 1:
+    Source: 'src/params.rs', lines 146:20-152:21
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_positional_loop0_loop0
+  (named_params : Slice (alloc.vec.Vec Std.U8)) (i : Std.Usize)
+  («name» : alloc.vec.Vec Std.U8) (repeated : Bool) (x : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (repeated1, x1) => params.Params.into_positional_loop0_loop0.body
+      named_params i «name» repeated1 x1)
+    (repeated, x)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop body 0:
+    Source: 'src/params.rs', lines 142:16-170:5
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_positional_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global)
+  (positional : alloc.vec.Vec value.Value) (i : Std.Usize) :
+  Result (ControlFlow ((std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8)
+    value.Value std.hash.random.RandomState alloc.alloc.Global) ×
+    (alloc.vec.Vec value.Value) × Std.Usize) (core.result.Result params.Params
+    params.MissingNamedParameterError))
+  := do
+  let i1 := Slice.len named_params
+  if i < i1
+  then
+    let «name» ← Slice.index_usize named_params i
+    let i2 := Slice.len named_params
+    let x ← i2 - 1#usize
+    let repeated ←
+      params.Params.into_positional_loop0_loop0 named_params i «name» false x
+    if repeated
+    then
+      let s := alloc.vec.Vec.deref «name»
+      let o ← sql_trusted.params_map_get map s
+      match o with
+      | none =>
+        let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 «name»
+        ok (done (core.result.Result.Err v))
+      | some val =>
+        let v ← value.Value.Insts.CoreCloneClone.clone val
+        let positional1 ← alloc.vec.Vec.push positional v
+        let i3 ← i + 1#usize
+        ok (cont (map, positional1, i3))
+    else
+      let s := alloc.vec.Vec.deref «name»
+      let (o, map1) ← sql_trusted.params_map_remove map s
+      match o with
+      | none =>
+        let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 «name»
+        ok (done (core.result.Result.Err v))
+      | some val =>
+        let positional1 ← alloc.vec.Vec.push positional val
+        let i3 ← i + 1#usize
+        ok (cont (map1, positional1, i3))
+  else ok (done (core.result.Result.Ok (params.Params.Positional positional)))
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop 0:
+    Source: 'src/params.rs', lines 142:16-170:5
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_positional_loop0
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global)
+  (positional : alloc.vec.Vec value.Value) (i : Std.Usize) :
+  Result (core.result.Result params.Params params.MissingNamedParameterError)
+  := do
+  loop
+    (fun (map1, positional1, i1) => params.Params.into_positional_loop0.body
+      named_params map1 positional1 i1)
+    (map, positional, i)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]:
+    Source: 'src/params.rs', lines 134:4-170:5
+    Visibility: public -/
+def params.Params.into_positional
+  (self : params.Params) (named_params : Slice (alloc.vec.Vec Std.U8)) :
+  Result (core.result.Result params.Params params.MissingNamedParameterError)
+  := do
+  match self with
+  | params.Params.Empty => ok (core.result.Result.Ok params.Params.Empty)
+  | params.Params.Named map =>
+    params.Params.into_positional_loop0 named_params map (alloc.vec.Vec.new
+      value.Value) 0#usize
+  | params.Params.Positional _ => ok (core.result.Result.Ok self)
+
+/-- [mysql_common::params::{impl core::convert::From<&'a T> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 188:4-190:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromSharedAT.from
+  {T : Type _} (coreconvertIntoTParamsInst : core.convert.Into T params.Params)
+  (corecloneCloneInst : core.clone.Clone T) (x : T) :
+  Result params.Params
+  := do
+  let t ← corecloneCloneInst.clone x
+  coreconvertIntoTParamsInst.into t
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<&'a T> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 187:0-191:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromSharedAT {T : Type _}
+  (coreconvertIntoTParamsInst : core.convert.Into T params.Params)
+  (corecloneCloneInst : core.clone.Clone T) : core.convert.From params.Params T
+  := {
+  «from» := params.Params.Insts.CoreConvertFromSharedAT.from
+    coreconvertIntoTParamsInst corecloneCloneInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}::from]: loop body 0:
+    Source: 'src/params.rs', lines 200:8-202:9
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.Insts.CoreConvertFromVec.from_loop.body
+  {T : Type _} (coreconvertFromValueTInst : core.convert.From value.Value T)
+  (iter : alloc.vec.into_iter.IntoIter T)
+  (raw_params : alloc.vec.Vec value.Value) :
+  Result (ControlFlow ((alloc.vec.into_iter.IntoIter T) × (alloc.vec.Vec
+    value.Value)) (alloc.vec.Vec value.Value))
+  := do
+  let (o, iter1) ← alloc.vec.into_iter.IteratorIntoIter.next iter
+  match o with
+  | none => ok (done raw_params)
+  | some v =>
+    let v1 ← coreconvertFromValueTInst.«from» v
+    let raw_params1 ← alloc.vec.Vec.push raw_params v1
+    ok (cont (iter1, raw_params1))
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}::from]: loop 0:
+    Source: 'src/params.rs', lines 200:8-202:9
+    Visibility: public -/
+@[rust_loop]
+def params.Params.Insts.CoreConvertFromVec.from_loop
+  {T : Type _} (coreconvertFromValueTInst : core.convert.From value.Value T)
+  (iter : alloc.vec.into_iter.IntoIter T)
+  (raw_params : alloc.vec.Vec value.Value) :
+  Result (alloc.vec.Vec value.Value)
+  := do
+  loop
+    (fun (iter1, raw_params1) =>
+      params.Params.Insts.CoreConvertFromVec.from_loop.body
+      coreconvertFromValueTInst iter1 raw_params1)
+    (iter, raw_params)
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 198:4-208:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromVec.from
+  {T : Type _} (coreconvertFromValueTInst : core.convert.From value.Value T)
+  (x : alloc.vec.Vec T) :
+  Result params.Params
+  := do
+  let iter ← alloc.vec.IntoIteratorVec.into_iter x
+  let raw_params ←
+    params.Params.Insts.CoreConvertFromVec.from_loop coreconvertFromValueTInst
+      iter (alloc.vec.Vec.new value.Value)
+  let b ← alloc.vec.Vec.is_empty raw_params
+  if b
+  then ok params.Params.Empty
+  else ok (params.Params.Positional raw_params)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 194:0-209:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromVec {T : Type _}
+  (coreconvertFromValueTInst : core.convert.From value.Value T) :
+  core.convert.From params.Params (alloc.vec.Vec T) := {
+  «from» := params.Params.Insts.CoreConvertFromVec.from
+    coreconvertFromValueTInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}::from]: loop body 0:
+    Source: 'src/params.rs', lines 219:8-226:9
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.Insts.CoreConvertFromVecPair.from_loop.body
+  {N : Type _} {V : Type _} (coreconvertFromVecU8NInst : core.convert.From
+  (alloc.vec.Vec Std.U8) N) (coreconvertFromValueVInst : core.convert.From
+  value.Value V) (iter : alloc.vec.into_iter.IntoIter (N × V))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global) :
+  Result (ControlFlow ((alloc.vec.into_iter.IntoIter (N × V)) ×
+    (std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global))
+    (std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global))
+  := do
+  let (o, iter1) ← alloc.vec.into_iter.IteratorIntoIter.next iter
+  match o with
+  | none => ok (done map)
+  | some p =>
+    let («name», value) := p
+    let name1 ← core.convert.IntoFrom.into coreconvertFromVecU8NInst «name»
+    let s := alloc.vec.Vec.deref name1
+    let b ← sql_trusted.params_map_contains_key map s
+    massert (¬ b)
+    let v ← coreconvertFromValueVInst.«from» value
+    let (_, map1) ← sql_trusted.params_map_insert map name1 v
+    ok (cont (iter1, map1))
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}::from]: loop 0:
+    Source: 'src/params.rs', lines 219:8-226:9
+    Visibility: public -/
+@[rust_loop]
+def params.Params.Insts.CoreConvertFromVecPair.from_loop
+  {N : Type _} {V : Type _} (coreconvertFromVecU8NInst : core.convert.From
+  (alloc.vec.Vec Std.U8) N) (coreconvertFromValueVInst : core.convert.From
+  value.Value V) (iter : alloc.vec.into_iter.IntoIter (N × V))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global) :
+  Result (std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global)
+  := do
+  loop
+    (fun (iter1, map1) =>
+      params.Params.Insts.CoreConvertFromVecPair.from_loop.body
+      coreconvertFromVecU8NInst coreconvertFromValueVInst iter1 map1)
+    (iter, map)
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 217:4-228:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromVecPair.from
+  {N : Type _} {V : Type _} (coreconvertFromVecU8NInst : core.convert.From
+  (alloc.vec.Vec Std.U8) N) (coreconvertFromValueVInst : core.convert.From
+  value.Value V) (x : alloc.vec.Vec (N × V)) :
+  Result params.Params
+  := do
+  let map ← sql_trusted.params_map_new
+  let iter ← alloc.vec.IntoIteratorVec.into_iter x
+  let map1 ←
+    params.Params.Insts.CoreConvertFromVecPair.from_loop
+      coreconvertFromVecU8NInst coreconvertFromValueVInst iter map
+  ok (params.Params.Named map1)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 212:0-229:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromVecPair {N : Type _} {V : Type _}
+  (coreconvertFromVecU8NInst : core.convert.From (alloc.vec.Vec Std.U8) N)
+  (coreconvertFromValueVInst : core.convert.From value.Value V) :
+  core.convert.From params.Params (alloc.vec.Vec (N × V)) := {
+  «from» := params.Params.Insts.CoreConvertFromVecPair.from
+    coreconvertFromVecU8NInst coreconvertFromValueVInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<()> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 247:4-249:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTuple.from
+  (_ : Unit) : Result params.Params := do
+  ok params.Params.Empty
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<()> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 246:0-250:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTuple : core.convert.From params.Params
+  Unit := {
+  «from» := params.Params.Insts.CoreConvertFromTuple.from
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A,)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 266:0-266:25
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleA.from
+  {A : Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (x : A) :
+  Result params.Params
+  := do
+  let v ← coreconvertIntoAValueInst.into x
+  let y ←
+    lift (Std.Array.to_slice (Array.make 1#usize [ v ] : Array value.Value
+      1#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A,)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 266:0-266:25 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleA {A : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value) :
+  core.convert.From params.Params A := {
+  «from» := params.Params.Insts.CoreConvertFromTupleA.from
+    coreconvertIntoAValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 267:0-267:33
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromPair.from
+  {A : Type _} {B : Type _} (coreconvertIntoAValueInst : core.convert.Into A
+  value.Value) (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (x : (A × B)) :
+  Result params.Params
+  := do
+  let (a, b) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let y ←
+    lift (Std.Array.to_slice (Array.make 2#usize [ v, v1 ] : Array value.Value
+      2#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 267:0-267:33 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromPair {A : Type _} {B : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value) :
+  core.convert.From params.Params (A × B) := {
+  «from» := params.Params.Insts.CoreConvertFromPair.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 268:0-268:41
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABC.from
+  {A : Type _} {B : Type _} {C : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (x : (A × B × C)) :
+  Result params.Params
+  := do
+  let (a, b, c) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let y ←
+    lift (Std.Array.to_slice (Array.make 3#usize [ v, v1, v2 ] : Array
+      value.Value 3#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 268:0-268:41 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABC {A : Type _} {B : Type _} {C :
+  Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value) :
+  core.convert.From params.Params (A × B × C) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABC.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 269:0-269:49
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCD.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (x : (A × B × C × D)) :
+  Result params.Params
+  := do
+  let (a, b, c, d) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let y ←
+    lift (Std.Array.to_slice (Array.make 4#usize [ v, v1, v2, v3 ] : Array
+      value.Value 4#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 269:0-269:49 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCD {A : Type _} {B : Type _} {C :
+  Type _} {D : Type _} (coreconvertIntoAValueInst : core.convert.Into A
+  value.Value) (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value) :
+  core.convert.From params.Params (A × B × C × D) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCD.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 270:0-270:57
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDE.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (x : (A × B × C × D × E)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let y ←
+    lift (Std.Array.to_slice (Array.make 5#usize [ v, v1, v2, v3, v4 ] : Array
+      value.Value 5#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 270:0-270:57 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDE {A : Type _} {B : Type _} {C
+  : Type _} {D : Type _} {E : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDE.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 271:0-271:65
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEF.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (x : (A × B × C × D × E × F)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let y ←
+    lift (Std.Array.to_slice (Array.make 6#usize [ v, v1, v2, v3, v4, v5 ] :
+      Array value.Value 6#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 271:0-271:65 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEF {A : Type _} {B : Type _} {C
+  : Type _} {D : Type _} {E : Type _} {F : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E × F) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEF.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 272:0-272:73
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFG.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (x : (A × B × C × D × E × F × G)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let y ←
+    lift (Std.Array.to_slice (Array.make 7#usize [ v, v1, v2, v3, v4, v5, v6 ]
+      : Array value.Value 7#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 272:0-272:73 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFG {A : Type _} {B : Type _}
+  {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFG.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 273:0-282:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGH.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} (coreconvertIntoAValueInst : core.convert.Into A
+  value.Value) (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (x : (A × B × C × D × E × F × G × H)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 8#usize [ v, v1, v2, v3, v4, v5, v6, v7 ] : Array value.Value
+      8#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 273:0-282:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGH {A : Type _} {B : Type _}
+  {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G × H) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGH.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 283:0-293:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) (coreconvertIntoGValueInst :
+  core.convert.Into G value.Value) (coreconvertIntoHValueInst :
+  core.convert.Into H value.Value) (coreconvertIntoIValueInst :
+  core.convert.Into I value.Value)
+  (x : (A × B × C × D × E × F × G × H × I)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 9#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8 ] : Array
+      value.Value 9#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 283:0-293:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHI {A : Type _} {B : Type _}
+  {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H : Type _}
+  {I : Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G × H × I)
+  := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 294:0-305:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} {J : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (x : (A × B × C × D × E × F × G × H × I × J)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i, j) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let v9 ← coreconvertIntoJValueInst.into j
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 10#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8, v9 ] : Array
+      value.Value 10#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 294:0-305:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ {A : Type _} {B :
+  Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H :
+  Type _} {I : Type _} {J : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) (coreconvertIntoGValueInst :
+  core.convert.Into G value.Value) (coreconvertIntoHValueInst :
+  core.convert.Into H value.Value) (coreconvertIntoIValueInst :
+  core.convert.Into I value.Value) (coreconvertIntoJValueInst :
+  core.convert.Into J value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E × F × G × H × I × J) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst coreconvertIntoJValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 306:0-318:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} {J : Type _} {K : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (coreconvertIntoKValueInst : core.convert.Into K value.Value)
+  (x : (A × B × C × D × E × F × G × H × I × J × K)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i, j, k) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let v9 ← coreconvertIntoJValueInst.into j
+  let v10 ← coreconvertIntoKValueInst.into k
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 11#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10 ] :
+      Array value.Value 11#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 306:0-318:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK {A : Type _} {B :
+  Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H :
+  Type _} {I : Type _} {J : Type _} {K : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) (coreconvertIntoGValueInst :
+  core.convert.Into G value.Value) (coreconvertIntoHValueInst :
+  core.convert.Into H value.Value) (coreconvertIntoIValueInst :
+  core.convert.Into I value.Value) (coreconvertIntoJValueInst :
+  core.convert.Into J value.Value) (coreconvertIntoKValueInst :
+  core.convert.Into K value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E × F × G × H × I × J × K) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst coreconvertIntoJValueInst
+    coreconvertIntoKValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K, L)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 319:0-332:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} {J : Type _} {K : Type _} {L : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (coreconvertIntoKValueInst : core.convert.Into K value.Value)
+  (coreconvertIntoLValueInst : core.convert.Into L value.Value)
+  (x : (A × B × C × D × E × F × G × H × I × J × K × L)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i, j, k, l) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let v9 ← coreconvertIntoJValueInst.into j
+  let v10 ← coreconvertIntoKValueInst.into k
+  let v11 ← coreconvertIntoLValueInst.into l
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 12#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11 ]
+      : Array value.Value 12#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K, L)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 319:0-332:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL {A : Type _} {B :
+  Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H :
+  Type _} {I : Type _} {J : Type _} {K : Type _} {L : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (coreconvertIntoKValueInst : core.convert.Into K value.Value)
+  (coreconvertIntoLValueInst : core.convert.Into L value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G × H × I ×
+  J × K × L) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst coreconvertIntoJValueInst
+    coreconvertIntoKValueInst coreconvertIntoLValueInst
 }
 
 /-- [mysql_common::proto::codec::buf_model::{mysql_common::proto::codec::buf_model::NonZeroUsize}::new]:
@@ -18845,47 +20455,6 @@ def row.Row.as_ref
   | none => ok none
   | some x => core.option.Option.as_ref x
 
-/-- [mysql_common::value::{impl core::clone::Clone for mysql_common::value::Value}::clone]:
-    Source: 'src/value/mod.rs', lines 61:9-61:14
-    Visibility: public -/
-def value.Value.Insts.CoreCloneClone.clone
-  (self : value.Value) : Result value.Value := do
-  match self with
-  | value.Value.NULL => ok value.Value.NULL
-  | value.Value.Bytes __self_0 =>
-    let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 __self_0
-    ok (value.Value.Bytes v)
-  | value.Value.Int __self_0 =>
-    let i ← lift (core.clone.impls.CloneI64.clone __self_0)
-    ok (value.Value.Int i)
-  | value.Value.UInt __self_0 =>
-    let i ← lift (core.clone.impls.CloneU64.clone __self_0)
-    ok (value.Value.UInt i)
-  | value.Value.Float __self_0 =>
-    let fl ← F32.Insts.CoreCloneClone.clone __self_0
-    ok (value.Value.Float fl)
-  | value.Value.Double __self_0 =>
-    let fl ← F64.Insts.CoreCloneClone.clone __self_0
-    ok (value.Value.Double fl)
-  | value.Value.Date __self_0 __self_1 __self_2 __self_3 __self_4 __self_5
-    __self_6 =>
-    let i ← lift (core.clone.impls.CloneU16.clone __self_0)
-    let i1 ← lift (core.clone.impls.CloneU8.clone __self_1)
-    let i2 ← lift (core.clone.impls.CloneU8.clone __self_2)
-    let i3 ← lift (core.clone.impls.CloneU8.clone __self_3)
-    let i4 ← lift (core.clone.impls.CloneU8.clone __self_4)
-    let i5 ← lift (core.clone.impls.CloneU8.clone __self_5)
-    let i6 ← lift (core.clone.impls.CloneU32.clone __self_6)
-    ok (value.Value.Date i i1 i2 i3 i4 i5 i6)
-  | value.Value.Time __self_0 __self_1 __self_2 __self_3 __self_4 __self_5 =>
-    let b ← lift (core.clone.impls.CloneBool.clone __self_0)
-    let i ← lift (core.clone.impls.CloneU32.clone __self_1)
-    let i1 ← lift (core.clone.impls.CloneU8.clone __self_2)
-    let i2 ← lift (core.clone.impls.CloneU8.clone __self_3)
-    let i3 ← lift (core.clone.impls.CloneU8.clone __self_4)
-    let i4 ← lift (core.clone.impls.CloneU32.clone __self_5)
-    ok (value.Value.Time b i i1 i2 i3 i4)
-
 /-- [mysql_common::row::{mysql_common::row::Row}::get]:
     Source: 'src/row/mod.rs', lines 112:4-125:5
     Visibility: public -/
@@ -19159,7 +20728,7 @@ def row.Row.Insts.CoreConvertFromRowDeserializer (S : Type _) (P : Type _) :
 }
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_text]:
-    Source: 'src/value/mod.rs', lines 304:4-319:5 -/
+    Source: 'src/value/mod.rs', lines 317:4-332:5 -/
 def value.Value.deserialize_text
   (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -19321,7 +20890,7 @@ def
 }
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_time]:
-    Source: 'src/value/mod.rs', lines 377:4-404:5 -/
+    Source: 'src/value/mod.rs', lines 390:4-417:5 -/
 def value.Value.deserialize_time
   (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -19359,7 +20928,7 @@ def value.Value.deserialize_time
           0#u32), buf2)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_datetime]:
-    Source: 'src/value/mod.rs', lines 343:4-375:5 -/
+    Source: 'src/value/mod.rs', lines 356:4-388:5 -/
 def value.Value.deserialize_datetime
   (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -19403,7 +20972,7 @@ def value.Value.deserialize_datetime
           0#u8 0#u32), buf2)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_longlong]:
-    Source: 'src/value/mod.rs', lines 325:4-341:5 -/
+    Source: 'src/value/mod.rs', lines 338:4-354:5 -/
 def value.Value.deserialize_longlong
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -19431,7 +21000,7 @@ def value.Value.deserialize_longlong
     | some x => ok (core.result.Result.Ok (value.Value.Int x), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_long]:
-    Source: 'src/value/mod.rs', lines 213:8-225:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 323:4-323:69 -/
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 336:4-336:69 -/
 def value.Value.deserialize_long
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -19457,7 +21026,7 @@ def value.Value.deserialize_long
       ok (core.result.Result.Ok (value.Value.Int i), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_short]:
-    Source: 'src/value/mod.rs', lines 213:8-225:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 322:4-322:70 -/
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 335:4-335:70 -/
 def value.Value.deserialize_short
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -19483,7 +21052,7 @@ def value.Value.deserialize_short
       ok (core.result.Result.Ok (value.Value.Int i), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_tiny]:
-    Source: 'src/value/mod.rs', lines 213:8-225:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 321:4-321:61 -/
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 334:4-334:61 -/
 def value.Value.deserialize_tiny
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -19509,7 +21078,7 @@ def value.Value.deserialize_tiny
       ok (core.result.Result.Ok (value.Value.Int i), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_bin]:
-    Source: 'src/value/mod.rs', lines 406:4-460:5 -/
+    Source: 'src/value/mod.rs', lines 419:4-473:5 -/
 def value.Value.deserialize_bin
   (p : (constants.ColumnType × constants.ColumnFlags)) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -25480,5 +27049,240 @@ def
   deserialize :=
     value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
 }
+
+/-- [mysql_common::value::escaped]: loop body 0:
+    Source: 'src/value/mod.rs', lines 179:8-188:9 -/
+@[rust_loop_body]
+def value.escaped_loop0.body
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U8) × Std.Usize) (alloc.vec.Vec
+    Std.U8))
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let c ← Slice.index_usize input i
+    let output1 ←
+      if c = 39#u8
+      then
+        do
+        let output2 ← alloc.vec.Vec.push output 39#u8
+        alloc.vec.Vec.push output2 39#u8
+      else alloc.vec.Vec.push output c
+    let i2 ← i + 1#usize
+    ok (cont (output1, i2))
+  else ok (done output)
+
+/-- [mysql_common::value::escaped]: loop 0:
+    Source: 'src/value/mod.rs', lines 179:8-188:9 -/
+@[rust_loop]
+def value.escaped_loop0
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  loop
+    (fun (output1, i1) => value.escaped_loop0.body input output1 i1)
+    (output, i)
+
+/-- [mysql_common::value::escaped]: loop body 1:
+    Source: 'src/value/mod.rs', lines 191:8-212:9 -/
+@[rust_loop_body]
+def value.escaped_loop1.body
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U8) × Std.Usize) (alloc.vec.Vec
+    Std.U8))
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let c ← Slice.index_usize input i
+    let output1 ←
+      if c = 0#u8
+      then
+        do
+        let output2 ← alloc.vec.Vec.push output 92#u8
+        alloc.vec.Vec.push output2 48#u8
+      else
+        if c = 10#u8
+        then
+          do
+          let output2 ← alloc.vec.Vec.push output 92#u8
+          alloc.vec.Vec.push output2 110#u8
+        else
+          if c = 13#u8
+          then
+            do
+            let output2 ← alloc.vec.Vec.push output 92#u8
+            alloc.vec.Vec.push output2 114#u8
+          else
+            if c = 92#u8
+            then
+              do
+              let output2 ← alloc.vec.Vec.push output 92#u8
+              alloc.vec.Vec.push output2 c
+            else
+              if c = 39#u8
+              then
+                do
+                let output2 ← alloc.vec.Vec.push output 92#u8
+                alloc.vec.Vec.push output2 c
+              else
+                if c = 34#u8
+                then
+                  do
+                  let output2 ← alloc.vec.Vec.push output 92#u8
+                  alloc.vec.Vec.push output2 c
+                else
+                  if c = 26#u8
+                  then
+                    do
+                    let output2 ← alloc.vec.Vec.push output 92#u8
+                    alloc.vec.Vec.push output2 90#u8
+                  else alloc.vec.Vec.push output c
+    let i2 ← i + 1#usize
+    ok (cont (output1, i2))
+  else ok (done output)
+
+/-- [mysql_common::value::escaped]: loop 1:
+    Source: 'src/value/mod.rs', lines 191:8-212:9 -/
+@[rust_loop]
+def value.escaped_loop1
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  loop
+    (fun (output1, i1) => value.escaped_loop1.body input output1 i1)
+    (output, i)
+
+/-- [mysql_common::value::escaped]:
+    Source: 'src/value/mod.rs', lines 173:0-219:1 -/
+def value.escaped
+  (input : Str) (no_backslash_escape : Bool) : Result String := do
+  let input1 ← value.convert.trusted.str_as_bytes input
+  let i := Slice.len input1
+  let output := alloc.vec.Vec.with_capacity Std.U8 i
+  let output1 ← alloc.vec.Vec.push output 39#u8
+  if no_backslash_escape
+  then
+    let output2 ← value.escaped_loop0 input1 output1 0#usize
+    let output3 ← alloc.vec.Vec.push output2 39#u8
+    let r ← value.convert.trusted.string_from_utf8 output3
+    match r with
+    | core.result.Result.Ok output4 => ok output4
+    | core.result.Result.Err _ => fail panic
+  else
+    let output2 ← value.escaped_loop1 input1 output1 0#usize
+    let output3 ← alloc.vec.Vec.push output2 39#u8
+    let r ← value.convert.trusted.string_from_utf8 output3
+    match r with
+    | core.result.Result.Ok output4 => ok output4
+    | core.result.Result.Err _ => fail panic
+
+/-- [mysql_common::value::{mysql_common::value::Value}::as_sql]: loop body 0:
+    Source: 'src/value/mod.rs', lines 304:20-310:21
+    Visibility: public -/
+@[rust_loop_body]
+def value.Value.as_sql_loop.body
+  (bytes : alloc.vec.Vec Std.U8) (s : String) (k : Std.Usize) :
+  Result (ControlFlow (String × Std.Usize) String)
+  := do
+  let i := alloc.vec.Vec.len bytes
+  if k < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) bytes
+        k
+    let s1 ← sql_trusted.format_hex_upper_02 i1
+    let s2 ← sql_trusted.string_extend_chars s s1
+    let k1 ← k + 1#usize
+    ok (cont (s2, k1))
+  else ok (done s)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::as_sql]: loop 0:
+    Source: 'src/value/mod.rs', lines 304:20-310:21
+    Visibility: public -/
+@[rust_loop]
+def value.Value.as_sql_loop
+  (bytes : alloc.vec.Vec Std.U8) (s : String) (k : Std.Usize) :
+  Result String
+  := do
+  loop
+    (fun (s1, k1) => value.Value.as_sql_loop.body bytes s1 k1)
+    (s, k)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::as_sql]:
+    Source: 'src/value/mod.rs', lines 259:4-315:5
+    Visibility: public -/
+def value.Value.as_sql
+  (self : value.Value) (no_backslash_escape : Bool) : Result String := do
+  match self with
+  | value.Value.NULL => sql_trusted.string_from_str (toStr "NULL")
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.str_from_utf8 s
+    match o with
+    | none =>
+      let s1 ← sql_trusted.string_from_str (toStr "0x")
+      value.Value.as_sql_loop bytes s1 0#usize
+    | some string => value.escaped string no_backslash_escape
+  | value.Value.Int x => sql_trusted.format_i64 x
+  | value.Value.UInt x => sql_trusted.format_u64 x
+  | value.Value.Float x => sql_trusted.format_f32 x
+  | value.Value.Double x => sql_trusted.format_f64 x
+  | value.Value.Date y m d hour minute second micros =>
+    match hour with
+    | 0#uscalar =>
+      match minute with
+      | 0#uscalar =>
+        match second with
+        | 0#uscalar =>
+          match micros with
+          | 0#uscalar => sql_trusted.format_date y m d
+          | _ =>
+            match micros with
+            | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+            | _ =>
+              sql_trusted.format_datetime_micros y m d hour minute second
+                micros
+        | _ =>
+          match micros with
+          | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+          | _ =>
+            sql_trusted.format_datetime_micros y m d hour minute second micros
+      | _ =>
+        match micros with
+        | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+        | _ =>
+          sql_trusted.format_datetime_micros y m d hour minute second micros
+    | _ =>
+      match micros with
+      | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+      | _ => sql_trusted.format_datetime_micros y m d hour minute second micros
+  | value.Value.Time neg d h i s micros =>
+    match micros with
+    | 0#uscalar =>
+      if neg
+      then
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time_neg i3 i s
+      else
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time i3 i s
+    | _ =>
+      if neg
+      then
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time_micros_neg i3 i s micros
+      else
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time_micros i3 i s micros
 
 end mysql_common
