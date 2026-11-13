@@ -429,6 +429,47 @@ theorem n_sids_header_spec (tagged : Bool) (n : U64) (hn : n.val < 2 ^ 48) :
       simp [PBUtil.byte_val]
     rw [hb]
 
+theorem const_flags_ser (x : misc.raw._const.Const packets.BinlogDumpFlags misc.raw.int.LeU16)
+    (buf : alloc.vec.Vec U8) (h : buf.length + 2 ≤ Usize.max) :
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize packets.BinlogDumpFlags.Insts.CoreMarkerCopy
+      (core.convert.IntoFrom U16.Insts.CoreConvertFromBinlogDumpFlags)
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 x buf
+      ⦃ b => b.val = buf.val ++ leBytes 2 x.1.val ⦄ := by
+  rw [misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize_eq _ _ _ _ x.1 rfl]
+  exact misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec _ _ h
+
+theorem u32bytes_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U32Bytes Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 4 + min (cowList rb.1).length (2 ^ 32 - 1) ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb buf
+      ⦃ b => b.val = buf.val ++ leBytes 4 (min (cowList rb.1).length (2 ^ 32 - 1)) ++
+        (cowList rb.1).take (2 ^ 32 - 1) ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
+    (by simp only [Slice.length, hs]; omega))
+  intro b hb
+  rw [hb]
+  simp [Slice.length, hs]
+
+theorem rawint_u64_ser (x : misc.raw.int.RawInt misc.raw.int.LeU64 U64) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 8 ≤ Usize.max) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 x buf
+      ⦃ b => b.val = buf.val ++ leBytes 8 x.1.val ⦄ := by
+  rw [misc.raw.int.RawInt.serialize_eq]
+  exact misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec _ _ h
+
+theorem length_le_flatMap_pos {α β : Type} (f : α → List β) (hf : ∀ x, 1 ≤ (f x).length) :
+    ∀ l : List α, l.length ≤ (l.flatMap f).length := by
+  intro l
+  induction l with
+  | nil => simp
+  | cons a l ih => simp only [List.length_cons, List.flatMap_cons, List.length_append]; have := hf a; omega
+
+theorem encOf_pos (t : Bool) (x : SidV) : 1 ≤ (encOf t x).length := by
+  cases t <;> simp [encOf, sidEnc, sidTaggedEnc, intervalsEnc, PBUtil.length_leBytes] <;> omega
+
 end GtidUtil
 
 open GtidUtil
@@ -590,7 +631,57 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize.serialize_s
     (h : buf.length + (gtidDumpEnc (GtidDump.of self)).length ≤ Usize.max) :
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
       buf'.val = buf.val ++ gtidDumpEnc (GtidDump.of self) ⦄ := by
-  sorry
+  unfold packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize.serialize
+  set ss := (cowList self.sid_block.1).map SidV.of with hss
+  set t := gtidTagged ss with ht
+  have hblk' : (sidBlock ss).length = 8 + (ss.flatMap (encOf t)).length := by
+    simp only [sidBlock, ← ht, List.length_append, nSidsHeader, encOf]
+    cases t <;> simp [PBUtil.length_leBytes]
+  have hnl : ss.length ≤ (ss.flatMap (encOf t)).length := length_le_flatMap_pos _ (encOf_pos t) ss
+  simp only [GtidDump.of, ← hss] at hblk h
+  simp only [gtidDumpEnc, List.length_cons, List.length_append, PBUtil.length_leBytes, List.length_take,
+    alloc.vec.Vec.length] at h
+  have hfn : min (cowList self.filename.1).length (2 ^ 32 - 1) ≤ (cowList self.filename.1).length := by omega
+  step with misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨b1, h1⟩
+  step with const_flags_ser as ⟨b2, h2⟩
+  · simp only [alloc.vec.Vec.length, h1, List.length_append]; simp; omega
+  step with rawint_u32_serialize as ⟨b3, h3⟩
+  · simp only [alloc.vec.Vec.length, h2, h1, List.length_append]; simp [PBUtil.length_leBytes]; omega
+  step with u32bytes_ser as ⟨b4, h4⟩
+  · simp only [alloc.vec.Vec.length, h3, h2, h1, List.length_append]; simp [PBUtil.length_leBytes]; omega
+  step with rawint_u64_ser as ⟨b5, h5⟩
+  · simp only [alloc.vec.Vec.length, h4, h3, h2, h1, List.length_append]; simp [PBUtil.length_leBytes]; omega
+  step with misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref_spec as ⟨sl, hsl⟩
+  step with any_sid_tagged_spec sl sl.val.length 0#usize (by simp) as ⟨tg, htg⟩
+  have htg' : tg = t := by
+    rw [htg, ht, hsl, hss]; simp [gtidTagged, SidV.of, List.any_map, Function.comp_def]
+  subst htg'
+  have hssl : (sl.val.drop (0#usize).val).map SidV.of = ss := by simp [hsl, hss]
+  step with sid_block_len_from_spec sl t sl.val.length 0#usize 8#u32 (by simp)
+    (by rw [hssl, show (8#u32).val = 8 from rfl]; omega) as ⟨bl, hbl⟩
+  simp only [hsl] at hbl
+  step with IntAndMisc.put_u32_le_spec as ⟨b6, h6⟩
+  · simp only [alloc.vec.Vec.length, h5, h4, h3, h2, h1, List.length_append]; simp [PBUtil.length_leBytes]; omega
+  step with seq_len_spec as ⟨nl, hnl'⟩
+  step as ⟨n64, hn64⟩
+  have hn64v : n64.val = ss.length := by rw [hn64]; simp [hnl', hss]
+  step with n_sids_header_spec t n64 (by rw [hn64v]; omega) as ⟨hdr, hhdr⟩
+  step with IntAndMisc.put_u64_le_spec as ⟨b7, h7⟩
+  · simp only [alloc.vec.Vec.length, h6, h5, h4, h3, h2, h1, List.length_append]; simp [PBUtil.length_leBytes]; omega
+  apply WP.spec_mono (serialize_sids_from_spec sl t sl.val.length 0#usize b7 (by simp)
+    (by rw [hssl]; simp only [alloc.vec.Vec.length, h7, h6, h5, h4, h3, h2, h1, List.length_append,
+        PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take]; omega))
+  intro b hb
+  simp only [hsl] at hb
+  rw [hb, h7, h6, h5, h4, h3, h2, h1, hhdr, hbl]
+  have hsb : sidBlock ss = nSidsHeader t ss.length ++ ss.flatMap (encOf t) := by
+    simp only [sidBlock, ← ht, encOf]
+  simp only [gtidDumpEnc, GtidDump.of, ← hss, hsb, hn64v, List.length_append]
+  have hhl : (nSidsHeader t ss.length).length = 8 := by
+    cases t <;> simp [nSidsHeader, PBUtil.length_leBytes]
+  have h30 : (30#u8 : U8) = byte 30 := rfl
+  simp only [hhl, ← ht, List.drop_zero, ← hss, h30, show ((0#usize : Usize).val) = 0 from rfl]
+  simp
 
 /-- `MyDeserialize for ComBinlogDumpGtid`: `SIZE` is `None`. -/
 theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq :
