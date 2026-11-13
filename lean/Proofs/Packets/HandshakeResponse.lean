@@ -291,7 +291,7 @@ theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
   have hus : cowList rbu.1 = user := Option.some.inj h6a
   have hsbv : scrambleView sb = (k, sc) := Option.some.inj h7a
   have hdbv : dbv.map (fun rb => cowList rb.1) = dbo := Option.some.inj h8a
-  have hcl : i3.val &&& capabilityFlagsAll = i3.val := and_all32 _ (by scalar_tac)
+  have hcl : i3.val &&& capabilityFlagsAll = i3.val := and_all32 _ i3.hBounds
   rcases hat : CAUtil.attRead i3.val buf5.val with ⟨_ | kvo, r5v⟩ <;> rw [hat] at h10a h10b <;> simp only at h10a h10b
   · cases r9 with
     | Ok _ => simp [okPart] at h10b
