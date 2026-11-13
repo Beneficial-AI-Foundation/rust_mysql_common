@@ -11,6 +11,9 @@ import Proofs.Misc.Raw.Int.LeU32UpperHalf
 import Proofs.Misc.Raw.Bytes.NullBytes
 import Proofs.Misc.Raw.Bytes.BareBytes
 import Proofs.Misc.Raw.Bytes.U8Bytes
+import Proofs.Defs.LemmasG
+import Proofs.Util.ConvBytesTime
+import Proofs.Constants.CapabilityFlags
 
 /-! Helper lemmas for the handshake packet proofs (`Proofs/Packets/{HandshakePacket,
 HandshakeResponse,SslRequest}.lean`). -/
@@ -167,5 +170,162 @@ theorem sslRequestRead_enc (v : SslReq) (hv : v.caps < 2 ^ 32 ∧ v.maxPacket < 
     have : v.mariadbCaps &&& mariadbCapabilitiesAll ≤ mariadbCapabilitiesAll := Nat.and_le_right
     rw [h4] at this; simp [mariadbCapabilitiesAll] at this; omega
   rw [Nat.mod_eq_of_lt h5, h4]
+
+/-! ## `RawBytes` accessors -/
+
+@[step]
+theorem nullbytes_as_bytes (rb : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit) :
+    misc.raw.bytes.RawBytes.as_bytes misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+      ⦃ s => s.val = cowList rb.1 ⦄ := by
+  have hm : misc.raw.bytes.BytesRepr.MAX_LEN misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple =
+      ok misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN := rfl
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec _ _ hm rb)
+  intro s hs
+  rw [hs, misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec]
+  exact List.take_of_length_le (PCSUtil.cowList_length_le _)
+
+@[step]
+theorem barebytes_as_bytes (rb : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize) :
+    misc.raw.bytes.RawBytes.as_bytes (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 247#usize) rb
+      ⦃ s => s.val = (cowList rb.1).take 247 ⦄ := by
+  have hm : (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 247#usize).MAX_LEN = ok 247#usize := by
+    simp [misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN_spec]
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec _ _ hm rb)
+  intro s hs
+  rw [hs]; rfl
+
+theorem from_utf8_lossy_spec (s : Slice U8) :
+    misc.trusted.from_utf8_lossy s ⦃ c => LossyUtf8 s.val c ⦄ := by
+  unfold misc.trusted.from_utf8_lossy
+  apply (WP.spec_ok _).mpr
+  by_cases h : IsUtf8 s.val
+  · have h' := (Defs.isUtf8_iff_isValidUTF8 _).1 h
+    simp only [h', ite_true]
+    exact ⟨fun _ => ⟨s, rfl, rfl⟩, fun hn => absurd h hn⟩
+  · have h' : ¬ (Trusted.bytesOf s.val).IsValidUTF8 := fun h' => h ((Defs.isUtf8_iff_isValidUTF8 _).2 h')
+    simp only [h', ite_false]
+    exact ⟨fun hy => absurd hy h, fun _ => ⟨_, rfl⟩⟩
+
+@[step]
+theorem nullbytes_as_str (rb : misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit) :
+    misc.raw.bytes.RawBytes.as_str misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+      ⦃ c => LossyUtf8 (cowList rb.1) c ⦄ := by
+  unfold misc.raw.bytes.RawBytes.as_str
+  apply WP.spec_bind (nullbytes_as_bytes rb)
+  intro s hs
+  rw [← hs]
+  exact from_utf8_lossy_spec s
+
+/-! ## Server versions -/
+
+/-- A version group: 1–3 ASCII digits. -/
+def GoodGroup (l : List U8) : Prop := l ≠ [] ∧ l.all isDigit = true ∧ l.length ≤ 3
+
+theorem btoi_u16_good (s : Slice U8) (h : GoodGroup s.val) :
+    ∃ x, Trusted.btoiUnsigned .U16 s = some x ∧ x.val = digitsVal s.val := by
+  obtain ⟨h1, h2, h3⟩ := h
+  have hb : digitsVal s.val < 2 ^ UScalarTy.U16.numBits := by
+    have := CBTUtil.digitsVal_lt s.val h2
+    have : 10 ^ s.val.length ≤ 10 ^ 3 := Nat.pow_le_pow_right (by norm_num) h3
+    simp [UScalarTy.numBits]; omega
+  have hv : Trusted.btoiValue? s.val = some (digitsVal s.val : Int) := by
+    obtain ⟨b, rest, hbr⟩ : ∃ b rest, s.val = b :: rest := by
+      cases hs : s.val with
+      | nil => exact absurd hs h1
+      | cons b rest => exact ⟨b, rest, rfl⟩
+    have hd : isDigit b = true := by rw [hbr] at h2; simp at h2; exact h2.1
+    simp only [isDigit, Bool.and_eq_true, decide_eq_true_eq] at hd
+    rw [hbr]
+    simp only [Trusted.btoiValue?, show ¬ b.val = 43 by omega, show ¬ b.val = 45 by omega, ite_false]
+    rw [← hbr, CBTUtil.decimalDigits_eq _ h1 h2]
+    rfl
+  simp only [Trusted.btoiUnsigned, hv, Option.bind_some]
+  simp only [Int.natCast_nonneg, ite_true, Int.toNat_natCast]
+  have := UScalar.tryMkOpt_eq .U16 (digitsVal s.val)
+  cases hc : UScalar.tryMkOpt .U16 (digitsVal s.val) with
+  | none => rw [hc] at this; exfalso; apply this; simpa [UScalar.inBounds] using hb
+  | some x => rw [hc] at this; exact ⟨x, rfl, this.1⟩
+
+theorem versionOfCaptures_good (C : Option (Slice U8 × Slice U8 × Slice U8))
+    (hC : ∀ a b c, C = some (a, b, c) → GoodGroup a.val ∧ GoodGroup b.val ∧ GoodGroup c.val) :
+    versionOfCaptures C ⦃ r => versionVal r = digitsTriple (capturesVal C) ⦄ := by
+  rcases C with _ | ⟨a, b, c⟩
+  · simp [versionOfCaptures, versionVal, digitsTriple, capturesVal, Trusted.capturesVal]
+  · obtain ⟨ga, gb, gc⟩ := hC a b c rfl
+    obtain ⟨x, hx, hxv⟩ := btoi_u16_good a ga
+    obtain ⟨y, hy, hyv⟩ := btoi_u16_good b gb
+    obtain ⟨z, hz, hzv⟩ := btoi_u16_good c gc
+    simp [versionOfCaptures, hx, hy, hz, versionVal, digitsTriple, capturesVal, Trusted.capturesVal, hxv, hyv, hzv]
+
+theorem reDigitRun_all (l : List U8) : (Trusted.reDigitRun l).all isDigit = true := by
+  unfold Trusted.reDigitRun
+  rw [← CBTUtil.isAsciiDigit_eq]
+  induction l with
+  | nil => rfl
+  | cons b l ih =>
+    simp only [List.takeWhile_cons]
+    split <;> simp_all
+
+theorem reTwoGroups_good (bs : List U8) (g1 g2 r : List U8) (h : Trusted.reTwoGroups bs = some (g1, g2, r)) :
+    GoodGroup g1 ∧ GoodGroup g2 := by
+  unfold Trusted.reTwoGroups at h
+  simp only at h
+  split_ifs at h with h1 h2
+  simp only [Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨rfl, rfl, -⟩ := h
+  refine ⟨⟨?_, reDigitRun_all _, by omega⟩, ⟨?_, reDigitRun_all _, by omega⟩⟩
+  · intro hn; rw [hn] at h1; simp at h1
+  · intro hn; rw [hn] at h2; simp at h2
+
+theorem versionReMatch_good (bs : List U8) (g1 g2 g3 : List U8) (h : versionReMatch bs = some (g1, g2, g3)) :
+    GoodGroup g1 ∧ GoodGroup g2 ∧ GoodGroup g3 := by
+  unfold versionReMatch Trusted.versionReMatch at h
+  split at h
+  · rename_i a b r hr
+    obtain ⟨ga, gb⟩ := reTwoGroups_good _ _ _ _ hr
+    simp only at h
+    split_ifs at h with h3
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    refine ⟨ga, gb, ?_, ?_, by simp⟩
+    · intro hn
+      have := congrArg List.length hn
+      simp only [List.length_take, List.length_nil] at this
+      omega
+    · have := reDigitRun_all r
+      rw [List.all_eq_true] at this ⊢
+      intro x hx; exact this x (List.mem_of_mem_take hx)
+  · simp at h
+
+theorem reMariadbCore_good (bs : List U8) (g1 g2 g3 : List U8) (h : Trusted.reMariadbCore bs = some (g1, g2, g3)) :
+    GoodGroup g1 ∧ GoodGroup g2 ∧ GoodGroup g3 := by
+  unfold Trusted.reMariadbCore at h
+  split at h
+  · rename_i a b r hr
+    obtain ⟨ga, gb⟩ := reTwoGroups_good _ _ _ _ hr
+    rcases ht : Trusted.reMariadbTail r with _ | t
+    · simp [ht] at h
+    · simp only [ht, Option.map_some, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl⟩ := h
+      refine ⟨ga, gb, ?_⟩
+      unfold Trusted.reMariadbTail at ht
+      simp only at ht
+      split_ifs at ht with hc
+      simp only [Option.some.injEq] at ht
+      subst ht
+      refine ⟨?_, reDigitRun_all _, hc.2.1⟩
+      intro hn; have := hc.1; rw [hn] at this; simp at this
+  · simp at h
+
+theorem mariadbVersionReMatch_good (bs : List U8) (g1 g2 g3 : List U8) (h : mariadbVersionReMatch bs = some (g1, g2, g3)) :
+    GoodGroup g1 ∧ GoodGroup g2 ∧ GoodGroup g3 := by
+  unfold mariadbVersionReMatch Trusted.mariadbVersionReMatch at h
+  simp only at h
+  split at h
+  · rename_i g hg
+    rw [h] at hg
+    split_ifs at hg
+    · exact reMariadbCore_good _ _ _ _ hg
+  · exact reMariadbCore_good _ _ _ _ h
 
 end mysql_common.ConnHSUtil
