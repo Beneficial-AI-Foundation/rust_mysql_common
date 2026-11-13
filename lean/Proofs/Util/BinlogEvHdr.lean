@@ -190,6 +190,15 @@ theorem pu_rawflags {T U B : Type} (fl : bitflags.traits.Flags T B) (inst : misc
     | Err e => simp [okPart] at h1
   · exact h
 
+theorem takeExact_app (l r : List U8) (k : Nat) (hk : l.length = k) : takeExact k (l ++ r) = some (l, r) := by
+  subst hk; simp [takeExact]
+
+theorem takeExact_app' (l : List U8) (k : Nat) (hk : l.length = k) : takeExact k l = some (l, []) := by
+  have := takeExact_app l [] k hk; simpa using this
+
+theorem readLE_app (k n : Nat) (r : List U8) (hn : n < 2 ^ (8 * k)) : readLE k (leBytes k n ++ r) = some (n, r) :=
+  PBUtil.readLE_leBytes k n r hn
+
 /-! ## The readers consume everything -/
 
 theorem queryRead_tail (p : Nat) (bs : List U8) (v : QueryView) (t : List U8) (ht : queryRead p bs = some (v, t)) : t = [] := by

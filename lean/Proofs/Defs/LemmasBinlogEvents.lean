@@ -6,7 +6,7 @@ import Proofs.Util.BinlogEvHdr
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std mysql_common
+open Aeneas Aeneas.Std mysql_common mysql_common.EvHdrUtil
 
 namespace Defs
 
@@ -63,7 +63,40 @@ theorem queryRead_queryEnc (e : binlog.events.query_event.QueryEvent) (p : Nat) 
     (hsv : e.status_vars_len.1.val = (cowList e.status_vars.1).length) (hsv' : (cowList e.status_vars.1).length ≤ 65535)
     (hs : e.schema_len.1.val = (cowList e.schema.1).length) (hs' : (cowList e.schema.1).length ≤ 255) :
     queryRead p (queryEnc e) = some (queryView e, []) := by
-  sorry
+  have hsvt : (cowList e.status_vars.1).take 65535 = cowList e.status_vars.1 := List.take_of_length_le hsv'
+  have hsct : (cowList e.schema.1).take 255 = cowList e.schema.1 := List.take_of_length_le hs'
+  have a1 := PBUtil.length_leBytes 4 e.thread_id.1.val
+  have a2 := PBUtil.length_leBytes 4 e.execution_time.1.val
+  have a3 := PBUtil.length_leBytes 2 e.error_code.1.val
+  have a4 := PBUtil.length_leBytes 2 e.status_vars_len.1.val
+  have b1 : e.thread_id.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b2 : e.execution_time.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b3 : e.error_code.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have b4 : e.status_vars_len.1.val < 2 ^ (8 * 2) := by scalar_tac
+  set H := leBytes 4 e.thread_id.1.val ++ leBytes 4 e.execution_time.1.val ++ [e.schema_len.1] ++
+    leBytes 2 e.error_code.1.val ++ leBytes 2 e.status_vars_len.1.val with hH
+  have hHl : H.length = 13 := by simp [hH, a1, a2, a3, a4]
+  have hq : queryEnc e = H ++ (cowList e.status_vars.1 ++ (cowList e.schema.1 ++ ([byte 0] ++ cowList e.query.1))) := by
+    simp only [queryEnc, hsvt, hsct, hH, List.append_assoc]
+  have t4 : H.take 4 = leBytes 4 e.thread_id.1.val := by simp [hH, a1]
+  have t44 : (H.drop 4).take 4 = leBytes 4 e.execution_time.1.val := by simp [hH, a1, a2]
+  have t8 : (H.drop 8).headD (byte 0) = e.schema_len.1 := by simp [hH, List.drop_append, a1, a2]
+  have t92 : (H.drop 9).take 2 = leBytes 2 e.error_code.1.val := by simp [hH, List.drop_append, a1, a2, a3]
+  have t112 : (H.drop 11).take 2 = leBytes 2 e.status_vars_len.1.val := by simp [hH, List.drop_append, a1, a2, a3, a4]
+  have hp0 : p - 13 = 0 := by omega
+  rw [hq]
+  simp only [queryRead, Option.bind_eq_bind]
+  rw [takeExact_app _ _ 13 hHl]
+  simp only [Option.bind_some, hp0, t112, t8, t4, t44, t92]
+  have z : ∀ l : List U8, takeExact 0 l = some ([], l) := fun l => by simp [takeExact]
+  simp only [z, Option.bind_some, leNat_leBytes_lt 2 _ b4, leNat_leBytes_lt 2 _ b3, leNat_leBytes_lt 4 _ b1,
+    leNat_leBytes_lt 4 _ b2]
+  rw [hsv, takeExact_app _ _ _ rfl]
+  simp only [Option.bind_some]
+  rw [hs, takeExact_app _ _ _ rfl]
+  simp only [Option.bind_some]
+  rw [takeExact_app [byte 0] _ 1 rfl]
+  simp only [Option.bind_some, queryView, hsv, hs]
 
 /-- An example walk: `Q_FLAGS2_CODE` (4 bytes), then `Q_CATALOG_NZ_CODE` with a 2-byte name, then an unknown key 99 stops the walk. -/
 theorem statusVarsOf_example : statusVarsOf [byte 0, byte 1, byte 2, byte 3, byte 4, byte 6, byte 2, byte 97, byte 98, byte 99, byte 7] =
