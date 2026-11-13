@@ -1,5 +1,7 @@
 import Defs
 import Proofs.Util.ConnHandshake
+import Proofs.Packets.AuthPlugin
+import Proofs.Misc.Raw.Either
 
 /-! Statements for `struct HandshakeResponse and its impls` (spec file: `Specs/Packets/Connection.lean`). -/
 
@@ -9,6 +11,8 @@ open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common
 open core.result.Result.Insts
 
 namespace mysql_common
+
+attribute [local step] packets.AuthPlugin.Insts.Mysql_commonProtoMySerialize.serialize_spec CAUtil.serialize_connect_attrs_spec
 
 /-- `new`: the auth response framed as the given flags prescribe; `CLIENT_CONNECT_WITH_DB`, `CLIENT_PLUGIN_AUTH` and `CLIENT_CONNECT_ATTRS` set or cleared by whether a database, plugin and attributes are given (overriding the caller's flags); collation `utf8mb4_general_ci` (45) for a server version from 5.5.3, else `utf8mb3_general_ci` (33); user and auth response empty for `None`; MariaDB's capabilities empty; the attributes converted (`Trusted.connectAttrsFromStrings`). -/
 theorem packets.HandshakeResponse.new_spec {T1 T2 T3 : Type} (into1 : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into2 : core.convert.Into T2 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into3 : core.convert.Into T3 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
@@ -111,11 +115,79 @@ theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
         rest.val = (hsRespRead buf.val).2 ⦄ := by
   sorry
 
+private theorem scramble_ser (sb : misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit)
+      (misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit)
+        (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit))) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (scrambleEnc (scrambleView sb).1 (scrambleView sb).2).length ≤ Usize.max) :
+    misc.raw.Either.Insts.Mysql_commonProtoMySerialize.serialize
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+      (misc.raw.Either.Insts.Mysql_commonProtoMySerialize
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize
+          misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize
+          misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)) sb buf
+      ⦃ b => b.val = buf.val ++ scrambleEnc (scrambleView sb).1 (scrambleView sb).2 ⦄ := by
+  rcases sb with rb | (rb | rb) <;>
+    simp only [misc.raw.Either.Insts.Mysql_commonProtoMySerialize.serialize_left,
+      misc.raw.Either.Insts.Mysql_commonProtoMySerialize.serialize_right, scrambleView, scrambleEnc] at h ⊢
+  · exact PKUtil.lenenc_ser rb buf h
+  · apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+    intro sl hsl
+    apply WP.spec_mono (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec sl buf
+      (by simp only [Slice.length, hsl]; simp [alloc.vec.Vec.length] at h ⊢; omega))
+    intro b hb; rw [hb, hsl]; simp [Slice.length, hsl]
+  · exact nullbytes_raw_ser rb buf h
+
+private theorem tail_ser (db : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit))
+    (ap : Option packets.AuthPlugin) (ca : Option Trusted.ConnectAttrs) (buf : alloc.vec.Vec U8)
+    (h : buf.length + ((db.map (fun rb => nulStr (cowList rb.1))).getD [] ++
+      (ap.map (fun p => authPluginName p ++ [byte 0])).getD [] ++
+      (ca.map (fun m => attrsEnc (attrsEntries m))).getD []).length ≤ Usize.max) :
+    packets.serialize_handshake_response_tail db ap ca buf ⦃ b => b.val = buf.val ++
+      ((db.map (fun rb => nulStr (cowList rb.1))).getD [] ++
+      (ap.map (fun p => authPluginName p ++ [byte 0])).getD [] ++
+      (ca.map (fun m => attrsEnc (attrsEntries m))).getD []) ⦄ := by
+  unfold packets.serialize_handshake_response_tail packets.serialize_handshake_response_auth_plugin
+    packets.serialize_handshake_response_connect_attrs
+  rcases db with _ | rb <;> rcases ap with _ | p <;> rcases ca with _ | m <;>
+    simp only [Option.map_none, Option.map_some, Option.getD_none, Option.getD_some, List.append_nil,
+      List.nil_append, List.length_append] at h ⊢
+  all_goals step*
+  all_goals (simp_all [alloc.vec.Vec.length]; try omega)
+
 /-- `MySerialize for HandshakeResponse`: appends `hsRespEnc` of the fields, with the map's entries in its iteration order (`attrsEntries`). -/
 theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.HandshakeResponse) (buf : alloc.vec.Vec U8)
     (h : buf.length + (hsRespEnc (HsResp.of self) (self.connect_attributes.map attrsEntries)).length ≤ Usize.max) :
     packets.HandshakeResponse.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ hsRespEnc (HsResp.of self) (self.connect_attributes.map attrsEntries) ⦄ := by
-  sorry
+  unfold packets.HandshakeResponse.Insts.Mysql_commonProtoMySerialize.serialize
+  have hl : buf.val.length + (hsRespEnc (HsResp.of self) (self.connect_attributes.map attrsEntries)).length ≤ Usize.max := h
+  have ht : (hsRespEnc (HsResp.of self) (self.connect_attributes.map attrsEntries)) =
+      leBytes 4 self.capabilities.1.val ++ leBytes 4 self.max_packet_size.1.val ++ [byte self.collation.1.val] ++
+        List.replicate 19 (byte 0) ++ leBytes 4 self.mariadb_ext_capabilities.1.val ++ nulStr (cowList self.user.1) ++
+        scrambleEnc (scrambleView self.scramble_buf).1 (scrambleView self.scramble_buf).2 ++
+        ((self.db_name.map (fun rb => nulStr (cowList rb.1))).getD [] ++
+          (self.auth_plugin.map (fun p => authPluginName p ++ [byte 0])).getD [] ++
+          (self.connect_attributes.map (fun m => attrsEnc (attrsEntries m))).getD []) := by
+    unfold hsRespEnc HsResp.of
+    rcases self.db_name <;> rcases self.auth_plugin <;> rcases self.connect_attributes <;> simp
+  rw [ht] at hl ⊢
+  simp only [List.length_append, List.length_cons, PBUtil.length_leBytes, List.length_replicate,
+    List.length_nil] at hl
+  step with const_caps_u32_ser self.capabilities buf (by simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega) as ⟨b1, h1⟩
+  step with PCSUtil.rawint_u32_serialize self.max_packet_size b1 (by simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega) as ⟨b2, h2⟩
+  step with PCSUtil.rawint_u8_serialize self.collation b2 (by simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega) as ⟨b3, h3⟩
+  step as ⟨sl, hsl⟩
+  have hsl' : sl.val = List.replicate 19 (byte 0) := by rw [hsl]; simp [Array.repeat]; rfl
+  clear hsl
+  step with IntAndMisc.put_slice_spec b3 sl (by simp only [alloc.vec.Vec.length, Slice.length] at *; simp [*, PBUtil.length_leBytes] at *; omega) as ⟨b4, h4⟩
+  step with const_mariadb_u32_ser self.mariadb_ext_capabilities b4 (by simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega) as ⟨b5, h5⟩
+  step with nullbytes_raw_ser self.user b5 (by simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega) as ⟨b6, h6⟩
+  step with scramble_ser self.scramble_buf b6 (by simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega) as ⟨b7, h7⟩
+  apply WP.spec_mono (tail_ser self.db_name self.auth_plugin self.connect_attributes b7 (by simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega))
+  intro b hb
+  rw [hb, h7, h6, h5, h4, h3, h2, h1, hsl']
+  simp [PCSUtil.byte_eq_self]
 
 /-- Round trip: an `HsResp.Compatible` response written by `hsRespEnc` reads back with the same fields, its plugin in normal form and its map built from the written entries. -/
 theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip (h64 : Target64) (v : HsResp) (kvs : Option (List (List U8 × List U8))) (hc : v.Compatible kvs)
