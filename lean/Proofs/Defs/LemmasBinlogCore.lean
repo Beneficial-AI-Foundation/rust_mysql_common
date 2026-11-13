@@ -2,7 +2,7 @@ import Defs
 import Proofs.Util.BinlogValue
 
 /-! Sanity lemmas about `Defs/BinlogCore.lean` and `Defs/BinlogValue.lean` (recalled in
-`Specs/DefsBinlogCore.lean`). Proofs: TODO. -/
+`Specs/DefsBinlogCore.lean`). Helper lemmas: `Proofs/Util/BinlogValue.lean`. -/
 
 set_option autoImplicit false
 
@@ -126,13 +126,13 @@ theorem stringFieldLen_mysql (L : Nat) (hL : L < 1024) :
 /-- The intended reader inverts the encoder: `binlogRead` reads back `binlogEnc` (bugs included: `binlogRead` is MySQL's reading). -/
 theorem binlogRead_binlogEnc (ct : constants.ColumnType) (md : List U8) (uns : Bool) (v : Val)
     (bs tail : List U8) (h : binlogEnc ct md uns v = some bs) :
-    binlogRead ct md uns (bs ++ tail) = .ok v tail := by
-  sorry
+    binlogRead ct md uns (bs ++ tail) = .ok v tail := 
+  binlogRead_binlogEnc' ct md uns v bs tail h
 
 /-- The bug inputs are those of the encoded bug values: an encoded value outside `binlogEncBug` is not a `binlogBug` input (so `deserialize_roundtrip` follows from `deserialize_ok` and `binlogRead_binlogEnc`). -/
 theorem not_binlogBug_of_binlogEnc (ct : constants.ColumnType) (md : List U8) (uns : Bool) (v : Val)
     (bs tail : List U8) (h : binlogEnc ct md uns v = some bs) (hb : ¬ binlogEncBug ct md uns v) :
-    ¬ binlogBug ct md uns (bs ++ tail) := by
-  sorry
+    ¬ binlogBug ct md uns (bs ++ tail) := 
+  not_binlogBug_of_binlogEnc' ct md uns v bs tail h hb
 
 end Defs

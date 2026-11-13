@@ -4,6 +4,7 @@ set_option autoImplicit false
 set_option linter.unusedTactic false
 set_option linter.unusedSimpArgs false
 set_option linter.unreachableTactic false
+set_option linter.unnecessarySeqFocus false
 open Aeneas Aeneas.Std Result mysql_common Defs
 
 /-! Helper lemmas for the binlog packed-time readers and `BinlogValue::deserialize`
@@ -799,5 +800,302 @@ theorem time2NegFracBug_time2Bin' (dec : Nat) (p : Int) (tail : List U8) (hd : d
     have hI : (I + 8388608) / 16777216 = 0 := by omega
     have hd : F / 10000 / 256 = 0 := by omega
     omega
+
+end Defs
+
+namespace Defs
+open constants.ColumnType
+
+theorem readLE_app (k : Nat) (bs tail : List U8) (hk : bs.length = k) :
+    readLE k (bs ++ tail) = some (leNat bs, tail) := by
+  subst hk; simp [readLE]
+
+theorem checkedLenPrefixed_app (k : Nat) (s tail : List U8) (hs : s.length < 2 ^ (8 * k)) :
+    checkedLenPrefixed k (leBytes k s.length ++ s ++ tail) = (some s, tail) := by
+  unfold checkedLenPrefixed
+  rw [List.append_assoc, readLE_app _ _ _ (PBUtil.length_leBytes _ _), PBUtil.leNat_leBytes,
+    Nat.mod_eq_of_lt hs]
+  simp
+
+theorem binlogStr_app (k : Nat) (s tail : List U8) (hs : s.length < 2 ^ (8 * k)) :
+    binlogStr k (leBytes k s.length ++ s ++ tail) = .ok (.bytes s) tail := by
+  simp only [binlogStr]; rw [checkedLenPrefixed_app k s tail hs]
+
+set_option hygiene false in
+local macro "enc_intro" : tactic => `(tactic| (
+  (try simp only at h) <;> (split_ifs at h with hc) <;> (simp only [reduceCtorEq, Option.some.injEq] at h) <;> subst h))
+
+theorem u8_lt (b : U8) : b.val < 256 := by have := b.hBounds; simpa using this
+
+theorem stringFieldLen_lt (b0 b1 : Nat) (h0 : 1 ≤ b0) (h1 : b1 < 256) : stringFieldLen b0 b1 < 1024 := by
+  unfold stringFieldLen
+  split_ifs
+  · have ha : b0 &&& 48 < 64 := lt_of_le_of_lt Nat.and_le_right (by norm_num)
+    have hx : (b0 &&& 48) ^^^ 48 < 2 ^ 6 := Nat.xor_lt_two_pow ha (by norm_num)
+    have hs : ((b0 &&& 48) ^^^ 48) <<< 4 < 2 ^ 10 := by rw [Nat.shiftLeft_eq]; omega
+    exact Nat.or_lt_two_pow (by omega) hs
+  · omega
+
+theorem timePack_facts (neg : Bool) (d h m s us : Nat)
+    (hr : h < 24 ∧ m < 60 ∧ s < 60 ∧ d * 24 + h < 1024 ∧ us < 10 ^ 6) :
+    -2 ^ 47 ≤ timePack neg d h m s us ∧ timePack neg d h m s us < 2 ^ 47 ∧
+      packedFracPart (timePack neg d h m s us) = (if neg then -(us : Int) else us) := by
+  obtain ⟨h1, h2, h3, h4, h5⟩ := hr
+  unfold timePack packedMake packedFracPart
+  obtain ⟨H, hH⟩ : ∃ H, (d * 24 + h) * 2 ^ 12 + m * 2 ^ 6 + s = H := ⟨_, rfl⟩
+  have hHb : H < 2 ^ 22 := by subst hH; simp only [Nat.reducePow]; omega
+  simp only [hH]
+  rw [Int.tmod_eq_emod]
+  simp only [Int.dvd_iff_emod_eq_zero]
+  cases neg <;> simp only [ite_true, Bool.false_eq_true, ite_false] <;> split_ifs <;> push_cast at * <;> omega
+
+theorem datetimePack_facts (y mo d h mi s us : Nat)
+    (hr : y ≤ 9999 ∧ mo ≤ 12 ∧ d < 32 ∧ h < 24 ∧ mi < 60 ∧ s < 60 ∧ us < 10 ^ 6) :
+    0 ≤ datetimePack y mo d h mi s us ∧ datetimePack y mo d h mi s us < 2 ^ 63 ∧
+      packedFracPart (datetimePack y mo d h mi s us) = us := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := hr
+  unfold datetimePack packedMake packedFracPart
+  obtain ⟨H, hH⟩ : ∃ H, ((y * 13 + mo) * 2 ^ 5 + d) * 2 ^ 17 + (h * 2 ^ 12 + mi * 2 ^ 6 + s) = H := ⟨_, rfl⟩
+  have hHb : H < 2 ^ 39 := by subst hH; simp only [Nat.reducePow]; omega
+  simp only [hH]
+  rw [Int.tmod_eq_emod]
+  simp only [Int.dvd_iff_emod_eq_zero]
+  split_ifs <;> push_cast at * <;> omega
+
+theorem binlogRead_binlogEnc' (ct : constants.ColumnType) (md : List U8) (uns : Bool) (v : Val)
+    (bs tail : List U8) (h : binlogEnc ct md uns v = some bs) :
+    binlogRead ct md uns (bs ++ tail) = .ok v tail := by
+  unfold binlogEnc at h
+  split_ifs at h with hm
+  cases ct <;> cases v <;> simp only [reduceCtorEq] at h
+  all_goals try (simp [binlogIntEnc] at h; done)
+  case MYSQL_TYPE_TINY.int x =>
+    unfold binlogIntEnc at h; enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    rcases hc with ⟨rfl, hc⟩ | ⟨rfl, hc⟩ <;> norm_num [toSigned] at hc ⊢ <;> (try split_ifs) <;> omega
+  case MYSQL_TYPE_SHORT.int x =>
+    unfold binlogIntEnc at h; enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    rcases hc with ⟨rfl, hc⟩ | ⟨rfl, hc⟩ <;> norm_num [toSigned] at hc ⊢ <;> (try split_ifs) <;> omega
+  case MYSQL_TYPE_LONG.int x =>
+    unfold binlogIntEnc at h; enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    rcases hc with ⟨rfl, hc⟩ | ⟨rfl, hc⟩ <;> norm_num [toSigned] at hc ⊢ <;> (try split_ifs) <;> omega
+  case MYSQL_TYPE_LONGLONG.int x =>
+    unfold binlogIntEnc at h; enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    rcases hc with ⟨rfl, hc⟩ | ⟨rfl, hc⟩ <;> norm_num [toSigned] at hc ⊢ <;> (try split_ifs) <;> (try simp only [Val.int.injEq, reduceCtorEq] at *) <;> omega
+  case MYSQL_TYPE_INT24.int x =>
+    unfold binlogIntEnc at h; enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    rcases hc with ⟨rfl, hc⟩ | ⟨rfl, hc⟩ <;> norm_num [toSigned] at hc ⊢ <;> (try split_ifs) <;> omega
+  case MYSQL_TYPE_LONGLONG.uint x =>
+    unfold binlogIntEnc at h; enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    obtain ⟨-, rfl, h1, h2⟩ := hc
+    have : ¬ x < 9223372036854775808 := by omega
+    have h3 : x % 18446744073709551616 = x := Nat.mod_eq_of_lt (by omega)
+    simp [h3, this]
+  case MYSQL_TYPE_FLOAT.float b =>
+    enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    omega
+  case MYSQL_TYPE_DOUBLE.double b =>
+    enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    omega
+  case MYSQL_TYPE_TIMESTAMP.int x =>
+    enc_intro
+    simp [binlogRead, binlogEffType, binlogMetaLen, BinlogOut.ofRead, binRead, isLenencStrType, readIntVal, binlogNum, readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), readLE_app _ _ _ (PBUtil.length_leBytes _ _), IntAndMisc.leNat_leBytesI, PBUtil.leNat_leBytes]
+    omega
+  case MYSQL_TYPE_TINY_BLOB.bytes b =>
+    enc_intro
+    obtain ⟨h1, h2, h3⟩ := hc
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, h1, h2, and_self, ite_true]
+    exact binlogStr_app _ _ _ h3
+  case MYSQL_TYPE_MEDIUM_BLOB.bytes b =>
+    enc_intro
+    obtain ⟨h1, h2, h3⟩ := hc
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, h1, h2, and_self, ite_true]
+    exact binlogStr_app _ _ _ h3
+  case MYSQL_TYPE_LONG_BLOB.bytes b =>
+    enc_intro
+    obtain ⟨h1, h2, h3⟩ := hc
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, h1, h2, and_self, ite_true]
+    exact binlogStr_app _ _ _ h3
+  case MYSQL_TYPE_BLOB.bytes b =>
+    enc_intro
+    obtain ⟨h1, h2, h3⟩ := hc
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, h1, h2, and_self, ite_true]
+    exact binlogStr_app _ _ _ h3
+  case MYSQL_TYPE_GEOMETRY.bytes b =>
+    enc_intro
+    obtain ⟨h1, h2, h3⟩ := hc
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, h1, h2, and_self, ite_true]
+    exact binlogStr_app _ _ _ h3
+  case MYSQL_TYPE_VECTOR.bytes b =>
+    enc_intro
+    obtain ⟨h1, h2, h3⟩ := hc
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, h1, h2, and_self, ite_true]
+    exact binlogStr_app _ _ _ h3
+  case MYSQL_TYPE_VARCHAR.bytes b =>
+    enc_intro
+    all_goals
+      have hb0 := u8_lt (md.getD 0 (byte 0))
+      have hb1 := u8_lt (md.getD 1 (byte 0))
+      have hm' : ¬ md.length < 2 := by simpa [binlogMetaLen] using hm
+      simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false]
+      split_ifs <;> first | omega | exact binlogStr_app _ _ _ (by omega)
+  case MYSQL_TYPE_VAR_STRING.bytes b =>
+    enc_intro
+    all_goals
+      have hb0 := u8_lt (md.getD 0 (byte 0))
+      have hb1 := u8_lt (md.getD 1 (byte 0))
+      have hm' : ¬ md.length < 2 := by simpa [binlogMetaLen] using hm
+      simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false]
+      split_ifs <;> first | omega | exact binlogStr_app _ _ _ (by omega)
+  case MYSQL_TYPE_STRING.bytes b =>
+    enc_intro
+    all_goals
+      have hb1 := u8_lt (md.getD 1 (byte 0))
+      have hl := stringFieldLen_lt _ _ hc.1 hb1
+      have hm' : ¬ md.length < 2 := by simpa [binlogMetaLen] using hm
+      simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false]
+      split_ifs <;> first | omega | exact binlogStr_app _ _ _ (by omega)
+  case MYSQL_TYPE_BIT.bytes b =>
+    enc_intro
+    have hm' : ¬ md.length < 2 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, binlogTake, ← hc]
+    simp
+  case MYSQL_TYPE_SET.bytes b =>
+    enc_intro
+    have hm' : ¬ md.length < 2 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, binlogTake, ← hc]
+    simp
+  case MYSQL_TYPE_ENUM.int x =>
+    enc_intro
+    have hm' : ¬ md.length < 2 := by simpa [binlogMetaLen] using hm
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false]
+    obtain ⟨hk, h1, h2⟩ := hc
+    rcases hk with hk | hk <;> rw [hk] at h2 <;> simp only [List.getD_eq_getElem?_getD] at hk <;>
+      simp [hk, binlogNum, readLE_app _ _ _ (PBUtil.length_leBytes _ _), PBUtil.leNat_leBytes] <;> omega
+  case MYSQL_TYPE_TIME.time neg d hh mi sc us =>
+    rcases d with _ | d <;> rcases us with _ | us <;> simp only [reduceCtorEq] at h
+    have hT : ∀ X : Int, -8388608 ≤ X → X < 8388608 → toSigned 24 (X % (2 ^ (8 * 3) : Int)).toNat = X := by
+      intro X h1 h2; unfold toSigned; split_ifs <;> omega
+    cases neg <;> simp only [Bool.false_eq_true, ite_true, ite_false, Option.ite_none_right_eq_some, Option.some.injEq] at h <;> obtain ⟨⟨c1, c2, c3, c4⟩, rfl⟩ := h
+    all_goals
+      have hm' : ¬ md.length < 0 := by omega
+      simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, binlogNum,
+        readLE_app _ _ _ (IntAndMisc.length_leBytesI _ _), IntAndMisc.leNat_leBytesI, oldTimeVal]
+      rw [hT _ (by push_cast; omega) (by push_cast; omega)]
+      simp only [Val.time.injEq, BinlogOut.ok.injEq, and_true, one_mul, neg_one_mul, Int.natAbs_neg,
+        Int.natAbs_natCast, decide_eq_true_eq, decide_eq_false_iff_not, true_and]
+      simp at c4
+      omega
+  case MYSQL_TYPE_DATETIME.date y mo d hh mi sc us =>
+    rcases us with _ | us <;> simp only [reduceCtorEq] at h
+    enc_intro
+    have hm' : ¬ md.length < 0 := by omega
+    obtain ⟨c1, c2, c3, c4, c5, c6⟩ := hc
+    rw [show (y * 10000 + mo * 100 + d) * 10 ^ 6 + hh * 10000 + mi * 100 + sc = (y * 10000 + mo * 100 + d) * 10 ^ 6 + hh * 10000 + mi * 100 + sc from rfl]
+    have hN : (y * 10000 + mo * 100 + d) * 10 ^ 6 + hh * 10000 + mi * 100 + sc < 2 ^ (8 * 8) := by
+      simp only [Nat.reducePow, Nat.reduceMul]; omega
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, binlogNum, Nat.mod_eq_of_lt hN,
+      readLE_app _ _ _ (PBUtil.length_leBytes _ _), PBUtil.leNat_leBytes]
+    simp only [BinlogOut.ok.injEq, Val.date.injEq, and_true, Nat.reduceMul, Nat.reducePow]
+    omega
+  case MYSQL_TYPE_NEWDATE.date y mo d hh mi sc us =>
+    rcases hh with _ | hh <;> rcases mi with _ | mi <;> rcases sc with _ | sc <;> rcases us with _ | us <;>
+      simp only [reduceCtorEq] at h
+    enc_intro
+    have hm' : ¬ md.length < 0 := by omega
+    obtain ⟨c1, c2, c3⟩ := hc
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, binlogNum,
+      readLE_app _ _ _ (PBUtil.length_leBytes _ _), PBUtil.leNat_leBytes]
+    simp only [BinlogOut.ok.injEq, Val.date.injEq, and_true, Nat.reduceMul, Nat.reducePow]
+    omega
+  case MYSQL_TYPE_TIME2.time neg d hh mi sc us =>
+    enc_intro
+    obtain ⟨c1, c2, c3, c4, c5, c6, c7⟩ := hc
+    obtain ⟨p1, p2, p3⟩ := timePack_facts neg d hh mi sc us ⟨c1, c2, c3, c4, c5⟩
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    have hr := time2Read_time2Bin' (md.getD 0 (byte 0)).val (timePack neg d hh mi sc us) tail ⟨p1, p2⟩
+      ⟨by
+        have hd : (fracUnit (md.getD 0 (byte 0)).val : Int) ∣ (us : Int) := Int.natCast_dvd_natCast.mpr (Nat.dvd_of_mod_eq_zero c6)
+        rw [p3]; cases neg
+        · exact Int.emod_eq_zero_of_dvd hd
+        · exact Int.emod_eq_zero_of_dvd (Int.dvd_neg.mpr hd),
+       by rw [p3]; cases neg <;> simp <;> omega⟩
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, hr]
+    rw [timeFromPacked_timePack' neg d hh mi sc us ⟨c1, c2, c3, c4, by omega⟩ c7]
+  case MYSQL_TYPE_DATETIME2.date y mo d hh mi sc us =>
+    enc_intro
+    obtain ⟨c1, c2, c3, c4, c5, c6, c7, c8⟩ := hc
+    obtain ⟨p1, p2, p3⟩ := datetimePack_facts y mo d hh mi sc us ⟨c1, c2, c3, c4, c5, c6, c7⟩
+    have hm' : ¬ md.length < 1 := by simpa [binlogMetaLen] using hm
+    have hr := datetime2Read_datetime2Bin' (md.getD 0 (byte 0)).val (datetimePack y mo d hh mi sc us) tail ⟨p1, p2⟩
+      ⟨by rw [p3]; omega, by rw [p3]; omega⟩
+    have hn : ¬ datetimePack y mo d hh mi sc us ≤ -2 ^ 63 := by omega
+    simp only [binlogRead, binlogEffType, binlogMetaLen, hm', ite_false, hr, hn]
+    rw [datetimeFromPacked_datetimePack' y mo d hh mi sc us ⟨c1, c2, c3, c4, c5, c6, by omega⟩]
+
+theorem not_binlogBug_of_binlogEnc' (ct : constants.ColumnType) (md : List U8) (uns : Bool) (v : Val)
+    (bs tail : List U8) (h : binlogEnc ct md uns v = some bs) (hb : ¬ binlogEncBug ct md uns v) :
+    ¬ binlogBug ct md uns (bs ++ tail) := by
+  unfold binlogEnc at h
+  split_ifs at h with hm
+  cases ct <;> cases v <;> simp only [reduceCtorEq] at h
+  all_goals try (simp [binlogIntEnc] at h; done)
+  all_goals try (simp [binlogBug, binlogEffType]; done)
+  case MYSQL_TYPE_INT24.int x =>
+    unfold binlogIntEnc at h; enc_intro
+    simp only [binlogEncBug, true_and, not_and, not_lt] at hb
+    simp only [binlogBug, binlogEffType, not_and, not_le]
+    intro hu _
+    have hx := hb hu
+    rw [List.take_left' (IntAndMisc.length_leBytesI _ _), IntAndMisc.leNat_leBytesI]
+    rcases hc with ⟨h1, _⟩ | ⟨_, h2, h3⟩
+    · simp [h1] at hu
+    · norm_num at h3 ⊢; omega
+  case MYSQL_TYPE_TIME.time neg d hh mi sc us =>
+    rcases d with _ | d <;> rcases us with _ | us <;> simp only [reduceCtorEq] at h
+    simp only [binlogEncBug, true_and, not_or, not_le, reduceCtorEq, false_and, or_false] at hb
+    obtain ⟨hn, hh2⟩ := hb
+    simp only [Bool.not_eq_true] at hn
+    subst hn
+    simp only [Bool.false_eq_true, ite_false, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    obtain ⟨⟨c1, c2, c3, c4⟩, rfl⟩ := h
+    simp only [binlogBug, binlogEffType, not_and, not_or, not_le]
+    intro _
+    rw [List.take_left' (IntAndMisc.length_leBytesI _ _), IntAndMisc.leNat_leBytesI]
+    norm_num
+    have hg : ((hh:Int) * 10000 + mi * 100 + sc) / 16777216 = 0 := by omega
+    omega
+  case MYSQL_TYPE_TIME2.time neg d hh mi sc us =>
+    enc_intro
+    obtain ⟨c1, c2, c3, c4, c5, c6, c7⟩ := hc
+    obtain ⟨p1, p2, p3⟩ := timePack_facts neg d hh mi sc us ⟨c1, c2, c3, c4, c5⟩
+    simp only [binlogBug, binlogEffType]
+    by_cases hd : (md.getD 0 (byte 0)).val = 1 ∨ (md.getD 0 (byte 0)).val = 2
+    · rw [time2NegFracBug_time2Bin' _ _ tail hd ⟨p1, p2⟩ ⟨by
+          have hdv : (fracUnit (md.getD 0 (byte 0)).val : Int) ∣ (us : Int) := Int.natCast_dvd_natCast.mpr (Nat.dvd_of_mod_eq_zero c6)
+          rw [p3]; cases neg
+          · exact Int.emod_eq_zero_of_dvd hdv
+          · exact Int.emod_eq_zero_of_dvd (Int.dvd_neg.mpr hdv), by rw [p3]; cases neg <;> simp <;> omega⟩]
+      simp only [binlogEncBug, reduceCtorEq, false_and, false_or, true_and, not_and] at hb
+      rw [p3]
+      have hb' := hb hd
+      cases neg
+      · intro ⟨hlt, _⟩
+        unfold timePack packedMake at hlt; simp at hlt; omega
+      · simp at hb' ⊢; omega
+    · unfold time2NegFracBug; exact fun h => hd h.1
 
 end Defs
