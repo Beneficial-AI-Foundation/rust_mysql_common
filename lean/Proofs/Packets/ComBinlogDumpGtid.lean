@@ -1371,6 +1371,17 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.ro
     (tail : List U8) (buf : io.ParseBuf) (h : buf.val = gtidDumpEnc (GtidDump.of g) ++ tail) :
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (okPart r).map GtidDump.of = some (GtidDump.of g) ∧ rest.val = tail ⦄ := by
-  sorry
+  have hd := Replication.gtidDumpRead_gtidDumpEnc (GtidDump.of g) hnotag hf
+    (by simp [GtidDump.of]; scalar_tac) hfn (by simp [GtidDump.of]; scalar_tac) hblk (by
+      intro s hs
+      simp only [GtidDump.of, List.mem_map] at hs
+      obtain ⟨x, _, rfl⟩ := hs
+      refine ⟨by simp [SidV.of], ?_⟩
+      intro i hi
+      simp only [SidV.of, List.mem_map] at hi
+      obtain ⟨y, _, rfl⟩ := hi
+      constructor <;> scalar_tac) tail
+  rw [← h] at hd
+  exact packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec h64 buf _ _ hd
 
 end mysql_common
