@@ -16,7 +16,10 @@ TARGET="x86_64-unknown-linux-gnu"            # 64-bit, little-endian
 # (`flate2/zlib` is a C library that does not cross-compile from macOS), plus the optional value
 # conversions we verify. The compressed codec's results (its flate2 axioms in FunsExternal.lean)
 # hold for this rust_backend (miniz_oxide) build only, not for the default zlib build.
-FEATURES="derive,flate2/rust_backend,chrono,time,rust_decimal,bigdecimal,frunk"
+# `binlog_core` is the `binlog` feature without `zstd` (a C library that does not cross-compile
+# either); it exists only in the patched copy (translation-patches/140), where `binlog` is
+# `binlog_core` plus `zstd`, and only the (untranslated) zstd decompression API differs.
+FEATURES="derive,flate2/rust_backend,chrono,time,rust_decimal,bigdecimal,frunk,binlog_core"
 # The flate2 axioms were checked against these versions. `flate2/rust_backend` is only enabled
 # here, so Cargo.lock has no miniz_oxide entry and cargo resolves it afresh: the translation
 # stops if the resolved versions are not exactly these.

@@ -1,0 +1,19 @@
+Translation patch: `TryFrom<u64> for Gno`
+
+Change: `(Self::MIN_GNO..Self::MAX_GNO).contains(&value)` becomes `Self::MIN_GNO <= value && value < Self::MAX_GNO`.
+Why: `Range::contains` is not modelled by Aeneas.
+Behaviour: Identical: `RangeBounds::contains` for a `Range` is `start <= item && item < end`.
+
+diff --git a/src/binlog/consts.rs b/src/binlog/consts.rs
+index 7a8b8c2..6923a74 100644
+--- a/src/binlog/consts.rs
++++ b/src/binlog/consts.rs
+@@ -748,7 +748,7 @@ impl TryFrom<u64> for Gno {
+     type Error = InvalidGno;
+ 
+     fn try_from(value: u64) -> Result<Self, Self::Error> {
+-        if value == 0 || (Self::MIN_GNO..Self::MAX_GNO).contains(&value) {
++        if value == 0 || (Self::MIN_GNO <= value && value < Self::MAX_GNO) {
+             Ok(Self(value))
+         } else {
+             Err(InvalidGno(value))

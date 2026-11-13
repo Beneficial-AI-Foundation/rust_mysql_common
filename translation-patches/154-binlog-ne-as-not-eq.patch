@@ -1,0 +1,85 @@
+Translation patch: `!=` on derived `PartialEq` types in the binlog helpers
+
+Change: In `LogicalClockFields::serialize_untagged`/`len_untagged` (`RawInt` fields), `event_len` (`BinlogChecksumAlg`) and `serialize_uncompressed_size` (`TransactionPayloadCompressionType`), `a != b` becomes `!(a == b)`.
+Why: A call of `PartialEq::ne` makes Aeneas add the provided method `ne` to every `PartialEq` instance of the translation, which changes the existing translated instances; with `==` the existing translation is unchanged.
+Behaviour: Identical: these types derive `PartialEq`, which does not override `ne`, whose default is `!self.eq(other)`.
+
+diff --git a/src/binlog/events/gtid_event.rs b/src/binlog/events/gtid_event.rs
+index abd71cf..a68c865 100644
+--- a/src/binlog/events/gtid_event.rs
++++ b/src/binlog/events/gtid_event.rs
+@@ -886,28 +886,28 @@ impl LogicalClockFields {
+         self.sequence_number.serialize(&mut *buf);
+ 
+         let mut immediate_commit_timestamp_with_flag = *self.immediate_commit_timestamp;
+-        if self.immediate_commit_timestamp != self.original_commit_timestamp {
++        if !(self.immediate_commit_timestamp == self.original_commit_timestamp) {
+             immediate_commit_timestamp_with_flag |= 1 << 55;
+         } else {
+             immediate_commit_timestamp_with_flag &= !(1 << 55);
+         }
+         RawInt::<LeU56>::new(immediate_commit_timestamp_with_flag).serialize(&mut *buf);
+ 
+-        if self.immediate_commit_timestamp != self.original_commit_timestamp {
++        if !(self.immediate_commit_timestamp == self.original_commit_timestamp) {
+             self.original_commit_timestamp.serialize(&mut *buf);
+         }
+ 
+         self.tx_length.serialize(&mut *buf);
+ 
+         let mut immediate_server_version_with_flag = *self.immediate_server_version;
+-        if self.immediate_server_version != self.original_server_version {
++        if !(self.immediate_server_version == self.original_server_version) {
+             immediate_server_version_with_flag |= 1 << 31;
+         } else {
+             immediate_server_version_with_flag &= !(1 << 31);
+         }
+         RawInt::<LeU32>::new(immediate_server_version_with_flag).serialize(&mut *buf);
+ 
+-        if self.immediate_server_version != self.original_server_version {
++        if !(self.immediate_server_version == self.original_server_version) {
+             self.original_server_version.serialize(&mut *buf);
+         }
+     }
+@@ -925,13 +925,13 @@ impl LogicalClockFields {
+         len = len.saturating_add(8); // sequence_number
+ 
+         len = len.saturating_add(7); // immediate_commit_timestamp
+-        if self.immediate_commit_timestamp != self.original_commit_timestamp {
++        if !(self.immediate_commit_timestamp == self.original_commit_timestamp) {
+             len = len.saturating_add(7); // original_commit_timestamp
+         }
+ 
+         len = len.saturating_add(crate::misc::lenenc_int_len(*self.tx_length) as usize); // tx_length
+         len = len.saturating_add(4); // immediate_server_version
+-        if self.immediate_server_version != self.original_server_version {
++        if !(self.immediate_server_version == self.original_server_version) {
+             len = len.saturating_add(4); // original_server_version
+         }
+ 
+diff --git a/src/binlog/events/mod.rs b/src/binlog/events/mod.rs
+index 7652670..ffc2641 100644
+--- a/src/binlog/events/mod.rs
++++ b/src/binlog/events/mod.rs
+@@ -358,7 +358,7 @@ fn event_len(
+         if is_fde {
+             len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_ALG_DESC_LEN);
+         }
+-        if is_fde || alg != BinlogChecksumAlg::BINLOG_CHECKSUM_ALG_OFF {
++        if is_fde || !(alg == BinlogChecksumAlg::BINLOG_CHECKSUM_ALG_OFF) {
+             len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_LEN);
+         }
+     }
+diff --git a/src/binlog/events/transaction_payload_event.rs b/src/binlog/events/transaction_payload_event.rs
+index b246c64..2f42d51 100644
+--- a/src/binlog/events/transaction_payload_event.rs
++++ b/src/binlog/events/transaction_payload_event.rs
+@@ -349,7 +349,7 @@ fn serialize_uncompressed_size(
+     uncompressed_size: u64,
+     buf: &mut Vec<u8>,
+ ) {
+-    if algorithm != TransactionPayloadCompressionType::NONE {
++    if !(algorithm == TransactionPayloadCompressionType::NONE) {
+         buf.put_lenenc_int(TransactionPayloadFields::OTW_PAYLOAD_UNCOMPRESSED_SIZE_FIELD as u64);
+         buf.put_lenenc_int(crate::misc::lenenc_int_len(uncompressed_size));
+         buf.put_lenenc_int(uncompressed_size);

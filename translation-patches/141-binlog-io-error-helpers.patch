@@ -1,0 +1,116 @@
+Translation patch: construction of `io::Error` in the binlog code
+
+Change: In `binlog/value.rs` and `binlog/events/gtid_event.rs`, `io::Error::new(kind, "..")` / `io::Error::other("..")` become `misc::io_error_msg(kind, "..")` (with `ErrorKind::Other` for `other`), and `.map_err(|e| io::Error::new(kind, e))?` becomes a `match` returning `misc::io_error_from(kind, e)`. In `Event::read_event` the error `io::Error::other(format!("bytes remaining on stream while reading {}", type_name::<T>()))` moves into the new opaque helper `binlog::trusted::bytes_remaining_error::<T>()`.
+Why: `io::Error::new` goes through `Box<dyn Error>` (Aeneas: "Dynamic trait types are not supported yet"), and `format!`/`type_name` are not modelled; same as patch 02. Closures: see patch 09.
+Behaviour: Identical: `io::Error::other(x)` is `io::Error::new(ErrorKind::Other, x)`; the helpers are the inlined calls; the `match` is the definition of `map_err` followed by `?` (`From<io::Error> for io::Error` is the identity).
+
+diff --git a/src/binlog/events/gtid_event.rs b/src/binlog/events/gtid_event.rs
+index c4e415c..bd8a605 100644
+--- a/src/binlog/events/gtid_event.rs
++++ b/src/binlog/events/gtid_event.rs
+@@ -506,15 +506,20 @@ impl<'de> MyDeserialize<'de> for GtidEvent {
+     type Ctx = BinlogCtx<'de>;
+ 
+     fn deserialize(ctx: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        let event_type = EventType::try_from(ctx.event_type_raw)
+-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
++        let event_type = match EventType::try_from(ctx.event_type_raw) {
++            Ok(event_type) => event_type,
++            Err(e) => return Err(crate::misc::io_error_from(io::ErrorKind::InvalidData, e)),
++        };
+ 
+         match event_type {
+             EventType::GTID_EVENT | EventType::ANONYMOUS_GTID_EVENT => {
+                 Self::deserialize_untagged(buf)
+             }
+             EventType::GTID_TAGGED_LOG_EVENT => Self::deserialize_tagged(buf),
+-            _ => Err(io::Error::other("unexpected event type for GtidEvent")),
++            _ => Err(crate::misc::io_error_msg(
++                io::ErrorKind::Other,
++                "unexpected event type for GtidEvent",
++            )),
+         }
+     }
+ }
+diff --git a/src/binlog/events/mod.rs b/src/binlog/events/mod.rs
+index b58d09d..10908c3 100644
+--- a/src/binlog/events/mod.rs
++++ b/src/binlog/events/mod.rs
+@@ -45,7 +45,6 @@ pub use self::{
+ };
+ 
+ use std::{
+-    any::type_name,
+     borrow::Cow,
+     cmp::min,
+     io::{self, Read, Write},
+@@ -247,10 +246,7 @@ impl Event {
+ 
+         // it is an error if the `event_data` isn't fully consumed
+         if !event_data.is_empty() {
+-            return Err(io::Error::other(format!(
+-                "bytes remaining on stream while reading {}",
+-                type_name::<T>()
+-            )));
++            return Err(crate::binlog::trusted::bytes_remaining_error::<T>());
+         }
+ 
+         Ok(event)
+diff --git a/src/binlog/trusted.rs b/src/binlog/trusted.rs
+index 72fdf59..67adfe5 100644
+--- a/src/binlog/trusted.rs
++++ b/src/binlog/trusted.rs
+@@ -9,6 +9,17 @@
+ 
+ use std::io;
+ 
++// ---- std ---------------------------------------------------------------------------------------
++
++/// The error of `Event::read_event` when the event data is not fully consumed:
++/// `io::Error::other(format!("bytes remaining on stream while reading {}", type_name::<T>()))`.
++pub(crate) fn bytes_remaining_error<T>() -> io::Error {
++    io::Error::other(format!(
++        "bytes remaining on stream while reading {}",
++        std::any::type_name::<T>()
++    ))
++}
++
+ // ---- zstd --------------------------------------------------------------------------------------
+ //
+ // `zstd` is a C library (`zstd-sys`), which does not cross-compile to the translation target. It
+diff --git a/src/binlog/value.rs b/src/binlog/value.rs
+index cedf1e0..e4f80ea 100644
+--- a/src/binlog/value.rs
++++ b/src/binlog/value.rs
+@@ -197,7 +197,7 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                     let val = buf.parse::<RawInt<LeU16>>(())?;
+                     Ok(BinlogValue::Value(Int(*val as i64)))
+                 }
+-                _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Unknown ENUM")),
++                _ => Err(crate::misc::io_error_msg(io::ErrorKind::InvalidData, "Unknown ENUM")),
+             },
+             MYSQL_TYPE_SET => {
+                 let n_bytes = col_meta[1] as usize;
+@@ -215,7 +215,12 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                     2 => *buf.parse::<RawInt<LeU16>>(())? as usize,
+                     3 => *buf.parse::<RawInt<LeU24>>(())? as usize,
+                     4 => *buf.parse::<RawInt<LeU32>>(())? as usize,
+-                    _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Unknown BLOB")),
++                    _ => {
++                        return Err(crate::misc::io_error_msg(
++                            io::ErrorKind::InvalidData,
++                            "Unknown BLOB",
++                        ));
++                    }
+                 };
+                 let bytes: &[u8] = buf.parse(n_bytes)?;
+                 Ok(BinlogValue::Value(Bytes(bytes.into())))
+@@ -239,7 +244,7 @@ impl<'de> MyDeserialize<'de> for BinlogValue<'de> {
+                 let bytes: &[u8] = buf.parse(n_bytes)?;
+                 Ok(BinlogValue::Value(Bytes(bytes.into())))
+             }
+-            _ => Err(io::Error::new(
++            _ => Err(crate::misc::io_error_msg(
+                 io::ErrorKind::InvalidData,
+                 "Don't know how to handle column",
+             )),

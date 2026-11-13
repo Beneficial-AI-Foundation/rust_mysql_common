@@ -1,0 +1,1019 @@
+Translation patch: binlog functions restructured around Aeneas' borrow/join limitations
+
+Change: Code after a join that runs while a borrowed `self` containing borrows (or a `ParseBuf`) is live moves into helpers that get the needed values or fields, in tail position: `Event::len`/`checksum` (free fns `event_len`/`event_checksum` on copied fields), `FormatDescriptionEvent::get_event_type_header_length` (the default-length `match` in `default_event_type_header_length`, computed before the lookup), `RowsEvent::len`/`serialize`/`deserialize` (`rows_event_len`, `serialize_extra_data`, `serialize_bitmap`, `deserialize_rows_event`, which receives the two post-header lengths read from the FDE up front), `UserVarEvent::len` (`user_var_event_len`), `TableMapEvent::json_column_count`/`get_column_metadata`/`get_real_type`/`len` (`count_json_columns`, `column_metadata_from`, `real_string_type`; `columns_count()` read first), `PreviousGtidsEvent` (`n_sids_of_header`, `parse_sid_tag`, `any_tagged`, `header_of_n_sids`, `serialize_sids`/`serialize_sid`/`serialize_sid_tag`/`serialize_intervals` as recursion over slices), `GtidEvent::serialize_untagged`/`len_untagged` (on a struct `LogicalClockFields` of the copied fields), `TransactionPayloadEvent::serialize` (`serialize_uncompressed_size`), `BinlogRow::unwrap` (recursive `unwrap_values` with `Vec::pop` and `panic!` with the `expect` message).
+Why: Aeneas fails to join contexts after a conditional when the borrowed `self` contains borrows ("Could not match the contexts"), and fails ("Unreachable") on a method call on `self` while a borrow of a field containing borrows is live (cf. patches 17, 29, 30); loops over `&[T]` where `T` holds borrows and closures are not supported.
+Behaviour: Identical: every value read up front is a pure read of the event or of the format description event (the reads cannot panic), the helpers contain the moved statements unchanged, and the recursions perform the loops' iterations in order. `unwrap_values` panics (with the same message) exactly when some value is `None`.
+
+diff --git a/src/binlog/events/format_description_event.rs b/src/binlog/events/format_description_event.rs
+index d99bba3..55880c5 100644
+--- a/src/binlog/events/format_description_event.rs
++++ b/src/binlog/events/format_description_event.rs
+@@ -230,58 +230,70 @@ impl<'a> FormatDescriptionEvent<'a> {
+             return 0;
+         }
+ 
+-        self.event_type_header_lengths
++        let default_len = default_event_type_header_length(event_type);
++        match self
++            .event_type_header_lengths
+             .as_bytes()
+             .get(usize::from(event_type as u8).saturating_sub(1))
+-            .copied()
+-            .unwrap_or(match event_type {
+-                EventType::UNKNOWN_EVENT => 0,
+-                EventType::START_EVENT_V3 => Self::START_V3_HEADER_LEN,
+-                EventType::QUERY_EVENT => Self::QUERY_HEADER_LEN,
+-                EventType::STOP_EVENT => Self::STOP_HEADER_LEN,
+-                EventType::ROTATE_EVENT => Self::ROTATE_HEADER_LEN,
+-                EventType::INTVAR_EVENT => Self::INTVAR_HEADER_LEN,
+-                EventType::LOAD_EVENT => 0,
+-                EventType::SLAVE_EVENT => 0,
+-                EventType::CREATE_FILE_EVENT => 0,
+-                EventType::APPEND_BLOCK_EVENT => Self::APPEND_BLOCK_HEADER_LEN,
+-                EventType::EXEC_LOAD_EVENT => 0,
+-                EventType::DELETE_FILE_EVENT => Self::DELETE_FILE_HEADER_LEN,
+-                EventType::NEW_LOAD_EVENT => 0,
+-                EventType::RAND_EVENT => Self::RAND_HEADER_LEN,
+-                EventType::USER_VAR_EVENT => Self::USER_VAR_HEADER_LEN,
+-                EventType::FORMAT_DESCRIPTION_EVENT => Self::FORMAT_DESCRIPTION_HEADER_LEN,
+-                EventType::XID_EVENT => Self::XID_HEADER_LEN,
+-                EventType::BEGIN_LOAD_QUERY_EVENT => Self::BEGIN_LOAD_QUERY_HEADER_LEN,
+-                EventType::EXECUTE_LOAD_QUERY_EVENT => Self::EXECUTE_LOAD_QUERY_HEADER_LEN,
+-                EventType::TABLE_MAP_EVENT => Self::TABLE_MAP_HEADER_LEN,
+-                EventType::PRE_GA_WRITE_ROWS_EVENT => 0,
+-                EventType::PRE_GA_UPDATE_ROWS_EVENT => 0,
+-                EventType::PRE_GA_DELETE_ROWS_EVENT => 0,
+-                EventType::WRITE_ROWS_EVENT_V1 => Self::ROWS_HEADER_LEN_V1,
+-                EventType::UPDATE_ROWS_EVENT_V1 => Self::ROWS_HEADER_LEN_V1,
+-                EventType::DELETE_ROWS_EVENT_V1 => Self::ROWS_HEADER_LEN_V1,
+-                EventType::INCIDENT_EVENT => Self::INCIDENT_HEADER_LEN,
+-                EventType::HEARTBEAT_EVENT => 0,
+-                EventType::IGNORABLE_EVENT => Self::IGNORABLE_HEADER_LEN,
+-                EventType::ROWS_QUERY_EVENT => Self::IGNORABLE_HEADER_LEN,
+-                EventType::WRITE_ROWS_EVENT => Self::ROWS_HEADER_LEN_V2,
+-                EventType::UPDATE_ROWS_EVENT => Self::ROWS_HEADER_LEN_V2,
+-                EventType::DELETE_ROWS_EVENT => Self::ROWS_HEADER_LEN_V2,
+-                EventType::GTID_EVENT => Self::GTID_HEADER_LEN,
+-                EventType::ANONYMOUS_GTID_EVENT => Self::GTID_HEADER_LEN,
+-                EventType::PREVIOUS_GTIDS_EVENT => Self::IGNORABLE_HEADER_LEN,
+-                EventType::TRANSACTION_CONTEXT_EVENT => Self::TRANSACTION_CONTEXT_HEADER_LEN,
+-                EventType::VIEW_CHANGE_EVENT => Self::VIEW_CHANGE_HEADER_LEN,
+-                EventType::XA_PREPARE_LOG_EVENT => Self::XA_PREPARE_HEADER_LEN,
+-                EventType::PARTIAL_UPDATE_ROWS_EVENT => Self::ROWS_HEADER_LEN_V2,
+-                EventType::TRANSACTION_PAYLOAD_EVENT => Self::TRANSACTION_PAYLOAD_HEADER_LEN,
+-                // Tagged GTID events use a different serialization format, header length is variable
+-                EventType::GTID_TAGGED_LOG_EVENT => 0,
+-                EventType::ENUM_END_EVENT => 0,
+-            } as u8)
++        {
++            Some(len) => *len,
++            None => default_len,
++        }
+     }
++}
+ 
++/// The default of `FormatDescriptionEvent::get_event_type_header_length` (for an event type
++/// beyond `event_type_header_lengths`).
++fn default_event_type_header_length(event_type: EventType) -> u8 {
++    (match event_type {
++        EventType::UNKNOWN_EVENT => 0,
++        EventType::START_EVENT_V3 => FormatDescriptionEvent::START_V3_HEADER_LEN,
++        EventType::QUERY_EVENT => FormatDescriptionEvent::QUERY_HEADER_LEN,
++        EventType::STOP_EVENT => FormatDescriptionEvent::STOP_HEADER_LEN,
++        EventType::ROTATE_EVENT => FormatDescriptionEvent::ROTATE_HEADER_LEN,
++        EventType::INTVAR_EVENT => FormatDescriptionEvent::INTVAR_HEADER_LEN,
++        EventType::LOAD_EVENT => 0,
++        EventType::SLAVE_EVENT => 0,
++        EventType::CREATE_FILE_EVENT => 0,
++        EventType::APPEND_BLOCK_EVENT => FormatDescriptionEvent::APPEND_BLOCK_HEADER_LEN,
++        EventType::EXEC_LOAD_EVENT => 0,
++        EventType::DELETE_FILE_EVENT => FormatDescriptionEvent::DELETE_FILE_HEADER_LEN,
++        EventType::NEW_LOAD_EVENT => 0,
++        EventType::RAND_EVENT => FormatDescriptionEvent::RAND_HEADER_LEN,
++        EventType::USER_VAR_EVENT => FormatDescriptionEvent::USER_VAR_HEADER_LEN,
++        EventType::FORMAT_DESCRIPTION_EVENT => FormatDescriptionEvent::FORMAT_DESCRIPTION_HEADER_LEN,
++        EventType::XID_EVENT => FormatDescriptionEvent::XID_HEADER_LEN,
++        EventType::BEGIN_LOAD_QUERY_EVENT => FormatDescriptionEvent::BEGIN_LOAD_QUERY_HEADER_LEN,
++        EventType::EXECUTE_LOAD_QUERY_EVENT => FormatDescriptionEvent::EXECUTE_LOAD_QUERY_HEADER_LEN,
++        EventType::TABLE_MAP_EVENT => FormatDescriptionEvent::TABLE_MAP_HEADER_LEN,
++        EventType::PRE_GA_WRITE_ROWS_EVENT => 0,
++        EventType::PRE_GA_UPDATE_ROWS_EVENT => 0,
++        EventType::PRE_GA_DELETE_ROWS_EVENT => 0,
++        EventType::WRITE_ROWS_EVENT_V1 => FormatDescriptionEvent::ROWS_HEADER_LEN_V1,
++        EventType::UPDATE_ROWS_EVENT_V1 => FormatDescriptionEvent::ROWS_HEADER_LEN_V1,
++        EventType::DELETE_ROWS_EVENT_V1 => FormatDescriptionEvent::ROWS_HEADER_LEN_V1,
++        EventType::INCIDENT_EVENT => FormatDescriptionEvent::INCIDENT_HEADER_LEN,
++        EventType::HEARTBEAT_EVENT => 0,
++        EventType::IGNORABLE_EVENT => FormatDescriptionEvent::IGNORABLE_HEADER_LEN,
++        EventType::ROWS_QUERY_EVENT => FormatDescriptionEvent::IGNORABLE_HEADER_LEN,
++        EventType::WRITE_ROWS_EVENT => FormatDescriptionEvent::ROWS_HEADER_LEN_V2,
++        EventType::UPDATE_ROWS_EVENT => FormatDescriptionEvent::ROWS_HEADER_LEN_V2,
++        EventType::DELETE_ROWS_EVENT => FormatDescriptionEvent::ROWS_HEADER_LEN_V2,
++        EventType::GTID_EVENT => FormatDescriptionEvent::GTID_HEADER_LEN,
++        EventType::ANONYMOUS_GTID_EVENT => FormatDescriptionEvent::GTID_HEADER_LEN,
++        EventType::PREVIOUS_GTIDS_EVENT => FormatDescriptionEvent::IGNORABLE_HEADER_LEN,
++        EventType::TRANSACTION_CONTEXT_EVENT => FormatDescriptionEvent::TRANSACTION_CONTEXT_HEADER_LEN,
++        EventType::VIEW_CHANGE_EVENT => FormatDescriptionEvent::VIEW_CHANGE_HEADER_LEN,
++        EventType::XA_PREPARE_LOG_EVENT => FormatDescriptionEvent::XA_PREPARE_HEADER_LEN,
++        EventType::PARTIAL_UPDATE_ROWS_EVENT => FormatDescriptionEvent::ROWS_HEADER_LEN_V2,
++        EventType::TRANSACTION_PAYLOAD_EVENT => FormatDescriptionEvent::TRANSACTION_PAYLOAD_HEADER_LEN,
++        // Tagged GTID events use a different serialization format, header length is variable
++        EventType::GTID_TAGGED_LOG_EVENT => 0,
++        EventType::ENUM_END_EVENT => 0,
++    } as u8)
++}
++
++impl<'a> FormatDescriptionEvent<'a> {
+     /// Returns a `'static` version of `self`.
+     pub fn into_owned(self) -> FormatDescriptionEvent<'static> {
+         FormatDescriptionEvent {
+diff --git a/src/binlog/events/gtid_event.rs b/src/binlog/events/gtid_event.rs
+index 02f9f58..abd71cf 100644
+--- a/src/binlog/events/gtid_event.rs
++++ b/src/binlog/events/gtid_event.rs
+@@ -855,6 +855,33 @@ impl GtidEvent {
+             Some(lc_typecode) => lc_typecode.serialize(&mut *buf),
+             None => return,
+         };
++        let clock = LogicalClockFields {
++            last_committed: self.last_committed,
++            sequence_number: self.sequence_number,
++            immediate_commit_timestamp: self.immediate_commit_timestamp,
++            original_commit_timestamp: self.original_commit_timestamp,
++            tx_length: self.tx_length,
++            original_server_version: self.original_server_version,
++            immediate_server_version: self.immediate_server_version,
++        };
++        clock.serialize_untagged(buf);
++    }
++}
++
++/// The fields of an untagged `GtidEvent` after `lc_typecode` (copied out of the event).
++struct LogicalClockFields {
++    last_committed: RawInt<LeU64>,
++    sequence_number: RawInt<LeU64>,
++    immediate_commit_timestamp: RawInt<LeU56>,
++    original_commit_timestamp: RawInt<LeU56>,
++    tx_length: RawInt<LenEnc>,
++    original_server_version: RawInt<LeU32>,
++    immediate_server_version: RawInt<LeU32>,
++}
++
++impl LogicalClockFields {
++    /// The part of `GtidEvent::serialize_untagged` after `lc_typecode`.
++    fn serialize_untagged(&self, buf: &mut Vec<u8>) {
+         self.last_committed.serialize(&mut *buf);
+         self.sequence_number.serialize(&mut *buf);
+ 
+@@ -885,6 +912,35 @@ impl GtidEvent {
+         }
+     }
+ 
++    /// `GtidEvent::len_untagged` (which does not depend on the other fields).
++    fn len_untagged(&self) -> usize {
++        let mut len: usize = 0;
++
++        // post header
++        len = len.saturating_add(1); // flags
++        len = len.saturating_add(GtidEvent::ENCODED_SID_LENGTH); // sid
++        len = len.saturating_add(8); // gno
++        len = len.saturating_add(1); // lc_typecode
++        len = len.saturating_add(8); // last_committed
++        len = len.saturating_add(8); // sequence_number
++
++        len = len.saturating_add(7); // immediate_commit_timestamp
++        if self.immediate_commit_timestamp != self.original_commit_timestamp {
++            len = len.saturating_add(7); // original_commit_timestamp
++        }
++
++        len = len.saturating_add(crate::misc::lenenc_int_len(*self.tx_length) as usize); // tx_length
++        len = len.saturating_add(4); // immediate_server_version
++        if self.immediate_server_version != self.original_server_version {
++            len = len.saturating_add(4); // original_server_version
++        }
++
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
++    }
++}
++
++impl GtidEvent {
++
+     fn serialize_tagged(&self, buf: &mut Vec<u8>) {
+         match self.serialization_version {
+             Self::TAGGED_SERIALIZATION_VERSION_V2 => self.serialize_tagged_v2(buf),
+@@ -1012,28 +1068,16 @@ impl<'a> BinlogStruct<'a> for GtidEvent {
+ 
+ impl GtidEvent {
+     fn len_untagged(&self) -> usize {
+-        let mut len: usize = 0;
+-
+-        // post header
+-        len = len.saturating_add(1); // flags
+-        len = len.saturating_add(Self::ENCODED_SID_LENGTH); // sid
+-        len = len.saturating_add(8); // gno
+-        len = len.saturating_add(1); // lc_typecode
+-        len = len.saturating_add(8); // last_committed
+-        len = len.saturating_add(8); // sequence_number
+-
+-        len = len.saturating_add(7); // immediate_commit_timestamp
+-        if self.immediate_commit_timestamp != self.original_commit_timestamp {
+-            len = len.saturating_add(7); // original_commit_timestamp
+-        }
+-
+-        len = len.saturating_add(crate::misc::lenenc_int_len(*self.tx_length) as usize); // tx_length
+-        len = len.saturating_add(4); // immediate_server_version
+-        if self.immediate_server_version != self.original_server_version {
+-            len = len.saturating_add(4); // original_server_version
+-        }
+-
+-        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
++        let clock = LogicalClockFields {
++            last_committed: self.last_committed,
++            sequence_number: self.sequence_number,
++            immediate_commit_timestamp: self.immediate_commit_timestamp,
++            original_commit_timestamp: self.original_commit_timestamp,
++            tx_length: self.tx_length,
++            original_server_version: self.original_server_version,
++            immediate_server_version: self.immediate_server_version,
++        };
++        clock.len_untagged()
+     }
+ 
+     fn len_tagged(&self) -> usize {
+diff --git a/src/binlog/events/mod.rs b/src/binlog/events/mod.rs
+index 7cd4818..fbbdb5c 100644
+--- a/src/binlog/events/mod.rs
++++ b/src/binlog/events/mod.rs
+@@ -191,20 +191,9 @@ impl Event {
+     /// Returns a length of a serialized representation of this event.
+     fn len(&self, _version: BinlogVersion) -> usize {
+         let is_fde = self.header.event_type.0 == EventType::FORMAT_DESCRIPTION_EVENT as u8;
+-        let mut len: usize = 0;
+-
+-        len = len.saturating_add(BinlogEventHeader::LEN);
+-        len = len.saturating_add(self.data.len());
+-        if let Ok(Some(alg)) = self.footer.get_checksum_alg() {
+-            if is_fde {
+-                len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_ALG_DESC_LEN);
+-            }
+-            if is_fde || alg != BinlogChecksumAlg::BINLOG_CHECKSUM_ALG_OFF {
+-                len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_LEN);
+-            }
+-        }
+-
+-        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
++        let data_len = self.data.len();
++        let checksum_alg = self.footer.get_checksum_alg();
++        event_len(is_fde, data_len, checksum_alg)
+     }
+ 
+     /// Returns a reference to the corresponding format description event.
+@@ -229,10 +218,7 @@ impl Event {
+ 
+     /// Returns the checksum, if it is defined.
+     pub fn checksum(&self) -> Option<[u8; BinlogEventFooter::BINLOG_CHECKSUM_LEN]> {
+-        let contains_checksum = self.footer.checksum_alg.is_some()
+-            && (self.header.event_type.0 == (EventType::FORMAT_DESCRIPTION_EVENT as u8)
+-                || self.footer.checksum_alg != Some(RawConst::new(0)));
+-        contains_checksum.then_some(self.checksum)
++        event_checksum(self.footer, self.header.event_type.0, self.checksum)
+     }
+ 
+     /// Read event-type specific data as a binlog struct.
+@@ -358,6 +344,46 @@ impl Event {
+     }
+ }
+ 
++/// The body of `Event::len`.
++fn event_len(
++    is_fde: bool,
++    data_len: usize,
++    checksum_alg: Result<Option<BinlogChecksumAlg>, UnknownChecksumAlg>,
++) -> usize {
++    let mut len: usize = 0;
++
++    len = len.saturating_add(BinlogEventHeader::LEN);
++    len = len.saturating_add(data_len);
++    if let Ok(Some(alg)) = checksum_alg {
++        if is_fde {
++            len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_ALG_DESC_LEN);
++        }
++        if is_fde || alg != BinlogChecksumAlg::BINLOG_CHECKSUM_ALG_OFF {
++            len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_LEN);
++        }
++    }
++
++    min(len, u32::MAX as usize - BinlogEventHeader::LEN)
++}
++
++/// The body of `Event::checksum`.
++fn event_checksum(
++    footer: BinlogEventFooter,
++    event_type: u8,
++    checksum: [u8; BinlogEventFooter::BINLOG_CHECKSUM_LEN],
++) -> Option<[u8; BinlogEventFooter::BINLOG_CHECKSUM_LEN]> {
++    let contains_checksum = match footer.checksum_alg {
++        // `RawConst`'s derived `PartialEq` compares the raw values.
++        Some(alg) => event_type == (EventType::FORMAT_DESCRIPTION_EVENT as u8) || alg.0 != 0,
++        None => false,
++    };
++    if contains_checksum {
++        Some(checksum)
++    } else {
++        None
++    }
++}
++
+ /// The binlog event header starts each event and is 19 bytes long assuming binlog version >= 4.
+ #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+ pub struct BinlogEventHeader {
+diff --git a/src/binlog/events/previous_gtids_event.rs b/src/binlog/events/previous_gtids_event.rs
+index 4b03521..600e10a 100644
+--- a/src/binlog/events/previous_gtids_event.rs
++++ b/src/binlog/events/previous_gtids_event.rs
+@@ -114,14 +114,7 @@ impl<'a> PreviousGtidsEvent<'a> {
+ 
+     /// Returns true if any SID entry has a tag.
+     fn is_tagged(&self) -> bool {
+-        let mut i = 0;
+-        while i < self.sids.len() {
+-            if self.sids[i].tag.is_some() {
+-                return true;
+-            }
+-            i += 1;
+-        }
+-        false
++        any_tagged(&self.sids, 0)
+     }
+ }
+ 
+@@ -145,11 +138,7 @@ impl<'de> MyDeserialize<'de> for PreviousGtidsEvent<'de> {
+         let format = (header >> 56) as u8;
+         let tagged = format != 0;
+ 
+-        let n_sids = if tagged {
+-            (header >> 8) & ((1u64 << 48) - 1)
+-        } else {
+-            header & ((1u64 << 56) - 1)
+-        };
++        let n_sids = n_sids_of_header(header, tagged);
+ 
+         let mut sids = Vec::with_capacity(n_sids as usize);
+ 
+@@ -200,24 +189,7 @@ fn parse_sid<'de>(buf: &mut ParseBuf<'de>, tagged: bool) -> io::Result<PreviousG
+     buf.0 = &buf.0[16..];
+ 
+     // Tag (only in tagged format)
+-    let tag = if tagged {
+-        let tag_len = read_varlen_uint(buf)? as usize;
+-        if tag_len == 0 {
+-            None
+-        } else {
+-            if buf.len() < tag_len {
+-                return Err(io_error_msg(
+-                    io::ErrorKind::UnexpectedEof,
+-                    "PreviousGtidsEvent: unexpected EOF reading tag",
+-                ));
+-            }
+-            let tag_bytes = &buf.0[..tag_len];
+-            buf.0 = &buf.0[tag_len..];
+-            Some(trusted::previous_gtids_tag(tag_bytes)?)
+-        }
+-    } else {
+-        None
+-    };
++    let tag = parse_sid_tag(buf, tagged)?;
+ 
+     // n_intervals (8 bytes LE u64)
+     if buf.len() < 8 {
+@@ -242,6 +214,37 @@ fn parse_sid<'de>(buf: &mut ParseBuf<'de>, tagged: bool) -> io::Result<PreviousG
+     })
+ }
+ 
++/// The SID count in the header of a `PreviousGtidsEvent`.
++fn n_sids_of_header(header: u64, tagged: bool) -> u64 {
++    if tagged {
++        (header >> 8) & ((1u64 << 48) - 1)
++    } else {
++        header & ((1u64 << 56) - 1)
++    }
++}
++
++/// The tag of a SID entry (only in tagged format).
++fn parse_sid_tag<'de>(buf: &mut ParseBuf<'de>, tagged: bool) -> io::Result<Option<Tag<'de>>> {
++    if tagged {
++        let tag_len = read_varlen_uint(buf)? as usize;
++        if tag_len == 0 {
++            Ok(None)
++        } else {
++            if buf.len() < tag_len {
++                return Err(io_error_msg(
++                    io::ErrorKind::UnexpectedEof,
++                    "PreviousGtidsEvent: unexpected EOF reading tag",
++                ));
++            }
++            let tag_bytes = &buf.0[..tag_len];
++            buf.0 = &buf.0[tag_len..];
++            Ok(Some(trusted::previous_gtids_tag(tag_bytes)?))
++        }
++    } else {
++        Ok(None)
++    }
++}
++
+ /// The loop `for _ in 0..n_intervals { intervals.push(buf.parse(())?); }` of
+ /// `PreviousGtidsEvent::deserialize`.
+ fn parse_intervals(
+@@ -262,49 +265,82 @@ impl MySerialize for PreviousGtidsEvent<'_> {
+         let tagged = self.is_tagged();
+         let n_sids = self.sids.len() as u64;
+ 
+-        let header = if tagged {
+-            let format: u64 = 1;
+-            (format << 56) | (n_sids << 8) | format
+-        } else {
+-            n_sids
+-        };
++        let header = header_of_n_sids(n_sids, tagged);
+ 
+         buf.extend_from_slice(&header.to_le_bytes());
+ 
+-        let mut i = 0;
+-        while i < self.sids.len() {
+-            let sid = &self.sids[i];
+-            // UUID
+-            buf.extend_from_slice(&sid.uuid);
+-
+-            // Tag (only in tagged format)
+-            if tagged {
+-                match &sid.tag {
+-                    Some(tag) => {
+-                        let tag_bytes = trusted::tag_as_bytes(tag);
+-                        write_varlen_uint(buf, tag_bytes.len() as u64);
+-                        buf.extend_from_slice(tag_bytes);
+-                    }
+-                    None => {
+-                        write_varlen_uint(buf, 0);
+-                    }
+-                }
+-            }
++        serialize_sids(&self.sids, 0, tagged, buf);
++    }
++}
+ 
+-            // n_intervals
+-            buf.extend_from_slice(&(sid.intervals.len() as u64).to_le_bytes());
++/// `self.sids.iter().any(|s| s.tag.is_some())`, from index `i`.
++fn any_tagged(sids: &[PreviousGtidsSid<'_>], i: usize) -> bool {
++    if i >= sids.len() {
++        false
++    } else if sids[i].tag.is_some() {
++        true
++    } else {
++        any_tagged(sids, i + 1)
++    }
++}
+ 
+-            // Intervals
+-            let mut j = 0;
+-            while j < sid.intervals.len() {
+-                sid.intervals[j].serialize(buf);
+-                j += 1;
++/// The header of a `PreviousGtidsEvent` with `n_sids` SID entries.
++fn header_of_n_sids(n_sids: u64, tagged: bool) -> u64 {
++    if tagged {
++        let format: u64 = 1;
++        (format << 56) | (n_sids << 8) | format
++    } else {
++        n_sids
++    }
++}
++
++/// The loop `for sid in &self.sids { .. }` of `MySerialize::serialize`, from index `i`.
++fn serialize_sids(sids: &[PreviousGtidsSid<'_>], i: usize, tagged: bool, buf: &mut Vec<u8>) {
++    if i < sids.len() {
++        serialize_sid(&sids[i], tagged, buf);
++        serialize_sids(sids, i + 1, tagged, buf);
++    }
++}
++
++/// One iteration of that loop.
++fn serialize_sid(sid: &PreviousGtidsSid<'_>, tagged: bool, buf: &mut Vec<u8>) {
++    // UUID
++    buf.extend_from_slice(&sid.uuid);
++
++    // Tag (only in tagged format)
++    serialize_sid_tag(&sid.tag, tagged, buf);
++
++    // n_intervals
++    buf.extend_from_slice(&(sid.intervals.len() as u64).to_le_bytes());
++
++    // Intervals
++    serialize_intervals(&sid.intervals, 0, buf);
++}
++
++/// The tag of a SID entry (only in tagged format).
++fn serialize_sid_tag(tag: &Option<Tag<'_>>, tagged: bool, buf: &mut Vec<u8>) {
++    if tagged {
++        match tag {
++            Some(tag) => {
++                let tag_bytes = trusted::tag_as_bytes(tag);
++                write_varlen_uint(buf, tag_bytes.len() as u64);
++                buf.extend_from_slice(tag_bytes);
++            }
++            None => {
++                write_varlen_uint(buf, 0);
+             }
+-            i += 1;
+         }
+     }
+ }
+ 
++/// The loop `for interval in &sid.intervals { interval.serialize(buf); }`, from index `j`.
++fn serialize_intervals(intervals: &[GnoInterval], j: usize, buf: &mut Vec<u8>) {
++    if j < intervals.len() {
++        intervals[j].serialize(buf);
++        serialize_intervals(intervals, j + 1, buf);
++    }
++}
++
+ impl<'a> BinlogStruct<'a> for PreviousGtidsEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+         let mut tmp = Vec::new();
+diff --git a/src/binlog/events/rows_event.rs b/src/binlog/events/rows_event.rs
+index 674573f..a0b6584 100644
+--- a/src/binlog/events/rows_event.rs
++++ b/src/binlog/events/rows_event.rs
+@@ -136,23 +136,18 @@ impl<'a> RowsEvent<'a> {
+     ///
+     /// This function will be used in `BinlogStruct` implementations for derived events.
+     pub fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len: usize = 0;
+-
+-        len = len.saturating_add(6); // table_id
+-        len = len.saturating_add(2); // flags
+-        len = len.saturating_add(2); // extra-data len
+-        len = len.saturating_add(min(self.extra_data.len(), u16::MAX as usize - 2)); // extra data
+-        len = len.saturating_add(crate::misc::lenenc_int_len(self.num_columns()) as usize); // number of columns
+-        let bitmap_len = self.num_columns().div_ceil(8) as usize;
+-        if self.columns_before_image.is_some() {
+-            len = len.saturating_add(bitmap_len); // columns present bitmap 1
+-        }
+-        if self.columns_after_image.is_some() {
+-            len = len.saturating_add(bitmap_len); // columns present bitmap 2
+-        }
+-        len = len.saturating_add(self.rows_data.len());
+-
+-        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
++        let num_columns = self.num_columns();
++        let extra_data_len = self.extra_data.len();
++        let has_columns_before_image = self.columns_before_image.is_some();
++        let has_columns_after_image = self.columns_after_image.is_some();
++        let rows_data_len = self.rows_data.len();
++        rows_event_len(
++            num_columns,
++            extra_data_len,
++            has_columns_before_image,
++            has_columns_after_image,
++            rows_data_len,
++        )
+     }
+ 
+     /// Returns an iterator over event's rows given the corresponding `TableMapEvent`.
+@@ -184,6 +179,33 @@ impl<'a> RowsEvent<'a> {
+     }
+ }
+ 
++/// The body of `RowsEvent::len`, given the values it reads from the event.
++fn rows_event_len(
++    num_columns: u64,
++    extra_data_len: usize,
++    has_columns_before_image: bool,
++    has_columns_after_image: bool,
++    rows_data_len: usize,
++) -> usize {
++    let mut len: usize = 0;
++
++    len = len.saturating_add(6); // table_id
++    len = len.saturating_add(2); // flags
++    len = len.saturating_add(2); // extra-data len
++    len = len.saturating_add(min(extra_data_len, u16::MAX as usize - 2)); // extra data
++    len = len.saturating_add(crate::misc::lenenc_int_len(num_columns) as usize); // number of columns
++    let bitmap_len = num_columns.div_ceil(8) as usize;
++    if has_columns_before_image {
++        len = len.saturating_add(bitmap_len); // columns present bitmap 1
++    }
++    if has_columns_after_image {
++        len = len.saturating_add(bitmap_len); // columns present bitmap 2
++    }
++    len = len.saturating_add(rows_data_len);
++
++    min(len, u32::MAX as usize - BinlogEventHeader::LEN)
++}
++
+ /// Deserialization context for [`RowsEvent`].
+ pub struct RowsEventCtx<'a> {
+     /// An actual event type.
+@@ -201,13 +223,36 @@ impl<'de> MyDeserialize<'de> for RowsEvent<'de> {
+             .binlog_ctx
+             .fde
+             .get_event_type_header_length(ctx.event_type);
++        let write_rows_post_header_len = ctx
++            .binlog_ctx
++            .fde
++            .get_event_type_header_length(EventType::WRITE_ROWS_EVENT);
++        deserialize_rows_event(
++            ctx.event_type,
++            post_header_len,
++            write_rows_post_header_len,
++            buf,
++        )
++    }
++}
++
++/// `MyDeserialize::deserialize` for `RowsEvent`, given the two post-header lengths it reads
++/// from the format description event.
++fn deserialize_rows_event<'de>(
++    event_type: EventType,
++    post_header_len: u8,
++    write_rows_post_header_len: u8,
++    buf: &mut ParseBuf<'de>,
++) -> io::Result<RowsEvent<'de>> {
++    {
++        let ctx_event_type = event_type;
+ 
+-        let is_delete_event = ctx.event_type == EventType::DELETE_ROWS_EVENT
+-            || ctx.event_type == EventType::DELETE_ROWS_EVENT_V1;
++        let is_delete_event = ctx_event_type == EventType::DELETE_ROWS_EVENT
++            || ctx_event_type == EventType::DELETE_ROWS_EVENT_V1;
+ 
+-        let is_update_event = ctx.event_type == EventType::UPDATE_ROWS_EVENT
+-            || ctx.event_type == EventType::UPDATE_ROWS_EVENT_V1
+-            || ctx.event_type == EventType::PARTIAL_UPDATE_ROWS_EVENT;
++        let is_update_event = ctx_event_type == EventType::UPDATE_ROWS_EVENT
++            || ctx_event_type == EventType::UPDATE_ROWS_EVENT_V1
++            || ctx_event_type == EventType::PARTIAL_UPDATE_ROWS_EVENT;
+ 
+         let table_id = if post_header_len == 6 {
+             // old server
+@@ -219,12 +264,7 @@ impl<'de> MyDeserialize<'de> for RowsEvent<'de> {
+ 
+         let flags = buf.parse(())?;
+ 
+-        let extra_data = if post_header_len
+-            == ctx
+-                .binlog_ctx
+-                .fde
+-                .get_event_type_header_length(EventType::WRITE_ROWS_EVENT)
+-        {
++        let extra_data = if post_header_len == write_rows_post_header_len {
+             // variable-length post header containing extra data
+             let extra_data_len = match buf.checked_eat_u16_le() {
+                 Some(len) => len,
+@@ -252,8 +292,8 @@ impl<'de> MyDeserialize<'de> for RowsEvent<'de> {
+ 
+         let rows_data = buf.parse(())?;
+ 
+-        Ok(Self {
+-            event_type: ctx.event_type,
++        Ok(RowsEvent {
++            event_type: ctx_event_type,
+             table_id,
+             flags,
+             extra_data,
+@@ -270,6 +310,20 @@ impl MySerialize for RowsEvent<'_> {
+         self.table_id.serialize(&mut *buf);
+         self.flags.serialize(&mut *buf);
+ 
++        self.serialize_extra_data(&mut *buf);
++
++        self.num_columns.serialize(&mut *buf);
++
++        serialize_bitmap(&self.columns_before_image, &mut *buf);
++        serialize_bitmap(&self.columns_after_image, &mut *buf);
++
++        self.rows_data.serialize(buf);
++    }
++}
++
++impl RowsEvent<'_> {
++    /// The extra-data part of `MySerialize::serialize` (only for version 2 events).
++    fn serialize_extra_data(&self, buf: &mut Vec<u8>) {
+         if self.event_type == EventType::WRITE_ROWS_EVENT
+             || self.event_type == EventType::UPDATE_ROWS_EVENT
+             || self.event_type == EventType::DELETE_ROWS_EVENT
+@@ -279,17 +333,13 @@ impl MySerialize for RowsEvent<'_> {
+             buf.put_u16_le(len);
+             self.extra_data.serialize(&mut *buf);
+         }
++    }
++}
+ 
+-        self.num_columns.serialize(&mut *buf);
+-
+-        if let Some(bitmap) = &self.columns_before_image {
+-            bitmap.serialize(&mut *buf);
+-        }
+-        if let Some(bitmap) = &self.columns_after_image {
+-            bitmap.serialize(&mut *buf);
+-        }
+-
+-        self.rows_data.serialize(buf);
++/// `if let Some(bitmap) = bitmap { bitmap.serialize(buf); }`.
++fn serialize_bitmap(bitmap: &Option<RawBytes<'_, BareBytes<0x2000000000000000>>>, buf: &mut Vec<u8>) {
++    if let Some(bitmap) = bitmap {
++        bitmap.serialize(buf);
+     }
+ }
+ 
+diff --git a/src/binlog/events/table_map_event.rs b/src/binlog/events/table_map_event.rs
+index 1a8da2d..9c57eb3 100644
+--- a/src/binlog/events/table_map_event.rs
++++ b/src/binlog/events/table_map_event.rs
+@@ -93,15 +93,7 @@ impl<'a> TableMapEvent<'a> {
+ 
+     /// Returns a number of JSON columns.
+     pub fn json_column_count(&self) -> usize {
+-        let mut count = 0;
+-        let mut i = 0;
+-        while i < self.columns_type.0.len() {
+-            if self.columns_type.0[i] == ColumnType::MYSQL_TYPE_JSON as u8 {
+-                count += 1;
+-            }
+-            i += 1;
+-        }
+-        count
++        count_json_columns(self.columns_type.0.as_ref())
+     }
+ 
+     /// Returns null-bitmap for this table.
+@@ -176,32 +168,7 @@ impl<'a> TableMapEvent<'a> {
+     /// Returns `None` if column index is out of bounds or if offset couldn't be calculated
+     /// (e.g. because of unknown column type between `0` and `col_idx`).
+     pub fn get_column_metadata(&self, col_idx: usize) -> Option<&[u8]> {
+-        self.get_column_metadata_from(0, 0, col_idx)
+-    }
+-
+-    /// The iteration `i` (with the running `offset`) of the loop
+-    /// `for i in 0..=col_idx` of `get_column_metadata`, and the iterations after it.
+-    fn get_column_metadata_from(&self, i: usize, offset: usize, col_idx: usize) -> Option<&[u8]> {
+-        let ty = match self.columns_type.get(i) {
+-            Some(x) => match x.get() {
+-                Ok(ty) => ty,
+-                Err(_) => return None,
+-            },
+-            None => return None,
+-        };
+-        let ptr = match self.columns_metadata.as_bytes().get(offset..) {
+-            Some(ptr) => ptr,
+-            None => return None,
+-        };
+-        let (metadata, len) = match ty.get_metadata(ptr, false) {
+-            Some(x) => x,
+-            None => return None,
+-        };
+-        if i == col_idx {
+-            Some(metadata)
+-        } else {
+-            self.get_column_metadata_from(i + 1, offset + len, col_idx)
+-        }
++        column_metadata_from(&self.columns_type, self.columns_metadata.as_bytes(), 0, 0, col_idx)
+     }
+ 
+     pub fn iter_optional_meta(&'a self) -> OptionalMetadataIter<'a> {
+@@ -240,23 +207,9 @@ impl<'a> TableMapEvent<'a> {
+                 return Ok(ColumnType::MYSQL_TYPE_NEWDATE);
+             }
+             ColumnType::MYSQL_TYPE_STRING => {
+-                let mut real_type = column_type as u8;
++                let real_type = column_type as u8;
+                 if let Some(metadata_bytes) = self.get_column_metadata(col_idx) {
+-                    let f1 = metadata_bytes[0];
+-
+-                    if f1 != 0 {
+-                        real_type = f1 | 0x30;
+-                    }
+-
+-                    match real_type {
+-                        247 => return Ok(ColumnType::MYSQL_TYPE_ENUM),
+-                        248 => return Ok(ColumnType::MYSQL_TYPE_SET),
+-                        254 => return Ok(ColumnType::MYSQL_TYPE_STRING),
+-                        x => {
+-                            // this event seems to be malformed
+-                            return Err(BadColumnType::Unexpected(x));
+-                        }
+-                    };
++                    return real_string_type(real_type, metadata_bytes[0]);
+                 }
+             }
+             _ => (),
+@@ -266,6 +219,68 @@ impl<'a> TableMapEvent<'a> {
+     }
+ }
+ 
++/// `TableMapEvent::json_column_count`: the number of `MYSQL_TYPE_JSON` in `columns_type`.
++fn count_json_columns(columns_type: &[u8]) -> usize {
++    let mut count = 0;
++    let mut i = 0;
++    while i < columns_type.len() {
++        if columns_type[i] == ColumnType::MYSQL_TYPE_JSON as u8 {
++            count += 1;
++        }
++        i += 1;
++    }
++    count
++}
++
++/// The iteration `i` (with the running `offset`) of the loop `for i in 0..=col_idx` of
++/// `TableMapEvent::get_column_metadata`, and the iterations after it.
++fn column_metadata_from<'b>(
++    columns_type: &RawSeq<'_, u8, ColumnType>,
++    columns_metadata: &'b [u8],
++    i: usize,
++    offset: usize,
++    col_idx: usize,
++) -> Option<&'b [u8]> {
++    let ty = match columns_type.get(i) {
++        Some(x) => match x.get() {
++            Ok(ty) => ty,
++            Err(_) => return None,
++        },
++        None => return None,
++    };
++    let ptr = match columns_metadata.get(offset..) {
++        Some(ptr) => ptr,
++        None => return None,
++    };
++    let (metadata, len) = match ty.get_metadata(ptr, false) {
++        Some(x) => x,
++        None => return None,
++    };
++    if i == col_idx {
++        Some(metadata)
++    } else {
++        column_metadata_from(columns_type, columns_metadata, i + 1, offset + len, col_idx)
++    }
++}
++
++/// The `MYSQL_TYPE_STRING` case of `TableMapEvent::get_real_type` when the column has
++/// metadata (`f1` is its first byte).
++fn real_string_type(mut real_type: u8, f1: u8) -> Result<ColumnType, BadColumnType> {
++    if f1 != 0 {
++        real_type = f1 | 0x30;
++    }
++
++    match real_type {
++        247 => Ok(ColumnType::MYSQL_TYPE_ENUM),
++        248 => Ok(ColumnType::MYSQL_TYPE_SET),
++        254 => Ok(ColumnType::MYSQL_TYPE_STRING),
++        x => {
++            // this event seems to be malformed
++            Err(BadColumnType::Unexpected(x))
++        }
++    }
++}
++
+ impl<'de> MyDeserialize<'de> for TableMapEvent<'de> {
+     const SIZE: Option<usize> = None;
+     type Ctx = BinlogCtx<'de>;
+@@ -332,6 +347,8 @@ impl<'a> BinlogStruct<'a> for TableMapEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+         let mut len: usize = 0;
+ 
++        let columns_count = self.columns_count();
++
+         len = len.saturating_add(6);
+         len = len.saturating_add(2);
+         len = len.saturating_add(1);
+@@ -340,10 +357,10 @@ impl<'a> BinlogStruct<'a> for TableMapEvent<'a> {
+         len = len.saturating_add(1);
+         len = len.saturating_add(min(self.table_name.0.len(), u8::MAX as usize));
+         len = len.saturating_add(1);
+-        len = len.saturating_add(crate::misc::lenenc_int_len(self.columns_count()) as usize);
+-        len = len.saturating_add(self.columns_count() as usize);
++        len = len.saturating_add(crate::misc::lenenc_int_len(columns_count) as usize);
++        len = len.saturating_add(columns_count as usize);
+         len = len.saturating_add(crate::misc::lenenc_str_len(self.columns_metadata.as_bytes()) as usize);
+-        len = len.saturating_add((self.columns_count() as usize + 8) / 7);
++        len = len.saturating_add((columns_count as usize + 8) / 7);
+         len = len.saturating_add(self.optional_metadata.len());
+ 
+         min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+diff --git a/src/binlog/events/transaction_payload_event.rs b/src/binlog/events/transaction_payload_event.rs
+index 614eb05..b246c64 100644
+--- a/src/binlog/events/transaction_payload_event.rs
++++ b/src/binlog/events/transaction_payload_event.rs
+@@ -331,13 +331,7 @@ impl MySerialize for TransactionPayloadEvent<'_> {
+         buf.put_lenenc_int(crate::misc::lenenc_int_len(self.algorithm as u64));
+         buf.put_lenenc_int(self.algorithm as u64);
+ 
+-        if self.algorithm != TransactionPayloadCompressionType::NONE {
+-            buf.put_lenenc_int(
+-                TransactionPayloadFields::OTW_PAYLOAD_UNCOMPRESSED_SIZE_FIELD as u64,
+-            );
+-            buf.put_lenenc_int(crate::misc::lenenc_int_len(self.uncompressed_size.0));
+-            buf.put_lenenc_int(self.uncompressed_size.0);
+-        }
++        serialize_uncompressed_size(self.algorithm, self.uncompressed_size.0, &mut *buf);
+ 
+         buf.put_lenenc_int(TransactionPayloadFields::OTW_PAYLOAD_SIZE_FIELD as u64);
+         buf.put_lenenc_int(crate::misc::lenenc_int_len(self.payload_size.0));
+@@ -349,6 +343,19 @@ impl MySerialize for TransactionPayloadEvent<'_> {
+     }
+ }
+ 
++/// The uncompressed-size field of `MySerialize::serialize` (only for compressed payloads).
++fn serialize_uncompressed_size(
++    algorithm: TransactionPayloadCompressionType,
++    uncompressed_size: u64,
++    buf: &mut Vec<u8>,
++) {
++    if algorithm != TransactionPayloadCompressionType::NONE {
++        buf.put_lenenc_int(TransactionPayloadFields::OTW_PAYLOAD_UNCOMPRESSED_SIZE_FIELD as u64);
++        buf.put_lenenc_int(crate::misc::lenenc_int_len(uncompressed_size));
++        buf.put_lenenc_int(uncompressed_size);
++    }
++}
++
+ impl<'a> BinlogEvent<'a> for TransactionPayloadEvent<'a> {
+     const EVENT_TYPE: EventType = EventType::TRANSACTION_PAYLOAD_EVENT;
+ }
+diff --git a/src/binlog/events/user_var_event.rs b/src/binlog/events/user_var_event.rs
+index d00986a..a299e30 100644
+--- a/src/binlog/events/user_var_event.rs
++++ b/src/binlog/events/user_var_event.rs
+@@ -166,17 +166,33 @@ impl<'a> BinlogEvent<'a> for UserVarEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for UserVarEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
++        self.serialized_len()
++    }
++}
++
++impl UserVarEvent<'_> {
++    /// The body of `BinlogStruct::len`.
++    fn serialized_len(&self) -> usize {
++        let name_len = self.name.0.len();
++        let value_len = self.value.len();
++        user_var_event_len(name_len, self.is_null, value_len)
++    }
++}
++
++/// The body of `BinlogStruct::len` for `UserVarEvent`, given the lengths of `name` and `value`.
++fn user_var_event_len(name_len: usize, is_null: bool, value_len: usize) -> usize {
++    {
+         let mut len: usize = 0;
+ 
+         len = len.saturating_add(4);
+-        len = len.saturating_add(min(self.name.0.len(), u32::MAX as usize));
++        len = len.saturating_add(min(name_len, u32::MAX as usize));
+         len = len.saturating_add(1);
+ 
+-        if !self.is_null {
++        if !is_null {
+             len = len.saturating_add(1);
+             len = len.saturating_add(4);
+             len = len.saturating_add(4);
+-            len = len.saturating_add(min(self.value.len(), u32::MAX as usize));
++            len = len.saturating_add(min(value_len, u32::MAX as usize));
+             len = len.saturating_add(1);
+         }
+ 
+diff --git a/src/binlog/row.rs b/src/binlog/row.rs
+index 9dcdb59..578fedd 100644
+--- a/src/binlog/row.rs
++++ b/src/binlog/row.rs
+@@ -119,10 +119,7 @@ impl BinlogRow {
+     ///
+     /// Panics if any of columns was taken by `take` method.
+     pub fn unwrap(self) -> Vec<BinlogValue<'static>> {
+-        self.values
+-            .into_iter()
+-            .map(|x| x.expect("Can't unwrap row if some of columns was taken"))
+-            .collect()
++        unwrap_values(self.values)
+     }
+ 
+     #[doc(hidden)]
+@@ -131,6 +128,21 @@ impl BinlogRow {
+     }
+ }
+ 
++/// `values.into_iter().map(|x| x.expect("..")).collect()`.
++fn unwrap_values(mut values: Vec<Option<BinlogValue<'static>>>) -> Vec<BinlogValue<'static>> {
++    match values.pop() {
++        Some(last) => {
++            let mut unwrapped = unwrap_values(values);
++            match last {
++                Some(x) => unwrapped.push(x),
++                None => panic!("Can't unwrap row if some of columns was taken"),
++            }
++            unwrapped
++        }
++        None => Vec::new(),
++    }
++}
++
+ impl<'de> MyDeserialize<'de> for BinlogRow {
+     const SIZE: Option<usize> = None;
+     /// Content:
