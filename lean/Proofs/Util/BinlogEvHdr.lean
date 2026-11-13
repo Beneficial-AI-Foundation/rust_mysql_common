@@ -56,6 +56,9 @@ theorem singleton_of_val (x : U8) (l : List U8) (h : x.val = leNat (l.take 1)) (
 theorem take_append_of_drop {l r : List U8} (k : Nat) (h : r = l.drop k) : l = l.take k ++ r := by
   rw [h, List.take_append_drop]
 
+theorem byte_val_self (x : U8) : byte x.val = x := by
+  unfold byte; cases x; simp [UScalar.val]
+
 theorem evHeaderEnc_len (h : binlog.events.BinlogEventHeader) : (evHeaderEnc h).length = 19 := by
   simp [evHeaderEnc]
 
