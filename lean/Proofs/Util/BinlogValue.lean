@@ -5,6 +5,7 @@ set_option linter.unusedTactic false
 set_option linter.unusedSimpArgs false
 set_option linter.unreachableTactic false
 set_option linter.unnecessarySeqFocus false
+set_option linter.deprecated false
 open Aeneas Aeneas.Std Result mysql_common Defs
 
 /-! Helper lemmas for the binlog packed-time readers and `BinlogValue::deserialize`
@@ -1099,3 +1100,239 @@ theorem not_binlogBug_of_binlogEnc' (ct : constants.ColumnType) (md : List U8) (
     · unfold time2NegFracBug; exact fun h => hd h.1
 
 end Defs
+
+namespace mysql_common.BinlogUtil
+
+theorem length_timestamp2Bin (dec sec usec : Nat) :
+    (timestamp2Bin dec sec usec).length = 4 + fracBytes dec := by
+  simp [timestamp2Bin, beBytes, PBUtil.length_leBytes, length_temporalFracBin]
+
+theorem timestamp_roundtrip (dec : U8) (sec usec : Nat) (hs : sec < 2 ^ 31)
+    (hu : usec < 10 ^ 6 ∧ usec % fracUnit dec.val = 0)
+    (tail : List U8) (input : io.ParseBuf) (h : input.val = timestamp2Bin dec.val sec usec ++ tail) :
+    binlog.misc.my_timestamp_from_binary input dec ⦃ r rest =>
+      (okPart r).map (fun x => (x.1.val, x.2.val)) = some ((sec : Int), (usec : Int)) ∧
+        rest.val = tail ⦄ := by
+  have hl : 4 + fracBytes dec.val ≤ input.length := by
+    simp only [Slice.length, h, List.length_append, length_timestamp2Bin]; omega
+  apply WP.spec_mono (timestamp_ok input dec hl)
+  rintro ⟨r, rest⟩ ⟨s', u', rfl, hr⟩
+  rw [h, timestamp2Read_timestamp2Bin' _ _ _ _ hs hu] at hr
+  simp only [Option.some.injEq, Prod.mk.injEq] at hr
+  simp [okPart, hr]
+
+theorem datetime_ok (input : io.ParseBuf) (dec : U32) (hl : 5 + fracBytes dec.val ≤ input.length)
+    (hp : ∀ p t, datetime2Read dec.val input.val = some (p, t) → -2 ^ 63 ≤ p) :
+    binlog.misc.my_datetime_packed_from_binary input dec ⦃ r rest =>
+      ∃ p : I64, r = .Ok p ∧ datetime2Read dec.val input.val = some (p.val, rest.val) ⦄ := by
+  unfold binlog.misc.my_datetime_packed_from_binary
+  step with okS (read_u40_be_ok input (by unfold fracBytes at hl; split_ifs at hl <;> omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+  subst hr
+  have hlen1 : in1.length = input.length - 5 := by simp [Slice.length, hin1]
+  have hx40 : x.val < 2 ^ 40 := by
+    have := PBUtil.leNat_lt (List.take 5 input.val).reverse
+    rw [hx, beNat]; simp only [List.length_reverse, List.length_take] at this
+    have : 2 ^ (8 * min 5 input.val.length) ≤ 2^40 := Nat.pow_le_pow_right (by norm_num) (by omega)
+    omega
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+  have hi : (UScalar.hcast .I64 x).val = x.val := by
+    rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+    unfold Int.bmod
+    have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+    simp only [this]; split_ifs <;> omega
+  step with I64.sub_spec as ⟨intpart, hip⟩
+  · simp [binlog.misc.DATETIMEF_INT_OFS]; scalar_tac
+  have hip' : intpart.val = (beNat (input.val.take 5) : Int) - 549755813888 := by
+    rw [hip, hi, hx]; simp [binlog.misc.DATETIMEF_INT_OFS]
+  have hipb : -549755813888 ≤ intpart.val ∧ intpart.val < 549755813888 := by rw [hip']; omega
+  have hw : wrapI64 (intpart.val * 2 ^ 24) = intpart.val * 2 ^ 24 := wrapI64_exact _ (by omega)
+  split
+  case h_1 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp ⊢
+    norm_num [fracBytes] at hl hp
+    step with okS (read_i8_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    all_goals
+      have hF : (IScalar.cast IScalarTy.I64 frac).val = toSigned 8 (beNat ((input.val.drop 5).take 1)) * 10000 := by have hc1 : (IScalar.cast .I32 y).val = y.val := (by simp [IScalar.cast_val_eq]); have hc2 : (IScalar.cast .I64 frac).val = frac.val := (by simp [IScalar.cast_val_eq]); rw [hc2, frac_post, hc1, hy, hin1, beNat_take1]
+      have hD : datetime2Read 1 input.val = some (packedMake intpart.val (toSigned 8 (beNat ((input.val.drop 5).take 1)) * 10000), input.val.drop (5 + 1)) := by
+        simp only [datetime2Read, fracBytes, temporalFracRead, hip']; norm_num; omega
+      have hpl := hp _ _ hD
+      have hb : beNat ((input.val.drop 5).take 1) < 2 ^ (8 * 1) := by
+        have := PBUtil.leNat_lt ((input.val.drop 5).take 1).reverse
+        simp only [List.length_reverse, List.length_take, List.length_drop] at this
+        rw [show min 1 (input.val.length - 5) = 1 by omega] at this
+        simpa [beNat] using this
+      unfold packedMake at hpl hD
+      rw [hw] at *
+    case h => rw [hF]; unfold toSigned at *; split_ifs at * <;> omega
+    refine ⟨_, rfl, ?_⟩
+    simp only [show (1#32 : BitVec 32).toNat = 1 from rfl]
+    rw [hD]
+    simp only [Option.some.injEq, Prod.mk.injEq]
+    exact ⟨by omega, by rw [hin2, hin1, List.drop_drop]⟩
+  case h_2 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp ⊢
+    norm_num [fracBytes] at hl hp
+    step with okS (read_i8_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    all_goals
+      have hF : (IScalar.cast IScalarTy.I64 frac).val = toSigned 8 (beNat ((input.val.drop 5).take 1)) * 10000 := by have hc1 : (IScalar.cast .I32 y).val = y.val := (by simp [IScalar.cast_val_eq]); have hc2 : (IScalar.cast .I64 frac).val = frac.val := (by simp [IScalar.cast_val_eq]); rw [hc2, frac_post, hc1, hy, hin1, beNat_take1]
+      have hD : datetime2Read 2 input.val = some (packedMake intpart.val (toSigned 8 (beNat ((input.val.drop 5).take 1)) * 10000), input.val.drop (5 + 1)) := by
+        simp only [datetime2Read, fracBytes, temporalFracRead, hip']; norm_num; omega
+      have hpl := hp _ _ hD
+      have hb : beNat ((input.val.drop 5).take 1) < 2 ^ (8 * 1) := by
+        have := PBUtil.leNat_lt ((input.val.drop 5).take 1).reverse
+        simp only [List.length_reverse, List.length_take, List.length_drop] at this
+        rw [show min 1 (input.val.length - 5) = 1 by omega] at this
+        simpa [beNat] using this
+      unfold packedMake at hpl hD
+      rw [hw] at *
+    case h => rw [hF]; unfold toSigned at *; split_ifs at * <;> omega
+    refine ⟨_, rfl, ?_⟩
+    simp only [show (2#32 : BitVec 32).toNat = 2 from rfl]
+    rw [hD]
+    simp only [Option.some.injEq, Prod.mk.injEq]
+    exact ⟨by omega, by rw [hin2, hin1, List.drop_drop]⟩
+  case h_3 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp ⊢
+    norm_num [fracBytes] at hl hp
+    step with okS (read_i16_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    all_goals
+      have hF : (IScalar.cast IScalarTy.I64 frac).val = toSigned 16 (beNat ((input.val.drop 5).take 2)) * 100 := by have hc1 : (IScalar.cast .I32 y).val = y.val := (by simp [IScalar.cast_val_eq]); have hc2 : (IScalar.cast .I64 frac).val = frac.val := (by simp [IScalar.cast_val_eq]); rw [hc2, frac_post, hc1, hy, hin1]
+      have hD : datetime2Read 3 input.val = some (packedMake intpart.val (toSigned 16 (beNat ((input.val.drop 5).take 2)) * 100), input.val.drop (5 + 2)) := by
+        simp only [datetime2Read, fracBytes, temporalFracRead, hip']; norm_num; omega
+      have hpl := hp _ _ hD
+      have hb : beNat ((input.val.drop 5).take 2) < 2 ^ (8 * 2) := by
+        have := PBUtil.leNat_lt ((input.val.drop 5).take 2).reverse
+        simp only [List.length_reverse, List.length_take, List.length_drop] at this
+        rw [show min 2 (input.val.length - 5) = 2 by omega] at this
+        simpa [beNat] using this
+      unfold packedMake at hpl hD
+      rw [hw] at *
+    case h => rw [hF]; unfold toSigned at *; split_ifs at * <;> omega
+    refine ⟨_, rfl, ?_⟩
+    simp only [show (3#32 : BitVec 32).toNat = 3 from rfl]
+    rw [hD]
+    simp only [Option.some.injEq, Prod.mk.injEq]
+    exact ⟨by omega, by rw [hin2, hin1, List.drop_drop]⟩
+  case h_4 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp ⊢
+    norm_num [fracBytes] at hl hp
+    step with okS (read_i16_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    all_goals
+      have hF : (IScalar.cast IScalarTy.I64 frac).val = toSigned 16 (beNat ((input.val.drop 5).take 2)) * 100 := by have hc1 : (IScalar.cast .I32 y).val = y.val := (by simp [IScalar.cast_val_eq]); have hc2 : (IScalar.cast .I64 frac).val = frac.val := (by simp [IScalar.cast_val_eq]); rw [hc2, frac_post, hc1, hy, hin1]
+      have hD : datetime2Read 4 input.val = some (packedMake intpart.val (toSigned 16 (beNat ((input.val.drop 5).take 2)) * 100), input.val.drop (5 + 2)) := by
+        simp only [datetime2Read, fracBytes, temporalFracRead, hip']; norm_num; omega
+      have hpl := hp _ _ hD
+      have hb : beNat ((input.val.drop 5).take 2) < 2 ^ (8 * 2) := by
+        have := PBUtil.leNat_lt ((input.val.drop 5).take 2).reverse
+        simp only [List.length_reverse, List.length_take, List.length_drop] at this
+        rw [show min 2 (input.val.length - 5) = 2 by omega] at this
+        simpa [beNat] using this
+      unfold packedMake at hpl hD
+      rw [hw] at *
+    case h => rw [hF]; unfold toSigned at *; split_ifs at * <;> omega
+    refine ⟨_, rfl, ?_⟩
+    simp only [show (4#32 : BitVec 32).toNat = 4 from rfl]
+    rw [hD]
+    simp only [Option.some.injEq, Prod.mk.injEq]
+    exact ⟨by omega, by rw [hin2, hin1, List.drop_drop]⟩
+  case h_5 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp ⊢
+    norm_num [fracBytes] at hl hp
+    step with okS (read_i24_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    all_goals
+      have hF : (IScalar.cast IScalarTy.I64 y).val = toSigned 24 (beNat ((input.val.drop 5).take 3)) := by have hc1 : (IScalar.cast .I64 y).val = y.val := (by simp [IScalar.cast_val_eq]); rw [hc1, hy, hin1]
+      have hD : datetime2Read 5 input.val = some (packedMake intpart.val (toSigned 24 (beNat ((input.val.drop 5).take 3))), input.val.drop (5 + 3)) := by
+        simp only [datetime2Read, fracBytes, temporalFracRead, hip']; norm_num; omega
+      have hpl := hp _ _ hD
+      have hb : beNat ((input.val.drop 5).take 3) < 2 ^ (8 * 3) := by
+        have := PBUtil.leNat_lt ((input.val.drop 5).take 3).reverse
+        simp only [List.length_reverse, List.length_take, List.length_drop] at this
+        rw [show min 3 (input.val.length - 5) = 3 by omega] at this
+        simpa [beNat] using this
+      unfold packedMake at hpl hD
+      rw [hw] at *
+    case h => rw [hF]; unfold toSigned at *; split_ifs at * <;> omega
+    refine ⟨_, rfl, ?_⟩
+    simp only [show (5#32 : BitVec 32).toNat = 5 from rfl]
+    rw [hD]
+    simp only [Option.some.injEq, Prod.mk.injEq]
+    exact ⟨by omega, by rw [hin2, hin1, List.drop_drop]⟩
+  case h_6 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hp ⊢
+    norm_num [fracBytes] at hl hp
+    step with okS (read_i24_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    all_goals
+      have hF : (IScalar.cast IScalarTy.I64 y).val = toSigned 24 (beNat ((input.val.drop 5).take 3)) := by have hc1 : (IScalar.cast .I64 y).val = y.val := (by simp [IScalar.cast_val_eq]); rw [hc1, hy, hin1]
+      have hD : datetime2Read 6 input.val = some (packedMake intpart.val (toSigned 24 (beNat ((input.val.drop 5).take 3))), input.val.drop (5 + 3)) := by
+        simp only [datetime2Read, fracBytes, temporalFracRead, hip']; norm_num; omega
+      have hpl := hp _ _ hD
+      have hb : beNat ((input.val.drop 5).take 3) < 2 ^ (8 * 3) := by
+        have := PBUtil.leNat_lt ((input.val.drop 5).take 3).reverse
+        simp only [List.length_reverse, List.length_take, List.length_drop] at this
+        rw [show min 3 (input.val.length - 5) = 3 by omega] at this
+        simpa [beNat] using this
+      unfold packedMake at hpl hD
+      rw [hw] at *
+    case h => rw [hF]; unfold toSigned at *; split_ifs at * <;> omega
+    refine ⟨_, rfl, ?_⟩
+    simp only [show (6#32 : BitVec 32).toNat = 6 from rfl]
+    rw [hD]
+    simp only [Option.some.injEq, Prod.mk.injEq]
+    exact ⟨by omega, by rw [hin2, hin1, List.drop_drop]⟩
+  case h_7 h1 h2 h3 h4 h5 h6 =>
+    have hd : ¬(dec.val = 1 ∨ dec.val = 2 ∨ dec.val = 3 ∨ dec.val = 4 ∨ dec.val = 5 ∨ dec.val = 6) := by
+      intro hd
+      rcases hd with hd | hd | hd | hd | hd | hd
+      · exact h1 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h2 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h3 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h4 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h5 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h6 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+    step*
+    refine ⟨_, rfl, ?_⟩
+    have hf : fracBytes dec.val = 0 := by unfold fracBytes; split_ifs <;> omega
+    have ht : temporalFracRead dec.val [] = 0 := by unfold temporalFracRead; split_ifs <;> omega
+    simp only [datetime2Read, hf, List.take_zero, ht, packedMake]
+    rw [if_neg (by simp only [Slice.length, hf] at hl; omega)]
+    simp only [Option.some.injEq, Prod.mk.injEq]
+    exact ⟨by rw [i1_post, hw, hip']; omega, by rw [hin1]⟩
+
+theorem length_datetime2Bin (dec : Nat) (p : Int) :
+    (datetime2Bin dec p).length = 5 + fracBytes dec := by
+  simp [datetime2Bin, length_temporalFracBin]
+
+theorem datetime_roundtrip (dec : U32) (p : Int)
+    (hp : 0 ≤ p ∧ p < 2 ^ 63)
+    (hf : packedFracPart p % (fracUnit dec.val : Int) = 0 ∧ packedFracPart p < 10 ^ 6)
+    (tail : List U8) (input : io.ParseBuf) (h : input.val = datetime2Bin dec.val p ++ tail) :
+    binlog.misc.my_datetime_packed_from_binary input dec ⦃ r rest =>
+      (okPart r).map (·.val) = some p ∧ rest.val = tail ⦄ := by
+  have hr := datetime2Read_datetime2Bin' dec.val p tail hp hf
+  have hl : 5 + fracBytes dec.val ≤ input.length := by
+    simp only [Slice.length, h, List.length_append, length_datetime2Bin]; omega
+  apply WP.spec_mono (datetime_ok input dec hl (by intro p' t ht; rw [h, hr] at ht; simp at ht; omega))
+  rintro ⟨r, rest⟩ ⟨q, rfl, hq⟩
+  rw [h, hr] at hq
+  simp only [Option.some.injEq, Prod.mk.injEq] at hq
+  simp [okPart, hq]
+
+end mysql_common.BinlogUtil
