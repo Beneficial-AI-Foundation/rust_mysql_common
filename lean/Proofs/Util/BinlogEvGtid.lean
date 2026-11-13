@@ -15,6 +15,7 @@ import Proofs.Binlog.Consts.IncidentType
 import Proofs.Misc.Raw.Const.RawConst
 import Proofs.Misc.Raw.Int.LeU16
 import Proofs.Misc.Raw.Bytes.U8Bytes
+import Proofs.Misc.Raw.Skip
 
 /-! Helper lemmas for the binlog-event proofs of group `BinlogEvGtid` (GTID, previous-GTIDs,
 rotate, intvar, rand, XID, incident, rows-query and transaction-payload events). -/
@@ -402,5 +403,49 @@ theorem checkedLenPrefixed_u8Str (s tail : List U8) (hs : s.length ≤ 255) :
     simp; omega
   have h1 : min s.length 255 = s.length := by omega
   simp [u8Str, h1, List.take_of_length_le hs, checkedLenPrefixed, readLE, leNat, hb]
+
+/-! ## `Skip<LEN>` -/
+
+@[step]
+theorem parse_skip (LEN : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple LEN) buf () ⦃ r rest =>
+      if LEN.val ≤ buf.length then (∃ x, r = .Ok x) ∧ rest.val = buf.val.drop LEN.val
+      else ∃ e, r = .Err e ⦄ := by
+  have hs : proto.MyDeserialize.SIZE (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple LEN) = ok (some LEN) := by
+    simp [misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq]
+  by_cases hl : LEN.val ≤ buf.length
+  · have := io.ParseBuf.parse_of_size _ buf () LEN hs hl (fun o => o.isSome)
+    apply WP.spec_mono (this ?_)
+    · rintro ⟨r, rest⟩ ⟨h1, h2⟩
+      simp only [hl, ite_true]
+      refine ⟨?_, h2⟩
+      cases r with
+      | Ok x => exact ⟨x, rfl⟩
+      | Err e => simp [okPart] at h1
+    · intro sub hsub
+      have hsl : LEN.val ≤ sub.length := by simp [Slice.length, hsub]; omega
+      apply WP.spec_mono (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec LEN sub hsl)
+      rintro ⟨r, rest⟩ ⟨h1, -⟩
+      exact h1
+  · simp only [hl, ite_false]
+    apply WP.spec_mono (io.ParseBuf.parse_of_size_short _ buf () LEN hs (by omega))
+    rintro ⟨r, rest⟩ ⟨h1, -⟩
+    exact (okPart_none_iff _).1 h1
+
+@[step]
+theorem skip_default (LEN : Usize) : misc.raw.Skip.Insts.CoreDefaultDefault.default LEN ⦃ _ => True ⦄ := by
+  simp [misc.raw.Skip.Insts.CoreDefaultDefault.default]
+
+attribute [step] misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec
+
+/-- The usual `len` cap: saturating at `usize::MAX` below the `u32::MAX - 19` cap changes nothing. -/
+theorem min_usize_cap (a : Nat) : min (min a Usize.max) (2 ^ 32 - 1 - 19) = min a (2 ^ 32 - 1 - 19) := by
+  have hM := u32_max_le_usize
+  have hC : 2 ^ 32 - 1 - 19 ≤ Usize.max := Nat.le_trans (by norm_num) hM
+  rw [min_assoc, min_eq_right hC]
+
+theorem min_one_usize : min (0 + 1) Usize.max = 1 := by
+  have hM := u32_max_le_usize
+  exact min_eq_left (Nat.le_trans (by norm_num) hM)
 
 end mysql_common.BinlogEvGtid
