@@ -14,15 +14,43 @@ theorem binlog.events.previous_gtids_event.PreviousGtidsEvent.new_eq (ss : alloc
     binlog.events.previous_gtids_event.PreviousGtidsEvent.new ss = ok { sids := ss } := by
   unfold binlog.events.previous_gtids_event.PreviousGtidsEvent.new; rfl
 
+private theorem sids_into_owned_none (n : Nat) :
+    ∀ (v : alloc.vec.Vec binlog.events.previous_gtids_event.PreviousGtidsSid), v.val.length = n → (∀ s ∈ v.val, s.tag = none) →
+      binlog.events.previous_gtids_event.sids_into_owned v ⦃ v' => v'.val = v.val ⦄ := by
+  induction n with
+  | zero =>
+    intro v hl _
+    unfold binlog.events.previous_gtids_event.sids_into_owned
+    have : v.val = [] := List.length_eq_zero_iff.1 hl
+    simp [alloc.vec.Vec.pop, this, alloc.vec.Vec.new]
+  | succ n ih =>
+    intro v hl hn
+    obtain ⟨l, x, hlx⟩ : ∃ l x, v.val = l ++ [x] := by
+      rcases List.eq_nil_or_concat v.val with h | ⟨l, x, h⟩
+      · rw [h] at hl; simp at hl
+      · exact ⟨l, x, by rw [h, List.concat_eq_append]⟩
+    unfold binlog.events.previous_gtids_event.sids_into_owned
+    simp only [alloc.vec.Vec.pop, hlx, List.getLast?_concat, List.dropLast_concat]
+    have hx : x.tag = none := hn x (by simp [hlx])
+    have hl' : l.length = n := by rw [hlx] at hl; simpa using hl
+    have hmax : v.val.length ≤ Usize.max := v.property
+    step with ih (alloc.vec.Vec.from l (by rw [hlx] at hmax; simp at hmax; omega)) (by simpa using hl')
+      (fun s hs => hn s (by rw [hlx]; exact List.mem_append_left _ (by simpa using hs))) as ⟨w, hw⟩
+    simp only [binlog.events.previous_gtids_event.PreviousGtidsSid.into_owned, hx]
+    step*
+
 /-- `sids`. -/
 theorem binlog.events.previous_gtids_event.PreviousGtidsEvent.impl.sids_spec (e : binlog.events.previous_gtids_event.PreviousGtidsEvent) :
     binlog.events.previous_gtids_event.PreviousGtidsEvent.impl.sids e ⦃ s => s.val = e.sids.val ⦄ := by
-  sorry
+  simp [binlog.events.previous_gtids_event.PreviousGtidsEvent.impl.sids, alloc.vec.Vec.deref]
 
 /-- `into_owned` of an event without tags: the same SIDs. -/
 theorem binlog.events.previous_gtids_event.PreviousGtidsEvent.into_owned_spec (e : binlog.events.previous_gtids_event.PreviousGtidsEvent) (hn : ∀ s ∈ e.sids.val, s.tag = none) :
     binlog.events.previous_gtids_event.PreviousGtidsEvent.into_owned e ⦃ e' => e'.sids.val.map pgSidView = e.sids.val.map pgSidView ∧ ∀ s ∈ e'.sids.val, s.tag = none ⦄ := by
-  sorry
+  unfold binlog.events.previous_gtids_event.PreviousGtidsEvent.into_owned
+  step with sids_into_owned_none e.sids.val.length e.sids rfl hn as ⟨v, hv⟩
+  simp only [hv]
+  exact ⟨trivial, hn⟩
 
 /-- `MyDeserialize::SIZE` is `None`. -/
 theorem binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
@@ -38,7 +66,9 @@ theorem binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.Mysql_common
 /-- `MyDeserialize` on fewer than 8 bytes: an error. -/
 theorem binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_short (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) (h : buf.length < 8) :
     binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r _ => okPart r = none ⦄ := by
-  sorry
+  unfold binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  step*
+  simp [okPart]
 
 /-- `MySerialize` of an event without tags: the untagged format (`pgEnc`). -/
 theorem binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.previous_gtids_event.PreviousGtidsEvent) (hn : ∀ s ∈ e.sids.val, s.tag = none) (buf : alloc.vec.Vec U8) (h : buf.length + (pgEnc e).length ≤ Usize.max) :

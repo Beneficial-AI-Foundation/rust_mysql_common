@@ -27,7 +27,7 @@ theorem binlog.events.previous_gtids_event.PreviousGtidsSid.impl.tag_eq (s : bin
 /-- `intervals`. -/
 theorem binlog.events.previous_gtids_event.PreviousGtidsSid.impl.intervals_spec (x : binlog.events.previous_gtids_event.PreviousGtidsSid) :
     binlog.events.previous_gtids_event.PreviousGtidsSid.impl.intervals x ⦃ s => s.val = x.intervals.val ⦄ := by
-  sorry
+  simp [binlog.events.previous_gtids_event.PreviousGtidsSid.impl.intervals, alloc.vec.Vec.deref]
 
 /-- `into_owned` of an untagged SID: the same UUID and intervals. -/
 theorem binlog.events.previous_gtids_event.PreviousGtidsSid.into_owned_spec (s : binlog.events.previous_gtids_event.PreviousGtidsSid) (ht : s.tag = none) :
