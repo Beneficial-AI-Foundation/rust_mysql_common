@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.ParseBuf
+import Proofs.Util.BinlogCommon
 import Proofs.Util.IntAndMisc
 import Proofs.Util.RawBytesSeq
 import Proofs.Util.PacketsColStmt
@@ -33,6 +34,8 @@ set_option autoImplicit false
 open Aeneas Aeneas.Std Result mysql_common Defs
 
 namespace mysql_common.BERUtil
+
+open BinlogCommon
 
 theorem eof_as_bytes (rb : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) :
     misc.raw.bytes.RawBytes.as_bytes misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
@@ -77,10 +80,6 @@ theorem ev_eq (a b : binlog.consts.EventType) :
   simp only [UScalar.val, BitVec.toNat_ofNat]
   rw [Nat.mod_eq_of_lt (by have := min_le_left (UScalar.max UScalarTy.Usize) (x.bv.toNat + y.bv.toNat); simp [UScalar.max] at *)]
   simp [UScalar.max, Usize.max, Nat.min_comm, Usize.numBits_def]
-
-theorem usize_max_ge_cap : 2 ^ 32 - 1 ≤ Usize.max := by
-  have h1 := Usize.max_def; rw [Usize.numBits_def] at h1
-  rcases System.Platform.numBits_eq with h | h <;> simp [h] at h1 <;> omega
 
 theorem bitmap_max_len (h64 : Target64) :
     misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN ⦃ m => m.val = 2 ^ 61 ⦄ := by
@@ -151,7 +150,7 @@ theorem extra_core (ex : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 65533
     rw [misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN_spec]
   step with misc.raw.bytes.RawBytes.len_spec _ 65533#usize hm as ⟨ i, hi ⟩
   step*
-  have hcap := usize_max_ge_cap
+  have hcap := u32_max_le_usize
   have hi2 : i2.val = 65535 := by
     rw [i2_post]; simp [UScalar.cast_val_eq, core.num.U16.MAX]
     rcases System.Platform.numBits_eq with h | h <;> simp [h, U16.rMax]
@@ -224,15 +223,8 @@ theorem rows_serialize64 (h64 : Target64) (e : binlog.events.rows_event.RowsEven
 
 /-! ## Lengths -/
 
-theorem lenencInt_length_le (n : Nat) : (lenencInt n).length ≤ 9 := by
-  unfold lenencInt; split_ifs <;> simp
-
 theorem cast_small (x : U64) (h : x.val ≤ Usize.max) : (UScalar.cast UScalarTy.Usize x).val = x.val := by
   rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (usize_lt_of_le_max h)
-
-theorem sat_val (x y : Usize) : (core.num.Usize.saturating_add x y).val = min (x.val + y.val) Usize.max := by
-  have := usize_sat_add x y
-  simpa [lift] using this
 
 theorem cast_u8max : (UScalar.cast UScalarTy.Usize core.num.U8.MAX).val = 255 := by
   simp [UScalar.cast_val_eq, core.num.U8.MAX]
@@ -253,7 +245,7 @@ theorem rows_event_len_spec (nc : U64) (exl : Usize) (hb ha : Bool) (rdl : Usize
       min (6 + 2 + 2 + min exl.val 65533 + (lenencInt nc.val).length +
         (if hb then (nc.val + 7) / 8 else 0) + (if ha then (nc.val + 7) / 8 else 0) + rdl.val) evLenCap ⦄ := by
   unfold binlog.events.rows_event.rows_event_len
-  have hcap := usize_max_ge_cap
+  have hcap := u32_max_le_usize
   step*
   · rw [i_post, cast_u16max]; simp
   step with misc.lenenc_int_len_spec as ⟨ i3, hi3 ⟩
@@ -266,7 +258,7 @@ theorem rows_event_len_spec (nc : U64) (exl : Usize) (hb ha : Bool) (rdl : Usize
     intro hh; rw [bitmap_len_post, cast_small _ (by have := hbl hh; omega), hdc]
   have hcp : (UScalar.cast UScalarTy.Usize core.num.U32.MAX).val = 2 ^ 32 - 1 := cast_u32max
   have hL : binlog.events.BinlogEventHeader.LEN.val = 19 := by simp [binlog.events.BinlogEventHeader.LEN]
-  have hsat := fun (x y : Usize) => (sat_val x y)
+  have hsat := fun (x y : Usize) => (usize_saturating_add_val x y)
   cases hb <;> cases ha <;> simp only [Bool.false_eq_true, ↓reduceIte, true_or, or_true, forall_const] at hbm ⊢ <;> step* <;>
     simp only [hsat, i6_post, hcp, hL, hi4, hbm, hi, len_post, len1_post, len2_post, len3_post, len4_post, i2_post, i1_post, evLenCap] at * <;> omega
 
@@ -628,7 +620,7 @@ theorem tm_len_gen (h64 : Target64) (e : binlog.events.table_map_event.TableMapE
     (hn : e.columns_count.1.val + 8 < 2 ^ 64) (hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = tmLenCrate e ⦄ := by
   unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len
-  have hcap := usize_max_ge_cap
+  have hcap := u32_max_le_usize
   have hmax : Usize.max = 2 ^ 64 - 1 := by simp [Target64] at h64; simp [Usize.max, Usize.numBits, h64]
   have hcc : binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1 := rfl
   simp only [hcc, bind_ok]
@@ -1120,12 +1112,6 @@ theorem pEat16 (buf : io.ParseBuf) :
   · obtain ⟨h1, h2⟩ := h; cases o <;> simp_all
   · obtain ⟨h1, h2⟩ := h; subst h1 h2; simp; omega
 
-theorem sat_sub_val (x y : Usize) : (core.num.Usize.saturating_sub x y).val = x.val - y.val := by
-  simp only [core.num.Usize.saturating_sub, UScalar.saturating_sub, UScalar.val, BitVec.toNat_ofNat]
-  have := x.hBounds
-  simp only [UScalar.val] at this
-  rw [Nat.mod_eq_of_lt (by omega)]; omega
-
 theorem cast16_val (x : U16) : (UScalar.cast UScalarTy.Usize x).val = x.val := by
   rw [UScalar.cast_val_eq]; apply Nat.mod_eq_of_lt
   have := x.hBounds
@@ -1262,7 +1248,7 @@ theorem rows_deser (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize
          exact (WP.spec_ok _).mpr rfl
        apply spec_bind_ok
        apply spec_bind_ok
-       rd_step (pBare' _ _ (by rw [sat_sub_val, cast16_val]; rfl) _) as v3 b3)
+       rd_step (pBare' _ _ (by rw [sat_sub_usize, cast16_val]; rfl) _) as v3 b3)
     | (apply spec_ite_neg (by rd_cond)
        apply WP.spec_bind PKUtil.empty_index_spec
        intro s0 hs0

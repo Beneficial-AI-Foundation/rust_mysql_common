@@ -1,6 +1,7 @@
 import Defs
 import Proofs.Io.ParseBuf
 import Proofs.Util.ParseBuf
+import Proofs.Util.BinlogCommon
 import Proofs.Util.IntAndMisc
 import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
 import Proofs.Misc.Raw.Int.LeU64
@@ -29,18 +30,12 @@ open Aeneas Aeneas.Std Result mysql_common Defs
 
 namespace mysql_common.BinlogEvGtid
 
+export _root_.mysql_common.BinlogCommon (leNat_leBytes_lt byte_val_self usize_saturating_add_val u32_max_le_usize
+  lenencInt_length_le)
 
-@[step]
-theorem get_event_type_header_length_step (e : binlog.events.format_description_event.FormatDescriptionEvent) (t : binlog.consts.EventType) :
-    binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length e t ⦃ n => n.val = postHeaderLen (fdeLens e) t ⦄ :=
-  binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec e t
+attribute [step] binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec
+  io.ParseBuf.checked_skip_spec
 
-@[step]
-theorem checked_skip_step (buf : io.ParseBuf) (cnt : Usize) :
-    io.ParseBuf.checked_skip buf cnt ⦃ b rest =>
-      if cnt.val ≤ buf.length then b = true ∧ rest.val = buf.val.drop cnt.val
-      else b = false ∧ rest = buf ⦄ :=
-  io.ParseBuf.checked_skip_spec buf cnt
 
 theorem cast_u8_usize (x : U8) : (UScalar.cast .Usize x).val = x.val :=
   UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by simp [UScalarTy.numBits])
@@ -57,17 +52,14 @@ theorem take_leBytes_append (k n : Nat) (t : List U8) : (leBytes k n ++ t).take 
 theorem drop_leBytes_append (k n : Nat) (t : List U8) : (leBytes k n ++ t).drop k = t := by
   simp [PBUtil.length_leBytes]
 
-theorem leNat_leBytes_of_lt (k n : Nat) (h : n < 2 ^ (8 * k)) : leNat (leBytes k n) = n := by
-  rw [PBUtil.leNat_leBytes, Nat.mod_eq_of_lt h]
-
 theorem leNat_leBytes_u8 (x : U8) : leNat (leBytes 1 x.val) = x.val :=
-  leNat_leBytes_of_lt _ _ (by have := x.hBounds; simpa using this)
+  leNat_leBytes_lt _ _ (by have := x.hBounds; simpa using this)
 theorem leNat_leBytes_u16 (x : U16) : leNat (leBytes 2 x.val) = x.val :=
-  leNat_leBytes_of_lt _ _ (by have := x.hBounds; simpa using this)
+  leNat_leBytes_lt _ _ (by have := x.hBounds; simpa using this)
 theorem leNat_leBytes_u32 (x : U32) : leNat (leBytes 4 x.val) = x.val :=
-  leNat_leBytes_of_lt _ _ (by have := x.hBounds; simpa using this)
+  leNat_leBytes_lt _ _ (by have := x.hBounds; simpa using this)
 theorem leNat_leBytes_u64 (x : U64) : leNat (leBytes 8 x.val) = x.val :=
-  leNat_leBytes_of_lt _ _ (by have := x.hBounds; simpa using this)
+  leNat_leBytes_lt _ _ (by have := x.hBounds; simpa using this)
 
 theorem okPart_map_eq_some {T V : Type} {f : T → V} {r : core.result.Result T core.io.error.Error} {v : V}
     (h : (okPart r).map f = some v) : ∃ x, r = .Ok x ∧ f x = v := by
@@ -147,23 +139,10 @@ theorem parse_eof_bytes (buf : io.ParseBuf) :
   obtain ⟨x, rfl, hx⟩ := (okPart_map_some_iff _ _ _).1 h1
   exact ⟨x, rfl, hx, h2⟩
 
-theorem usize_saturating_add_val (x y : Usize) :
-    (core.num.Usize.saturating_add x y).val = min (x.val + y.val) Usize.max := by
-  simp only [core.num.Usize.saturating_add, UScalar.saturating_add, UScalar.max_USize_eq]
-  rw [UScalar.val, BitVec.toNat_ofNat, Nat.mod_eq_of_lt]
-  · omega
-  · have : Usize.max < 2 ^ UScalarTy.Usize.numBits := by
-      rw [Usize.max_def]; simp [Usize.numBits]
-    omega
-
 @[step]
 theorem lift_usize_saturating_add (x y : Usize) :
     lift (core.num.Usize.saturating_add x y) ⦃ r => r.val = min (x.val + y.val) Usize.max ⦄ := by
   simp [lift, usize_saturating_add_val]
-
-theorem u32_max_le_usize : 2 ^ 32 - 1 ≤ Usize.max := by
-  rw [Usize.max_def]; simp only [Usize.numBits]
-  cases System.Platform.numBits_eq <;> simp [*]
 
 @[step]
 theorem lift_cast_u32_max :
@@ -198,9 +177,6 @@ theorem list_cons_of_length_pos {α : Type} (l : List α) (h : 1 ≤ l.length) :
   cases l with
   | nil => simp at h
   | cons b t => exact ⟨b, t, rfl⟩
-
-theorem byte_val_self' (x : U8) : byte x.val = x := by
-  unfold byte; cases x; simp [UScalar.val]
 
 theorem rawint_parse_unchecked_fail {T P : Type} (inst : misc.raw.int.IntRepr T P) (buf : io.ParseBuf) (e : Error)
     (h : inst.deserialize buf = fail e) :
@@ -296,7 +272,7 @@ theorem const_intvar_serialize (c : misc.raw._const.Const binlog.consts.IntvarEv
   simp only [core.convert.IntoFrom.into]
   step with U8.Insts.CoreConvertFromIntvarEventType.from_spec as ⟨p, hp⟩
   step*
-  have hbp : byte (intvarTypeCode t) = p := by rw [← hp, byte_val_self']
+  have hbp : byte (intvarTypeCode t) = p := by rw [← hp, byte_val_self]
   rw [hbp]
   simp_all
 
@@ -435,10 +411,6 @@ theorem parse_skip (LEN : Usize) (buf : io.ParseBuf) :
     rintro ⟨r, rest⟩ ⟨h1, -⟩
     exact (okPart_none_iff _).1 h1
 
-@[step]
-theorem skip_default (LEN : Usize) : misc.raw.Skip.Insts.CoreDefaultDefault.default LEN ⦃ _ => True ⦄ := by
-  simp [misc.raw.Skip.Insts.CoreDefaultDefault.default]
-
 attribute [step] misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec
 
 /-- The usual `len` cap: saturating at `usize::MAX` below the `u32::MAX - 19` cap changes nothing. -/
@@ -471,18 +443,10 @@ theorem rawflags_default_u8 {T U : Type} (d : core.default.Default T) (fl : bitf
   simp [misc.raw.flags.RawFlags.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
   exact (WP.spec_ok _).mpr rfl
 
-@[step]
-theorem constu8_default {T : Type} (N : U8) (d : core.default.Default T) :
-    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
-  simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-
 /-! ## Length-encoded integers -/
 
 theorem cast_u8_u64 (x : U8) : (UScalar.cast .U64 x).val = x.val :=
   UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by simp [UScalarTy.numBits])
-
-theorem lenencInt_length_le (n : Nat) : (lenencInt n).length ≤ 9 := by
-  unfold lenencInt; split_ifs <;> simp [PBUtil.length_leBytes]
 
 theorem lenencInt_length_pos (n : Nat) : 1 ≤ (lenencInt n).length := by
   unfold lenencInt; split_ifs <;> simp [PBUtil.length_leBytes]

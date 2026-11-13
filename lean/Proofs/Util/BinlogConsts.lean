@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Util.Constants
 
 /-! Helper lemmas for the `Proofs/Binlog/{Consts,Mod,Row}/*` proofs. -/
 
@@ -8,24 +9,9 @@ open Aeneas Aeneas.Std Result mysql_common Defs
 
 namespace mysql_common.BinlogConstsUtil
 
-/-- Scalars are equal iff their values are. -/
-theorem uscalar_eq_iff {ty : UScalarTy} (x y : UScalar ty) : x = y ↔ x.val = y.val :=
-  ⟨fun h => h ▸ rfl, UScalar.eq_of_val_eq⟩
-
-/-- `a | x = x` iff `a & x = a`. -/
-theorem nat_or_eq_iff_and_eq (a x : Nat) : a ||| x = x ↔ a &&& x = a := by
-  constructor <;> intro h <;> apply Nat.eq_of_testBit_eq <;> intro i <;>
-    have hi := congrArg (Nat.testBit · i) h <;>
-    simp only [Nat.testBit_or, Nat.testBit_and] at hi ⊢ <;>
-    cases ha : a.testBit i <;> cases hx : x.testBit i <;> simp_all
-
-theorem uscalar_val_not {ty : UScalarTy} (x : UScalar ty) :
-    (~~~x).val = 2 ^ ty.numBits - 1 - x.val := by
-  simp only [UScalar.val, UScalar.bv_not, BitVec.toNat_not]
+export _root_.mysql_common.ConstUtil (uscalar_eq_iff nat_or_eq_iff_and_eq uscalar_val_not u16_val_not)
 
 theorem u8_val_not (x : U8) : (~~~x).val = 2 ^ 8 - 1 - x.val := uscalar_val_not x
-
-theorem u16_val_not (x : U16) : (~~~x).val = 2 ^ 16 - 1 - x.val := uscalar_val_not x
 
 theorem eventFlags_all_eq : binlog.consts.EventFlags.all = ok (1023#u16) := by
   simp only [binlog.consts.EventFlags.all, lift, bind_ok, ok.injEq]

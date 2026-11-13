@@ -719,7 +719,7 @@ private theorem untagged_lc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc
   step with pu_leu56 buf3 (by simp [Slice.length, hb3, hT', hl]) as ⟨r, buf4, tsx, hr, htsx, hb4⟩
   subst hr
   rw [branch_ok_bind]
-  rw [hb3, hT', List.take_left' (hl _ _), BinlogEvGtid.leNat_leBytes_of_lt _ _ hraw] at htsx
+  rw [hb3, hT', List.take_left' (hl _ _), BinlogEvGtid.leNat_leBytes_lt _ _ hraw] at htsx
   rw [hb3, hT', List.drop_left' (hl _ _)] at hb4
   obtain ⟨i4, pd⟩ := tsx
   step as ⟨i5, hi5, _⟩
@@ -769,7 +769,7 @@ private theorem untagged_lc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc
       simp only [hn, ite_false, Nat.add_zero, List.nil_append] at hSVt
       have hisvv : i10.val = e.immediate_server_version.1.val := by
         rw [show (i10, pd1).1 = i10 from rfl, hb6, hSVt, List.take_left' (hl _ _),
-          BinlogEvGtid.leNat_leBytes_of_lt _ _ (by omega)] at hsvx
+          BinlogEvGtid.leNat_leBytes_lt _ _ (by omega)] at hsvx
         rw [hsvx]; exact Nat.mod_eq_of_lt hsv
       rw [ite_eq_right_of_eq_false _ _ (eq_false (by
         rw [Bool.not_eq_true, ← Bool.not_eq_true, bne_u32, not_not, hi12, UScalar.val_and, h31, hisvv]
@@ -788,7 +788,7 @@ private theorem untagged_lc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc
       simp only [hn, ne_eq, not_false_eq_true, ite_true] at hSVt
       have hisvv : i10.val = e.immediate_server_version.1.val % 2 ^ 31 + 2 ^ 31 := by
         rw [show (i10, pd1).1 = i10 from rfl, hb6, hSVt, List.take_left' (hl _ _),
-          BinlogEvGtid.leNat_leBytes_of_lt _ _ (by omega)] at hsvx
+          BinlogEvGtid.leNat_leBytes_lt _ _ (by omega)] at hsvx
         exact hsvx
       rw [ite_eq_left_of_eq_true _ _ (eq_true (by
         rw [bne_u32, hi12, UScalar.val_and, h31, hisvv, and_pow_set]; positivity))]
@@ -854,7 +854,7 @@ private theorem untagged_lc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc
       simp only [hn, ite_false, Nat.add_zero, List.nil_append] at hSVt
       have hisvv : i10.val = e.immediate_server_version.1.val := by
         rw [show (i10, pd1).1 = i10 from rfl, hb6, hSVt, List.take_left' (hl _ _),
-          BinlogEvGtid.leNat_leBytes_of_lt _ _ (by omega)] at hsvx
+          BinlogEvGtid.leNat_leBytes_lt _ _ (by omega)] at hsvx
         rw [hsvx]; exact Nat.mod_eq_of_lt hsv
       rw [ite_eq_right_of_eq_false _ _ (eq_false (by
         rw [Bool.not_eq_true, ← Bool.not_eq_true, bne_u32, not_not, hi12, UScalar.val_and, h31, hisvv]
@@ -873,7 +873,7 @@ private theorem untagged_lc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc
       simp only [hn, ne_eq, not_false_eq_true, ite_true] at hSVt
       have hisvv : i10.val = e.immediate_server_version.1.val % 2 ^ 31 + 2 ^ 31 := by
         rw [show (i10, pd1).1 = i10 from rfl, hb6, hSVt, List.take_left' (hl _ _),
-          BinlogEvGtid.leNat_leBytes_of_lt _ _ (by omega)] at hsvx
+          BinlogEvGtid.leNat_leBytes_lt _ _ (by omega)] at hsvx
         exact hsvx
       rw [ite_eq_left_of_eq_true _ _ (eq_true (by
         rw [bne_u32, hi12, UScalar.val_and, h31, hisvv, and_pow_set]; positivity))]
