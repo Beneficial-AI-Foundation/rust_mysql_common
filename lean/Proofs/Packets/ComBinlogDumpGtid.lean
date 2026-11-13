@@ -624,6 +624,115 @@ theorem untagged_loop (h64 : Target64) (n : Nat) : ∀ (buf : io.ParseBuf) (nn :
       · simp [sidsRead, hs] at h
       · simp [sidsRead, hs] at h
 
+theorem tagged_loop (h64 : Target64) (n : Nat) : ∀ (buf : io.ParseBuf) (nn : U64)
+    (acc : alloc.vec.Vec packets.Sid), nn.val = n → 16 * acc.val.length + buf.length ≤ Usize.max →
+    (∀ o r, sidsRead true n buf.val = .done o r → packets.deserialize_tagged_sids buf nn acc ⦃ res _ =>
+      (okPart res).map (fun v => v.val.map SidV.of) = o.map (fun l => acc.val.map SidV.of ++ l) ⦄) ∧
+    (∀ e, sidsRead true n buf.val = .panic e → packets.deserialize_tagged_sids buf nn acc = fail e) := by
+  induction n with
+  | zero =>
+    intro buf nn acc hn _
+    have hz : ¬ nn > 0#u64 := by scalar_tac
+    refine ⟨fun o r h => ?_, fun e h => ?_⟩
+    · simp only [sidsRead, ReadOut.done.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      unfold packets.deserialize_tagged_sids
+      simp only [hz, ↓reduceIte]
+      apply (WP.spec_ok _).mpr
+      simp [okPart]
+    · simp [sidsRead] at h
+  | succ n ih =>
+    intro buf nn acc hn hb
+    have hp : nn > 0#u64 := by scalar_tac
+    unfold packets.deserialize_tagged_sids
+    simp only [hp, ↓reduceIte]
+    cases hs : sidTaggedRead buf.val with
+    | done o rest =>
+      cases o with
+      | some sv =>
+        have hl := sidTaggedRead_some_len hs
+        obtain ⟨⟨r1, b1⟩, he, hr1, hr2⟩ := spec_eq_ok
+          (packets.Sid.deserialize_tagged_spec h64 buf _ _ hs)
+        rw [he]
+        cases r1 with
+        | Err _ => simp [okPart] at hr1
+        | Ok x =>
+        simp only [okPart, Option.map_some, Option.some.injEq] at hr1
+        have hpush : acc.val.length < Usize.max := by simp [Slice.length] at hb; omega
+        obtain ⟨acc1, hacc1, hacc1v⟩ := spec_eq_ok (alloc.vec.Vec.push_spec acc x hpush)
+        obtain ⟨nn1, hnn1, hnn1v⟩ := spec_eq_ok (show (nn - 1#u64) ⦃ z => z.val = nn.val - 1 ⦄ by step*)
+        have hb1 : 16 * acc1.val.length + b1.length ≤ Usize.max := by
+          simp only [Slice.length] at hb ⊢; rw [hacc1v, hr2]; simp; omega
+        obtain ⟨ihd, ihp⟩ := ih b1 nn1 acc1 (by omega) hb1
+        refine ⟨fun o r h => ?_, fun e h => ?_⟩
+        · simp only [sidsRead, ↓reduceIte, hs] at h
+          simp only [hnn1]
+          show WP.spec (Std.bind (ok (core.result.Result.Ok x, b1)) _) _
+          simp only [bind_ok]
+          show WP.spec (Std.bind (acc.push x) _) _
+          rw [hacc1]
+          simp only [bind_ok]
+          rw [← hr2] at h
+          split at h
+          · rename_i ss rest' hss
+            simp only [ReadOut.done.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            apply WP.spec_mono (ihd _ _ hss)
+            rintro ⟨res, _⟩ hres
+            simp only [WP.uncurry'_pair] at hres ⊢
+            rw [hres, hacc1v]; simp [hr1]
+          · rename_i rest' hss
+            simp only [ReadOut.done.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            apply WP.spec_mono (ihd _ _ hss)
+            rintro ⟨res, _⟩ hres
+            simp only [WP.uncurry'_pair] at hres ⊢
+            rw [hres]; simp
+          · simp at h
+          · simp at h
+        · simp only [sidsRead, ↓reduceIte, hs] at h
+          simp only [hnn1]
+          show (Std.bind (ok (core.result.Result.Ok x, b1)) _) = _
+          simp only [bind_ok]
+          show (Std.bind (acc.push x) _) = _
+          rw [hacc1]
+          simp only [bind_ok]
+          rw [← hr2] at h
+          split at h
+          · simp at h
+          · simp at h
+          · rename_i e' hss
+            simp only [ReadOut.panic.injEq] at h
+            subst h
+            exact ihp _ hss
+          · simp at h
+      | none =>
+        obtain ⟨⟨r1, b1⟩, he, hr1, hr2⟩ := spec_eq_ok
+          (packets.Sid.deserialize_tagged_spec h64 buf _ _ hs)
+        rw [he]
+        cases r1 with
+        | Ok _ => simp [okPart] at hr1
+        | Err err =>
+        refine ⟨fun o r h => ?_, fun e h => ?_⟩
+        · simp only [sidsRead, ↓reduceIte, hs, ReadOut.done.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          show WP.spec (Std.bind (ok (core.result.Result.Err err, b1)) _) _
+          simp only [bind_ok]
+          apply (WP.spec_ok _).mpr
+          simp [okPart]
+        · simp [sidsRead, hs] at h
+    | panic err =>
+      have hf := packets.Sid.deserialize_tagged_panics h64 buf err hs
+      refine ⟨fun o r h => ?_, fun e h => ?_⟩
+      · simp [sidsRead, hs] at h
+      · simp only [sidsRead, ↓reduceIte, hs, ReadOut.panic.injEq] at h
+        subst h
+        rw [hf]; simp
+    | unknown =>
+      refine ⟨fun o r h => ?_, fun e h => ?_⟩
+      · simp [sidsRead, hs] at h
+      · simp [sidsRead, hs] at h
+
 end GtidUtil
 
 open GtidUtil
