@@ -3,6 +3,7 @@ import Proofs.Util.IntAndMisc
 import Proofs.Constants.ColumnType
 import Proofs.Constants.ColumnFlags
 import Proofs.Value.Value
+import Proofs.Util.ConvInts
 import Proofs.Misc.Raw.Int.U8
 import Proofs.Misc.Raw.Int.LeU16
 import Proofs.Misc.Raw.Int.LeU24
@@ -2134,5 +2135,96 @@ theorem deser_json (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) 
   · simp only [ite_true]
     refine congrArg (Std.bind (binlog.jsondiff.parse_json_diffs pb)) (funext fun y => ?_)
     cases y <;> simp [resMap, core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq]
+
+end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+open constants.ColumnType
+
+local notation "BVdes" => binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize
+
+theorem ne_ta_of_eff (ct : constants.ColumnType) (md : Slice U8) (t : constants.ColumnType)
+    (ht : binlogEffType ct md.val = t) (hne : t ≠ MYSQL_TYPE_TYPED_ARRAY) :
+    ¬(ct = MYSQL_TYPE_TYPED_ARRAY ∧ md.val = []) := by
+  rintro ⟨rfl, h⟩; rw [h] at ht; simp [binlogEffType] at ht; exact hne ht.symm
+
+attribute [local step] ConvInts.i128_to_string_spec ConvInts.string_into_bytes_spec
+
+theorem cast128_i32 (z : I32) : (IScalar.cast .I128 z).val = z.val := by simp [IScalar.cast_val_eq]
+
+theorem deser_year (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_YEAR) (b : U8) (tail : List U8) (h : buf.val = b :: tail) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest =>
+      (okPart r).map binlogValView = some (some (.bytes (decimalBytes (1900 + (b.val : Int))))) ∧ rest.val = tail ⦄ := by
+  rw [deser_eff ct md uns part buf (ne_ta_of_eff ct md _ ht (by intro h; cases h)), ht]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  obtain ⟨x, buf1, e1, hx, hb1⟩ := okEq (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) (by simp [Slice.length, h])
+  obtain ⟨xv, xu⟩ := x
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_YEAR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_YEAR MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, lift, e1,
+    core.result.Result.Insts.CoreOpsTry.branch, misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref]
+  have hxv : xv.val = b.val := by simp [h, leNat] at hx; omega
+  have := ConvInts.usize_max_ge
+  have hlen := ConvInts.decimalBytes_length (1900 + (b.val : Int)) (by have := u8_lt b; omega)
+  have hy : (UScalar.hcast IScalarTy.I32 xv).val = b.val := by
+    rw [UScalar.hcast_val_eq, hxv]; have := u8_lt b; simp only [IScalarTy.numBits]; unfold Int.bmod
+    have : ((b.val : Int) % ((2^32 : Nat) : Int)) = b.val := Int.emod_eq_of_lt (by omega) (by omega)
+    simp only [this]; split_ifs <;> omega
+  step*
+  all_goals have hi : (IScalar.cast IScalarTy.I128 i1).val = 1900 + (b.val : Int) := by rw [cast128_i32, i1_post, hy]
+  all_goals try (rw [s_post, hi]; omega)
+  refine ⟨?_, by simp [hb1, h]⟩
+  simp only [okPart, Option.map_some, binlogValView, Val.ofValue, v_post, s_post, hi]
+
+theorem deser_year_roundtrip (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_YEAR) (y : Nat) (hy : 1901 ≤ y ∧ y ≤ 2155)
+    (tail : List U8) (h : buf.val = byte (y - 1900) :: tail) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest =>
+      (okPart r).map binlogValView = some (some (.bytes (decimalBytes y))) ∧ rest.val = tail ⦄ := by
+  have := deser_year ct md uns part buf ht _ tail h
+  rw [PBUtil.byte_val, Nat.mod_eq_of_lt (by omega)] at this
+  rw [show (1900 : Int) + ((y - 1900 : Nat) : Int) = (y : Int) by omega] at this
+  exact this
+
+theorem deser_year_zero (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_YEAR) (tail : List U8) (h : buf.val = byte 0 :: tail) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest =>
+      (okPart r).map binlogValView = some (some (.bytes (decimalBytes 1900))) ∧ rest.val = tail ⦄ := by
+  have := deser_year ct md uns part buf ht _ tail h
+  rw [PBUtil.byte_val] at this
+  simpa using this
+
+theorem deser_timestamp2_roundtrip (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_TIMESTAMP2) (d : U8) (t : List U8)
+    (hm : md.val = d :: t) (sec : Nat) (hs : sec < 2 ^ 31) (tail : List U8)
+    (h : buf.val = timestamp2Bin d.val sec 0 ++ tail) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest =>
+      (okPart r).map binlogValView = some (some (.bytes (decimalBytes sec))) ∧ rest.val = tail ⦄ := by
+  have hr := timestamp2Read_timestamp2Bin' d.val sec 0 tail hs ⟨by norm_num, by simp⟩
+  rw [← h] at hr
+  have hl : 4 + fracBytes d.val ≤ buf.length := by
+    unfold timestamp2Read at hr; split_ifs at hr with h'; simp only [Slice.length]; omega
+  obtain ⟨⟨r, rb⟩, he, s', u', rfl, h2⟩ := PBUtil.spec_eq_ok (timestamp_ok buf d hl)
+  rw [hr] at h2
+  simp only [Option.some.injEq, Prod.mk.injEq] at h2
+  obtain ⟨⟨h3, h4⟩, h5⟩ := h2
+  have hu0 : u' = 0#i32 := IScalar.eq_of_val_eq (by rw [← h4]; rfl)
+  subst hu0
+  rw [deser_eff ct md uns part buf (by simp [hm]), ht]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, index0 md d t hm, lift, he,
+    core.result.Result.Insts.CoreOpsTry.branch, ite_true]
+  have := ConvInts.usize_max_ge
+  have hlen := ConvInts.decimalBytes_length (sec : Int) (by omega)
+  step*
+  all_goals have hi : (IScalar.cast IScalarTy.I128 s').val = (sec : Int) := by rw [cast128_i32, h3]
+  all_goals try (rw [s_post, hi]; omega)
+  refine ⟨?_, by first | exact h5.symm | exact h5⟩
+  simp only [okPart, Option.map_some, binlogValView, Val.ofValue, v_post, s_post, hi]
 
 end mysql_common.BinlogUtil

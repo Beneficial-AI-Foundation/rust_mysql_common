@@ -161,16 +161,16 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
     (ht : binlogEffType ct md.val = .MYSQL_TYPE_YEAR) (y : Nat) (hy : 1901 ≤ y ∧ y ≤ 2155)
     (tail : List U8) (h : buf.val = byte (y - 1900) :: tail) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest =>
-      (okPart r).map binlogValView = some (some (.bytes (decimalBytes y))) ∧ rest.val = tail ⦄ := by
-  sorry
+      (okPart r).map binlogValView = some (some (.bytes (decimalBytes y))) ∧ rest.val = tail ⦄ := 
+  BinlogUtil.deser_year_roundtrip ct md uns part buf ht y hy tail h
 
 /-- **Bug**: the YEAR byte 0, MySQL's year `0000` (value 0: `Field_year::val_int`; `SELECT` returns `0000`; `binlogRead` gives `"0"`), reads as `"1900"`. Only `mysqlbinlog` prints it as 1900 (`log_event.cc:2033`). -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_year_zero (h64 : Target64)
     (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
     (ht : binlogEffType ct md.val = .MYSQL_TYPE_YEAR) (tail : List U8) (h : buf.val = byte 0 :: tail) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest =>
-      (okPart r).map binlogValView = some (some (.bytes (decimalBytes 1900))) ∧ rest.val = tail ⦄ := by
-  sorry
+      (okPart r).map binlogValView = some (some (.bytes (decimalBytes 1900))) ∧ rest.val = tail ⦄ := 
+  BinlogUtil.deser_year_zero ct md uns part buf ht tail h
 
 /-- TIMESTAMP2 round trip without fraction: MySQL's encoding (`timestamp2Bin`) of a timestamp in range (seconds below `2^31`) with zero microseconds reads back as the text of the seconds. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_timestamp2_roundtrip (h64 : Target64)
@@ -179,7 +179,7 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
     (hm : md.val = d :: t) (sec : Nat) (hs : sec < 2 ^ 31) (tail : List U8)
     (h : buf.val = timestamp2Bin d.val sec 0 ++ tail) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf ⦃ r rest =>
-      (okPart r).map binlogValView = some (some (.bytes (decimalBytes sec))) ∧ rest.val = tail ⦄ := by
-  sorry
+      (okPart r).map binlogValView = some (some (.bytes (decimalBytes sec))) ∧ rest.val = tail ⦄ := 
+  BinlogUtil.deser_timestamp2_roundtrip ct md uns part buf ht d t hm sec hs tail h
 
 end mysql_common
