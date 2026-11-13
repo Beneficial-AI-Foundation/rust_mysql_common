@@ -24,6 +24,7 @@ HandshakeResponse,SslRequest}.lean`). -/
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
+open core.result.Result.Insts
 
 namespace mysql_common.ConnHSUtil
 
@@ -792,5 +793,29 @@ theorem hsRespRead_eq (bs : List U8) : hsRespRead bs =
                        pluginName := (hrPnRead caps r3).1 }, kvs), r5) := by
   unfold hsRespRead
   rfl
+
+/-! ## Failure chains -/
+
+theorem bind_fail_pair {α β γ : Type} {m : Result (α × β)} {k : α → β → Result γ} {P : α → β → Prop}
+    {e : Error} (hm : m ⦃ a b => P a b ⦄) (hk : ∀ a b, P a b → k a b = fail e) :
+    (do let (a, b) ← m; k a b) = fail e := by
+  obtain ⟨⟨a, b⟩, h1, h2⟩ := PBUtil.spec_eq_ok hm
+  rw [h1]; simpa using hk a b h2
+
+theorem branch_ok_spec {T E : Type} (x : T) :
+    CoreOpsTry.branch (core.result.Result.Ok x : core.result.Result T E) ⦃ c =>
+      c = core.ops.control_flow.ControlFlow.Continue x ⦄ := by
+  simp [CAUtil.branch_ok]
+
+theorem i8_sub_fail (x y : I8) (h : ¬ (-128 ≤ x.val - y.val ∧ x.val - y.val ≤ 127)) :
+    x - y = fail .integerOverflow := by
+  show IScalar.tryMk .I8 (x.val - y.val) = _
+  unfold IScalar.tryMk IScalar.tryMkOpt
+  rw [dite_eq_right_iff.mpr]
+  · rfl
+  · intro hc; exfalso; apply h
+    have := IScalar.check_bounds_imp_inBounds hc
+    simp [IScalar.inBounds, IScalarTy.numBits] at this
+    omega
 
 end mysql_common.ConnHSUtil

@@ -391,10 +391,217 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
     show some (cowList cc) = _
     rw [hpr2]
 
+set_option maxHeartbeats 4000000 in
 /-- **Bug: `MyDeserialize for HandshakePacket` panics on a server-supplied length byte in `128..135`** (with `CLIENT_SECURE_CONNECTION`): `auth_plugin_data_len as i8 - 8` overflows (`handshakePanics`). A server, or anyone in the middle before TLS, can crash a client built with overflow checks (e.g. a debug build) with the first packet. (Without overflow checks the subtraction wraps to exactly `b - 8`, the protocol's value, and the packet is read correctly.) -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : handshakePanics buf.val) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail .integerOverflow := by
-  sorry
+  unfold packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  obtain ⟨pv, r1, hbuf⟩ : ∃ pv r1, buf.val = pv :: r1 := by
+    cases hh : buf.val with
+    | nil => rw [hh] at h; exact absurd h id
+    | cons pv r1 => exact ⟨pv, r1, rfl⟩
+  rw [hbuf] at h
+  unfold handshakePanics at h
+  rcases hn : nulStrRead r1 with ⟨_ | sv, r2v⟩ <;> simp only [hn] at h
+  obtain ⟨hr2, hst, hsec, hb1, hb2⟩ := h
+  apply bind_fail_pair (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf)
+  intro r b1 hr
+  have hl : 1 ≤ buf.length := by simp [Slice.length, hbuf]
+  simp only [hl, ite_true, hbuf] at hr
+  obtain ⟨hra, hrb⟩ := hr
+  cases r with
+  | Err e => simp [okPart] at hra
+  | Ok v0 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec v0)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  have hb1 : b1.val = r1 := by simpa using hrb
+  apply bind_fail_pair (CAUtil.parse_null_bytes_spec b1)
+  intro r2 b2 h2
+  simp only [hb1, hn, Prod.mk.injEq] at h2
+  obtain ⟨h2a, h2b⟩ := h2
+  cases r2 with
+  | Err e => simp [okPart] at h2a
+  | Ok rb =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec rb)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (parse_usize_spec b2 31#usize)
+  intro r3 b3 h3
+  have hl3 : (31#usize).val ≤ b2.length := by simp [Slice.length, h2b]; omega
+  simp only [hl3, ite_true, h2b] at h3
+  obtain ⟨h3a, h3b⟩ := h3
+  cases r3 with
+  | Err e => simp [okPart] at h3a
+  | Ok pb =>
+  have hpb : pb.val = r2v.take 31 := Option.some.inj h3a
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec pb)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (pu_rawint_leu32 pb (by simp only [Slice.length, hpb]; simp; omega))
+  intro q1 s1 k1
+  obtain ⟨k1a, k1b⟩ := k1
+  cases q1 with
+  | Err e => simp [okPart] at k1a
+  | Ok w1 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w1)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (pu_array 8#usize s1 (by simp only [Slice.length, k1b, hpb]; simp; omega))
+  intro q2 s2 k2
+  obtain ⟨k2a, k2b⟩ := k2
+  cases q2 with
+  | Err e => simp [okPart] at k2a
+  | Ok w2 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w2)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (pu_skip 1#usize s2 (by simp only [Slice.length, k2b, k1b, hpb]; simp; omega))
+  intro q3 s3 k3
+  obtain ⟨k3a, k3b⟩ := k3
+  cases q3 with
+  | Err e => simp [okPart] at k3a
+  | Ok w3 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w3)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (pu_rawconst_lower constants.CapabilityFlags s3 (by simp only [Slice.length, k3b, k2b, k1b, hpb]; simp; omega))
+  intro q4 s4 k4
+  obtain ⟨k4a, k4b⟩ := k4
+  cases q4 with
+  | Err e => simp [okPart] at k4a
+  | Ok w4 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w4)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (parse_unchecked_u8_spec s4 (by simp only [Slice.length, k4b, k3b, k2b, k1b, hpb]; simp; omega))
+  intro q5 s5 k5
+  obtain ⟨k5a, k5b⟩ := k5
+  cases q5 with
+  | Err e => simp [okPart] at k5a
+  | Ok w5 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w5)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (parse_unchecked_status_spec s5 (by simp only [Slice.length, k5b, k4b, k3b, k2b, k1b, hpb]; simp; omega))
+  intro q6 s6 k6
+  obtain ⟨k6a, k6b⟩ := k6
+  cases q6 with
+  | Err e =>
+    exfalso; apply hst
+    have e5 : s5.val = (r2v.take 31).drop 16 := by
+      rw [k5b, k4b, k3b, k2b, k1b, hpb]; simp [List.drop_drop]
+    have : statusRead (leNat (((r2v.take 31).drop 16).take 2)) = none := by
+      rw [← e5, ← k6a]; rfl
+    rwa [field_take31 r2v 16 2 (by norm_num)] at this
+  | Ok w6 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w6)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (pu_rawconst_upper constants.CapabilityFlags s6 (by simp only [Slice.length, k6b, k5b, k4b, k3b, k2b, k1b, hpb]; simp; omega))
+  intro q7 s7 k7
+  obtain ⟨k7a, k7b⟩ := k7
+  cases q7 with
+  | Err e => simp [okPart] at k7a
+  | Ok w7 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w7)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (parse_unchecked_u8_spec s7 (by simp only [Slice.length, k7b, k6b, k5b, k4b, k3b, k2b, k1b, hpb]; simp; omega))
+  intro q8 s8 k8
+  obtain ⟨k8a, k8b⟩ := k8
+  cases q8 with
+  | Err e => simp [okPart] at k8a
+  | Ok w8 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w8)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (pu_skip 6#usize s8 (by simp only [Slice.length, k8b, k7b, k6b, k5b, k4b, k3b, k2b, k1b, hpb]; simp; omega))
+  intro q9 s9 k9
+  obtain ⟨k9a, k9b⟩ := k9
+  cases q9 with
+  | Err e => simp [okPart] at k9a
+  | Ok w9 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w9)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  apply bind_fail_pair (pu_rawconst_leu32 constants.MariadbCapabilities s9 (by simp only [Slice.length, k9b, k8b, k7b, k6b, k5b, k4b, k3b, k2b, k1b, hpb]; simp; omega))
+  intro q10 s10 k10
+  obtain ⟨k10a, k10b⟩ := k10
+  cases q10 with
+  | Err e => simp [okPart] at k10a
+  | Ok w10 =>
+  apply PBUtil.bind_fail_of_spec (branch_ok_spec w10)
+  rintro c rfl
+  split
+  rotate_left
+  · rename_i hh; cases hh
+  rename_i hh; cases hh
+  obtain ⟨cl, ph4⟩ := w4
+  obtain ⟨lb, ph8⟩ := w8
+  rw [Std.uncurry_apply_pair]
+  apply PBUtil.bind_fail_of_spec (caps_bits_spec _)
+  rintro i1 rfl
+  apply PBUtil.bind_fail_of_spec (show lift (cl &&& constants.CapabilityFlags.CLIENT_SECURE_CONNECTION) ⦃ r =>
+    r = cl &&& constants.CapabilityFlags.CLIENT_SECURE_CONNECTION ⦄ by simp [lift])
+  rintro i2 rfl
+  have e3 : s3.val = (r2v.take 31).drop 13 := by
+    rw [k3b, k2b, k1b, hpb]; simp [List.drop_drop]
+  have e7 : s7.val = (r2v.take 31).drop 20 := by
+    rw [k7b, k6b, k5b, k4b, k3b, k2b, k1b, hpb]; simp [List.drop_drop]
+  have vcl : cl.val = leNat ((r2v.drop 13).take 2) := by
+    rw [← field_take31 _ _ _ (by norm_num), ← e3]; exact Option.some.inj k4a
+  have vlb : lb.val = (r2v.getD 20 (byte 0)).val := by
+    rw [← leNat_take1_drop _ _ (by omega), ← field_take31 _ _ _ (by norm_num), ← e7]; exact Option.some.inj k8a
+  have hsecv : (constants.CapabilityFlags.CLIENT_SECURE_CONNECTION).val = 2 ^ 15 := by
+    simp [constants.CapabilityFlags.CLIENT_SECURE_CONNECTION]
+  have hpos : cl &&& constants.CapabilityFlags.CLIENT_SECURE_CONNECTION > 0#u32 :=
+    (u32_and_pos_iff cl _ 15 hsecv).2 (by rw [vcl]; simpa [CLIENT_SECURE_CONNECTION] using hsec)
+  rw [ite_eq_left hpos, Std.uncurry_apply_pair]
+  apply PBUtil.bind_fail_of_spec (show lift (UScalar.hcast .I8 lb) ⦃ r => r = UScalar.hcast .I8 lb ⦄ by simp [lift])
+  rintro i4 rfl
+  apply PBUtil.bind_fail_left
+  apply i8_sub_fail
+  have := hcast_i8_val lb
+  have h8 : (8#i8 : I8).val = 8 := by rfl
+  rw [this, h8, vlb]
+  split_ifs <;> omega
 
 private theorem serialize_tail_spec
     (s2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize))
