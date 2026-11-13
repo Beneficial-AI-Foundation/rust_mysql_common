@@ -86,6 +86,21 @@ theorem evHeaderEnc_inj (a b : binlog.events.BinlogEventHeader) (h : evHeaderEnc
   cases p1; cases p2; cases q1; cases q2; cases r1; cases r2; cases u1; cases u2; cases v1; cases v2; cases w1; cases w2
   rw [leBytes_inj32 _ _ h1, h2, leBytes_inj32 _ _ h3, leBytes_inj32 _ _ h4, leBytes_inj32 _ _ h5, leBytes_inj16 _ _ h6]
 
+theorem sat_add_val {ty : UScalarTy} (x y : UScalar ty) :
+    (UScalar.saturating_add x y).val = min (UScalar.max ty) (x.val + y.val) := by
+  have h : min (UScalar.max ty) (x.val + y.val) < 2 ^ ty.numBits := by
+    have h1 : UScalar.max ty = 2 ^ ty.numBits - 1 := by rw [UScalar.max]
+    have h2 : 0 < 2 ^ ty.numBits := Nat.pow_pos (by norm_num)
+    omega
+  simp only [UScalar.saturating_add, UScalar.val, BitVec.toNat_ofNat]
+  exact Nat.mod_eq_of_lt h
+
+theorem sat_add_usize (x y : Usize) :
+    (core.num.Usize.saturating_add x y).val = min Usize.max (x.val + y.val) := by
+  have := sat_add_val x y
+  rw [UScalar.max_USize_eq] at this
+  exact this
+
 /-! ## `parse_unchecked` of fixed-size integers, as `Ok` results -/
 
 theorem pu_rawint {T P : Type} (inst : misc.raw.int.IntRepr T P) (buf : io.ParseBuf) (k : Nat) (g : P → Nat)

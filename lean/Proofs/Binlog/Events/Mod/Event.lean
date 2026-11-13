@@ -1,42 +1,113 @@
 import Defs
+import Proofs.Util.BinlogEvHdr
+import Proofs.Binlog.Events.Mod.BinlogEventFooter
+import Proofs.Binlog.Consts.EventType
 
 /-! Statements for `struct Event and its impls` (spec file: `Specs/Binlog/Events.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.EvHdrUtil
 
 namespace mysql_common
 
 /-- `fde`: the format description event the event was read with. -/
 theorem binlog.events.Event.impl.fde_eq (self : binlog.events.Event) :
     binlog.events.Event.impl.fde self = ok self.fde := by
-  sorry
+  rfl
 
 /-- `header`: the common header. -/
 theorem binlog.events.Event.impl.header_eq (self : binlog.events.Event) :
     binlog.events.Event.impl.header self = ok self.header := by
-  sorry
+  rfl
 
 /-- `data`: the event data (footer stripped). -/
 theorem binlog.events.Event.impl.data_spec (self : binlog.events.Event) :
     binlog.events.Event.impl.data self ⦃ s => s.val = self.data.val ⦄ := by
-  sorry
+  simp [binlog.events.Event.impl.data, alloc.vec.Vec.deref]
 
 /-- `footer`. -/
 theorem binlog.events.Event.impl.footer_eq (self : binlog.events.Event) :
     binlog.events.Event.impl.footer self = ok self.footer := by
-  sorry
+  rfl
 
 /-- `checksum`: the stored checksum iff the event carries one (`evHasChecksum`). -/
 theorem binlog.events.Event.impl.checksum_eq (self : binlog.events.Event) :
     binlog.events.Event.impl.checksum self = ok (if evHasChecksum self.footer self.header.event_type.1.val then some self.checksum else none) := by
-  sorry
+  obtain ⟨fde, ⟨h1, ⟨t, u⟩, h3, h4, h5, h6⟩, data, ⟨ca, en⟩, cs⟩ := self
+  cases ca with
+  | none => simp [binlog.events.Event.impl.checksum, binlog.events.event_checksum, evHasChecksum, footerAlg]
+  | some c =>
+    obtain ⟨a, v⟩ := c
+    have e15 : (15#u8 + 0#u8 : Result U8) = ok 15#u8 := by rfl
+    have ec : UScalar.cast .U8 15#u8 = 15#u8 := by rfl
+    simp only [binlog.events.Event.impl.checksum, binlog.events.event_checksum, evHasChecksum, footerAlg, e15, ec, bind_ok, lift,
+      Option.map]
+    by_cases ht : t = 15#u8
+    · subst ht; simp
+    · have ht' : t.val ≠ 15 := fun h => ht (UScalar.eq_of_val_eq (by simpa using h))
+      by_cases ha : a = 0#u8
+      · subst ha; simp [ht, ht']
+      · have ha' : a.val ≠ 0 := fun h => ha (UScalar.eq_of_val_eq (by simpa using h))
+        simp [ht, ht', ha, ha']
 
 /-- `len` (private, used by `write`): `eventLen`. -/
 theorem binlog.events.Event.len_spec (self : binlog.events.Event) (v : binlog.consts.BinlogVersion) :
     binlog.events.Event.len self v ⦃ n => n.val = eventLen self ⦄ := by
-  sorry
+  obtain ⟨fde, ⟨h1, ⟨t, u⟩, h3, h4, h5, h6⟩, data, ft, cs⟩ := self
+  have e15 : (15#u8 + 0#u8 : Result U8) = ok 15#u8 := by rfl
+  have ec : UScalar.cast .U8 15#u8 = 15#u8 := by rfl
+  have hL : binlog.events.BinlogEventHeader.LEN = 19#usize := by unfold binlog.events.BinlogEventHeader.LEN; rfl
+  have hM : (UScalar.cast .Usize core.num.U32.MAX).val = 2 ^ 32 - 1 := by
+    rw [IntAndMisc.cast_usize_small _ (by decide)]; rfl
+  have hUM : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  simp only [binlog.events.Event.len, e15, ec, bind_ok, lift]
+  apply WP.spec_bind (binlog.events.BinlogEventFooter.get_checksum_alg_spec ft)
+  intro r hr
+  unfold binlog.events.event_len
+  simp only [lift, bind_ok, hL]
+  have hD : binlog.events.BinlogEventFooter.BINLOG_CHECKSUM_ALG_DESC_LEN = 1#usize := by
+    unfold binlog.events.BinlogEventFooter.BINLOG_CHECKSUM_ALG_DESC_LEN; rfl
+  have hC : binlog.events.BinlogEventFooter.BINLOG_CHECKSUM_LEN = 4#usize := by
+    unfold binlog.events.BinlogEventFooter.BINLOG_CHECKSUM_LEN; rfl
+  have hl : data.len.val = data.val.length := rfl
+  obtain ⟨ca, en⟩ := ft
+  have ht : (t = 15#u8) ↔ t.val = 15 := ⟨fun h => by subst h; rfl, fun h => UScalar.eq_of_val_eq (by simpa using h)⟩
+  cases ca with
+  | none =>
+    simp only [footerAlg, Option.map] at hr
+    subst hr
+    simp only
+    step*
+    simp_all [sat_add_usize, eventLen, footerAlg, evLenCap, Option.map, Option.bind]
+    omega
+  | some c =>
+    obtain ⟨a, w⟩ := c
+    simp only [footerAlg, Option.map] at hr
+    cases hca : checksumAlgOfCode a.val with
+    | none =>
+      rw [hca] at hr; subst hr
+      simp only
+      step*
+      simp_all [sat_add_usize, eventLen, footerAlg, evLenCap, Option.map, Option.bind]
+      omega
+    | some alg =>
+      rw [hca] at hr; subst hr
+      simp only [hD, hC]
+      by_cases h15 : t = 15#u8
+      · simp only [h15, decide_true, ite_true, bind_ok]
+        step*
+        simp_all [sat_add_usize, eventLen, footerAlg, evLenCap, Option.map, Option.bind]
+        omega
+      · simp only [h15, decide_false, Bool.false_eq_true, ite_false, bind_ok]
+        cases alg
+        all_goals
+          simp only [binlog.consts.BinlogChecksumAlg.Insts.CoreCmpPartialEqBinlogChecksumAlg.eq,
+            binlog.consts.BinlogChecksumAlg.read_discriminant, bind_ok]
+          simp_all [eventLen, footerAlg, checksumAlgCode, evLenCap, Option.map, Option.bind]
+          step*
+          simp_all [sat_add_usize]
+          omega
 
 /-- `read_event::<T>`: `T` is parsed from the data with `parse` (so `T::SIZE` is checked) in the context (`19 + data.len()`, the FDE, the raw type); its error is passed on; a success is `Ok` iff no bytes are left, and otherwise the (opaque) `bytes_remaining_error`. -/
 theorem binlog.events.Event.read_event_spec {T : Type} (inst : binlog.BinlogEvent T) (self : binlog.events.Event) (hlen : self.data.length + 19 ≤ Usize.max)
