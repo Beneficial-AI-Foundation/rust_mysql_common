@@ -2,6 +2,7 @@ import Defs
 import Proofs.Util.ParseBuf
 import Proofs.Proto.Codec.PacketCodecInner
 import Proofs.Proto.Codec.PlainPacketCodec
+import Proofs.Proto.Codec.CompPacketCodec
 
 /-! Statements for `struct PacketCodec and its impls` (spec file: `Specs/Proto/Codec.lean`). -/
 
@@ -179,7 +180,18 @@ theorem proto.codec.PacketCodec.compress_then_encode_panics (self : proto.codec.
     (h : dst.val.length + 8 * (frame c.seq_id.val packet.val).length ≤ Usize.max) :
     proto.codec.PacketCodec.compress self lvl ⦃ c2 =>
       proto.codec.PacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve c2 packet dst = fail .panic ⦄ := by
-  sorry
+  obtain ⟨c2, hv, hp⟩ := PBUtil.spec_eq_ok (proto.codec.PacketCodec.compress_spec self lvl)
+  rw [hv]
+  simp only [WP.spec_ok]
+  rw [hc] at hp
+  obtain ⟨hmx, cc, hin, hlv, -, -, hob, -, hdf, -, hpc⟩ := hp
+  rw [proto.codec.PacketCodec.encode_comp_eq c2 cc hin]
+  have hob' : (cc.out_buf.val ++ frame cc.plain_codec.seq_id.val packet.val) = frame c.seq_id.val packet.val := by
+    rw [hob, hpc]; rfl
+  rw [proto.codec.CompPacketCodec.encode_level_panic cc packet dst c2.max_allowed_packet hdf (by rw [hlv]; exact hlvl)
+    (by rw [hmx]; exact hp) (by rw [hob', hmx]; exact hbig)
+    (by rw [hob', hob]; simp only [List.length_nil, zero_add]; exact ⟨by have := frame_length c.seq_id.val packet.val; rw [hpc]; omega, by simpa using h⟩)]
+  simp
 
 /-- `Default`: a plain codec with sequence id 0, an idle chunk reader and `max_allowed_packet` = `DEFAULT_MAX_ALLOWED_PACKET` = 4 MiB. -/
 theorem proto.codec.PacketCodec.default_eq :
