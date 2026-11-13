@@ -58,7 +58,7 @@ recall row.new_row_raw_spec (values : alloc.vec.Vec (Option value.Value)) (colum
 /-- `new_row_raw` panics (`assert!`) when the numbers of cells and columns differ. -/
 recall row.new_row_raw_panics (values : alloc.vec.Vec (Option value.Value)) (columns : alloc.sync.Arc (Slice packets.Column))
     (h : values.length ≠ columns.length) :
-    ¬ row.new_row_raw values columns ⦃ _ => True ⦄
+    row.new_row_raw values columns = fail .assertionFailure
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms row.new_row_raw_panics

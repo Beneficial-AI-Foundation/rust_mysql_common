@@ -126,28 +126,25 @@ private theorem deser_body (bs : List U8) (it : core.ops.range.Range Usize) (b :
 
 
 private theorem put_u8_full (b : alloc.vec.Vec U8) (x : U8) (hb : ¬ b.length + 1 ≤ Usize.max) :
-    ¬ alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 b x ⦃ _ => True ⦄ := by
+    alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 b x = fail .panic := by
   unfold alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice
     alloc.vec.Vec.extend_from_slice
   simp only [lift, Std.bind_ok]
   have hb' : ¬ (b.length + (Array.to_slice (Array.make 1#usize [x] (by simp))).length ≤ Usize.max) := by simpa using hb
   simp only [hb', ↓reduceDIte]
-  simp
 
 private theorem body_small_full (v : U32) (hv : v.val < 128) (b : alloc.vec.Vec U8)
     (hb : ¬ b.length + 1 ≤ Usize.max) :
-    ¬ misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop.body v b ⦃ _ => True ⦄ := by
-  intro hs
-  unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop.body at hs
-  simp only [lift, Std.bind_ok] at hs
-  obtain ⟨v1, hv1, hs⟩ := PBUtil.spec_eq_ok (IntAndMisc.spec_bind_inv hs)
-  have h1 := U32.ShiftRight_IScalar_spec v 7#i32 (by decide) (by decide)
-  rw [hv1, spec_ok] at h1
+    misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop.body v b = fail .panic := by
+  unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop.body
+  simp only [lift, Std.bind_ok]
+  apply PBUtil.bind_fail_of_spec (U32.ShiftRight_IScalar_spec v 7#i32 (by decide) (by decide))
+  intro v1 h1
   have h0 : v1 = 0#u32 := by
     apply UScalar.eq_of_val_eq; rw [h1.1]; simp [Nat.shiftRight_eq_div_pow]; omega
   subst h0
-  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte] at hs
-  exact PBUtil.not_spec_bind_left (put_u8_full b _ hb) hs
+  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+  exact PBUtil.bind_fail_left (put_u8_full b _ hb)
 
 private theorem body_small (v : U32) (hv : v.val < 128) (b : alloc.vec.Vec U8)
     (hb : b.length + 1 ≤ Usize.max) :
@@ -164,7 +161,7 @@ private theorem body_small (v : U32) (hv : v.val < 128) (b : alloc.vec.Vec U8)
 
 private theorem loop_small_fails : ∀ (n : Nat) (v : U32) (b : alloc.vec.Vec U8), v.val < 128 →
     Usize.max - b.length = n →
-    ¬ misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop v b ⦃ _ => True ⦄ := by
+    misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop v b = fail .panic := by
   intro n
   induction n using Nat.strong_induction_on with
   | _ n ih =>
@@ -172,12 +169,12 @@ private theorem loop_small_fails : ∀ (n : Nat) (v : U32) (b : alloc.vec.Vec U8
     unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop
     rw [loop]
     by_cases hb : b.length + 1 ≤ Usize.max
-    · apply PBUtil.not_spec_bind (body_small v hv b hb)
+    · apply PBUtil.bind_fail_of_spec (body_small v hv b hb)
       rintro r ⟨b', rfl, hb'⟩
       have := ih (Usize.max - b'.length) (by omega) 0#u32 b' (by decide) rfl
       unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_loop at this
       simpa using this
-    · exact PBUtil.not_spec_bind_left (body_small_full v hv b hb)
+    · exact PBUtil.bind_fail_left (body_small_full v hv b hb)
 
 
 /-- `VarLen::SIZE` is `None`. -/
@@ -260,12 +257,11 @@ theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_lar
 
 /-- **Bug.** For `x < 128`, `VarLen::serialize` never returns: after writing `x` its loop keeps
     appending `0` bytes forever (in Rust: until allocation fails and the process aborts; in the
-    Lean model: until the `Vec` reaches `usize::MAX` and the next `push` fails). It is stated as
-    "does not return normally" rather than as an equation because the failure only comes after
-    `usize::MAX` iterations of the loop. -/
+    Lean model: until the `Vec` reaches `usize::MAX` and the next `push` fails, which is the
+    panic stated here; it is reached for every `buf`, after `usize::MAX - buf.len()` iterations). -/
 theorem misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_small_fails (x : U32) (buf : alloc.vec.Vec U8) (hx : x.val < 128) :
-    ¬ misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize x buf ⦃ _ => True ⦄ := by
+    misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize x buf = fail .panic := by
   unfold misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize
-  exact PBUtil.not_spec_bind_left (loop_small_fails _ x buf hx rfl)
+  exact PBUtil.bind_fail_left (loop_small_fails _ x buf hx rfl)
 
 end mysql_common

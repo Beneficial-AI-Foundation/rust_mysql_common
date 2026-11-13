@@ -15,7 +15,7 @@ import Proofs.Io.ParseBuf
     is the vector afterwards. Unchecked readers are stated under the length precondition that rules
     out their panic; every `checked_*` reader is stated for every input. A `Vec` is assumed able to grow
     (Aeneas models allocation as infallible, bounded only by `usize::MAX`).
-    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
+    Panics are stated as equations `f x = fail e`: `f x` stops with a Rust panic (it neither returns nor runs forever). `e` is the Aeneas library's label for the kind of panic (`.panic` in general, `.assertionFailure` for a failed `assert!`, `.undef` for an out-of-range `[n..]`); Rust does not distinguish them.
 
     **Definitions used.** `Defs/Bytes.lean` (`leBytes`, `leBytesI`, `leNat`, `beNat`, `toSigned`,
     `byte`, `beforeZero`, `okPart`, `Target64`), `Defs/LenEnc.lean` (`lenencInt`, `lenencStr`,
@@ -171,9 +171,9 @@ recall io.ParseBuf.skip_spec (buf : io.ParseBuf) (cnt : Usize) (h : cnt.val ≤ 
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.skip_spec
-/-- `skip(cnt)` panics if `cnt > len`. -/
+/-- `skip(cnt)` panics if `cnt > len` (`.undef` is the Aeneas library's label for the out-of-range `[cnt..]`). -/
 recall io.ParseBuf.skip_panics (buf : io.ParseBuf) (cnt : Usize) (h : buf.length < cnt.val) :
-    ¬ io.ParseBuf.skip buf cnt ⦃ _ => True ⦄
+    io.ParseBuf.skip buf cnt = fail .undef
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.skip_panics
@@ -193,7 +193,7 @@ recall io.ParseBuf.eat_spec (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ buf.l
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_spec
 /-- `eat(n)` panics if `n > len` (documented). -/
 recall io.ParseBuf.eat_panics (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
-    ¬ io.ParseBuf.eat buf n ⦃ _ => True ⦄
+    io.ParseBuf.eat buf n = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_panics
@@ -205,7 +205,7 @@ recall io.ParseBuf.eat_buf_spec (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ b
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_buf_spec
 /-- `eat_buf(n)` panics if `n > len`. -/
 recall io.ParseBuf.eat_buf_panics (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
-    ¬ io.ParseBuf.eat_buf buf n ⦃ _ => True ⦄
+    io.ParseBuf.eat_buf buf n = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_buf_panics
@@ -242,7 +242,7 @@ recall io.ParseBuf.eat_u8_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u8_spec
 /-- `eat_u8` panics on a buffer of fewer than 1 byte. -/
 recall io.ParseBuf.eat_u8_panics (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ io.ParseBuf.eat_u8 buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u8 buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u8_panics
@@ -263,7 +263,7 @@ recall io.ParseBuf.eat_i8_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i8_spec
 /-- `eat_i8` panics on a buffer of fewer than 1 byte. -/
 recall io.ParseBuf.eat_i8_panics (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ io.ParseBuf.eat_i8 buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i8 buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i8_panics
@@ -284,7 +284,7 @@ recall io.ParseBuf.eat_u16_le_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u16_le_spec
 /-- `eat_u16_le` panics on a buffer of fewer than 2 bytes. -/
 recall io.ParseBuf.eat_u16_le_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_u16_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u16_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u16_le_panics
@@ -305,7 +305,7 @@ recall io.ParseBuf.eat_i16_le_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i16_le_spec
 /-- `eat_i16_le` panics on a buffer of fewer than 2 bytes. -/
 recall io.ParseBuf.eat_i16_le_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_i16_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i16_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i16_le_panics
@@ -326,7 +326,7 @@ recall io.ParseBuf.eat_u16_be_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u16_be_spec
 /-- `eat_u16_be` panics on a buffer of fewer than 2 bytes. -/
 recall io.ParseBuf.eat_u16_be_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_u16_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u16_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u16_be_panics
@@ -347,7 +347,7 @@ recall io.ParseBuf.eat_i16_be_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i16_be_spec
 /-- `eat_i16_be` panics on a buffer of fewer than 2 bytes. -/
 recall io.ParseBuf.eat_i16_be_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_i16_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i16_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i16_be_panics
@@ -368,7 +368,7 @@ recall io.ParseBuf.eat_u24_le_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u24_le_spec
 /-- `eat_u24_le` panics on a buffer of fewer than 3 bytes. -/
 recall io.ParseBuf.eat_u24_le_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_u24_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u24_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u24_le_panics
@@ -389,7 +389,7 @@ recall io.ParseBuf.eat_i24_le_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i24_le_spec
 /-- `eat_i24_le` panics on a buffer of fewer than 3 bytes. -/
 recall io.ParseBuf.eat_i24_le_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_i24_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i24_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i24_le_panics
@@ -410,7 +410,7 @@ recall io.ParseBuf.eat_u24_be_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u24_be_spec
 /-- `eat_u24_be` panics on a buffer of fewer than 3 bytes. -/
 recall io.ParseBuf.eat_u24_be_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_u24_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u24_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u24_be_panics
@@ -431,7 +431,7 @@ recall io.ParseBuf.eat_i24_be_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i24_be_spec
 /-- `eat_i24_be` panics on a buffer of fewer than 3 bytes. -/
 recall io.ParseBuf.eat_i24_be_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_i24_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i24_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i24_be_panics
@@ -452,7 +452,7 @@ recall io.ParseBuf.eat_u32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u32_le_spec
 /-- `eat_u32_le` panics on a buffer of fewer than 4 bytes. -/
 recall io.ParseBuf.eat_u32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_u32_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u32_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u32_le_panics
@@ -473,7 +473,7 @@ recall io.ParseBuf.eat_i32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i32_le_spec
 /-- `eat_i32_le` panics on a buffer of fewer than 4 bytes. -/
 recall io.ParseBuf.eat_i32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_i32_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i32_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i32_le_panics
@@ -494,7 +494,7 @@ recall io.ParseBuf.eat_u32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u32_be_spec
 /-- `eat_u32_be` panics on a buffer of fewer than 4 bytes. -/
 recall io.ParseBuf.eat_u32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_u32_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u32_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u32_be_panics
@@ -515,7 +515,7 @@ recall io.ParseBuf.eat_i32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i32_be_spec
 /-- `eat_i32_be` panics on a buffer of fewer than 4 bytes. -/
 recall io.ParseBuf.eat_i32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_i32_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i32_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i32_be_panics
@@ -536,7 +536,7 @@ recall io.ParseBuf.eat_u40_le_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u40_le_spec
 /-- `eat_u40_le` panics on a buffer of fewer than 5 bytes. -/
 recall io.ParseBuf.eat_u40_le_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_u40_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u40_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u40_le_panics
@@ -557,7 +557,7 @@ recall io.ParseBuf.eat_i40_le_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i40_le_spec
 /-- `eat_i40_le` panics on a buffer of fewer than 5 bytes. -/
 recall io.ParseBuf.eat_i40_le_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_i40_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i40_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i40_le_panics
@@ -578,7 +578,7 @@ recall io.ParseBuf.eat_u40_be_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u40_be_spec
 /-- `eat_u40_be` panics on a buffer of fewer than 5 bytes. -/
 recall io.ParseBuf.eat_u40_be_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_u40_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u40_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u40_be_panics
@@ -599,7 +599,7 @@ recall io.ParseBuf.eat_i40_be_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i40_be_spec
 /-- `eat_i40_be` panics on a buffer of fewer than 5 bytes. -/
 recall io.ParseBuf.eat_i40_be_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_i40_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i40_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i40_be_panics
@@ -620,7 +620,7 @@ recall io.ParseBuf.eat_u48_le_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u48_le_spec
 /-- `eat_u48_le` panics on a buffer of fewer than 6 bytes. -/
 recall io.ParseBuf.eat_u48_le_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_u48_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u48_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u48_le_panics
@@ -641,7 +641,7 @@ recall io.ParseBuf.eat_i48_le_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i48_le_spec
 /-- `eat_i48_le` panics on a buffer of fewer than 6 bytes. -/
 recall io.ParseBuf.eat_i48_le_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_i48_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i48_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i48_le_panics
@@ -662,7 +662,7 @@ recall io.ParseBuf.eat_u48_be_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u48_be_spec
 /-- `eat_u48_be` panics on a buffer of fewer than 6 bytes. -/
 recall io.ParseBuf.eat_u48_be_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_u48_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u48_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u48_be_panics
@@ -683,7 +683,7 @@ recall io.ParseBuf.eat_i48_be_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i48_be_spec
 /-- `eat_i48_be` panics on a buffer of fewer than 6 bytes. -/
 recall io.ParseBuf.eat_i48_be_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_i48_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i48_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i48_be_panics
@@ -704,7 +704,7 @@ recall io.ParseBuf.eat_u56_le_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u56_le_spec
 /-- `eat_u56_le` panics on a buffer of fewer than 7 bytes. -/
 recall io.ParseBuf.eat_u56_le_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_u56_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u56_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u56_le_panics
@@ -725,7 +725,7 @@ recall io.ParseBuf.eat_i56_le_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i56_le_spec
 /-- `eat_i56_le` panics on a buffer of fewer than 7 bytes. -/
 recall io.ParseBuf.eat_i56_le_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_i56_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i56_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i56_le_panics
@@ -746,7 +746,7 @@ recall io.ParseBuf.eat_u56_be_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u56_be_spec
 /-- `eat_u56_be` panics on a buffer of fewer than 7 bytes. -/
 recall io.ParseBuf.eat_u56_be_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_u56_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u56_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u56_be_panics
@@ -767,7 +767,7 @@ recall io.ParseBuf.eat_i56_be_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i56_be_spec
 /-- `eat_i56_be` panics on a buffer of fewer than 7 bytes. -/
 recall io.ParseBuf.eat_i56_be_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_i56_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i56_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i56_be_panics
@@ -788,7 +788,7 @@ recall io.ParseBuf.eat_u64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u64_le_spec
 /-- `eat_u64_le` panics on a buffer of fewer than 8 bytes. -/
 recall io.ParseBuf.eat_u64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_u64_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u64_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u64_le_panics
@@ -809,7 +809,7 @@ recall io.ParseBuf.eat_i64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i64_le_spec
 /-- `eat_i64_le` panics on a buffer of fewer than 8 bytes. -/
 recall io.ParseBuf.eat_i64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_i64_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i64_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i64_le_panics
@@ -830,7 +830,7 @@ recall io.ParseBuf.eat_u64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u64_be_spec
 /-- `eat_u64_be` panics on a buffer of fewer than 8 bytes. -/
 recall io.ParseBuf.eat_u64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_u64_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u64_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u64_be_panics
@@ -851,7 +851,7 @@ recall io.ParseBuf.eat_i64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i64_be_spec
 /-- `eat_i64_be` panics on a buffer of fewer than 8 bytes. -/
 recall io.ParseBuf.eat_i64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_i64_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i64_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i64_be_panics
@@ -872,7 +872,7 @@ recall io.ParseBuf.eat_u128_le_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) 
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u128_le_spec
 /-- `eat_u128_le` panics on a buffer of fewer than 16 bytes. -/
 recall io.ParseBuf.eat_u128_le_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_u128_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u128_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u128_le_panics
@@ -893,7 +893,7 @@ recall io.ParseBuf.eat_i128_le_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) 
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i128_le_spec
 /-- `eat_i128_le` panics on a buffer of fewer than 16 bytes. -/
 recall io.ParseBuf.eat_i128_le_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_i128_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i128_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i128_le_panics
@@ -914,7 +914,7 @@ recall io.ParseBuf.eat_u128_be_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) 
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u128_be_spec
 /-- `eat_u128_be` panics on a buffer of fewer than 16 bytes. -/
 recall io.ParseBuf.eat_u128_be_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_u128_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u128_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u128_be_panics
@@ -935,7 +935,7 @@ recall io.ParseBuf.eat_i128_be_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length) 
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i128_be_spec
 /-- `eat_i128_be` panics on a buffer of fewer than 16 bytes. -/
 recall io.ParseBuf.eat_i128_be_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_i128_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_i128_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_i128_be_panics
@@ -956,7 +956,7 @@ recall io.ParseBuf.eat_f32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f32_le_spec
 /-- `eat_f32_le` panics on a buffer of fewer than 4 bytes. -/
 recall io.ParseBuf.eat_f32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_f32_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_f32_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f32_le_panics
@@ -977,7 +977,7 @@ recall io.ParseBuf.eat_f32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f32_be_spec
 /-- `eat_f32_be` panics on a buffer of fewer than 4 bytes. -/
 recall io.ParseBuf.eat_f32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_f32_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_f32_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f32_be_panics
@@ -998,7 +998,7 @@ recall io.ParseBuf.eat_f64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f64_le_spec
 /-- `eat_f64_le` panics on a buffer of fewer than 8 bytes. -/
 recall io.ParseBuf.eat_f64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_f64_le buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_f64_le buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f64_le_panics
@@ -1019,7 +1019,7 @@ recall io.ParseBuf.eat_f64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f64_be_spec
 /-- `eat_f64_be` panics on a buffer of fewer than 8 bytes. -/
 recall io.ParseBuf.eat_f64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_f64_be buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_f64_be buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_f64_be_panics
@@ -1042,7 +1042,7 @@ recall io.ParseBuf.eat_lenenc_int_spec (buf : io.ParseBuf) (h : (checkedLenencIn
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_lenenc_int_spec
 /-- `eat_lenenc_int` panics when `checked_eat_lenenc_int` would return `None` (empty or truncated input). -/
 recall io.ParseBuf.eat_lenenc_int_panics (buf : io.ParseBuf) (h : (checkedLenencInt buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_lenenc_int buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_lenenc_int buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_lenenc_int_panics
@@ -1074,7 +1074,7 @@ recall io.ParseBuf.eat_lenenc_str_spec (buf : io.ParseBuf) (h : (checkedLenencSt
 /-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`. (Needs the 64-bit
     target: on a 32-bit `usize` a length `≥ 2^32` is truncated by `len as usize` and may fit.) -/
 recall io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_lenenc_str buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_lenenc_str buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_lenenc_str_panics
@@ -1102,7 +1102,7 @@ recall io.ParseBuf.eat_u8_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed 
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u8_str_spec
 /-- `eat_u8_str` panics when `checked_eat_u8_str` returns `None`. -/
 recall io.ParseBuf.eat_u8_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 1 buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_u8_str buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u8_str buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u8_str_panics
@@ -1121,7 +1121,7 @@ recall io.ParseBuf.eat_u32_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u32_str_spec
 /-- `eat_u32_str` panics when `checked_eat_u32_str` returns `None`. -/
 recall io.ParseBuf.eat_u32_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 4 buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_u32_str buf ⦃ _ => True ⦄
+    io.ParseBuf.eat_u32_str buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms io.ParseBuf.eat_u32_str_panics

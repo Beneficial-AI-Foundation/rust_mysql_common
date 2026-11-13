@@ -127,16 +127,16 @@ theorem val_mk {ty : UScalarTy} (b : BitVec ty.numBits) : (UScalar.mk b : UScala
 theorem spec_eq_ok {α : Type} {m : Result α} {P : α → Prop} (h : m ⦃ P ⦄) : ∃ v, m = ok v ∧ P v := by
   cases m <;> simp_all
 
-/-- A program fails if its first step succeeds and every continuation allowed by its spec fails. -/
-theorem not_spec_bind {α β : Type} {m : Result α} {k : α → Result β} {P : α → Prop} (hm : m ⦃ P ⦄)
-    (hk : ∀ x, P x → ¬ (k x) ⦃ _ => True ⦄) : ¬ (Std.bind m k) ⦃ _ => True ⦄ := by
+/-- A program fails with `e` if its first step succeeds and every continuation allowed by its spec fails with `e`. -/
+theorem bind_fail_of_spec {α β : Type} {m : Result α} {k : α → Result β} {P : α → Prop} {e : Error} (hm : m ⦃ P ⦄)
+    (hk : ∀ x, P x → k x = fail e) : Std.bind m k = fail e := by
   obtain ⟨v, rfl, hv⟩ := spec_eq_ok hm
   simpa using hk v hv
 
-/-- A program fails if its first step fails. -/
-theorem not_spec_bind_left {α β : Type} {m : Result α} {k : α → Result β} {P : β → Prop}
-    (hm : ¬ m ⦃ _ => True ⦄) : ¬ (Std.bind m k) ⦃ P ⦄ := by
-  cases m <;> simp_all
+/-- A program fails with `e` if its first step does. -/
+theorem bind_fail_left {α β : Type} {m : Result α} {k : α → Result β} {e : Error}
+    (hm : m = fail e) : Std.bind m k = fail e := by
+  subst hm; simp
 
 /-! ## Step lemmas for the building blocks -/
 
@@ -152,7 +152,7 @@ theorem eat_ok (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ buf.length) :
   step*
 
 theorem eat_fail (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
-    ¬ io.ParseBuf.eat buf n ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat buf n = fail .panic := by
   unfold io.ParseBuf.eat core.slice.Slice.split_at
   simp [show ¬ n.val ≤ buf.length by omega]
 

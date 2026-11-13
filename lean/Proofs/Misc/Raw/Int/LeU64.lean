@@ -30,9 +30,9 @@ theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_sp
 
 /-- `LeU64::deserialize` panics on fewer than 8 bytes. -/
 theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ _ => True ⦄ := by
+    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf = fail .panic := by
   unfold misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize
-  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u64_le_panics buf h)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_u64_le_panics buf h)
 
 /-- `buf.parse::<RawInt<LeU64>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 8 bytes. -/
 theorem misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec (buf : io.ParseBuf) :

@@ -18,7 +18,7 @@ theorem row.new_row_raw_spec (values : alloc.vec.Vec (Option value.Value)) (colu
 /-- `new_row_raw` panics (`assert!`) when the numbers of cells and columns differ. -/
 theorem row.new_row_raw_panics (values : alloc.vec.Vec (Option value.Value)) (columns : alloc.sync.Arc (Slice packets.Column))
     (h : values.length ≠ columns.length) :
-    ¬ row.new_row_raw values columns ⦃ _ => True ⦄ := by
+    row.new_row_raw values columns = fail .assertionFailure := by
   unfold row.new_row_raw
   simp [alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref, h]
 

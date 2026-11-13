@@ -16,7 +16,7 @@ import Proofs.Misc.Raw.F64
     **Definitions used.** `Defs/Bytes.lean` (`leNat`, `leBytes`, `okPart`).
 
     **Reading the statements.** The generic impls (`Either`) are stated as transfer lemmas: what the
-    component impls guarantee carries over. `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
+    component impls guarantee carries over. Panics are stated as equations `f x = fail e`: `f x` stops with a Rust panic (it neither returns nor runs forever). `e` is the Aeneas library's label for the kind of panic (`.panic` in general, `.assertionFailure` for a failed `assert!`, `.undef` for an out-of-range `[n..]`); Rust does not distinguish them.
 
     **Not covered.** Derived impls (`Debug`, `Clone`, `PartialEq`, ...).
 
@@ -75,7 +75,7 @@ recall ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (
 #guard_msgs (whitespace := lax, substring := true) in #print axioms ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
 /-- `MyDeserialize for [u8; LEN]` panics on fewer than `LEN` bytes. -/
 recall ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (LEN : Usize) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
-    ¬ ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ _ => True ⦄
+    ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
@@ -103,7 +103,7 @@ recall misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
 /-- `MyDeserialize for Skip<LEN>` panics on fewer than `LEN` bytes. -/
 recall misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (LEN : Usize) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
-    ¬ misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ _ => True ⦄
+    misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf = fail .undef
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
@@ -212,7 +212,7 @@ recall F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : i
 #guard_msgs (whitespace := lax, substring := true) in #print axioms F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
 /-- `MyDeserialize for f64` panics on fewer than 8 bytes. -/
 recall F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ _ => True ⦄
+    F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics

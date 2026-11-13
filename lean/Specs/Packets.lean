@@ -698,7 +698,7 @@ recall packets.NullBitmapTVecU8.read_spec {T : Type} (inst : value.Serialization
 recall packets.NullBitmapTVecU8.read_panics {T : Type} (inst : value.SerializationSide T) (off : Usize) (hoff : inst.BIT_OFFSET = ok off)
     (input : Slice U8) (n : Usize) (hn : n.val + 7 + off.val ≤ Usize.max)
     (hin : input.length < nullBitmapLen off.val n.val) :
-    ¬ packets.NullBitmapTVecU8.read inst input n ⦃ _ => True ⦄
+    packets.NullBitmapTVecU8.read inst input n = fail .assertionFailure
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.NullBitmapTVecU8.read_panics
@@ -729,7 +729,7 @@ recall packets.NullBitmap.is_null_panics {T U : Type} (inst : value.Serializatio
     (off : Usize) (hoff : inst.BIT_OFFSET = ok off) (self : packets.NullBitmap T U) (s : Slice U8)
     (hs : asRef.as_ref self.1 = ok s) (i : Usize) (hi : i.val + off.val ≤ Usize.max)
     (hb : s.length ≤ (i.val + off.val) / 8) :
-    ¬ packets.NullBitmap.is_null inst asRef self i ⦃ _ => True ⦄
+    packets.NullBitmap.is_null inst asRef self i = fail .assertionFailure
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.NullBitmap.is_null_panics
@@ -747,7 +747,7 @@ recall packets.NullBitmap.set_spec {T : Type} (inst : value.SerializationSide T)
 recall packets.NullBitmap.set_panics {T : Type} (inst : value.SerializationSide T) (off : Usize) (hoff : inst.BIT_OFFSET = ok off)
     (self : packets.NullBitmap T (alloc.vec.Vec U8)) (i : Usize) (b : Bool)
     (hi : i.val + off.val ≤ Usize.max) (hb : self.1.length ≤ (i.val + off.val) / 8) :
-    ¬ packets.NullBitmap.set inst (alloc.vec.Vec.Insts.CoreConvertAsRefSlice U8 alloc.alloc.Global) (alloc.vec.Vec.Insts.CoreConvertAsMutSlice U8 alloc.alloc.Global) self i b ⦃ _ => True ⦄
+    packets.NullBitmap.set inst (alloc.vec.Vec.Insts.CoreConvertAsRefSlice U8 alloc.alloc.Global) (alloc.vec.Vec.Insts.CoreConvertAsMutSlice U8 alloc.alloc.Global) self i b = fail .assertionFailure
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.NullBitmap.set_panics

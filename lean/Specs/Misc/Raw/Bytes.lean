@@ -24,7 +24,7 @@ import Proofs.Misc.Raw.Bytes.ConstBytes
     `T::MAX_LEN`; each `BytesRepr` impl has its `MAX_LEN`, `SIZE`, `serialize`, `deserialize` and, where
     it holds, the round trip `serialize` then `deserialize`. A `Cow` is read through `cowList`: the
     statements do not distinguish borrowed from owned.
-    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
+    Panics are stated as equations `f x = fail e`: `f x` stops with a Rust panic (it neither returns nor runs forever). `e` is the Aeneas library's label for the kind of panic (`.panic` in general, `.assertionFailure` for a failed `assert!`, `.undef` for an out-of-range `[n..]`); Rust does not distinguish them.
 
     **Not covered.** `RawBytes::into_owned`, `RawBytes::as_str` (UTF-8 conversion), `From`,
     `PartialEq<[u8]>`, `Debug` (excluded from the translation in `Cargo.toml`, or not public API).
@@ -328,7 +328,7 @@ recall misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTup
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec
 /-- `FixedLengthText<LEN>::deserialize` panics on fewer than `LEN` bytes. -/
 recall misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_panics (L : Usize) (buf : io.ParseBuf) (h : buf.length < L.val) :
-    ¬ misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize L () buf ⦃ _ => True ⦄
+    misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize L () buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_panics
@@ -430,7 +430,7 @@ recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.des
 /-- `MyDeserialize for ConstBytes<T, LEN>` panics on fewer than `LEN` bytes. -/
 recall misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T E : Type} {LEN : Usize} (d : core.default.Default T)
     (v : misc.raw.bytes.ConstBytesValue T E LEN) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
-    ¬ misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize d v () buf ⦃ _ => True ⦄
+    misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize d v () buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofError] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics

@@ -10,7 +10,7 @@ import Proofs.Value.ValueDeserializer
     **Configuration.** As in `Specs/Io.lean`. The decoders' exact characterisations take `Target64`
     (lengths are `u64` cast to `usize`).
 
-    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics.
+    Panics are stated as equations `f x = fail e`: `f x` stops with a Rust panic (it neither returns nor runs forever). `e` is the Aeneas library's label for the kind of panic (`.panic` in general, `.assertionFailure` for a failed `assert!`, `.undef` for an out-of-range `[n..]`); Rust does not distinguish them.
 
     **Allocation caveat.** Decoding a byte string copies it (`.to_vec()`, `into_owned`), and
     `serialize` grows the output `Vec`. Aeneas models allocation as infallible (bounded only by

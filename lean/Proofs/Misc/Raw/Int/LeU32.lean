@@ -30,9 +30,9 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_sp
 
 /-- `LeU32::deserialize` panics on fewer than 4 bytes. -/
 theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf ⦃ _ => True ⦄ := by
+    misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf = fail .panic := by
   unfold misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize
-  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u32_le_panics buf h)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_u32_le_panics buf h)
 
 /-- `buf.parse::<RawInt<LeU32>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 4 bytes. -/
 theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec (buf : io.ParseBuf) :

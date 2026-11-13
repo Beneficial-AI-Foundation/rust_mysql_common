@@ -84,9 +84,9 @@ theorem packets.NullBitmapTVecU8.read_spec {T : Type} (inst : value.Serializatio
 theorem packets.NullBitmapTVecU8.read_panics {T : Type} (inst : value.SerializationSide T) (off : Usize) (hoff : inst.BIT_OFFSET = ok off)
     (input : Slice U8) (n : Usize) (hn : n.val + 7 + off.val ≤ Usize.max)
     (hin : input.length < nullBitmapLen off.val n.val) :
-    ¬ packets.NullBitmapTVecU8.read inst input n ⦃ _ => True ⦄ := by
+    packets.NullBitmapTVecU8.read inst input n = fail .assertionFailure := by
   unfold packets.NullBitmapTVecU8.read
-  apply mysql_common.PBUtil.not_spec_bind (bitmap_len_ok inst _ off hoff n hn)
+  apply mysql_common.PBUtil.bind_fail_of_spec (bitmap_len_ok inst _ off hoff n hn)
   intro bl hbl
   simp only [massert, Slice.len]
   have hc : ¬ (Usize.ofNatCore input.val.length (by scalar_tac) ≥ bl) := by
@@ -127,7 +127,7 @@ private theorem byte_and_bit_fail {T U : Type} (inst : value.SerializationSide T
     (off : Usize) (hoff : inst.BIT_OFFSET = ok off) (self : packets.NullBitmap T U) (s : Slice U8)
     (hs : asRef.as_ref self.1 = ok s) (i : Usize) (hi : i.val + off.val ≤ Usize.max)
     (hb : s.length ≤ (i.val + off.val) / 8) :
-    ¬ packets.NullBitmap.byte_and_bit inst asRef self i ⦃ _ => True ⦄ := by
+    packets.NullBitmap.byte_and_bit inst asRef self i = fail .assertionFailure := by
   have e : packets.NullBitmap.byte_and_bit inst asRef self i = (do
       let i0 ← inst.BIT_OFFSET
       let offset ← i + i0
@@ -139,19 +139,19 @@ private theorem byte_and_bit_fail {T U : Type} (inst : value.SerializationSide T
       massert (byte < Slice.len s)
       ok (byte, bit)) := rfl
   rw [e, hoff, Aeneas.Std.bind_ok]
-  apply mysql_common.PBUtil.not_spec_bind (by step* : (i + off) ⦃ o => o.val = i.val + off.val ⦄)
+  apply mysql_common.PBUtil.bind_fail_of_spec (by step* : (i + off) ⦃ o => o.val = i.val + off.val ⦄)
   intro offset ho
-  apply mysql_common.PBUtil.not_spec_bind (by step* : (offset / 8#usize) ⦃ b => b.val = offset.val / 8 ⦄)
+  apply mysql_common.PBUtil.bind_fail_of_spec (by step* : (offset / 8#usize) ⦃ b => b.val = offset.val / 8 ⦄)
   intro byte' hbyte
-  apply mysql_common.PBUtil.not_spec_bind (by step* : (offset % 8#usize) ⦃ b => b.val = offset.val % 8 ⦄)
+  apply mysql_common.PBUtil.bind_fail_of_spec (by step* : (offset % 8#usize) ⦃ b => b.val = offset.val % 8 ⦄)
   intro i1 hi1
-  apply mysql_common.PBUtil.not_spec_bind ((WP.spec_ok _).mpr rfl :
+  apply mysql_common.PBUtil.bind_fail_of_spec ((WP.spec_ok _).mpr rfl :
     lift (UScalar.cast .U8 i1) ⦃ b => b = UScalar.cast .U8 i1 ⦄)
   intro i2 hi2
   have hi2v : i2.val < 8 := by
     rw [hi2, UScalar.cast_val_eq]; have := Nat.mod_lt offset.val (show 8 > 0 by decide)
     simp only [UScalarTy.numBits]; omega
-  apply mysql_common.PBUtil.not_spec_bind (by step* : (1#u8 <<< i2) ⦃ _ => True ⦄)
+  apply mysql_common.PBUtil.bind_fail_of_spec (by step* : (1#u8 <<< i2) ⦃ _ => True ⦄)
   intro bit _
   rw [hs, Aeneas.Std.bind_ok]
   simp only [massert, Slice.len]
@@ -205,9 +205,9 @@ theorem packets.NullBitmap.is_null_panics {T U : Type} (inst : value.Serializati
     (off : Usize) (hoff : inst.BIT_OFFSET = ok off) (self : packets.NullBitmap T U) (s : Slice U8)
     (hs : asRef.as_ref self.1 = ok s) (i : Usize) (hi : i.val + off.val ≤ Usize.max)
     (hb : s.length ≤ (i.val + off.val) / 8) :
-    ¬ packets.NullBitmap.is_null inst asRef self i ⦃ _ => True ⦄ := by
+    packets.NullBitmap.is_null inst asRef self i = fail .assertionFailure := by
   unfold packets.NullBitmap.is_null
-  exact mysql_common.PBUtil.not_spec_bind_left (byte_and_bit_fail inst asRef off hoff self s hs i hi hb)
+  exact mysql_common.PBUtil.bind_fail_left (byte_and_bit_fail inst asRef off hoff self s hs i hi hb)
 
 /-- `set(i, is_null)` (at `Vec<u8>`): sets bit `i + BIT_OFFSET` to `is_null`, every other bit unchanged. -/
 theorem packets.NullBitmap.set_spec {T : Type} (inst : value.SerializationSide T) (off : Usize) (hoff : inst.BIT_OFFSET = ok off)
@@ -275,9 +275,9 @@ theorem packets.NullBitmap.set_spec {T : Type} (inst : value.SerializationSide T
 theorem packets.NullBitmap.set_panics {T : Type} (inst : value.SerializationSide T) (off : Usize) (hoff : inst.BIT_OFFSET = ok off)
     (self : packets.NullBitmap T (alloc.vec.Vec U8)) (i : Usize) (b : Bool)
     (hi : i.val + off.val ≤ Usize.max) (hb : self.1.length ≤ (i.val + off.val) / 8) :
-    ¬ packets.NullBitmap.set inst (alloc.vec.Vec.Insts.CoreConvertAsRefSlice U8 alloc.alloc.Global) (alloc.vec.Vec.Insts.CoreConvertAsMutSlice U8 alloc.alloc.Global) self i b ⦃ _ => True ⦄ := by
+    packets.NullBitmap.set inst (alloc.vec.Vec.Insts.CoreConvertAsRefSlice U8 alloc.alloc.Global) (alloc.vec.Vec.Insts.CoreConvertAsMutSlice U8 alloc.alloc.Global) self i b = fail .assertionFailure := by
   unfold packets.NullBitmap.set
-  exact mysql_common.PBUtil.not_spec_bind_left (byte_and_bit_fail inst _ off hoff self (alloc.vec.Vec.deref self.1) rfl i hi (by simpa [alloc.vec.Vec.deref] using hb))
+  exact mysql_common.PBUtil.bind_fail_left (byte_and_bit_fail inst _ off hoff self (alloc.vec.Vec.deref self.1) rfl i hi (by simpa [alloc.vec.Vec.deref] using hb))
 
 /-- `AsRef<[u8]> for NullBitmap`: the bytes. -/
 theorem packets.NullBitmap.Insts.CoreConvertAsRefSliceU8.as_ref_eq {T U : Type} (asRef : core.convert.AsRef U (Slice U8)) (self : packets.NullBitmap T U) :
