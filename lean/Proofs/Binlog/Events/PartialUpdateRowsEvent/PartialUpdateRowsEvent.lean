@@ -59,7 +59,16 @@ theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mys
 /-- `MyDeserialize`: total; `rowsRead` with type `PARTIAL_UPDATE_ROWS_EVENT` and the FDE's post-header lengths. `RawFlags::SIZE` is `size_of::<u16>()`, which is 2 in Rust; the Lean `size_of` is deliberately unspecified (FunsExternal.lean), so this is a hypothesis, not an axiom. -/
 theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs rowsView (rowsRead .PARTIAL_UPDATE_ROWS_EVENT (postHeaderLen (fdeLens ctx.fde) .PARTIAL_UPDATE_ROWS_EVENT) (postHeaderLen (fdeLens ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄ := by
-  sorry
+  unfold binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [BERUtil.rows_size_none])]
+  apply WP.spec_bind (BERUtil.rows_deser_ctx h64 hsz _ buf)
+  rintro ⟨r, b⟩ h
+  unfold binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE at h
+  rcases r with v | e
+  · change Aeneas.Std.WP.spec (ok (core.result.Result.Ok v, b)) _
+    exact (WP.spec_ok _).mpr h
+  · change Aeneas.Std.WP.spec (ok (core.result.Result.Err e, b)) _
+    exact (WP.spec_ok _).mpr h
 
 /-- `MySerialize`: appends `rowsEnc`. (64-bit target, as configured). -/
 theorem binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :

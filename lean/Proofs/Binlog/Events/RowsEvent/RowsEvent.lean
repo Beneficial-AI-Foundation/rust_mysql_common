@@ -84,7 +84,7 @@ theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeD
 /-- `MyDeserialize` with the context's event type and FDE: total; `rowsRead`. `RawFlags::SIZE` is `size_of::<u16>()`, which is 2 in Rust; the Lean `size_of` is deliberately unspecified (FunsExternal.lean), so this is a hypothesis, not an axiom. -/
 theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize_spec (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (ctx : binlog.events.rows_event.RowsEventCtx) (buf : io.ParseBuf) :
     binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize ctx buf ⦃ r rest => ReadsAs rowsView (rowsRead ctx.event_type (postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type) (postHeaderLen (fdeLens ctx.binlog_ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄ := by
-  sorry
+  exact BERUtil.rows_deser_ctx h64 hsz ctx buf
 
 /-- `MySerialize`: appends `rowsEnc`. (64-bit target, as configured). -/
 theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
@@ -97,6 +97,10 @@ theorem binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeD
     (hp : postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type ≠ 6) (hv : postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type = postHeaderLen (fdeLens ctx.binlog_ctx.fde) .WRITE_ROWS_EVENT ↔ rowsIsV2 e.event_type = true)
     (buf : io.ParseBuf) (h : buf.val = rowsEnc e) :
     binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize ctx buf ⦃ r rest => (okPart r).map rowsView = some (rowsView e) ∧ rest.val = [] ⦄ := by
-  sorry
+  apply WP.spec_mono (BERUtil.rows_deser_ctx h64 hsz ctx buf)
+  rintro ⟨r, rest⟩ hr
+  simp only [WP.uncurry'] at hr ⊢
+  rw [h, BERUtil.rowsRead_congr _ _ he, Defs.rowsRead_rowsEnc e hc ht _ _ hp hv] at hr
+  exact hr
 
 end mysql_common

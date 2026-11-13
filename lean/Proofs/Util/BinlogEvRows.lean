@@ -2931,4 +2931,23 @@ theorem rows_deser (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize
           obtain ⟨hza, hzb⟩ := h5
           simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, hza, hzb, okPart, rowsView]
 
+theorem rows_deser_ctx (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize)
+    (ctx : binlog.events.rows_event.RowsEventCtx) (buf : io.ParseBuf) :
+    binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize ctx buf ⦃ r rest =>
+      ReadsAs rowsView (rowsRead ctx.event_type (postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type)
+        (postHeaderLen (fdeLens ctx.binlog_ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄ := by
+  unfold binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize
+  step with binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec as ⟨ ph, hph ⟩
+  step with binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec as ⟨ pw, hpw ⟩
+  rw [← hph, ← hpw]
+  exact rows_deser h64 hsz _ ph pw buf
+
+theorem rowsRead_congr (t t' : binlog.consts.EventType) (h : eventTypeCode t = eventTypeCode t') (p pw : Nat) (bs : List U8) :
+    rowsRead t p pw bs = rowsRead t' p pw bs := by
+  simp [rowsRead, rowsIsUpdate, rowsIsDelete, h]
+
+theorem rows_size_none :
+    binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE = none := by
+  unfold binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE; rfl
+
 end mysql_common.BERUtil
