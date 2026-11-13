@@ -31,5 +31,9 @@ import Specs.NamedParams
 import Specs.Params
 import Specs.Value.AsSql
 import Specs.DefsSqlText
+import Specs.Packets.StmtBinlog
+import Specs.Packets.SessionStateChange
+import Specs.Packets.BinlogRequest
+import Specs.DefsStmtSession
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/
