@@ -501,4 +501,88 @@ theorem escaped_loop1_spec (input : Slice U8) :
     rw [hr, ho2, hi2]
     simp
 
+/-! ## `as_sql` formatting -/
+
+
+theorem str_null : sql_trusted.string_from_str (toStr "NULL") = ok "NULL" := by
+  unfold sql_trusted.string_from_str
+  rw [show String.fromUTF8? (Trusted.bytesOf (toStr "NULL").val) = some "NULL" by decide +kernel]
+
+theorem str_0x : sql_trusted.string_from_str (toStr "0x") = ok "0x" := by
+  unfold sql_trusted.string_from_str
+  rw [show String.fromUTF8? (Trusted.bytesOf (toStr "0x").val) = some "0x" by decide +kernel]
+
+theorem charOfNat_toNat (n : Nat) (h : n < 128) : (Char.ofNat n).toNat = n := by
+  unfold Char.ofNat
+  rw [dite_eq_left_of_eq_true (eq_true (by unfold Nat.isValidChar; omega))]
+  simp [Char.ofNatAux, Char.toNat]
+
+theorem enc_ofNat (n : Nat) (h : n < 128) : enc (Char.ofNat n) = [byte n] := by
+  rw [enc_ascii _ (by rw [charOfNat_toNat n h]; exact h), charOfNat_toNat n h]
+
+theorem toList_pushn (s : String) (c : Char) (n : Nat) :
+    (s.pushn c n).toList = s.toList ++ List.replicate n c := by
+  rw [String.pushn_eq_repeat_push]
+  induction n with
+  | zero => simp [Nat.repeat]
+  | succ n ih => rw [Nat.repeat, String.toList_push, ih, List.replicate_succ', List.append_assoc]
+
+theorem flatMap_enc_digits (l : List Char) (h : ∀ c ∈ l, c.toNat < 128) :
+    l.flatMap enc = l.map (fun c => byte c.toNat) := by
+  induction l with
+  | nil => rfl
+  | cons c l ih =>
+    rw [List.flatMap_cons, enc_ascii c (h c (by simp)), ih (fun d hd => h d (by simp [hd]))]
+    rfl
+
+theorem utf8_toString_nat (n : Nat) :
+    utf8 (toString n) = (Nat.toDigits 10 n).map (fun c => byte c.toNat) := by
+  show utf8 (Nat.repr n) = _
+  rw [Nat.repr_eq_ofList_toDigits, utf8_ofList, flatMap_enc_digits]
+  intro c hc
+  have := ConvInts.digit_bounds n c hc
+  omega
+
+theorem length_toString_nat (n : Nat) : (toString n).length = (Nat.toDigits 10 n).length := by
+  show (Nat.repr n).length = _
+  rw [Nat.repr_eq_ofList_toDigits, String.length_ofList]
+
+theorem utf8_padDec (w n : Nat) : utf8 (Trusted.padDec w n) = padDec w n := by
+  simp only [Trusted.padDec, padDec]
+  rw [utf8_append, utf8_toString_nat, length_toString_nat, utf8_eq_flatMap ("".pushn _ _), toList_pushn]
+  simp only [String.toList_empty, List.nil_append, List.length_map]
+  congr 1
+  induction (w - (Nat.toDigits 10 n).length) with
+  | zero => rfl
+  | succ k ih => rw [List.replicate_succ, List.flatMap_cons, ih, enc_ascii _ (by decide)]; rfl
+
+theorem utf8_toString_int (n : Int) : utf8 (toString n) = decimalBytes n := by
+  rw [← CBTUtil.u8sOf_toUTF8, ConvInts.u8sOf_toString]
+
+theorem enc_hexDigitUpper (n : Nat) (h : n < 16) : enc (Trusted.hexDigitUpper n) = [hexDigit n] := by
+  unfold Trusted.hexDigitUpper hexDigit
+  split_ifs
+  · exact enc_ofNat _ (by omega)
+  · exact enc_ofNat _ (by omega)
+
+theorem utf8_hexByteUpper (b : Nat) (hb : b < 256) :
+    utf8 (Trusted.hexByteUpper b) = [hexDigit (b / 16), hexDigit (b % 16)] := by
+  rw [utf8_eq_flatMap, Trusted.hexByteUpper, String.toList_push, String.toList_singleton]
+  simp only [List.cons_append, List.nil_append, List.flatMap_cons, List.flatMap_nil, List.append_nil]
+  rw [enc_hexDigitUpper _ (by omega), enc_hexDigitUpper _ (by omega)]
+  rfl
+
+
+theorem uscalar_mk_val {ty : UScalarTy} (b : BitVec ty.numBits) : (UScalar.mk b).val = b.toNat := rfl
+
+/-- An unsigned addition that overflows fails with `integerOverflow`. -/
+theorem uadd_overflow {ty : UScalarTy} (x y : UScalar ty) (h : 2 ^ ty.numBits ≤ x.val + y.val) :
+    x + y = fail .integerOverflow := by
+  show UScalar.add x y = _
+  simp only [UScalar.add, UScalar.tryMk]
+  have := UScalar.tryMkOpt_eq ty (x.val + y.val)
+  cases hc : UScalar.tryMkOpt ty (x.val + y.val) with
+  | none => rfl
+  | some z => rw [hc] at this; exfalso; simp [UScalar.inBounds] at this; omega
+
 end mysql_common.PASUtil
