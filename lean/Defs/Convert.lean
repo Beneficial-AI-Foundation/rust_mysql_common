@@ -14,8 +14,9 @@ with. They are written from the meaning of the values, not from the crate's code
 * **UTF-8**: the bytes of a Lean `String` (`utf8`); a byte list is valid UTF-8 iff it is the
   `utf8` of some string (`IsUtf8`). Lean strings are sequences of Unicode scalar values and
   `String.toUTF8` is the standard encoding, so this is the definition std checks;
-* **durations**: the number of nanoseconds a MySQL `TIME` denotes (`timeNanos`) and the `TIME`
-  that a `std::time::Duration` is sent as (`durationTime`);
+* **durations**: the number of nanoseconds a MySQL `TIME` denotes (`timeNanos`, signed:
+  `timeSignedNanos`) and the `TIME` that a `std::time::Duration` (`durationTime`) or a
+  `time::Duration` (`signedDurationTime`) is sent as;
 * **MySQL date and time literals** (as text, in the formats of
   <https://dev.mysql.com/doc/refman/8.4/en/date-and-time-literals.html>, restricted to what the
   crate accepts): `timeStringRead` and `datetimeStringRead`.
@@ -135,6 +136,24 @@ def durationTime (secs nanos : Nat) : Val :=
   .time false ((secs / 86400) % 2 ^ 32) ((secs % 86400) / 3600) ((secs % 3600) / 60) (secs % 60)
     ((nanos + 500) / 1000)
 
+/-- The signed nanoseconds of the MySQL `TIME` `[-]days hours:minutes:seconds.micros`, without
+    range checks on the fields: `timeNanos`, negated when the sign flag is set (a negative zero
+    is 0). -/
+def timeSignedNanos (neg : Bool) (days hours minutes seconds micros : Nat) : Int :=
+  if neg then -(timeNanos days hours minutes seconds micros : Int)
+  else (timeNanos days hours minutes seconds micros : Int)
+
+/-- The `TIME` value that `From<time::Duration> for Value` makes of a duration of `n`
+    nanoseconds (`n` may be negative): the sign flag is `n < 0`, and `|n|` is split into days,
+    hours (`< 24`), minutes (`< 60`), seconds (`< 60`) and microseconds (`< 10^6`). Two
+    departures from a faithful `TIME`, both the crate's behaviour:
+    * nanoseconds below a microsecond are dropped (truncated toward zero);
+    * the days are truncated to `u32` (`as u32`): durations of `2^32` days or more wrap. -/
+def signedDurationTime (n : Int) : Val :=
+  let secs := n.natAbs / 10 ^ 9
+  .time (decide (n < 0)) ((secs / 86400) % 2 ^ 32) ((secs % 86400) / 3600) ((secs % 3600) / 60)
+    (secs % 60) ((n.natAbs % 10 ^ 9) / 1000)
+
 /-! ## MySQL date and time literals (text) -/
 
 /-- An optional fractional part `.f`, `f` one to six ASCII digits, as microseconds (the digits
@@ -253,6 +272,14 @@ def Val.durationNanos : Val → Option Nat
     match timeStringRead b with
     | some (false, h, m, s, us) => some (timeNanos 0 h m s us)
     | _ => none
+  | _ => none
+
+/-- The signed nanoseconds of the duration a value denotes, for `FromValue for time::Duration`:
+    any `TIME` (`timeSignedNanos`, fields not range-checked), or `Bytes` holding a text `TIME`
+    literal (`timeStringRead`, which has no days part); `none` for anything else. -/
+def Val.signedDurationNanos : Val → Option Int
+  | .time neg d h m s us => some (timeSignedNanos neg d h m s us)
+  | .bytes b => (timeStringRead b).map fun t => timeSignedNanos t.1 0 t.2.1 t.2.2.1 t.2.2.2.1 t.2.2.2.2
   | _ => none
 
 /-- The calendar fields `(year, month, day, hour, minute, second, microsecond)` a value denotes,

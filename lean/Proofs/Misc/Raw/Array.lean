@@ -26,10 +26,9 @@ theorem ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec 
 
 /-- `MyDeserialize for [u8; LEN]` panics on fewer than `LEN` bytes. -/
 theorem ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (LEN : Usize) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
-    ¬ ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ _ => True ⦄ := by
+    ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf = fail .panic := by
   unfold ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
-  intro hc
-  exact io.ParseBuf.eat_panics buf LEN h (spec_of_bind _ _ _ hc)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_panics buf LEN h)
 
 /-- `MySerialize for [u8; LEN]`: appends the bytes. -/
 theorem ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize_spec {LEN : Usize} (self : Array U8 LEN) (buf : alloc.vec.Vec U8)

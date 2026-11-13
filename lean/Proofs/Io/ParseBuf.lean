@@ -63,9 +63,9 @@ theorem io.ParseBuf.skip_spec (buf : io.ParseBuf) (cnt : Usize) (h : cnt.val ≤
   unfold io.ParseBuf.skip
   simp [core.slice.index.Slice.index, core.slice.index.SliceIndexRangeFromUsizeSlice.index, h]
 
-/-- `skip(cnt)` panics if `cnt > len`. -/
+/-- `skip(cnt)` panics if `cnt > len` (`.undef` is the Aeneas library's label for the out-of-range `[cnt..]`). -/
 theorem io.ParseBuf.skip_panics (buf : io.ParseBuf) (cnt : Usize) (h : buf.length < cnt.val) :
-    ¬ io.ParseBuf.skip buf cnt ⦃ _ => True ⦄ := by
+    io.ParseBuf.skip buf cnt = fail .undef := by
   unfold io.ParseBuf.skip
   simp [core.slice.index.Slice.index, core.slice.index.SliceIndexRangeFromUsizeSlice.index, show ¬ cnt.val ≤ buf.length by omega]
 
@@ -84,7 +84,7 @@ theorem io.ParseBuf.eat_spec (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ buf.
 
 /-- `eat(n)` panics if `n > len` (documented). -/
 theorem io.ParseBuf.eat_panics (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
-    ¬ io.ParseBuf.eat buf n ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat buf n = fail .panic := by
   exact eat_fail buf n h
 
 /-- `eat_buf(n)`: as `eat`, returning a `ParseBuf`. -/
@@ -95,7 +95,7 @@ theorem io.ParseBuf.eat_buf_spec (buf : io.ParseBuf) (n : Usize) (h : n.val ≤ 
 
 /-- `eat_buf(n)` panics if `n > len`. -/
 theorem io.ParseBuf.eat_buf_panics (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
-    ¬ io.ParseBuf.eat_buf buf n ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_buf buf n = fail .panic := by
   simp [io.ParseBuf.eat_buf, io.ParseBuf.eat, core.slice.Slice.split_at, show ¬ n.val ≤ buf.length by omega]
 
 /-- `checked_eat(n)`: total; `eat(n)` if there are `n` bytes, else `None` and the buffer is unchanged. -/
@@ -133,7 +133,7 @@ theorem io.ParseBuf.eat_u8_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
 
 /-- `eat_u8` panics on a buffer of fewer than 1 byte. -/
 theorem io.ParseBuf.eat_u8_panics (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ io.ParseBuf.eat_u8 buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u8 buf = fail .panic := by
   simp [io.ParseBuf.eat_u8, io.ParseBuf.eat_u8.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (1 ≤ buf.length) by omega]
 
@@ -159,7 +159,7 @@ theorem io.ParseBuf.eat_i8_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
 
 /-- `eat_i8` panics on a buffer of fewer than 1 byte. -/
 theorem io.ParseBuf.eat_i8_panics (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ io.ParseBuf.eat_i8 buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i8 buf = fail .panic := by
   simp [io.ParseBuf.eat_i8, io.ParseBuf.eat_i8.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (1 ≤ buf.length) by omega]
 
@@ -185,7 +185,7 @@ theorem io.ParseBuf.eat_u16_le_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 
 /-- `eat_u16_le` panics on a buffer of fewer than 2 bytes. -/
 theorem io.ParseBuf.eat_u16_le_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_u16_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u16_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u16_le, io.ParseBuf.eat_u16_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (2 ≤ buf.length) by omega]
 
@@ -211,7 +211,7 @@ theorem io.ParseBuf.eat_i16_le_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 
 /-- `eat_i16_le` panics on a buffer of fewer than 2 bytes. -/
 theorem io.ParseBuf.eat_i16_le_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_i16_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i16_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i16_le, io.ParseBuf.eat_i16_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (2 ≤ buf.length) by omega]
 
@@ -237,7 +237,7 @@ theorem io.ParseBuf.eat_u16_be_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 
 /-- `eat_u16_be` panics on a buffer of fewer than 2 bytes. -/
 theorem io.ParseBuf.eat_u16_be_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_u16_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u16_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u16_be, io.ParseBuf.eat_u16_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (2 ≤ buf.length) by omega]
 
@@ -263,7 +263,7 @@ theorem io.ParseBuf.eat_i16_be_spec (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
 
 /-- `eat_i16_be` panics on a buffer of fewer than 2 bytes. -/
 theorem io.ParseBuf.eat_i16_be_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ io.ParseBuf.eat_i16_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i16_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i16_be, io.ParseBuf.eat_i16_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (2 ≤ buf.length) by omega]
 
@@ -289,7 +289,7 @@ theorem io.ParseBuf.eat_u24_le_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 
 /-- `eat_u24_le` panics on a buffer of fewer than 3 bytes. -/
 theorem io.ParseBuf.eat_u24_le_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_u24_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u24_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u24_le, io.ParseBuf.eat_u24_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (3 ≤ buf.length) by omega]
 
@@ -315,7 +315,7 @@ theorem io.ParseBuf.eat_i24_le_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 
 /-- `eat_i24_le` panics on a buffer of fewer than 3 bytes. -/
 theorem io.ParseBuf.eat_i24_le_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_i24_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i24_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i24_le, io.ParseBuf.eat_i24_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (3 ≤ buf.length) by omega]
 
@@ -341,7 +341,7 @@ theorem io.ParseBuf.eat_u24_be_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 
 /-- `eat_u24_be` panics on a buffer of fewer than 3 bytes. -/
 theorem io.ParseBuf.eat_u24_be_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_u24_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u24_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u24_be, io.ParseBuf.eat_u24_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (3 ≤ buf.length) by omega]
 
@@ -367,7 +367,7 @@ theorem io.ParseBuf.eat_i24_be_spec (buf : io.ParseBuf) (h : 3 ≤ buf.length) :
 
 /-- `eat_i24_be` panics on a buffer of fewer than 3 bytes. -/
 theorem io.ParseBuf.eat_i24_be_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ io.ParseBuf.eat_i24_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i24_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i24_be, io.ParseBuf.eat_i24_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (3 ≤ buf.length) by omega]
 
@@ -393,7 +393,7 @@ theorem io.ParseBuf.eat_u32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 
 /-- `eat_u32_le` panics on a buffer of fewer than 4 bytes. -/
 theorem io.ParseBuf.eat_u32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_u32_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u32_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u32_le, io.ParseBuf.eat_u32_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (4 ≤ buf.length) by omega]
 
@@ -419,7 +419,7 @@ theorem io.ParseBuf.eat_i32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 
 /-- `eat_i32_le` panics on a buffer of fewer than 4 bytes. -/
 theorem io.ParseBuf.eat_i32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_i32_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i32_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i32_le, io.ParseBuf.eat_i32_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (4 ≤ buf.length) by omega]
 
@@ -445,7 +445,7 @@ theorem io.ParseBuf.eat_u32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 
 /-- `eat_u32_be` panics on a buffer of fewer than 4 bytes. -/
 theorem io.ParseBuf.eat_u32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_u32_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u32_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u32_be, io.ParseBuf.eat_u32_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (4 ≤ buf.length) by omega]
 
@@ -471,7 +471,7 @@ theorem io.ParseBuf.eat_i32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 
 /-- `eat_i32_be` panics on a buffer of fewer than 4 bytes. -/
 theorem io.ParseBuf.eat_i32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_i32_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i32_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i32_be, io.ParseBuf.eat_i32_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (4 ≤ buf.length) by omega]
 
@@ -497,7 +497,7 @@ theorem io.ParseBuf.eat_u40_le_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 
 /-- `eat_u40_le` panics on a buffer of fewer than 5 bytes. -/
 theorem io.ParseBuf.eat_u40_le_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_u40_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u40_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u40_le, io.ParseBuf.eat_u40_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (5 ≤ buf.length) by omega]
 
@@ -523,7 +523,7 @@ theorem io.ParseBuf.eat_i40_le_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 
 /-- `eat_i40_le` panics on a buffer of fewer than 5 bytes. -/
 theorem io.ParseBuf.eat_i40_le_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_i40_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i40_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i40_le, io.ParseBuf.eat_i40_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (5 ≤ buf.length) by omega]
 
@@ -549,7 +549,7 @@ theorem io.ParseBuf.eat_u40_be_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 
 /-- `eat_u40_be` panics on a buffer of fewer than 5 bytes. -/
 theorem io.ParseBuf.eat_u40_be_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_u40_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u40_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u40_be, io.ParseBuf.eat_u40_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (5 ≤ buf.length) by omega]
 
@@ -575,7 +575,7 @@ theorem io.ParseBuf.eat_i40_be_spec (buf : io.ParseBuf) (h : 5 ≤ buf.length) :
 
 /-- `eat_i40_be` panics on a buffer of fewer than 5 bytes. -/
 theorem io.ParseBuf.eat_i40_be_panics (buf : io.ParseBuf) (h : buf.length < 5) :
-    ¬ io.ParseBuf.eat_i40_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i40_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i40_be, io.ParseBuf.eat_i40_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (5 ≤ buf.length) by omega]
 
@@ -601,7 +601,7 @@ theorem io.ParseBuf.eat_u48_le_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 
 /-- `eat_u48_le` panics on a buffer of fewer than 6 bytes. -/
 theorem io.ParseBuf.eat_u48_le_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_u48_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u48_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u48_le, io.ParseBuf.eat_u48_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (6 ≤ buf.length) by omega]
 
@@ -627,7 +627,7 @@ theorem io.ParseBuf.eat_i48_le_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 
 /-- `eat_i48_le` panics on a buffer of fewer than 6 bytes. -/
 theorem io.ParseBuf.eat_i48_le_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_i48_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i48_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i48_le, io.ParseBuf.eat_i48_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (6 ≤ buf.length) by omega]
 
@@ -653,7 +653,7 @@ theorem io.ParseBuf.eat_u48_be_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 
 /-- `eat_u48_be` panics on a buffer of fewer than 6 bytes. -/
 theorem io.ParseBuf.eat_u48_be_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_u48_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u48_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u48_be, io.ParseBuf.eat_u48_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (6 ≤ buf.length) by omega]
 
@@ -679,7 +679,7 @@ theorem io.ParseBuf.eat_i48_be_spec (buf : io.ParseBuf) (h : 6 ≤ buf.length) :
 
 /-- `eat_i48_be` panics on a buffer of fewer than 6 bytes. -/
 theorem io.ParseBuf.eat_i48_be_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ io.ParseBuf.eat_i48_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i48_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i48_be, io.ParseBuf.eat_i48_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (6 ≤ buf.length) by omega]
 
@@ -705,7 +705,7 @@ theorem io.ParseBuf.eat_u56_le_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 
 /-- `eat_u56_le` panics on a buffer of fewer than 7 bytes. -/
 theorem io.ParseBuf.eat_u56_le_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_u56_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u56_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u56_le, io.ParseBuf.eat_u56_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (7 ≤ buf.length) by omega]
 
@@ -731,7 +731,7 @@ theorem io.ParseBuf.eat_i56_le_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 
 /-- `eat_i56_le` panics on a buffer of fewer than 7 bytes. -/
 theorem io.ParseBuf.eat_i56_le_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_i56_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i56_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i56_le, io.ParseBuf.eat_i56_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (7 ≤ buf.length) by omega]
 
@@ -757,7 +757,7 @@ theorem io.ParseBuf.eat_u56_be_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 
 /-- `eat_u56_be` panics on a buffer of fewer than 7 bytes. -/
 theorem io.ParseBuf.eat_u56_be_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_u56_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u56_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u56_be, io.ParseBuf.eat_u56_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (7 ≤ buf.length) by omega]
 
@@ -783,7 +783,7 @@ theorem io.ParseBuf.eat_i56_be_spec (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
 
 /-- `eat_i56_be` panics on a buffer of fewer than 7 bytes. -/
 theorem io.ParseBuf.eat_i56_be_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ io.ParseBuf.eat_i56_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i56_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i56_be, io.ParseBuf.eat_i56_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (7 ≤ buf.length) by omega]
 
@@ -809,7 +809,7 @@ theorem io.ParseBuf.eat_u64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 
 /-- `eat_u64_le` panics on a buffer of fewer than 8 bytes. -/
 theorem io.ParseBuf.eat_u64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_u64_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u64_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u64_le, io.ParseBuf.eat_u64_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (8 ≤ buf.length) by omega]
 
@@ -835,7 +835,7 @@ theorem io.ParseBuf.eat_i64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 
 /-- `eat_i64_le` panics on a buffer of fewer than 8 bytes. -/
 theorem io.ParseBuf.eat_i64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_i64_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i64_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i64_le, io.ParseBuf.eat_i64_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (8 ≤ buf.length) by omega]
 
@@ -861,7 +861,7 @@ theorem io.ParseBuf.eat_u64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 
 /-- `eat_u64_be` panics on a buffer of fewer than 8 bytes. -/
 theorem io.ParseBuf.eat_u64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_u64_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u64_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u64_be, io.ParseBuf.eat_u64_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (8 ≤ buf.length) by omega]
 
@@ -887,7 +887,7 @@ theorem io.ParseBuf.eat_i64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 
 /-- `eat_i64_be` panics on a buffer of fewer than 8 bytes. -/
 theorem io.ParseBuf.eat_i64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_i64_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i64_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i64_be, io.ParseBuf.eat_i64_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (8 ≤ buf.length) by omega]
 
@@ -913,7 +913,7 @@ theorem io.ParseBuf.eat_u128_le_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length)
 
 /-- `eat_u128_le` panics on a buffer of fewer than 16 bytes. -/
 theorem io.ParseBuf.eat_u128_le_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_u128_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u128_le buf = fail .panic := by
   simp [io.ParseBuf.eat_u128_le, io.ParseBuf.eat_u128_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (16 ≤ buf.length) by omega]
 
@@ -939,7 +939,7 @@ theorem io.ParseBuf.eat_i128_le_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length)
 
 /-- `eat_i128_le` panics on a buffer of fewer than 16 bytes. -/
 theorem io.ParseBuf.eat_i128_le_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_i128_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i128_le buf = fail .panic := by
   simp [io.ParseBuf.eat_i128_le, io.ParseBuf.eat_i128_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (16 ≤ buf.length) by omega]
 
@@ -965,7 +965,7 @@ theorem io.ParseBuf.eat_u128_be_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length)
 
 /-- `eat_u128_be` panics on a buffer of fewer than 16 bytes. -/
 theorem io.ParseBuf.eat_u128_be_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_u128_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u128_be buf = fail .panic := by
   simp [io.ParseBuf.eat_u128_be, io.ParseBuf.eat_u128_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (16 ≤ buf.length) by omega]
 
@@ -991,7 +991,7 @@ theorem io.ParseBuf.eat_i128_be_spec (buf : io.ParseBuf) (h : 16 ≤ buf.length)
 
 /-- `eat_i128_be` panics on a buffer of fewer than 16 bytes. -/
 theorem io.ParseBuf.eat_i128_be_panics (buf : io.ParseBuf) (h : buf.length < 16) :
-    ¬ io.ParseBuf.eat_i128_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_i128_be buf = fail .panic := by
   simp [io.ParseBuf.eat_i128_be, io.ParseBuf.eat_i128_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (16 ≤ buf.length) by omega]
 
@@ -1017,7 +1017,7 @@ theorem io.ParseBuf.eat_f32_le_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 
 /-- `eat_f32_le` panics on a buffer of fewer than 4 bytes. -/
 theorem io.ParseBuf.eat_f32_le_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_f32_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_f32_le buf = fail .panic := by
   simp [io.ParseBuf.eat_f32_le, io.ParseBuf.eat_f32_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (4 ≤ buf.length) by omega]
 
@@ -1043,7 +1043,7 @@ theorem io.ParseBuf.eat_f32_be_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
 
 /-- `eat_f32_be` panics on a buffer of fewer than 4 bytes. -/
 theorem io.ParseBuf.eat_f32_be_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ io.ParseBuf.eat_f32_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_f32_be buf = fail .panic := by
   simp [io.ParseBuf.eat_f32_be, io.ParseBuf.eat_f32_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (4 ≤ buf.length) by omega]
 
@@ -1069,7 +1069,7 @@ theorem io.ParseBuf.eat_f64_le_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 
 /-- `eat_f64_le` panics on a buffer of fewer than 8 bytes. -/
 theorem io.ParseBuf.eat_f64_le_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_f64_le buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_f64_le buf = fail .panic := by
   simp [io.ParseBuf.eat_f64_le, io.ParseBuf.eat_f64_le.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (8 ≤ buf.length) by omega]
 
@@ -1095,7 +1095,7 @@ theorem io.ParseBuf.eat_f64_be_spec (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
 
 /-- `eat_f64_be` panics on a buffer of fewer than 8 bytes. -/
 theorem io.ParseBuf.eat_f64_be_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ io.ParseBuf.eat_f64_be buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_f64_be buf = fail .panic := by
   simp [io.ParseBuf.eat_f64_be, io.ParseBuf.eat_f64_be.SIZE, io.ParseBuf.eat, core.slice.Slice.split_at,
     show ¬ (8 ≤ buf.length) by omega]
 
@@ -1157,19 +1157,19 @@ theorem io.ParseBuf.eat_lenenc_int_spec (buf : io.ParseBuf) (h : (checkedLenencI
 
 /-- `eat_lenenc_int` panics when `checked_eat_lenenc_int` would return `None` (empty or truncated input). -/
 theorem io.ParseBuf.eat_lenenc_int_panics (buf : io.ParseBuf) (h : (checkedLenencInt buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_lenenc_int buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_lenenc_int buf = fail .panic := by
   unfold io.ParseBuf.eat_lenenc_int
   rcases hb : buf.val with _ | ⟨b, rest⟩
-  · exact not_spec_bind_left (io.ParseBuf.eat_u8_panics buf (by simp [Slice.length, hb]))
+  · exact bind_fail_left (io.ParseBuf.eat_u8_panics buf (by simp [Slice.length, hb]))
   · have hl : 1 ≤ buf.length := by simp [Slice.length, hb]
-    apply not_spec_bind (io.ParseBuf.eat_u8_spec buf hl)
+    apply bind_fail_of_spec (io.ParseBuf.eat_u8_spec buf hl)
     rintro ⟨x, self1⟩ ⟨x_post, x_post1⟩
     simp [hb, leNat] at x_post x_post1
     have hx : x = b := by scalar_tac
     subst hx
     rw [hb] at h
     have h0 : 0#u8 ≤ x := by scalar_tac
-    change ¬ (if 0#u8 ≤ x then _ else _) ⦃ _ => True ⦄
+    change (if 0#u8 ≤ x then _ else _) = fail .panic
     rw [ite_eq_left h0]
     by_cases h250 : x ≤ 250#u8
     · have : x.val < 251 := by scalar_tac
@@ -1178,9 +1178,9 @@ theorem io.ParseBuf.eat_lenenc_int_panics (buf : io.ParseBuf) (h : (checkedLenen
       split
       all_goals simp [checkedLenencInt, lenencIntDecode, readLE, val_mk] at h
       · split_ifs at h with hlen
-        exact not_spec_bind_left (io.ParseBuf.eat_u16_le_panics _ (by simp [Slice.length, x_post1]; omega))
+        exact bind_fail_left (io.ParseBuf.eat_u16_le_panics _ (by simp [Slice.length, x_post1]; omega))
       · split_ifs at h with hlen
-        exact not_spec_bind_left (io.ParseBuf.eat_u24_le_panics _ (by simp [Slice.length, x_post1]; omega))
+        exact bind_fail_left (io.ParseBuf.eat_u24_le_panics _ (by simp [Slice.length, x_post1]; omega))
       · split_ifs at h with hlen
         exact io.ParseBuf.eat_u64_le_panics _ (by simp [Slice.length, x_post1]; omega)
       · simp
@@ -1272,32 +1272,57 @@ theorem io.ParseBuf.eat_lenenc_str_spec (buf : io.ParseBuf) (h : (checkedLenencS
       rw [i_post]; exact UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by omega)
     first | (simp only [Slice.length, hi]; omega) | simp_all)
 
-/-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`. (Needs the 64-bit
-    target: on a 32-bit `usize` a length `≥ 2^32` is truncated by `len as usize` and may fit.) -/
-theorem io.ParseBuf.eat_lenenc_str_panics (h64 : Target64) (buf : io.ParseBuf) (h : (checkedLenencStr buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_lenenc_str buf ⦃ _ => True ⦄ := by
+/-- On the 64-bit target every length-encoded integer fits in a `usize` (the hypothesis `hfit` of the length-encoded-string readers). -/
+theorem lenenc_fits_of_target64 (h64 : Target64) (buf : io.ParseBuf) :
+    ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max := by
+  intro n hn
+  obtain ⟨⟨o, rest⟩, _, ho⟩ := spec_eq_ok (io.ParseBuf.checked_eat_lenenc_int_spec buf)
+  simp only [WP.uncurry'_pair] at ho
+  rw [← ho] at hn
+  cases o with
+  | none => simp at hn
+  | some x =>
+    simp at hn
+    have := cast_usize_64 h64 x
+    have : (UScalar.cast .Usize x).val ≤ Usize.max := by scalar_tac
+    omega
+
+/-- `eat_lenenc_str` panics when `checked_eat_lenenc_str` would return `None`, provided the
+    length read fits in a `usize` (`hfit`; always true on the 64-bit target,
+    `lenenc_fits_of_target64`; on a 32-bit `usize` a length `≥ 2^32` is truncated by
+    `len as usize` and may fit). -/
+theorem io.ParseBuf.eat_lenenc_str_panics (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max)
+    (h : (checkedLenencStr buf.val).1 = none) :
+    io.ParseBuf.eat_lenenc_str buf = fail .panic := by
   unfold io.ParseBuf.eat_lenenc_str
   simp only [checkedLenencStr] at h
   rcases hc : checkedLenencInt buf.val with ⟨_ | n, rest⟩
-  · exact not_spec_bind_left (io.ParseBuf.eat_lenenc_int_panics buf (by simp [hc]))
+  · exact bind_fail_left (io.ParseBuf.eat_lenenc_int_panics buf (by simp [hc]))
   · rw [hc] at h
     simp at h
-    apply not_spec_bind (io.ParseBuf.eat_lenenc_int_spec buf (by simp [hc]))
+    have hn := hfit n (by rw [hc])
+    apply bind_fail_of_spec (io.ParseBuf.eat_lenenc_int_spec buf (by simp [hc]))
     rintro ⟨len, self1⟩ hpost
     rw [hc] at hpost
     simp at hpost
     simp only [lift, bind_ok]
     apply eat_fail
-    rw [cast_usize_64 h64]
     obtain ⟨h1, h2⟩ := hpost
+    rw [UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by
+      have := Usize.max_def; rw [Usize.numBits_def] at this
+      have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+      omega)]
     simp only [Slice.length, h1, h2]
     split_ifs at h with hle; omega
 
 /-- `checked_eat_lenenc_str`: total; exactly `checkedLenencStr`: `None` after consuming the
     length's first byte if the length is truncated, `None` after consuming the whole length if the
-    bytes are missing. (Needs the 64-bit target: on a 32-bit `usize` a length `≥ 2^32` would be
-    truncated by `len as usize`.) -/
-theorem io.ParseBuf.checked_eat_lenenc_str_spec (h64 : Target64) (buf : io.ParseBuf) :
+    bytes are missing. Provided the length read fits in a `usize` (`hfit`; always true on the
+    64-bit target, `lenenc_fits_of_target64`; on a 32-bit `usize` a length `≥ 2^32` would be
+    truncated by `len as usize`). -/
+theorem io.ParseBuf.checked_eat_lenenc_str_spec (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max) :
     io.ParseBuf.checked_eat_lenenc_str buf ⦃ o rest =>
       (o.map (·.val), rest.val) = checkedLenencStr buf.val ⦄ := by
   unfold io.ParseBuf.checked_eat_lenenc_str
@@ -1308,10 +1333,14 @@ theorem io.ParseBuf.checked_eat_lenenc_str_spec (h64 : Target64) (buf : io.Parse
   cases o with
   | none => simp
   | some x =>
+    have hn := hfit x.val (by rw [← ho]; rfl)
     simp only [lift, bind_ok, Option.map_some]
     apply WP.spec_mono (checked_eat_ok self1 _)
     rintro ⟨o', rest⟩ h'
-    rw [cast_usize_64 h64] at h'
+    rw [UScalar.cast_val_mod_pow_of_inBounds_eq _ _ (by
+      have := Usize.max_def; rw [Usize.numBits_def] at this
+      have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+      omega)] at h'
     simp only [WP.uncurry'_pair] at h' ⊢
     split_ifs at h' ⊢ <;> simp_all
 
@@ -1359,17 +1388,17 @@ theorem io.ParseBuf.eat_u8_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixed
 
 /-- `eat_u8_str` panics when `checked_eat_u8_str` returns `None`. -/
 theorem io.ParseBuf.eat_u8_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 1 buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_u8_str buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u8_str buf = fail .panic := by
   unfold io.ParseBuf.eat_u8_str
   simp only [checkedLenPrefixed, readLE] at h
   split_ifs at h with h1
-  · apply not_spec_bind (io.ParseBuf.eat_u8_spec buf h1)
+  · apply bind_fail_of_spec (io.ParseBuf.eat_u8_spec buf h1)
     rintro ⟨x, self1⟩ ⟨hx, hs⟩
     simp only [lift, bind_ok]
     apply eat_fail
     simp_all [Slice.length]
     split_ifs at h; simp_all
-  · exact not_spec_bind_left (io.ParseBuf.eat_u8_panics buf (by simp only [Slice.length]; omega))
+  · exact bind_fail_left (io.ParseBuf.eat_u8_panics buf (by simp only [Slice.length]; omega))
 
 /-- `checked_eat_u8_str`: total; `checkedLenPrefixed 1` (a missing body gives `None` after consuming the length byte). -/
 theorem io.ParseBuf.checked_eat_u8_str_spec (buf : io.ParseBuf) :
@@ -1391,17 +1420,17 @@ theorem io.ParseBuf.eat_u32_str_spec (buf : io.ParseBuf) (h : (checkedLenPrefixe
 
 /-- `eat_u32_str` panics when `checked_eat_u32_str` returns `None`. -/
 theorem io.ParseBuf.eat_u32_str_panics (buf : io.ParseBuf) (h : (checkedLenPrefixed 4 buf.val).1 = none) :
-    ¬ io.ParseBuf.eat_u32_str buf ⦃ _ => True ⦄ := by
+    io.ParseBuf.eat_u32_str buf = fail .panic := by
   unfold io.ParseBuf.eat_u32_str
   simp only [checkedLenPrefixed, readLE] at h
   split_ifs at h with h1
-  · apply not_spec_bind (io.ParseBuf.eat_u32_le_spec buf h1)
+  · apply bind_fail_of_spec (io.ParseBuf.eat_u32_le_spec buf h1)
     rintro ⟨x, self1⟩ ⟨hx, hs⟩
     simp only [lift, bind_ok]
     apply eat_fail
     simp_all [Slice.length]
     split_ifs at h; simp_all
-  · exact not_spec_bind_left (io.ParseBuf.eat_u32_le_panics buf (by simp only [Slice.length]; omega))
+  · exact bind_fail_left (io.ParseBuf.eat_u32_le_panics buf (by simp only [Slice.length]; omega))
 
 /-- `checked_eat_u32_str`: total; `checkedLenPrefixed 4` (a missing body gives `None` after consuming the 4 length bytes). -/
 theorem io.ParseBuf.checked_eat_u32_str_spec (buf : io.ParseBuf) :

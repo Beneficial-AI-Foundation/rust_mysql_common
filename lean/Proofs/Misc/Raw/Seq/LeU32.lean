@@ -13,18 +13,21 @@ open Aeneas Aeneas.Std Result mysql_common Defs
 namespace mysql_common
 
 private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc : T → List U8)
-    (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
-      ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
-    (tk : core.iter.adapters.take.Take (core.slice.iter.Iter T)) (buf : alloc.vec.Vec U8)
+    (tk : core.iter.adapters.take.Take (core.slice.iter.Iter T))
+    (hser : ∀ x ∈ (tk.iter.slice.val.drop tk.iter.i).take tk.n.val, ∀ (b : alloc.vec.Vec U8),
+      b.length + (enc x).length ≤ Usize.max → ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
+    (buf : alloc.vec.Vec U8)
     (h : buf.length + (((tk.iter.slice.val.drop tk.iter.i).take tk.n.val).flatMap enc).length ≤ Usize.max) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop ser tk buf ⦃ v => v.val = buf.val ++ ((tk.iter.slice.val.drop tk.iter.i).take tk.n.val).flatMap enc ⦄ := by
   unfold misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop
   apply loop.spec_decr_nat (fun p => p.1.n.val)
     (fun p => p.2.length + (((p.1.iter.slice.val.drop p.1.iter.i).take p.1.n.val).flatMap enc).length ≤ Usize.max ∧
       p.2.val ++ ((p.1.iter.slice.val.drop p.1.iter.i).take p.1.n.val).flatMap enc =
-        buf.val ++ ((tk.iter.slice.val.drop tk.iter.i).take tk.n.val).flatMap enc)
-  · rintro ⟨jt, b⟩ ⟨hb1, hb2⟩
-    simp only at hb1 hb2
+        buf.val ++ ((tk.iter.slice.val.drop tk.iter.i).take tk.n.val).flatMap enc ∧
+      ∀ x ∈ (p.1.iter.slice.val.drop p.1.iter.i).take p.1.n.val,
+        x ∈ (tk.iter.slice.val.drop tk.iter.i).take tk.n.val)
+  · rintro ⟨jt, b⟩ ⟨hb1, hb2, hb3⟩
+    simp only at hb1 hb2 hb3
     unfold misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_loop.body
     simp only [core.iter.adapters.take.IteratorTake.next]
     split_ifs with hn
@@ -41,15 +44,16 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
           rw [List.drop_eq_getElem_cons hlt', hn']
           obtain ⟨k, hk⟩ : ∃ k, jt.n.val = k + 1 := ⟨jt.n.val - 1, by omega⟩
           rw [hk, List.take_succ_cons]; simp
-        rw [hd] at hb1 hb2
+        rw [hd] at hb1 hb2 hb3
         simp only [List.flatMap_cons, List.length_append] at hb1 hb2
         apply spec_bind_ok
         apply spec_bind_ok
-        step with hser jt.iter.slice.val[jt.iter.i] b (by scalar_tac) as ⟨ b1, hb ⟩
-        refine ⟨?_, ?_, ?_⟩
+        step with hser jt.iter.slice.val[jt.iter.i] (hb3 _ (List.mem_cons_self ..)) b (by scalar_tac) as ⟨ b1, hb ⟩
+        refine ⟨?_, ?_, ?_, ?_⟩
         · have : b1.length = b.length + (enc (jt.iter.slice.val)[jt.iter.i]).length := by simp [hb]
           omega
         · rw [hb, ← hb2]; simp
+        · intro x hx; exact hb3 x (List.mem_cons_of_mem _ hx)
         · omega
       · have hlt' : jt.iter.slice.val.length ≤ jt.iter.i := by have := hlt; scalar_tac
         apply spec_bind_ok
@@ -57,7 +61,7 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
         apply (WP.spec_ok _).mpr
         rw [← hb2, List.drop_of_length_le hlt']
         simp
-  · exact ⟨h, rfl⟩
+  · exact ⟨h, rfl, fun x hx => hx⟩
 
 /-- `LeU32::MAX_LEN`: `u32::MAX`. -/
 theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.MAX_LEN_spec :
@@ -71,12 +75,13 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE_eq :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE = none := by
   unfold misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE; rfl
 
-/-- `LeU32::serialize`: appends the item count (at most `MAX_LEN`) as a 4-byte little-endian integer, then the serializations of the first that many items: a longer sequence is silently truncated. -/
+/-- `LeU32::serialize`: appends the item count (at most `MAX_LEN`) as a 4-byte little-endian integer, then the serializations of the first that many items: a longer sequence is silently truncated. Stated given what the item serializer appends (`enc`) for the items written. -/
 theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_spec {T : Type} (ser : proto.MySerialize T) (enc : T → List U8)
-    (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
+    (seq : Slice T)
+    (hser : ∀ x ∈ seq.val.take (2 ^ 32 - 1), ∀ (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
-    (seq : Slice T) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 4 + (seq.val.flatMap enc).length ≤ Usize.max) :
+    (buf : alloc.vec.Vec U8)
+    (h : buf.length + 4 + ((seq.val.take (2 ^ 32 - 1)).flatMap enc).length ≤ Usize.max) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize ser seq buf ⦃ buf' =>
       buf'.val = buf.val ++ leBytes 4 (min seq.length (2 ^ 32 - 1)) ++ (seq.val.take (2 ^ 32 - 1)).flatMap enc ⦄ := by
   unfold misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize
@@ -97,13 +102,16 @@ theorem misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_sp
     · exact hlen'
     · have := lt_two_pow_64_of_le_max (show len.val ≤ Usize.max by scalar_tac)
       simp; omega
-  have hfl := length_flatMap_take_le enc seq.val len.val
+  have hfl : seq.val.take len.val = seq.val.take (2 ^ 32 - 1) := by
+    rw [List.take_eq_take_iff, hlen']; simp only [Slice.length]; omega
+  rw [← hfl] at h
   step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec i2 buf (by scalar_tac) as ⟨ buf1, hb1 ⟩
   simp only [core.slice.Slice.iter, core.iter.traits.iterator.Iterator.take.trait_default,
     core.iter.traits.iterator.Iterator.take.default]
   apply spec_bind_ok
   apply spec_bind_ok
-  step with serialize_loop_spec ser enc hser ⟨⟨seq, 0⟩, len⟩ buf1 (by
+  step with serialize_loop_spec ser enc ⟨⟨seq, 0⟩, len⟩ (by
+    intro x hx; simp only [List.drop_zero] at hx; rw [hfl] at hx; exact hser x hx) buf1 (by
     have : buf1.length = buf.length + 4 := by simp [hb1]
     simp only [List.drop_zero]; omega) as ⟨ v, hv ⟩
   simp only [List.drop_zero] at hv

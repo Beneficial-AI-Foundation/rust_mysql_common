@@ -48,10 +48,9 @@ theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
 /-- `MyDeserialize for ConstBytes<T, LEN>` panics on fewer than `LEN` bytes. -/
 theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T E : Type} {LEN : Usize} (d : core.default.Default T)
     (v : misc.raw.bytes.ConstBytesValue T E LEN) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
-    ¬ misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize d v () buf ⦃ _ => True ⦄ := by
+    misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize d v () buf = fail .panic := by
   unfold misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize io.ParseBuf.parse_unchecked
-  intro hc
-  exact ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics LEN buf h (spec_of_bind _ _ _ hc)
+  exact PBUtil.bind_fail_left (ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics LEN buf h)
 
 /-- `buf.parse::<ConstBytes<T, LEN>>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than `LEN` bytes. -/
 theorem misc.raw.bytes.ConstBytes.Insts.Mysql_commonProtoMyDeserializeDeTuple.parse_spec {T E : Type} {LEN : Usize} (d : core.default.Default T)

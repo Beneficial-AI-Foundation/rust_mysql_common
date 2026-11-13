@@ -25,10 +25,9 @@ theorem misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_sp
 
 /-- `MyDeserialize for Skip<LEN>` panics on fewer than `LEN` bytes. -/
 theorem misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (LEN : Usize) (buf : io.ParseBuf) (h : buf.length < LEN.val) :
-    ¬ misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf ⦃ _ => True ⦄ := by
+    misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize LEN () buf = fail .undef := by
   unfold misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
-  intro hc
-  exact io.ParseBuf.skip_panics buf LEN h (spec_of_bind _ _ _ hc)
+  exact PBUtil.bind_fail_left (io.ParseBuf.skip_panics buf LEN h)
 
 /-- `MySerialize for Skip<LEN>`: appends `LEN` zero bytes. -/
 theorem misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec {LEN : Usize} (self : misc.raw.Skip LEN) (buf : alloc.vec.Vec U8)

@@ -93,6 +93,33 @@ def binRowRead (off : Nat) (cols : List (constants.ColumnType × Bool)) :
     if rest.length < k then (none, rest)
     else binValuesRead off (rest.take k) cols 0 (rest.drop k)
 
+/-- Whether the crate's reader of the values of a binary row **panics** (same arguments as
+    `binValuesRead`): it does exactly when it reaches a column that is not marked NULL and whose
+    type the binary value decoder does not support (`binSupported`; the decoder hits
+    `unimplemented!`). Columns are read in order and the reader stops at the first value that fails
+    to decode, so an unsupported column after such a failure is never reached. When this is
+    `false` the reader returns normally and `binValuesRead` gives its result. -/
+def binValuesCrash (off : Nat) (bm : List U8) :
+    List (constants.ColumnType × Bool) → Nat → List U8 → Bool
+  | [], _, _ => false
+  | (ct, u) :: cols, i, bs =>
+    if bitmapBit off bm i then binValuesCrash off bm cols (i + 1) bs
+    else if binSupported ct then
+      match binRead ct u bs with
+      | (some _, rest) => binValuesCrash off bm cols (i + 1) rest
+      | (none, _) => false
+    else true
+
+/-- Whether the crate's reader of a binary row **panics** (same arguments as `binRowRead`): never
+    on an empty input or a truncated bitmap (those are errors); otherwise `binValuesCrash`. When
+    this is `false` the reader returns normally and `binRowRead` gives its result. -/
+def binRowCrash (off : Nat) (cols : List (constants.ColumnType × Bool)) : List U8 → Bool
+  | [] => false
+  | _header :: rest =>
+    let k := nullBitmapLen off cols.length
+    if rest.length < k then false
+    else binValuesCrash off (rest.take k) cols 0 (rest.drop k)
+
 /-- The protocol's binary row of the values `vs` with NULL bitmap offset `off`: `0x00`, the NULL
     bitmap, then the binary encodings of the non-NULL values (`binEnc .null` is empty). -/
 def binRowEnc (off : Nat) (vs : List Val) : List U8 :=

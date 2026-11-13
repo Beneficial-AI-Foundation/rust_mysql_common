@@ -39,7 +39,8 @@ import Proofs.Value.Convert.Chrono.FromNaiveTime
       hours ≥ 24), and a leap second (micros in `[10^6, 2·10^6)` at second 59) as chrono does.
     * Sub-microsecond nanoseconds are truncated by `From<_> for Value`.
     * Reading from `Bytes` panics exactly where the string parser does (`Val.timeTextPanics`,
-      `Val.datetimeTextPanics`: a non-ASCII byte, and a fractional regex matches; never on
+      `Val.datetimeTextPanics`: a non-ASCII byte, and a fractional regex matches, for DATETIME
+      only on 21–26-byte input; never on
       ASCII input): the `..._spec` statements assume the complement, the `..._panic` statements
       state the panic, and the `..._nonascii` statements say that non-ASCII `Bytes` give a
       panic or `Err v`, never `Ok`.
@@ -70,7 +71,7 @@ recall value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValue
 /-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, Trusted.NaiveDateTime.date, Trusted.NaiveDateTime.date_new, Trusted.NaiveDateTime.new, Trusted.NaiveDateTime.time, Trusted.NaiveDateTime.time_new, Trusted.NaiveTime.hour, Trusted.NaiveTime.minute, Trusted.NaiveTime.nanosecond, Trusted.NaiveTime.ofHmsMicro, Trusted.NaiveTime.ofHmsMicro_isSome, Trusted.NaiveTime.ofHmsMicro_some, Trusted.NaiveTime.second, chrono.naive.date.NaiveDate, chrono.naive.datetime.NaiveDateTime, chrono.naive.time.NaiveTime] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- **Crash path.** `TryFrom<Value> for ParseIr<NaiveDateTime>` panics exactly on the `Bytes` on which
-    the text parser panics (`Val.datetimeTextPanics`: a non-ASCII byte, and the fractional regex matches):
+    the text parser panics (`Val.datetimeTextPanics`: 21–26 bytes, a non-ASCII byte, and the fractional regex matches):
     the complement of the hypothesis of `try_from_spec`. -/
 recall value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).datetimeTextPanics) :
     value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic
@@ -129,7 +130,7 @@ recall value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueErro
 /-- [propext, choice, Quot.sound, Trusted.isMatch, Trusted.isMatch_ascii, Trusted.isMatch_loose, Trusted.NaiveDate.day, Trusted.NaiveDate.month, Trusted.NaiveDate.ofYmd, Trusted.NaiveDate.ofYmd_isSome, Trusted.NaiveDate.ofYmd_some, Trusted.NaiveDate.year, chrono.naive.date.NaiveDate] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from_spec
 /-- **Crash path.** `TryFrom<Value> for ParseIr<NaiveDate>` panics exactly on the `Bytes` on which
-    the text parser panics (`Val.datetimeTextPanics`: a non-ASCII byte, and the fractional regex matches):
+    the text parser panics (`Val.datetimeTextPanics`: 21–26 bytes, a non-ASCII byte, and the fractional regex matches):
     the complement of the hypothesis of `try_from_spec`. -/
 recall value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).datetimeTextPanics) :
     value.convert.ParseIrNaiveDate.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic

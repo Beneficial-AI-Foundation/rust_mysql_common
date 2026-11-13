@@ -25,10 +25,9 @@ theorem F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : 
 
 /-- `MyDeserialize for f64` panics on fewer than 8 bytes. -/
 theorem F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ _ => True ⦄ := by
+    F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail .panic := by
   unfold F64.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
-  intro hc
-  exact io.ParseBuf.eat_f64_le_panics buf h (spec_of_bind _ _ _ hc)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_f64_le_panics buf h)
 
 /-- `MySerialize for f64`: appends the bit pattern, little-endian. -/
 theorem F64.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : F64) (buf : alloc.vec.Vec U8) (h : buf.length + 8 ≤ Usize.max) :

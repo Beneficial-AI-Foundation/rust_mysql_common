@@ -30,9 +30,9 @@ theorem misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize_sp
 
 /-- `LeI16::deserialize` panics on fewer than 2 bytes. -/
 theorem misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize buf ⦃ _ => True ⦄ := by
+    misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize buf = fail .panic := by
   unfold misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize
-  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_i16_le_panics buf h)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_i16_le_panics buf h)
 
 /-- `buf.parse::<RawInt<LeI16>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 2 bytes. -/
 theorem misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.parse_rawint_spec (buf : io.ParseBuf) :

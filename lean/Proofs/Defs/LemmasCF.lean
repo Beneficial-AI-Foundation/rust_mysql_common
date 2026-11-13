@@ -362,6 +362,63 @@ theorem frame_length (seq : Nat) (p : List U8) :
         rw [hM] at hp ⊢; omega
       rw [this]; rw [hM] at hp ⊢; omega
 
+/-! ## When the binary row reader panics -/
+
+private theorem binValuesCrash_eq_false_of_supported (off : Nat) (bm : List U8) :
+    ∀ (cols : List (constants.ColumnType × Bool)) (i : Nat) (bs : List U8),
+      (∀ (j : Nat) (ct : constants.ColumnType) (u : Bool), cols[j]? = some (ct, u) →
+        binSupported ct = false → bitmapBit off bm (i + j) = true) →
+      binValuesCrash off bm cols i bs = false := by
+  intro cols
+  induction cols with
+  | nil => intros; rfl
+  | cons c cols ih =>
+    obtain ⟨ct, u⟩ := c
+    intro i bs H
+    have ih' : ∀ bs', binValuesCrash off bm cols (i + 1) bs' = false := fun bs' =>
+      ih (i + 1) bs' (fun j ct' u' hj hs => by
+        have := H (j + 1) ct' u' (by simpa using hj) hs
+        rwa [show i + (j + 1) = i + 1 + j by omega] at this)
+    simp only [binValuesCrash]
+    by_cases hb : bitmapBit off bm i = true
+    · simp only [hb, ite_true]; exact ih' bs
+    · have hct : binSupported ct = true := by
+        by_contra hh
+        exact hb (by simpa using H 0 ct u rfl (by simpa using hh))
+      simp only [hb, hct, Bool.false_eq_true, ite_false, ite_true]
+      rcases binRead ct u bs with ⟨_ | v, rest⟩
+      · rfl
+      · exact ih' rest
+
+/-- The binary row reader does not panic when every column of unsupported type is marked NULL in the row's bitmap. (Sufficient, not necessary: it also does not panic when the input is too short, or an earlier value fails to decode.) -/
+theorem binRowCrash_eq_false_of_supported (off : Nat) (cols : List (constants.ColumnType × Bool)) (bs : List U8)
+    (H : ∀ (j : Nat) (ct : constants.ColumnType) (u : Bool), cols[j]? = some (ct, u) →
+      binSupported ct = false →
+      bitmapBit off ((bs.drop 1).take (nullBitmapLen off cols.length)) j = true) :
+    binRowCrash off cols bs = false := by
+  cases bs with
+  | nil => rfl
+  | cons hd rest =>
+    simp only [binRowCrash]
+    split_ifs
+    · rfl
+    · exact binValuesCrash_eq_false_of_supported off _ cols 0 _ (fun j ct u hj hs => by
+        simpa using H j ct u hj hs)
+
+/-- The binary row reader panics when the first column has an unsupported type and is not marked NULL (and the bitmap is all there). -/
+theorem binRowCrash_first (off : Nat) (ct : constants.ColumnType) (u : Bool)
+    (cols : List (constants.ColumnType × Bool)) (bs : List U8) (hs : binSupported ct = false)
+    (hlen : 1 + nullBitmapLen off (cols.length + 1) ≤ bs.length)
+    (hnn : bitmapBit off ((bs.drop 1).take (nullBitmapLen off (cols.length + 1))) 0 = false) :
+    binRowCrash off ((ct, u) :: cols) bs = true := by
+  cases bs with
+  | nil => simp at hlen
+  | cons hd rest =>
+    simp only [List.length_cons] at hlen
+    simp only [List.drop_succ_cons, List.drop_zero] at hnn
+    simp only [binRowCrash, List.length_cons, show ¬ rest.length < nullBitmapLen off (cols.length + 1) by omega,
+      ite_false, binValuesCrash, hnn, hs, Bool.false_eq_true]
+
 /-- One step of the chunk reader keeps the state valid. -/
 theorem chunkStep_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8) (max : Nat) :
     (chunkStep st src dst max).2.1.Valid := by
@@ -376,6 +433,21 @@ theorem chunkStep_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8) (m
   | chunk seq len =>
     simp only [chunkStep]
     split_ifs <;> simp_all [ChunkState.Valid]
+
+/-- A valid state and room for one more chunk in `dst` are enough for `chunkStepFits`. -/
+theorem chunkStepFits_of_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8)
+    (h : dst.length + 2 ^ 24 ≤ Usize.max) : chunkStepFits st src dst := by
+  cases st with
+  | idle =>
+    intro _
+    have := PBUtil.leNat_lt (src.take 3)
+    have : 2 ^ (8 * (src.take 3).length) ≤ 2 ^ 24 :=
+      Nat.pow_le_pow_right (by norm_num) (by simp; omega)
+    omega
+  | chunk seq len =>
+    obtain ⟨_, h2⟩ := hv
+    have hmax : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+    exact ⟨by omega, fun _ => by omega⟩
 
 private theorem chunkStep_middle_len (st : ChunkState) (src dst : List U8) (max : Nat) (s : U8)
     (st' : ChunkState) (src' dst' : List U8)
@@ -722,8 +794,8 @@ theorem plainDecode_resume (seq : U8) (p tail : List U8) (k : Nat) (hk : k < (fr
   simpa using this
 
 private theorem chunkStep_frame_first (n : Nat) (p tail dst : List U8) (max : Nat)
-    (hm : dst.length + p.length ≤ max) :
-    ∃ info st' src' dst', chunkStep .idle (frame n p ++ tail) dst max = (.Ok (some info), st', src', dst') ∧
+    (hm : dst.length + min p.length maxPayloadLen ≤ max) :
+    ∃ info src' dst', chunkStep .idle (frame n p ++ tail) dst max = (.Ok (some info), .idle, src', dst') ∧
       chunkInfoSeq info = byte n := by
   have hM : maxPayloadLen = 16777215 := rfl
   by_cases hs : p.length < maxPayloadLen
@@ -731,13 +803,13 @@ private theorem chunkStep_frame_first (n : Nat) (p tail dst : List U8) (max : Na
     simp only [List.append_assoc, List.cons_append]
     rw [chunkStep_idle_hdr _ _ (by rw [hM] at hs; omega)]
     by_cases h0 : p.length = 0
-    · simp only [h0, ↓reduceIte]; exact ⟨_, _, _, _, rfl, rfl⟩
+    · simp only [h0, ↓reduceIte]; exact ⟨_, _, _, rfl, rfl⟩
     · have hmx : ¬ max < dst.length + p.length := by omega
       simp only [h0, hmx, ↓reduceIte]
       rw [chunkStep_chunk_hdr _ _ _ (PBUtil.length_leBytes 3 _)]
       have hle : p.length ≤ (p ++ tail).length := by simp
       simp only [hle, ↓reduceIte]
-      split_ifs <;> exact ⟨_, _, _, _, rfl, rfl⟩
+      split_ifs <;> exact ⟨_, _, _, rfl, rfl⟩
   · rw [frame_long _ _ hs]
     simp only [List.append_assoc, List.cons_append]
     rw [chunkStep_idle_hdr _ _ (by rw [hM]; omega)]
@@ -749,13 +821,15 @@ private theorem chunkStep_frame_first (n : Nat) (p tail dst : List U8) (max : Na
     have hle : maxPayloadLen ≤ (p.take maxPayloadLen ++ (frame (n + 1) (p.drop maxPayloadLen) ++ tail)).length := by
       simp only [List.length_append]; omega
     simp only [hle, ↓reduceIte]
-    split_ifs <;> exact ⟨_, _, _, _, rfl, rfl⟩
+    split_ifs <;> exact ⟨_, _, _, rfl, rfl⟩
 
-/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync; the expected id is kept. -/
-theorem plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat) (hmax : p.length ≤ max) :
+/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync: the first chunk is read (it only has to pass the size check itself: `min p.length maxPayloadLen ≤ max`), the expected id is kept, and the reader is idle again. -/
+theorem plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat)
+    (hmax : min p.length maxPayloadLen ≤ max) :
     (plainDecode seq .idle (frame s.val p ++ tail) [] max none).1 = .Err .PacketsOutOfSync ∧
-    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq := by
-  obtain ⟨info, st', src', dst', hc, hi⟩ := chunkStep_frame_first s.val p tail [] max (by simpa using hmax)
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq ∧
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.2.1 = .idle := by
+  obtain ⟨info, src', dst', hc, hi⟩ := chunkStep_frame_first s.val p tail [] max (by simpa using hmax)
   rw [byte_val_self] at hi
   have hne : seq ≠ chunkInfoSeq info ∧ none ≠ some (chunkInfoSeq info) := ⟨by rw [hi]; exact hs.symm, by simp⟩
   unfold plainDecode

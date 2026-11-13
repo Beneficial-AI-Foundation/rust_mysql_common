@@ -109,7 +109,7 @@ theorem chrono.naive.datetime.NaiveDateTime.Insts.Mysql_commonValueConvertFromVa
   · exact ConvDeps.mapIr_err_of h2
 
 /-- **Crash path.** `TryFrom<Value> for ParseIr<NaiveDateTime>` panics exactly on the `Bytes` on which
-    the text parser panics (`Val.datetimeTextPanics`: a non-ASCII byte, and the fractional regex matches):
+    the text parser panics (`Val.datetimeTextPanics`: 21–26 bytes, a non-ASCII byte, and the fractional regex matches):
     the complement of the hypothesis of `try_from_spec`. -/
 theorem value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).datetimeTextPanics) :
     value.convert.ParseIrNaiveDateTime.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic := by

@@ -129,20 +129,22 @@ theorem packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.de
       | Ok _ => simp at h1a
       | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual]
 
-/-- `MySerialize for ServerError`: appends the SQL state (`#` and 5 bytes) if present, then the message (the code is written by `ErrPacket`). -/
+/-- `MySerialize for ServerError`: appends the SQL state (`#` and 5 bytes) if present, then the message (the code is written by `ErrPacket`). The bound is exact: 6 bytes for the SQL state only if there is one. -/
 @[step]
 theorem packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.ServerError) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 6 + (cowList self.message.1).length ≤ Usize.max) :
+    (h : buf.length + (match self.state with | some _ => 6 | none => 0) + (cowList self.message.1).length ≤ Usize.max) :
     packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' =>
       buf'.val = buf.val ++ (match self.state with | some s => byte 0x23 :: s.state.val | none => [])
         ++ cowList self.message.1 ⦄ := by
   unfold packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize
   cases hs : self.state with
   | none =>
+    simp only [hs, add_zero] at h
     simp only
     apply WP.spec_mono (eof_ser _ _ (by omega))
     intro b hb; simp [hb]
   | some st =>
+    simp only [hs] at h
     simp only
     step with packets.SqlState.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨buf1, h1⟩
     apply WP.spec_mono (eof_ser _ _ (by

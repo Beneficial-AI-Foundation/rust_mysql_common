@@ -36,6 +36,24 @@ recall binRead_binEncAt (ct : constants.ColumnType) (unsigned : Bool) (v : value
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.binRead_binEncAt
+/-- The binary row reader does not panic when every column of unsupported type is marked NULL in the row's bitmap. (Sufficient, not necessary: it also does not panic when the input is too short, or an earlier value fails to decode.) -/
+recall binRowCrash_eq_false_of_supported (off : Nat) (cols : List (constants.ColumnType × Bool)) (bs : List U8)
+    (H : ∀ (j : Nat) (ct : constants.ColumnType) (u : Bool), cols[j]? = some (ct, u) →
+      binSupported ct = false →
+      bitmapBit off ((bs.drop 1).take (nullBitmapLen off cols.length)) j = true) :
+    binRowCrash off cols bs = false
+
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.binRowCrash_eq_false_of_supported
+/-- The binary row reader panics when the first column has an unsupported type and is not marked NULL (and the bitmap is all there). -/
+recall binRowCrash_first (off : Nat) (ct : constants.ColumnType) (u : Bool)
+    (cols : List (constants.ColumnType × Bool)) (bs : List U8) (hs : binSupported ct = false)
+    (hlen : 1 + nullBitmapLen off (cols.length + 1) ≤ bs.length)
+    (hnn : bitmapBit off ((bs.drop 1).take (nullBitmapLen off (cols.length + 1))) 0 = false) :
+    binRowCrash off ((ct, u) :: cols) bs = true
+
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.binRowCrash_first
 /-- The text-row reader reads back a row of `NULL`s and byte strings. -/
 recall textRowRead_textEnc (vs : List Val) (hv : ∀ v ∈ vs, isTextVal v = true)
     (hs : ∀ s, Val.bytes s ∈ vs → s.length < 2 ^ 64) (t : List U8) :
@@ -66,6 +84,12 @@ recall chunkStep_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8) (ma
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.chunkStep_valid
+/-- A valid state and room for one more chunk in `dst` are enough for `chunkStepFits`. -/
+recall chunkStepFits_of_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8)
+    (h : dst.length + 2 ^ 24 ≤ Usize.max) : chunkStepFits st src dst
+
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.chunkStepFits_of_valid
 /-- The packet reader keeps the state valid. -/
 recall plainDecode_valid (seq : U8) (st : ChunkState) (hv : st.Valid) (src dst : List U8) (max : Nat) (comp : Option U8) :
     (plainDecode seq st src dst max comp).2.2.1.Valid
@@ -99,10 +123,12 @@ recall plainDecode_resume (seq : U8) (p tail : List U8) (k : Nat) (hk : k < (fra
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.plainDecode_resume
-/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync; the expected id is kept. -/
-recall plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat) (hmax : p.length ≤ max) :
+/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync: the first chunk is read (it only has to pass the size check itself: `min p.length maxPayloadLen ≤ max`), the expected id is kept, and the reader is idle again. -/
+recall plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat)
+    (hmax : min p.length maxPayloadLen ≤ max) :
     (plainDecode seq .idle (frame s.val p ++ tail) [] max none).1 = .Err .PacketsOutOfSync ∧
-    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq ∧
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.2.1 = .idle
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.plainDecode_outOfSync

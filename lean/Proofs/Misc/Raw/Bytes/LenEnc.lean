@@ -71,11 +71,12 @@ private theorem deserialize_aux (buf : io.ParseBuf)
       rw [hi1'] at *
       simp [okPart, misc.unexpected_buf_eof, misc.io_error_msg, ‹¬ i.val ≤ Slice.length buf2›]
 
-/-- `LenEnc::deserialize`: total; `checkedLenencStr` (with the lenenc quirk: `0xFB`/`0xFF` read as length 0, so as the empty string). -/
-theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec (buf : io.ParseBuf) (h64 : Target64) :
+/-- `LenEnc::deserialize`: total; `checkedLenencStr` (with the lenenc quirk: `0xFB`/`0xFF` read as length 0, so as the empty string). Provided the length read fits in a `usize` (`hfit`; always true on the 64-bit target, `lenenc_fits_of_target64`). -/
+theorem misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec (buf : io.ParseBuf)
+    (hfit : ∀ n, (checkedLenencInt buf.val).1 = some n → n ≤ Usize.max) :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize () buf ⦃ r rest =>
       ((okPart r).map cowList, rest.val) = checkedLenencStr buf.val ⦄ := by
-  apply WP.spec_mono (deserialize_aux buf (fun n hn _ => by simp [Target64] at h64; scalar_tac))
+  apply WP.spec_mono (deserialize_aux buf (fun n _ hn => hfit n hn))
   intro x hx; exact hx
 
 /-- Round trip: reads back the length-encoded string `s`. -/

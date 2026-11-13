@@ -38,9 +38,9 @@ theorem misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deseri
 /-- `MyDeserialize for ConstU32` panics on fewer than 4 bytes. -/
 theorem misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T : Type} (N : U32) (e : core.error.Error T)
     (d : core.default.Default T) (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf ⦃ _ => True ⦄ := by
+    misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf = fail .panic := by
   unfold misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
-  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u32_le_panics buf h)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_u32_le_panics buf h)
 
 /-- `buf.parse::<ConstU32>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than 4 bytes. -/
 theorem misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.parse_spec {T : Type} (N : U32) (e : core.error.Error T)

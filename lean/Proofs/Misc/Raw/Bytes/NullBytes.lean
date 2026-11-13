@@ -23,7 +23,7 @@ theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SI
 
 /-- `NullBytes::serialize`: appends the bytes before the first `0` (all of them if there is none), then a `0`: a string containing `0` is silently truncated. -/
 theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + 1 + text.length ≤ Usize.max) :
+    (h : buf.length + (beforeZero text.val).length + 1 ≤ Usize.max) :
     misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize text buf ⦃ buf' => buf'.val = buf.val ++ beforeZero text.val ++ [byte 0] ⦄ := by
   unfold misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize
   step with position_of_zero_spec as ⟨ o, ho ⟩
@@ -34,12 +34,14 @@ theorem misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.se
     | some i =>
       simp at ho
       simp only
+      rw [← ho] at h
       step as ⟨ s, hs1, hs2 ⟩
       step as ⟨ v, hv ⟩
       step as ⟨ w, hw ⟩
       simp [hw, hv, hs1, List.slice, ho, take_beforeZero_length]; rfl
   · subst ho
     simp only
+    rw [beforeZero_eq_self _ hc] at h
     step as ⟨ s, hs1, hs2 ⟩
     step as ⟨ v, hv ⟩
     step as ⟨ w, hw ⟩

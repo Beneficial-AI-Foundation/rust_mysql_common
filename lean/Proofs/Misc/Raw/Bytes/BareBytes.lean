@@ -22,7 +22,7 @@ theorem misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.SI
 
 /-- `BareBytes<MAX_LEN>::serialize`: appends the bytes, truncated to `MAX_LEN` (no length is written: it is stored elsewhere). -/
 theorem misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize_spec (M : Usize) (text : Slice U8) (buf : alloc.vec.Vec U8)
-    (h : buf.length + text.length ≤ Usize.max) :
+    (h : buf.length + min text.length M.val ≤ Usize.max) :
     misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize M text buf ⦃ buf' => buf'.val = buf.val ++ text.val.take M.val ⦄ := by
   unfold misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize
   step as ⟨ len, hlen ⟩

@@ -93,11 +93,11 @@ private theorem bin_values_spec (h64 : Target64) {S : Type} (inst : value.Serial
     (bitmap : packets.NullBitmap S (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (bm : List U8)
     (hbm : cowList bitmap.1 = bm)
     (hlen : cols.length + 7 + off.val ≤ Usize.max) (hbl : bm.length = nullBitmapLen off.val cols.length)
-    (hsup : ∀ (j : Nat) (c : packets.Column), cols.val[j]? = some c → binSupported c.column_type.1 = false →
-      bitmapBit off.val bm j = true) (k : Nat) :
+    (k : Nat) :
     ∀ (i : Usize) (buf : io.ParseBuf) (values : alloc.vec.Vec (Option value.Value)) (ws : List Val),
       k = cols.length - i.val → i.val ≤ cols.length → values.length = i.val →
       values.val.map (Option.map Val.ofValue) = ws.map some →
+      binValuesCrash off.val bm ((cols.val.drop i.val).map colInfo) i.val buf.val = false →
       row.deserialize_bin_values inst cols bitmap buf i values ⦃ r rest =>
         (okPart r).map (fun v => v.val.map (Option.map Val.ofValue)) =
           (binValuesRead off.val bm ((cols.val.drop i.val).map colInfo) i.val buf.val).1.map
@@ -106,13 +106,13 @@ private theorem bin_values_spec (h64 : Target64) {S : Type} (inst : value.Serial
   obtain ⟨s, hs, hsv⟩ := cow_as_ref bitmap.1
   induction k with
   | zero =>
-    intro i buf values ws hk hi hl hv
+    intro i buf values ws hk hi hl hv _
     unfold row.deserialize_bin_values
     have hd : cols.val.drop i.val = [] := by simp [Slice.length] at *; omega
     step*
     simp [hd, binValuesRead, okPart, hv]
   | succ k ih =>
-    intro i buf values ws hk hi hl hv
+    intro i buf values ws hk hi hl hv hnc
     unfold row.deserialize_bin_values
     have hlt : i.val < cols.length := by omega
     have hsl : s.length = nullBitmapLen off.val cols.length := by
@@ -124,29 +124,38 @@ private theorem bin_values_spec (h64 : Target64) {S : Type} (inst : value.Serial
       (by rw [hsl]; unfold nullBitmapLen; omega)
     rw [hsv, hbm] at b_post
     rw [hd]
+    rw [hd] at hnc
+    simp only [List.map_cons, colInfo, binValuesCrash] at hnc
     simp only [List.map_cons, colInfo, binValuesRead]
     subst b_post
     by_cases hb : bitmapBit off.val bm i.val = true
-    · simp only [hb, ite_true]
+    · simp only [hb, ite_true] at hnc
+      simp only [hb, ite_true]
       step; step
       refine WP.spec_mono (ih i2 buf values1 (ws ++ [Val.null]) (by omega) (by omega)
-        (by simp [values1_post, hl, i2_post]) ?_) ?_
+        (by simp [values1_post, hl, i2_post]) ?_ (by rw [i2_post]; exact hnc)) ?_
       · rw [values1_post, List.map_append, hv, List.map_append]; rfl
       · rintro ⟨r, rest⟩ ⟨h1, h2⟩
         rw [i2_post] at h1 h2
         exact ⟨by rw [h1, (consRead_map Val.null ws _).1], by rw [h2, (consRead_map Val.null ws _).2]⟩
-    · simp only [hb, Bool.false_eq_true, ite_false]
+    · simp only [hb, Bool.false_eq_true, ite_false] at hnc
+      simp only [hb, Bool.false_eq_true, ite_false]
+      rw [← c_post] at hnc
       have hct : binSupported c.column_type.1 = true := by
         by_contra h
-        exact hb (hsup i.val c (by rw [c_post]; exact List.getElem?_eq_getElem _) (by simpa using h))
+        simp [h] at hnc
+      simp only [hct, ite_true] at hnc
       have e1 : packets.Column.impl.column_type c = ok c.column_type.1 := rfl
       have e2 : packets.Column.impl.flags c = ok c.flags.1 := rfl
       simp only [e1, e2]
       step with value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize_spec h64 c.column_type.1 c.flags.1 hct as ⟨r, buf1, r_post⟩
       rw [← c_post, ← r_post]
+      rw [← r_post] at hnc
       rcases r with ⟨v, ph⟩ | e
       · have e3 : (okPart (core.result.Result.Ok (v, ph) : core.result.Result (value.ValueDeserializer value.BinValue) core.io.error.Error)).map (fun d => Val.ofValue d.1) = some (Val.ofValue v) := rfl
         rw [e3]
+        rw [e3] at hnc
+        simp only at hnc
         simp only
         step
         subst cf1_post
@@ -154,7 +163,7 @@ private theorem bin_values_spec (h64 : Target64) {S : Type} (inst : value.Serial
         step as ⟨values1, values1_post⟩
         step as ⟨i2, i2_post⟩
         refine WP.spec_mono (ih i2 buf1 values1 (ws ++ [Val.ofValue v]) (by omega) (by omega)
-          (by simp [values1_post, hl, i2_post]) ?_) ?_
+          (by simp [values1_post, hl, i2_post]) ?_ (by rw [i2_post]; exact hnc)) ?_
         · rw [values1_post, List.map_append, hv, List.map_append]; rfl
         · rintro ⟨r, rest⟩ ⟨h1, h2⟩
           rw [i2_post] at h1 h2
@@ -165,11 +174,95 @@ private theorem bin_values_spec (h64 : Target64) {S : Type} (inst : value.Serial
         step*
         simp [r1_post, okPart]
 
+private theorem bin_values_crash (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
+    (hoff : inst.BIT_OFFSET = ok off) (cols : Slice packets.Column)
+    (bitmap : packets.NullBitmap S (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (bm : List U8)
+    (hbm : cowList bitmap.1 = bm)
+    (hlen : cols.length + 7 + off.val ≤ Usize.max) (hbl : bm.length = nullBitmapLen off.val cols.length)
+    (k : Nat) :
+    ∀ (i : Usize) (buf : io.ParseBuf) (values : alloc.vec.Vec (Option value.Value)),
+      k = cols.length - i.val → i.val ≤ cols.length → values.length = i.val →
+      binValuesCrash off.val bm ((cols.val.drop i.val).map colInfo) i.val buf.val = true →
+      row.deserialize_bin_values inst cols bitmap buf i values = fail .panic := by
+  obtain ⟨s, hs, hsv⟩ := cow_as_ref bitmap.1
+  induction k with
+  | zero =>
+    intro i buf values hk hi hl hc
+    have hd : cols.val.drop i.val = [] := by simp [Slice.length] at *; omega
+    simp [hd, binValuesCrash] at hc
+  | succ k ih =>
+    intro i buf values hk hi hl hc
+    have hlt : i.val < cols.length := by omega
+    have hsl : s.length = nullBitmapLen off.val cols.length := by
+      rw [← hbl, ← hbm, ← hsv]
+    have hd : cols.val.drop i.val = cols.val[i.val]'(by simpa [Slice.length] using hlt) :: cols.val.drop (i.val + 1) :=
+      List.drop_eq_getElem_cons _
+    rw [hd] at hc
+    simp only [List.map_cons, colInfo, binValuesCrash] at hc
+    unfold row.deserialize_bin_values
+    have hlt' : i < Slice.len cols := by scalar_tac
+    simp only [hlt', ite_true]
+    apply PBUtil.bind_fail_of_spec (Slice.index_usize_spec cols i hlt)
+    intro c c_post
+    apply PBUtil.bind_fail_of_spec (packets.NullBitmap.is_null_spec inst _ off hoff bitmap s hs i (by omega)
+      (by rw [hsl]; unfold nullBitmapLen; omega))
+    intro b b_post
+    rw [hsv, hbm] at b_post
+    subst b_post
+    rw [← c_post] at hc
+    have hpush : ∀ x : Option value.Value, alloc.vec.Vec.push values x ⦃ v => v.length = i.val + 1 ⦄ := by
+      intro x; step*; simp_all
+    have hadd : (i + 1#usize) ⦃ i2 => i2.val = i.val + 1 ⦄ := by step*
+    by_cases hb : bitmapBit off.val bm i.val = true
+    · simp only [hb, ite_true] at hc ⊢
+      apply PBUtil.bind_fail_of_spec (hpush _)
+      intro values1 hv1
+      apply PBUtil.bind_fail_of_spec hadd
+      intro i2 hi2
+      exact ih i2 buf values1 (by omega) (by omega) (by omega) (by rw [hi2]; exact hc)
+    · simp only [hb, Bool.false_eq_true, ite_false] at hc ⊢
+      have e1 : packets.Column.impl.column_type c = ok c.column_type.1 := rfl
+      have e2 : packets.Column.impl.flags c = ok c.flags.1 := rfl
+      simp only [e1, e2, bind_ok]
+      by_cases hct : binSupported c.column_type.1 = true
+      · simp only [hct, ite_true] at hc
+        obtain ⟨⟨r, buf1⟩, hde, r_post⟩ := PBUtil.spec_eq_ok
+          (value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize_spec h64 c.column_type.1 c.flags.1 hct buf)
+        simp only [WP.uncurry'_pair] at r_post
+        rw [← r_post] at hc
+        rcases r with ⟨v, ph⟩ | e
+        · have e3 : (okPart (core.result.Result.Ok (v, ph) : core.result.Result (value.ValueDeserializer value.BinValue) core.io.error.Error)).map (fun d => Val.ofValue d.1) = some (Val.ofValue v) := rfl
+          rw [e3] at hc
+          simp only at hc
+          obtain ⟨values1, hpe, hv1⟩ := PBUtil.spec_eq_ok (hpush (some v))
+          obtain ⟨i2, hae, hi2⟩ := PBUtil.spec_eq_ok hadd
+          have hrec := ih i2 buf1 values1 (by omega) (by omega) (by omega) (by rw [hi2]; exact hc)
+          simp [hde, core.result.Result.Insts.CoreOpsTry.branch, hpe, hae, hrec]
+        · simp [okPart] at hc
+      · have hct' : binSupported c.column_type.1 = false := by simpa using hct
+        rw [value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize_unsupported c.column_type.1 c.flags.1 hct' buf]
+        simp
+
+/-- "Every unsupported column is marked NULL" (the old hypothesis of the binary row specs) rules out the panic. -/
+private theorem nocrash_of_sup (off : Nat) (columns : List packets.Column) (bs : List U8)
+    (hsup : ∀ (i : Nat) (c : packets.Column), columns[i]? = some c → binSupported c.column_type.1 = false →
+      bitmapBit off ((bs.drop 1).take (nullBitmapLen off columns.length)) i = true) :
+    binRowCrash off (columns.map colInfo) bs = false := by
+  apply binRowCrash_eq_false_of_supported
+  intro j ct u hj hs
+  rw [List.getElem?_map] at hj
+  cases hcj : columns[j]? with
+  | none => simp [hcj] at hj
+  | some c =>
+    rw [hcj] at hj
+    simp only [Option.map_some, Option.some.injEq, colInfo, Prod.mk.injEq] at hj
+    have := hsup j c hcj (by rw [hj.1]; exact hs)
+    simpa using this
+
 private theorem bin_spec (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
     (hlen : columns.length + 7 + off.val ≤ Usize.max) (buf : io.ParseBuf)
-    (hsup : ∀ (i : Nat) (c : packets.Column), columns.val[i]? = some c → binSupported c.column_type.1 = false →
-      bitmapBit off.val ((buf.val.drop 1).take (nullBitmapLen off.val columns.length)) i = true) :
+    (hnc : binRowCrash off.val (columns.val.map colInfo) buf.val = false) :
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize inst columns buf ⦃ r rest =>
       (okPart r).map (fun d => rowVals d.1) =
         (binRowRead off.val (columns.val.map colInfo) buf.val).1.map (List.map some) ∧
@@ -190,7 +283,8 @@ private theorem bin_spec (h64 : Target64) {S : Type} (inst : value.Serialization
     rcases o with _ | x
     · simp at ho
     simp only [List.drop_succ_cons, List.drop_zero] at hbuf1
-    simp only [hb, List.drop_succ_cons, List.drop_zero] at hsup
+    rw [hb] at hnc
+    simp only [binRowCrash, List.length_map] at hnc
     simp only [alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref]
     step with packets.NullBitmapTCowDeSliceU8VecU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize_spec inst off hoff (Slice.len columns) (by simpa using hlen) as ⟨r, buf2, r_post⟩
     simp only [binRowRead, List.length_map]
@@ -200,6 +294,7 @@ private theorem bin_spec (h64 : Target64) {S : Type} (inst : value.Serialization
     · have hk' : ¬ tl.length < nullBitmapLen off.val columns.val.length := by rw [hcl] at hk; omega
       rw [hcl, hbuf1] at r_post
       simp only [hk', ite_false]
+      simp only [hk', ite_false] at hnc
       obtain ⟨hr, hbuf2⟩ := r_post
       rcases r with nb0 | e
       · simp only [okPart, Option.map_some, Option.some.injEq] at hr
@@ -211,9 +306,10 @@ private theorem bin_spec (h64 : Target64) {S : Type} (inst : value.Serialization
         have hw : (alloc.vec.Vec.with_capacity (Option value.Value) (Slice.len columns)).val = [] := by
           simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
         step with bin_values_spec h64 inst off hoff columns nb0 _ hr hlen
-          (by rw [List.length_take]; simp only [Slice.length]; omega) hsup columns.length 0#usize buf2
+          (by rw [List.length_take]; simp only [Slice.length]; omega) columns.length 0#usize buf2
           (alloc.vec.Vec.with_capacity (Option value.Value) (Slice.len columns)) [] (by simp)
-          (by simp) (by simp [alloc.vec.Vec.length, hw]) (by simp [hw]) as ⟨r1, buf3, h1, h2⟩
+          (by simp) (by simp [alloc.vec.Vec.length, hw]) (by simp [hw])
+          (by simp only [show (0#usize : Usize).val = 0 from rfl, List.drop_zero]; rw [hbuf2]; exact hnc) as ⟨r1, buf3, h1, h2⟩
         simp only [List.drop_zero, List.map_nil, List.nil_append] at h1 h2
         rw [hbuf2] at h1 h2
         rcases r1 with vals | e
@@ -238,6 +334,47 @@ private theorem bin_spec (h64 : Target64) {S : Type} (inst : value.Serialization
       · simp [okPart] at hr
       · step*
         simp [r1_post, okPart, hbuf1]
+
+private theorem bin_crash (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
+    (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
+    (hlen : columns.length + 7 + off.val ≤ Usize.max) (buf : io.ParseBuf)
+    (hc : binRowCrash off.val (columns.val.map colInfo) buf.val = true) :
+    row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize inst columns buf = fail .panic := by
+  rcases hb : buf.val with _ | ⟨hd, tl⟩
+  · rw [hb] at hc; simp [binRowCrash] at hc
+  rw [hb] at hc
+  simp only [binRowCrash, List.length_map] at hc
+  split_ifs at hc with hk
+  have hb1 : 1 ≤ buf.length := by simp [Slice.length, hb]
+  obtain ⟨⟨o, buf1⟩, he1, hp1⟩ := PBUtil.spec_eq_ok (io.ParseBuf.checked_eat_u8_spec buf)
+  simp only [hb1, ite_true] at hp1
+  obtain ⟨ho, hbuf1⟩ := hp1
+  rcases o with _ | x
+  · simp at ho
+  rw [hb] at hbuf1
+  simp only [List.drop_succ_cons, List.drop_zero] at hbuf1
+  have hcl : (Slice.len columns).val = columns.val.length := by simp
+  obtain ⟨⟨r, buf2⟩, he2, hp2⟩ := PBUtil.spec_eq_ok
+    (packets.NullBitmapTCowDeSliceU8VecU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize_spec inst off hoff
+      (Slice.len columns) (by rw [hcl]; exact hlen) buf1)
+  have hk' : nullBitmapLen off.val (Slice.len columns).val ≤ buf1.length := by
+    rw [hcl]; simp only [Slice.length]; rw [hbuf1]; omega
+  simp only [hk', ite_true] at hp2
+  obtain ⟨hr, hbuf2⟩ := hp2
+  rcases r with nb | e
+  swap
+  · simp [okPart] at hr
+  simp only [okPart, Option.map_some, Option.some.injEq] at hr
+  rw [hcl, hbuf1] at hr hbuf2
+  have hw : (alloc.vec.Vec.with_capacity (Option value.Value) (Slice.len columns)).val = [] := by
+    simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+  have hdv := bin_values_crash h64 inst off hoff columns nb _ hr hlen
+    (by rw [List.length_take]; simp only [Slice.length]; omega) columns.length 0#usize buf2
+    (alloc.vec.Vec.with_capacity (Option value.Value) (Slice.len columns)) (by simp) (by simp)
+    (by simp [alloc.vec.Vec.length, hw])
+    (by simp only [show (0#usize : Usize).val = 0 from rfl, List.drop_zero]; rw [hbuf2]; exact hc)
+  unfold row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize
+  simp [he1, he2, alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref, core.result.Result.Insts.CoreOpsTry.branch, hdv]
 
 private theorem isNullVal_iff (v : Val) : isNullVal v = true ↔ v = .null := by
   cases v <;> simp [isNullVal]
@@ -354,7 +491,7 @@ private theorem roundtrip_core (h64 : Target64) {S : Type} (inst : value.Seriali
       rw [← hci, List.mem_iff_getElem]
       exact ⟨i, by simp; omega, by simp⟩
     rw [hS _ hmem hnn] at hns; cases hns
-  apply WP.spec_mono (bin_spec h64 inst off hoff columns hlen buf hsup)
+  apply WP.spec_mono (bin_spec h64 inst off hoff columns hlen buf (nocrash_of_sup off.val columns.val buf.val hsup))
   rintro ⟨r, rest⟩ ⟨h1, h2, _⟩
   rw [h, binRowRead_enc off.val E F hE hF tail vs columns.val hl H] at h1 h2
   exact ⟨by rw [h1]; rfl, h2⟩
@@ -457,20 +594,27 @@ theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlic
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE inst = none := by
   unfold row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE; rfl
 
-/-- `MyDeserialize for RowDeserializer<S, Binary>`: when every column whose type the binary value decoder does not support is marked NULL in the row's bitmap, total; `binRowRead` with `S`'s bit offset (header byte, NULL bitmap, then the non-NULL values), all present (`Some`), with the given columns. (The bound on the number of columns keeps `bitmap_len` from overflowing.) -/
+/-- `MyDeserialize for RowDeserializer<S, Binary>`: whenever it does not panic (`binRowCrash` is `false`; see `deserialize_crash` for the other case), total; `binRowRead` with `S`'s bit offset (header byte, NULL bitmap, then the non-NULL values), all present (`Some`), with the given columns. It is enough that every column of unsupported type is marked NULL in the row's bitmap (`Defs.binRowCrash_eq_false_of_supported`), but a truncated row, or one where an earlier value fails to decode, is covered too: it is an error, not a panic. (The bound on the number of columns keeps `bitmap_len` from overflowing.) -/
 theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
     (hlen : columns.length + 7 + off.val ≤ Usize.max) (buf : io.ParseBuf)
-    (hsup : ∀ (i : Nat) (c : packets.Column), columns.val[i]? = some c → binSupported c.column_type.1 = false →
-      bitmapBit off.val ((buf.val.drop 1).take (nullBitmapLen off.val columns.length)) i = true) :
+    (hnc : binRowCrash off.val (columns.val.map colInfo) buf.val = false) :
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize inst columns buf ⦃ r rest =>
       (okPart r).map (fun d => rowVals d.1) =
         (binRowRead off.val (columns.val.map colInfo) buf.val).1.map (List.map some) ∧
       rest.val = (binRowRead off.val (columns.val.map colInfo) buf.val).2 ∧
       ∀ d, okPart r = some d → d.1.columns = columns ⦄ := by
-  exact bin_spec h64 inst off hoff columns hlen buf hsup
+  exact bin_spec h64 inst off hoff columns hlen buf hnc
 
-/-- **Crash path.** `MyDeserialize for RowDeserializer<S, Binary>` panics when it reaches a non-NULL value of a column of unsupported type; e.g. when the first column has such a type and is not marked NULL. -/
+/-- **Crash path, exactly.** `MyDeserialize for RowDeserializer<S, Binary>` panics (`unimplemented!`) whenever `binRowCrash` is `true`: the header and bitmap are there, and the reader reaches a column of unsupported type that is not marked NULL, every earlier non-NULL value having decoded. With `deserialize_spec` this covers every input: the reader panics iff `binRowCrash`. -/
+theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_crash (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
+    (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
+    (hlen : columns.length + 7 + off.val ≤ Usize.max) (buf : io.ParseBuf)
+    (hc : binRowCrash off.val (columns.val.map colInfo) buf.val = true) :
+    row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize inst columns buf = fail .panic := by
+  exact bin_crash h64 inst off hoff columns hlen buf hc
+
+/-- **Crash path, simplest case** (no `Target64` needed; `deserialize_crash` is the general statement): `MyDeserialize for RowDeserializer<S, Binary>` panics when the first column has an unsupported type and is not marked NULL. -/
 theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_unsupported {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
     (c : packets.Column) (cs : List packets.Column) (hc : columns.val = c :: cs)
@@ -559,8 +703,7 @@ theorem value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val
 /-- `MyDeserialize for RowDeserializer<ServerSide, Binary>` (how clients read binary result-set rows): `deserialize_spec` at bit offset 2. -/
 theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec_server (h64 : Target64) (columns : alloc.sync.Arc (Slice packets.Column))
     (hlen : columns.length + 9 ≤ Usize.max) (buf : io.ParseBuf)
-    (hsup : ∀ (i : Nat) (c : packets.Column), columns.val[i]? = some c → binSupported c.column_type.1 = false →
-      bitmapBit 2 ((buf.val.drop 1).take (nullBitmapLen 2 columns.length)) i = true) :
+    (hnc : binRowCrash 2 (columns.val.map colInfo) buf.val = false) :
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize value.ServerSide.Insts.Mysql_commonValueSerializationSide columns buf ⦃ r rest =>
       (okPart r).map (fun d => rowVals d.1) =
         (binRowRead 2 (columns.val.map colInfo) buf.val).1.map (List.map some) ∧
@@ -569,8 +712,18 @@ theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlic
   have h2 := value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val
   have := bin_spec h64 value.ServerSide.Insts.Mysql_commonValueSerializationSide
     value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET rfl columns (by rw [h2]; omega) buf
-    (by rw [h2]; exact hsup)
+    (by rw [h2]; exact hnc)
   rw [h2] at this; exact this
+
+/-- `deserialize_crash` at `ServerSide` (bit offset 2): a binary result-set row from the server crashes the client exactly when `binRowCrash 2`. -/
+theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_crash_server (h64 : Target64) (columns : alloc.sync.Arc (Slice packets.Column))
+    (hlen : columns.length + 9 ≤ Usize.max) (buf : io.ParseBuf)
+    (hc : binRowCrash 2 (columns.val.map colInfo) buf.val = true) :
+    row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize value.ServerSide.Insts.Mysql_commonValueSerializationSide columns buf = fail .panic := by
+  have h2 := value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val
+  exact bin_crash h64 value.ServerSide.Insts.Mysql_commonValueSerializationSide
+    value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET rfl columns (by rw [h2]; omega) buf
+    (by rw [h2]; exact hc)
 
 /-- Round trip at the columns' types: a binary row as the server sends it (`binRowEncAt`: each non-NULL value in its column's format, integers in the column's width) of `Value`s that are `NULL` or fit their column (`binFitsAt`: in range for a narrow integer type, else `binCompatible`) is read back, up to `binNormAt`. -/
 theorem row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)

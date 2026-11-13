@@ -33,7 +33,7 @@ import Proofs.Misc.Raw.Int.VarLen
     appends, what the (unchecked) `deserialize` reads, what the checked `parse::<RawInt<_>>` returns
     on any buffer, and the round trip `serialize` then `parse`. `IntRepr::Primitive` bounds are
     instances Aeneas passes along; they play no part in the statements.
-    `¬ f x ⦃ _ => True ⦄` means `f x` does not return normally (it panics or does not terminate); every function stated this way here is loop-free, so it means `f x` panics, except `VarLen` `serialize_small_fails` (see its docstring).
+    Panics are stated as equations `f x = fail e`: `f x` stops with a Rust panic (it neither returns nor runs forever). `e` is the Aeneas library's label for the kind of panic (`.panic` in general, `.assertionFailure` for a failed `assert!`, `.undef` for an out-of-range `[n..]`); Rust does not distinguish them.
 
     **Not covered.** `Debug` impls, derived impls (`Default`, `Clone`, `PartialEq`, `Ord`, `Hash`);
     `DerefMut for RawInt` (returns a mutable borrow; nothing to state beyond `Deref`).
@@ -112,7 +112,7 @@ recall U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_spec (buf : io.Parse
 #guard_msgs (whitespace := lax, substring := true) in #print axioms U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_spec
 /-- `u8::deserialize` panics on fewer than 1 byte. -/
 recall U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize buf ⦃ _ => True ⦄
+    U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_panics
@@ -157,7 +157,7 @@ recall I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize_spec (buf : io.Parse
 #guard_msgs (whitespace := lax, substring := true) in #print axioms I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize_spec
 /-- `i8::deserialize` panics on fewer than 1 byte. -/
 recall I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize buf ⦃ _ => True ⦄
+    I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms I8.Insts.Mysql_commonMiscRawIntIntReprI8.deserialize_panics
@@ -202,7 +202,7 @@ recall misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spec
 /-- `LeU16::deserialize` panics on fewer than 2 bytes. -/
 recall misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_panics
@@ -247,7 +247,7 @@ recall misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec
 /-- `LeU24::deserialize` panics on fewer than 3 bytes. -/
 recall misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics
@@ -292,7 +292,7 @@ recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec
 /-- `LeU32::deserialize` panics on fewer than 4 bytes. -/
 recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics
@@ -337,7 +337,7 @@ recall misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec
 /-- `LeU48::deserialize` panics on fewer than 6 bytes. -/
 recall misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 6) :
-    ¬ misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics
@@ -382,7 +382,7 @@ recall misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec
 /-- `LeU56::deserialize` panics on fewer than 7 bytes. -/
 recall misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics
@@ -427,7 +427,7 @@ recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec
 /-- `LeU64::deserialize` panics on fewer than 8 bytes. -/
 recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics
@@ -472,7 +472,7 @@ recall misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize_spec
 /-- `LeI16::deserialize` panics on fewer than 2 bytes. -/
 recall misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI16.Insts.Mysql_commonMiscRawIntIntReprI16.deserialize_panics
@@ -517,7 +517,7 @@ recall misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_spec
 /-- `LeI24::deserialize` panics on fewer than 3 bytes. -/
 recall misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 3) :
-    ¬ misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_panics
@@ -562,7 +562,7 @@ recall misc.raw.int.LeI32.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI32.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_spec
 /-- `LeI32::deserialize` panics on fewer than 4 bytes. -/
 recall misc.raw.int.LeI32.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ misc.raw.int.LeI32.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeI32.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI32.Insts.Mysql_commonMiscRawIntIntReprI32.deserialize_panics
@@ -607,7 +607,7 @@ recall misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_spec
 /-- `LeI56::deserialize` panics on fewer than 7 bytes. -/
 recall misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 7) :
-    ¬ misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI56.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_panics
@@ -652,7 +652,7 @@ recall misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_spe
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_spec
 /-- `LeI64::deserialize` panics on fewer than 8 bytes. -/
 recall misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 8) :
-    ¬ misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize_panics
@@ -734,7 +734,7 @@ recall misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deseri
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec
 /-- `LeU32LowerHalf::deserialize` panics on fewer than 2 bytes. -/
 recall misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics
@@ -779,7 +779,7 @@ recall misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deseri
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec
 /-- `LeU32UpperHalf::deserialize` panics on fewer than 2 bytes. -/
 recall misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 2) :
-    ¬ misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf ⦃ _ => True ⦄
+    misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_panics
@@ -832,7 +832,7 @@ recall misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserial
 /-- `MyDeserialize for ConstU8` panics on fewer than 1 byte. -/
 recall misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T : Type} (N : U8) (e : core.error.Error T)
     (d : core.default.Default T) (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf ⦃ _ => True ⦄
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofError] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
@@ -879,7 +879,7 @@ recall misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deseria
 /-- `MyDeserialize for ConstU32` panics on fewer than 4 bytes. -/
 recall misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics {T : Type} (N : U32) (e : core.error.Error T)
     (d : core.default.Default T) (buf : io.ParseBuf) (h : buf.length < 4) :
-    ¬ misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf ⦃ _ => True ⦄
+    misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize N e d () buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofError] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.ConstU32.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
@@ -943,11 +943,10 @@ recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_larg
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_large
 /-- **Bug.** For `x < 128`, `VarLen::serialize` never returns: after writing `x` its loop keeps
     appending `0` bytes forever (in Rust: until allocation fails and the process aborts; in the
-    Lean model: until the `Vec` reaches `usize::MAX` and the next `push` fails). It is stated as
-    "does not return normally" rather than as an equation because the failure only comes after
-    `usize::MAX` iterations of the loop. -/
+    Lean model: until the `Vec` reaches `usize::MAX` and the next `push` fails, which is the
+    panic stated here; it is reached for every `buf`, after `usize::MAX - buf.len()` iterations). -/
 recall misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_small_fails (x : U32) (buf : alloc.vec.Vec U8) (hx : x.val < 128) :
-    ¬ misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize x buf ⦃ _ => True ⦄
+    misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize x buf = fail .panic
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.VarLen.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_small_fails

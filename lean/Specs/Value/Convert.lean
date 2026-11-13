@@ -82,7 +82,8 @@ import Proofs.Value.Convert.FromBytes
       `\d` also matches non-ASCII decimal digits, which `btou` then rejects; the following
       `.unwrap()` panics, e.g. on `"00:00:00.\u{0660}"`. The statements cover **every** input:
       - the parsers panic exactly on `timeTextPanics` / `datetimeTextPanics` (a non-ASCII byte,
-        and a fractional regex matches; `..._string_panic`), and off them they are total and
+        and a fractional regex matches; for DATETIME, only when the input is also 21–26 bytes
+        long; `..._string_panic`), and off them they are total and
         exact (`..._string_spec`). So on input with a non-ASCII byte a parser returns `None` or
         panics, never a value (`timeStringRead_nonascii`, `datetimeStringRead_nonascii`);
       - only the fractional forms can panic: the fixed lengths 8/9 (TIME) and 10/19 (DATETIME)

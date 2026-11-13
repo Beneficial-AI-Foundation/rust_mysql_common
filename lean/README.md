@@ -121,7 +121,8 @@ was confirmed against upstream `src/`:
    `NaiveTime`/`NaiveDateTime`/`NaiveDate` or `time::Duration`. The cause: regex `\d` is
    Unicode-aware, but `btou(..).unwrap()` accepts only ASCII digits. Stated for every input:
    the parsers panic exactly when the input has a non-ASCII byte and a fractional regex
-   matches it (`timeTextPanics`, `datetimeTextPanics`), and `Bytes` with a non-ASCII byte give
+   matches it (for DATETIME, only when it is also 21–26 bytes long; `timeTextPanics`,
+   `datetimeTextPanics`), and `Bytes` with a non-ASCII byte give
    a panic or `Err`, never a value. Which non-ASCII strings the regexes match is not modelled.
 6. **`mysql_time_to_duration` computes `microseconds * 1000` in `u32`.** It overflows for
    micros > 4294967, which a server can send in a binary `TIME`: it panics in debug builds and

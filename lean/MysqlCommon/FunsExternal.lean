@@ -186,8 +186,10 @@ in Cargo.toml. Each function gets one of:
   regexes (exact on ASCII input), the chrono and time constructors (success iff the components
   are valid) and getters;
 * an **opaque value with no specification**: float parsing and widening, the parsers of time,
-  num-bigint, rust_decimal, bigdecimal and serde_json, their `From`/`to_string`, and the
-  `time::Duration` arithmetic.
+  num-bigint, rust_decimal, bigdecimal and serde_json, and their `From`/`to_string`.
+
+`time::Duration` is the second kind, with **exact** axioms: an opaque getter `durNanos` and, per
+operation, when it returns and the `durNanos` of the result.
 
 Unless a declaration says otherwise, a helper is assumed not to panic (it returns `ok`). -/
 
@@ -445,8 +447,10 @@ def Regex.Loose : Regex → List Std.U8 → Prop
     * a literal and a bracketed range such as `[0-5]` match exactly one scalar value in that
       range, all below 128, encoded as that single byte;
     * `\d` is the class of scalar values of general category `Nd`
-      (`src/hir/translate.rs:398-402`, `1081-1101`; `src/unicode.rs:430-449`; table
-      `src/unicode_tables/perl_decimal.rs`: `'0'..='9'`, then nothing below U+0660), compiled to
+      (`src/hir/translate.rs:398-402`, `1081-1101`; `src/unicode.rs:430-449`, which with the
+      default `unicode-gencat` feature uses `general_category::DECIMAL_NUMBER`
+      (`src/unicode_tables/general_category.rs`; identical to
+      `src/unicode_tables/perl_decimal.rs`): `'0'..='9'`, then nothing below U+0660), compiled to
       the UTF-8 encodings of those scalar values (regex-automata
       `src/nfa/thompson/compiler.rs:1395-1470`, `Utf8Sequences`). So a `\d` matches one ASCII
       digit, or the UTF-8 encoding of a scalar value `≥ U+0660`: two to four bytes, all `≥ 128`.
@@ -652,8 +656,31 @@ axiom pdtParseDateTime :
 axiom pdtParseDateTimeMicro :
   Str → core.result.Result time.plain_date_time.PlainDateTime time.error.parse.Parse
 
-/-- `time::Duration` operations: opaque, and (except the getters and the comparison) not even
-    assumed not to panic (`days`/`hours`/`minutes` and `+`/`-`/negation panic on overflow). -/
+/-! #### `time::Duration` (time 0.3.55: `pub type Duration = SignedDuration`, lib.rs:172)
+
+The type stays opaque. It is observed through one getter, `durNanos` (the total nanoseconds), and
+each operation the conversions use has one axiom saying exactly when it returns and what the
+`durNanos` of its result is. Nothing else is assumed (no extensionality, no surjectivity).
+
+time represents a duration as `seconds: i64` and `nanoseconds` in `-999_999_999..=999_999_999`
+(signed_duration.rs:39-40, 50-57) **with the same sign as `seconds`** ("The sign always matches
+the `seconds` field", signed_duration.rs:53-54; not a safety invariant, but every public
+constructor and operation establishes it, and `new_ranged_unchecked` debug-asserts it,
+signed_duration.rs:414-419). `durNanos` is `seconds * 10^9 + nanoseconds`; under that invariant
+`seconds = durNanos.tdiv 10^9` and `nanoseconds = durNanos.tmod 10^9` (`Int.tdiv`/`Int.tmod`
+truncate toward zero, as Rust's `/` and `%`). The axioms below are time's code read through
+these two equations; each one, and the invariant, was checked by a test program against time
+0.3.55 (debug build), on `MIN`, `MAX`, ±1 ns around zero, every overflow edge, and random
+values, comparing with `whole_nanoseconds()` in `i128`.
+
+The representable range `-2^63 * 10^9 - 999_999_999 ..= (2^63 - 1) * 10^9 + 999_999_999`
+(`MIN`, `MAX`: signed_duration.rs:314, 317) is not an axiom: it follows from
+`durationWholeSeconds_spec`, whose result is an `i64`. -/
+
+/-- The total number of nanoseconds of a `time::Duration`: `seconds * 10^9 + nanoseconds`
+    (= `whole_nanoseconds()`, signed_duration.rs:1033-1035). -/
+axiom durNanos : time.signed_duration.SignedDuration → Int
+
 axiom durationDays : Std.I64 → Result time.signed_duration.SignedDuration
 axiom durationHours : Std.I64 → Result time.signed_duration.SignedDuration
 axiom durationMinutes : Std.I64 → Result time.signed_duration.SignedDuration
@@ -671,6 +698,98 @@ axiom durationWholeHours : time.signed_duration.SignedDuration → Std.I64
 axiom durationWholeMinutes : time.signed_duration.SignedDuration → Std.I64
 axiom durationWholeSeconds : time.signed_duration.SignedDuration → Std.I64
 axiom durationWholeMicroseconds : time.signed_duration.SignedDuration → Std.I128
+
+/-- `Duration::days(x)` is `Self::seconds(x.checked_mul(86_400).expect(..))`
+    (signed_duration.rs:521-526): when `x * 86400` fits `i64` it returns that many whole
+    seconds. (It panics otherwise; not stated, as no proof needs it.) -/
+axiom durationDays_spec (x : Std.I64) :
+  -2 ^ 63 ≤ x.val * 86400 ∧ x.val * 86400 < 2 ^ 63 →
+    ∃ d, durationDays x = ok d ∧ durNanos d = x.val * 86400 * 10 ^ 9
+
+/-- `Duration::hours(x)` is `Self::seconds(x.checked_mul(3_600).expect(..))`
+    (signed_duration.rs:541-547): returns when `x * 3600` fits `i64`. -/
+axiom durationHours_spec (x : Std.I64) :
+  -2 ^ 63 ≤ x.val * 3600 ∧ x.val * 3600 < 2 ^ 63 →
+    ∃ d, durationHours x = ok d ∧ durNanos d = x.val * 3600 * 10 ^ 9
+
+/-- `Duration::minutes(x)` is `Self::seconds(x.checked_mul(60).expect(..))`
+    (signed_duration.rs:562-568): returns when `x * 60` fits `i64`. -/
+axiom durationMinutes_spec (x : Std.I64) :
+  -2 ^ 63 ≤ x.val * 60 ∧ x.val * 60 < 2 ^ 63 →
+    ∃ d, durationMinutes x = ok d ∧ durNanos d = x.val * 60 * 10 ^ 9
+
+/-- `Duration::seconds(x)` is `x` seconds and 0 nanoseconds (signed_duration.rs:577-579): it
+    never panics. -/
+axiom durationSeconds_spec (x : Std.I64) :
+  ∃ d, durationSeconds x = ok d ∧ durNanos d = x.val * 10 ^ 9
+
+/-- `Duration::microseconds(x)` is `x / 10^6` seconds and `(x % 10^6) * 1000` nanoseconds
+    (signed_duration.rs:814-823; both truncating, so the signs agree and the nanoseconds fit):
+    it never panics, and is `x * 1000` nanoseconds. -/
+axiom durationMicroseconds_spec (x : Std.I64) :
+  ∃ d, durationMicroseconds x = ok d ∧ durNanos d = x.val * 1000
+
+/-- `a + b` is `a.checked_add(b).expect(..)` (signed_duration.rs:1466-1468). `checked_add`
+    (signed_duration.rs:1067-1083) adds the seconds (`None` on `i64` overflow) and the
+    nanoseconds, then carries one second (`None` on overflow). With equal signs inside `a` and
+    inside `b`, either overflow happens only when the true sum is outside the representable
+    range: so when the sum is representable it returns the sum. (It panics otherwise; not
+    stated.) -/
+axiom durationAdd_spec (a b : time.signed_duration.SignedDuration) :
+  -2 ^ 63 * 10 ^ 9 - 999999999 ≤ durNanos a + durNanos b ∧
+      durNanos a + durNanos b ≤ (2 ^ 63 - 1) * 10 ^ 9 + 999999999 →
+    ∃ d, durationAdd a b = ok d ∧ durNanos d = durNanos a + durNanos b
+
+/-- `a - b` is `a.checked_sub(b).expect(..)` (signed_duration.rs:1556-1558). `checked_sub`
+    (signed_duration.rs:1096-1112) subtracts the seconds (`None` on `i64` overflow) and the
+    nanoseconds, then borrows one second (`None` on overflow). Stated only for
+    `0 ≤ b ≤ a`, the only case the conversions use: then both seconds fields are non-negative,
+    neither step overflows, and it returns the difference. (In general it also panics when the
+    difference is representable but the seconds difference overflows `i64`, e.g.
+    `Duration::nanoseconds(-999_999_999) - Duration::seconds(i64::MIN)`; confirmed by test.) -/
+axiom durationSub_spec (a b : time.signed_duration.SignedDuration) :
+  0 ≤ durNanos b ∧ durNanos b ≤ durNanos a →
+    ∃ d, durationSub a b = ok d ∧ durNanos d = durNanos a - durNanos b
+
+/-- `-a` is `a.checked_neg().expect(..)` (signed_duration.rs:1542-1544), and `checked_neg` is
+    `None` iff `seconds == i64::MIN`, else both fields negated (signed_duration.rs:1168-1177).
+    So it panics iff `a` is at most `-2^63` seconds, which includes `Duration::MIN`, and is
+    otherwise the negation. -/
+axiom durationNeg_spec (a : time.signed_duration.SignedDuration) :
+  (-2 ^ 63 * 10 ^ 9 < durNanos a → ∃ d, durationNeg a = ok d ∧ durNanos d = -durNanos a) ∧
+  (durNanos a ≤ -2 ^ 63 * 10 ^ 9 → durationNeg a = fail .panic)
+
+/-- `a < Duration::ZERO`: `Ord` compares the seconds, then the nanoseconds
+    (signed_duration.rs:85-91), and `ZERO` is `seconds(0)` (signed_duration.rs:247). -/
+axiom durationLtZero_spec (a : time.signed_duration.SignedDuration) :
+  durationLtZero a = decide (durNanos a < 0)
+
+/-- `whole_seconds` is the seconds field (signed_duration.rs:937-939), i.e. the nanoseconds
+    divided by `10^9`, truncating toward zero. (Stated on every value: it gives the
+    representable range.) -/
+axiom durationWholeSeconds_spec (a : time.signed_duration.SignedDuration) :
+  (durationWholeSeconds a).val = (durNanos a).tdiv (10 ^ 9)
+
+/-- `whole_minutes` is `whole_seconds() / 60` (signed_duration.rs:923-925). Stated only for a
+    non-negative duration, where truncating and floor division agree. -/
+axiom durationWholeMinutes_spec (a : time.signed_duration.SignedDuration) :
+  0 ≤ durNanos a → (durationWholeMinutes a).val = durNanos a / 10 ^ 9 / 60
+
+/-- `whole_hours` is `whole_seconds() / 3_600` (signed_duration.rs:909-911); non-negative
+    durations only. -/
+axiom durationWholeHours_spec (a : time.signed_duration.SignedDuration) :
+  0 ≤ durNanos a → (durationWholeHours a).val = durNanos a / 10 ^ 9 / 3600
+
+/-- `whole_days` is `whole_seconds() / 86_400` (signed_duration.rs:895-897); non-negative
+    durations only. -/
+axiom durationWholeDays_spec (a : time.signed_duration.SignedDuration) :
+  0 ≤ durNanos a → (durationWholeDays a).val = durNanos a / 10 ^ 9 / 86400
+
+/-- `whole_microseconds` is `seconds as i128 * 10^6 + nanoseconds as i128 / 1000`
+    (signed_duration.rs:1004-1007), which for a non-negative duration is its nanoseconds
+    divided by 1000; non-negative durations only. -/
+axiom durationWholeMicroseconds_spec (a : time.signed_duration.SignedDuration) :
+  0 ≤ durNanos a → (durationWholeMicroseconds a).val = durNanos a / 1000
 
 end Trusted
 

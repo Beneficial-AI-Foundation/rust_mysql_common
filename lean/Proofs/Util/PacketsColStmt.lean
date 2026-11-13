@@ -59,7 +59,7 @@ theorem lenenc_raw_deserialize (h64 : Target64) (buf : io.ParseBuf) :
       rest.val = (checkedLenencStr buf.val).2 ⦄ := by
   apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ _ _
     (fun o rest => o = (checkedLenencStr buf.val).1 ∧ rest.val = (checkedLenencStr buf.val).2)
-  apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf h64)
+  apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf (lenenc_fits_of_target64 h64 buf))
   rintro ⟨r, rest⟩ h
   simp only [WP.uncurry'] at h ⊢
   rw [← h]; simp

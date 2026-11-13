@@ -80,11 +80,10 @@ theorem misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTu
 
 /-- `FixedLengthText<LEN>::deserialize` panics on fewer than `LEN` bytes. -/
 theorem misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_panics (L : Usize) (buf : io.ParseBuf) (h : buf.length < L.val) :
-    ¬ misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize L () buf ⦃ _ => True ⦄ := by
+    misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize L () buf = fail .panic := by
   unfold misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize
   simp only [misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq]
-  intro hc
-  exact io.ParseBuf.eat_panics buf L h (spec_of_bind _ _ _ hc)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_panics buf L h)
 
 /-- `buf.parse::<RawBytes<FixedLengthText<LEN>>>(())`: total (checked through `SIZE`); an error with the buffer unchanged on fewer than `LEN` bytes. -/
 theorem misc.raw.bytes.FixedLengthText.Insts.Mysql_commonMiscRawBytesBytesReprTuple.parse_rawbytes_spec (L : Usize) (buf : io.ParseBuf) :

@@ -11,9 +11,10 @@ open Aeneas Aeneas.Std Result mysql_common Defs
 namespace mysql_common
 
 private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc : T → List U8)
-    (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
+    (it : core.slice.iter.Iter T)
+    (hser : ∀ x ∈ it.slice.val, ∀ (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
-    (it : core.slice.iter.Iter T) (buf : alloc.vec.Vec U8)
+    (buf : alloc.vec.Vec U8)
     (h : buf.length + ((it.slice.val.drop it.i).flatMap enc).length ≤ Usize.max) :
     misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize_loop ser it buf ⦃ v => v.val = buf.val ++ (it.slice.val.drop it.i).flatMap enc ⦄ := by
   unfold misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize_loop
@@ -30,7 +31,7 @@ private theorem serialize_loop_spec {T : Type} (ser : proto.MySerialize T) (enc 
         List.drop_eq_getElem_cons hlt'
       rw [hd] at hb1 hb2
       simp only [List.flatMap_cons, List.length_append] at hb1 hb2
-      step with hser jt.slice.val[jt.i] b (by scalar_tac) as ⟨ b1, hb ⟩
+      step with hser jt.slice.val[jt.i] (by rw [← hs]; exact List.getElem_mem _) b (by scalar_tac) as ⟨ b1, hb ⟩
       refine ⟨hs, ?_, ?_, ?_⟩
       · have : b1.length = b.length + (enc (jt.slice.val)[jt.i]).length := by simp [hb]
         omega
@@ -53,16 +54,17 @@ theorem misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.SIZE_eq :
     misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.SIZE = none := by
   unfold misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.SIZE; rfl
 
-/-- `Unknown::serialize`: appends the items' serializations, nothing else (the count is stored elsewhere). Stated given what the item serializer appends (`enc`). -/
+/-- `Unknown::serialize`: appends the items' serializations, nothing else (the count is stored elsewhere). Stated given what the item serializer appends (`enc`) for the items of the sequence. -/
 theorem misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize_spec {T : Type} (ser : proto.MySerialize T) (enc : T → List U8)
-    (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
+    (seq : Slice T)
+    (hser : ∀ x ∈ seq.val, ∀ (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
-    (seq : Slice T) (buf : alloc.vec.Vec U8)
+    (buf : alloc.vec.Vec U8)
     (h : buf.length + (seq.val.flatMap enc).length ≤ Usize.max) :
     misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize ser seq buf ⦃ buf' => buf'.val = buf.val ++ seq.val.flatMap enc ⦄ := by
   unfold misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize
   simp only [core.slice.Slice.iter]
-  step with serialize_loop_spec ser enc hser ⟨seq, 0⟩ buf (by simpa using h) as ⟨ v, hv ⟩
+  step with serialize_loop_spec ser enc ⟨seq, 0⟩ hser buf (by simpa using h) as ⟨ v, hv ⟩
   simpa using hv
 
 /-- `Unknown::deserialize(len)`: reads back `len` serialized items. Stated given that the item

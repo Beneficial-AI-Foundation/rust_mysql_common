@@ -30,9 +30,9 @@ theorem U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_spec (buf : io.Pars
 
 /-- `u8::deserialize` panics on fewer than 1 byte. -/
 theorem U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize_panics (buf : io.ParseBuf) (h : buf.length < 1) :
-    ¬ U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize buf ⦃ _ => True ⦄ := by
+    U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize buf = fail .panic := by
   unfold U8.Insts.Mysql_commonMiscRawIntIntReprU8.deserialize
-  exact PBUtil.not_spec_bind_left (io.ParseBuf.eat_u8_panics buf h)
+  exact PBUtil.bind_fail_left (io.ParseBuf.eat_u8_panics buf h)
 
 /-- `buf.parse::<RawInt<u8>>(())`: total (checked through `SIZE`); an error with the buffer unchanged if it has fewer than 1 byte. -/
 theorem U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec (buf : io.ParseBuf) :

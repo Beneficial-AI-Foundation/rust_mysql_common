@@ -9,15 +9,18 @@ open Aeneas Aeneas.Std Result mysql_common Defs WP
 
 namespace mysql_common
 
-/-- `write_varlen_uint`: appends the serialization-library encoding `varlenUint v` (1 to 9 bytes). -/
-theorem misc.write_varlen_uint_spec (buf : alloc.vec.Vec U8) (v : U64) (h : buf.length + 9 ≤ Usize.max) :
+/-- `write_varlen_uint`: appends the serialization-library encoding `varlenUint v` (`varlenUintSize v` bytes, 1 to 9; the buffer only needs room for those). -/
+theorem misc.write_varlen_uint_spec (buf : alloc.vec.Vec U8) (v : U64)
+    (h : buf.length + varlenUintSize v.val ≤ Usize.max) :
     misc.write_varlen_uint buf v ⦃ buf' => buf'.val = buf.val ++ varlenUint v.val ⦄ := by
   unfold misc.write_varlen_uint
   step with misc.varlen_uint_size_spec as ⟨ k, hk ⟩
   obtain ⟨h1, h9, hlt, hge⟩ := IntAndMisc.varlenUintSize_spec v.val
   rw [← hk] at h1 h9 hlt hge
+  rw [← hk] at h
   split_ifs with hk9
-  · step*
+  · have hk9v : k.val = 9 := by rw [hk9]; rfl
+    step*
     apply spec_mono (IntAndMisc.put_slice_spec buf1 s (by simp [buf1_post, s_post]; scalar_tac))
     intro b hb
     have hk9' : varlenUintSize v.val = 9 := by rw [← hk, hk9]; rfl

@@ -1,6 +1,7 @@
 import Defs
 import Proofs.Util.ConvDeps
 import Proofs.Value.Convert.ParseMysqlTimeString
+import Proofs.Value.Convert.Time.SignedDurationOps
 
 /-! Statements for `impl TryFrom<Value> for ParseIr<time::Duration>` (spec file: `Specs/Value/Convert/Time.lean`). -/
 
@@ -10,58 +11,159 @@ open Aeneas Aeneas.Std Result mysql_common Defs Classical
 
 namespace mysql_common
 
-/-- **Crash path.** `TryFrom<Value> for ParseIr<time::Duration>` panics on the `Bytes` on which
-    the text parser panics (`Val.timeTextPanics`: a non-ASCII byte, and a fractional regex
-    matches): the complement of the hypothesis of `try_from_err`. -/
-theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
-    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic := by
-  obtain ⟨b, rfl, hb⟩ := ConvDeps.timeTextPanics_bytes hp
-  simp only [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
-    value.convert.parse_mysql_time_string_panic _ hb, bind_fail]
+namespace TimeDur
 
-/-- `TryFrom<Value> for ParseIr<time::Duration>` (partial, glue level: time's `Duration` arithmetic is
-    opaque and may panic): on a `TIME`, or on `Bytes` holding a text `TIME` literal, if it
-    returns, it returns `Ok` keeping the original value; on any other value (not `TIME`, not
-    `Bytes`) it is an error carrying the value. No hypothesis on the `Bytes`: a text `TIME`
-    literal is ASCII, and the text parser's panic (`try_from_panic`) is not a return. -/
-theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (r : core.result.Result (value.convert.ParseIr time.signed_duration.SignedDuration) value.convert.FromValueError)
-    (h : value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = ok r) :
-    match Val.ofValue v with
-    | .time .. => ∃ x, r = .Ok (x, v)
-    | .bytes b => (timeStringRead b).isSome → ∃ x, r = .Ok (x, v)
-    | _ => r = .Err v := by
+/-- The duration of `hours:minutes:seconds.microseconds`, with the sign: total. -/
+theorem hmsChain (v : value.Value) (is_neg : Bool) (hours : U32) (minutes seconds : U8)
+    (microseconds : U32) :
+    ∃ x, (do
+        let i ← lift (UScalar.hcast .I64 hours)
+        let sd ← value.convert.trusted.time_duration_hours i
+        let i1 ← lift (UScalar.hcast .I64 minutes)
+        let sd1 ← value.convert.trusted.time_duration_minutes i1
+        let sd2 ← value.convert.trusted.time_duration_add sd sd1
+        let i2 ← lift (UScalar.hcast .I64 seconds)
+        let sd3 ← value.convert.trusted.time_duration_seconds i2
+        let sd4 ← value.convert.trusted.time_duration_add sd2 sd3
+        let i3 ← lift (UScalar.hcast .I64 microseconds)
+        let sd5 ← value.convert.trusted.time_duration_microseconds i3
+        let duration ← value.convert.trusted.time_duration_add sd4 sd5
+        if is_neg
+        then
+          let duration1 ← value.convert.trusted.time_duration_neg duration
+          ok (core.result.Result.Ok (duration1, v))
+        else ok (core.result.Result.Ok (duration, v)) :
+        Result (core.result.Result (value.convert.ParseIr time.signed_duration.SignedDuration)
+          value.convert.FromValueError)) = ok (.Ok (x, v)) ∧
+      Trusted.durNanos x =
+        timeSignedNanos is_neg 0 hours.val minutes.val seconds.val microseconds.val := by
+  have bh : hours.val < 2 ^ 32 := by scalar_tac
+  have bm : minutes.val < 2 ^ 8 := by scalar_tac
+  have bs : seconds.val < 2 ^ 8 := by scalar_tac
+  have bu : microseconds.val < 2 ^ 32 := by scalar_tac
+  obtain ⟨sd, hsd, hsdn⟩ := hours_ok (UScalar.hcast .I64 hours) (by rw [u32_hcast_i64_val]; omega)
+  obtain ⟨sd1, hsd1, hsd1n⟩ := minutes_ok (UScalar.hcast .I64 minutes)
+    (by rw [u8_hcast_i64_val]; omega)
+  rw [u32_hcast_i64_val] at hsdn
+  rw [u8_hcast_i64_val] at hsd1n
+  obtain ⟨sd2, hsd2, hsd2n⟩ := add_ok sd sd1 (by omega)
+  obtain ⟨sd3, hsd3, hsd3n⟩ := seconds_ok (UScalar.hcast .I64 seconds)
+  rw [u8_hcast_i64_val] at hsd3n
+  obtain ⟨sd4, hsd4, hsd4n⟩ := add_ok sd2 sd3 (by omega)
+  obtain ⟨sd5, hsd5, hsd5n⟩ := microseconds_ok (UScalar.hcast .I64 microseconds)
+  rw [u32_hcast_i64_val] at hsd5n
+  obtain ⟨du, hdu, hdun⟩ := add_ok sd4 sd5 (by omega)
+  simp only [lift, bind_ok, hsd, hsd1, hsd2, hsd3, hsd4, hsd5, hdu]
+  cases is_neg with
+  | false =>
+    refine ⟨du, by simp, ?_⟩
+    simp only [timeSignedNanos, timeNanos, Bool.false_eq_true, ite_false]
+    push_cast; omega
+  | true =>
+    obtain ⟨du1, hdu1, hdu1n⟩ := neg_ok du (by omega)
+    refine ⟨du1, by simp [hdu1], ?_⟩
+    simp only [timeSignedNanos, timeNanos, ite_true]
+    push_cast; omega
+
+/-- The duration of `days hours:minutes:seconds.microseconds`, with the sign: total (`u32` days
+    of 86400 seconds are far inside the range of a `time::Duration`). -/
+theorem dhmsChain (v : value.Value) (is_neg : Bool) (days : U32) (hours minutes seconds : U8)
+    (microseconds : U32) :
+    ∃ x, (do
+        let i ← lift (UScalar.hcast .I64 days)
+        let sd ← value.convert.trusted.time_duration_days i
+        let i1 ← lift (UScalar.hcast .I64 hours)
+        let sd1 ← value.convert.trusted.time_duration_hours i1
+        let sd2 ← value.convert.trusted.time_duration_add sd sd1
+        let i2 ← lift (UScalar.hcast .I64 minutes)
+        let sd3 ← value.convert.trusted.time_duration_minutes i2
+        let sd4 ← value.convert.trusted.time_duration_add sd2 sd3
+        let i3 ← lift (UScalar.hcast .I64 seconds)
+        let sd5 ← value.convert.trusted.time_duration_seconds i3
+        let sd6 ← value.convert.trusted.time_duration_add sd4 sd5
+        let i4 ← lift (UScalar.hcast .I64 microseconds)
+        let sd7 ← value.convert.trusted.time_duration_microseconds i4
+        let duration ← value.convert.trusted.time_duration_add sd6 sd7
+        if is_neg
+        then
+          let duration1 ← value.convert.trusted.time_duration_neg duration
+          ok (core.result.Result.Ok (duration1, v))
+        else ok (core.result.Result.Ok (duration, v)) :
+        Result (core.result.Result (value.convert.ParseIr time.signed_duration.SignedDuration)
+          value.convert.FromValueError)) = ok (.Ok (x, v)) ∧
+      Trusted.durNanos x =
+        timeSignedNanos is_neg days.val hours.val minutes.val seconds.val microseconds.val := by
+  have bd : days.val < 2 ^ 32 := by scalar_tac
+  have bh : hours.val < 2 ^ 8 := by scalar_tac
+  have bm : minutes.val < 2 ^ 8 := by scalar_tac
+  have bs : seconds.val < 2 ^ 8 := by scalar_tac
+  have bu : microseconds.val < 2 ^ 32 := by scalar_tac
+  obtain ⟨sd, hsd, hsdn⟩ := days_ok (UScalar.hcast .I64 days) (by rw [u32_hcast_i64_val]; omega)
+  obtain ⟨sd1, hsd1, hsd1n⟩ := hours_ok (UScalar.hcast .I64 hours)
+    (by rw [u8_hcast_i64_val]; omega)
+  rw [u32_hcast_i64_val] at hsdn
+  rw [u8_hcast_i64_val] at hsd1n
+  obtain ⟨sd2, hsd2, hsd2n⟩ := add_ok sd sd1 (by omega)
+  obtain ⟨sd3, hsd3, hsd3n⟩ := minutes_ok (UScalar.hcast .I64 minutes)
+    (by rw [u8_hcast_i64_val]; omega)
+  rw [u8_hcast_i64_val] at hsd3n
+  obtain ⟨sd4, hsd4, hsd4n⟩ := add_ok sd2 sd3 (by omega)
+  obtain ⟨sd5, hsd5, hsd5n⟩ := seconds_ok (UScalar.hcast .I64 seconds)
+  rw [u8_hcast_i64_val] at hsd5n
+  obtain ⟨sd6, hsd6, hsd6n⟩ := add_ok sd4 sd5 (by omega)
+  obtain ⟨sd7, hsd7, hsd7n⟩ := microseconds_ok (UScalar.hcast .I64 microseconds)
+  rw [u32_hcast_i64_val] at hsd7n
+  obtain ⟨du, hdu, hdun⟩ := add_ok sd6 sd7 (by omega)
+  simp only [lift, bind_ok, hsd, hsd1, hsd2, hsd3, hsd4, hsd5, hsd6, hsd7, hdu]
+  cases is_neg with
+  | false =>
+    refine ⟨du, by simp, ?_⟩
+    simp only [timeSignedNanos, timeNanos, Bool.false_eq_true, ite_false]
+    push_cast; omega
+  | true =>
+    obtain ⟨du1, hdu1, hdu1n⟩ := neg_ok du (by omega)
+    refine ⟨du1, by simp [hdu1], ?_⟩
+    simp only [timeSignedNanos, timeNanos, ite_true]
+    push_cast; omega
+
+end TimeDur
+
+open TimeDur in
+/-- `TryFrom<Value> for ParseIr<time::Duration>`: **total and exact** off the text parser's
+    panic (hypothesis: not `Bytes` on which it panics, `Val.timeTextPanics`, stated separately as
+    `try_from_panic`; false of all ASCII `Bytes`). On a
+    `TIME` (any fields: `u32` days cannot overflow a `time::Duration`), or on `Bytes` holding a
+    text `TIME` literal, it is `Ok` of the duration with exactly the value's signed nanoseconds
+    (`Val.signedDurationNanos`), keeping the original value; on other `Bytes` or any other value
+    it is an error carrying the value. -/
+theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics) :
+    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v ⦃ r =>
+      match (Val.ofValue v).signedDurationNanos with
+      | some n => ∃ x, r = .Ok (x, v) ∧ Trusted.durNanos x = n
+      | none => r = .Err v ⦄ := by
   cases v with
   | Bytes b =>
-    simp only [Val.ofValue]
-    intro hs
-    have ha : ¬ timeTextPanics (alloc.vec.Vec.deref b).val := by
-      intro hp
-      simp only [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
-        value.convert.parse_mysql_time_string_panic _ hp, bind_fail] at h
-      simp at h
-    obtain ⟨o, ho, hm⟩ := ConvDeps.spec_eq_ok (value.convert.parse_mysql_time_string_spec _ ha)
+    obtain ⟨o, ho, hm⟩ := ConvDeps.spec_eq_ok (value.convert.parse_mysql_time_string_spec _ (ConvDeps.notTimeTextPanics_bytes ha))
     simp only [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
-      ho, bind_ok] at h
+      ho, bind_ok, Val.ofValue, Val.signedDurationNanos]
+    simp only [ConvDeps.vec_deref_val] at hm
+    rw [← hm]
     cases o with
-    | none =>
-      simp only [ConvDeps.vec_deref_val, Option.map_none] at hm
-      rw [← hm] at hs; simp at hs
+    | none => simp
     | some t =>
       obtain ⟨neg, hh, mm, ss, uu⟩ := t
-      simp only at h
-      repeat (obtain ⟨_, _, h⟩ := ConvDeps.bind_eq_ok_inv h)
-      split at h <;> (repeat (obtain ⟨_, _, h⟩ := ConvDeps.bind_eq_ok_inv h)) <;>
-        (simp only [ok.injEq] at h; exact ⟨_, h.symm⟩)
+      obtain ⟨x, hx, hxn⟩ := hmsChain (.Bytes b) neg hh mm ss uu
+      refine Eq.mpr (congrArg (fun m => WP.spec m _) hx) ?_
+      simp only [WP.spec_ok, Option.map_some]
+      exact ⟨x, rfl, hxn⟩
   | Time neg dd hh mm ss uu =>
-    simp only [Val.ofValue]
-    simp only [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from] at h
-    repeat (obtain ⟨_, _, h⟩ := ConvDeps.bind_eq_ok_inv h)
-    split at h <;> (repeat (obtain ⟨_, _, h⟩ := ConvDeps.bind_eq_ok_inv h)) <;>
-      (simp only [ok.injEq] at h; exact ⟨_, h.symm⟩)
-  | _ =>
+    obtain ⟨x, hx, hxn⟩ := dhmsChain (.Time neg dd hh mm ss uu) neg dd hh mm ss uu
     simp only [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
-      ok.injEq] at h
-    simp [Val.ofValue, h]
+      hx, WP.spec_ok, Val.ofValue, Val.signedDurationNanos]
+    exact ⟨x, rfl, hxn⟩
+  | _ =>
+    simp [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
+      Val.ofValue, Val.signedDurationNanos]
 
 /-- `TryFrom<Value> for ParseIr<time::Duration>` is an error (no opaque call) on `Bytes` that
     are not a text `TIME` literal and on every value other than `TIME` and `Bytes`. Hypothesis:
@@ -82,24 +184,21 @@ theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromVal
   | Time => simp [Val.ofValue] at hv
   | _ => simp [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from]
 
-/-- `from_value_opt`: as `try_from_spec` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
-theorem time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec (v : value.Value) (r : core.result.Result time.signed_duration.SignedDuration value.convert.FromValueError)
-    (h : value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v = ok r) :
-    match Val.ofValue v with
-    | .time .. => ∃ x, r = .Ok x
-    | .bytes b => (timeStringRead b).isSome → ∃ x, r = .Ok x
-    | _ => r = .Err v := by
-  have hsave := h
-  simp only [value.convert.from_value_opt] at h
-  obtain ⟨r0, h0, -⟩ := ConvDeps.bind_eq_ok_inv h
-  rw [ConvDeps.from_value_opt_eq_of _ rfl (fun _ => rfl) _ h0, ok.injEq] at hsave
-  subst hsave
-  have hs := value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v r0 h0
-  revert hs
-  split <;> intro hs
-  · obtain ⟨x, rfl⟩ := hs; exact ⟨x, rfl⟩
-  · intro hb; obtain ⟨x, rfl⟩ := hs hb; exact ⟨x, rfl⟩
-  · exact ConvDeps.mapIr_err_of hs
+/-- `from_value_opt::<time::Duration>`: as `try_from_spec` of the intermediate, committed:
+    **total and exact** (same hypothesis; the panic is `from_value_opt_panic`). `Ok` of the duration with exactly the value's signed
+    nanoseconds for a `TIME` or a text `TIME` literal; otherwise the error carrying the value. -/
+theorem time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_spec (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics) :
+    value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v ⦃ r =>
+      match (Val.ofValue v).signedDurationNanos with
+      | some n => ∃ x, r = .Ok x ∧ Trusted.durNanos x = n
+      | none => r = .Err v ⦄ := by
+  apply WP.spec_mono (ConvDeps.from_value_opt_spec_of _ rfl (fun _ => rfl) v
+    (value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_spec v ha))
+  rintro r' ⟨r, hr, rfl⟩
+  revert hr
+  split <;> intro hr
+  · obtain ⟨x, rfl, hx⟩ := hr; exact ⟨x, rfl, hx⟩
+  · exact ConvDeps.mapIr_err_of hr
 
 /-- `from_value_opt`: as `try_from_err` of the intermediate, committed (the converted value in place of the `ParseIr` pair). -/
 theorem time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_err (v : value.Value) (ha : ¬ (Val.ofValue v).timeTextPanics)
@@ -108,6 +207,15 @@ theorem time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromVa
   rw [ConvDeps.from_value_opt_eq_of _ rfl (fun _ => rfl) _
     (value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err v ha hv)]
   rfl
+
+/-- **Crash path.** `TryFrom<Value> for ParseIr<time::Duration>` panics exactly on the `Bytes` on
+    which the text parser panics (`Val.timeTextPanics`: a non-ASCII byte, and a fractional regex
+    matches): the complement of the hypothesis of `try_from_spec`. -/
+theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
+    value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from v = fail .panic := by
+  obtain ⟨b, rfl, hb⟩ := ConvDeps.timeTextPanics_bytes hp
+  simp only [value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from,
+    value.convert.parse_mysql_time_string_panic _ hb, bind_fail]
 
 /-- `TryFrom<Value> for ParseIr<time::Duration>` on `Bytes` with a non-ASCII byte never returns a
     duration: it panics or returns the error carrying the value. -/
@@ -119,9 +227,9 @@ theorem value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromVal
   · exact Or.inr (value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_err _ hp
       (by simpa [Val.ofValue] using timeStringRead_nonascii _ hn))
 
-/-- **Crash path.** `from_value_opt::<time::Duration>` panics on the `Bytes` on which the text
-    parser panics (`Val.timeTextPanics`): the complement of the hypothesis of
-    `from_value_opt_err`. -/
+/-- **Crash path.** `from_value_opt::<time::Duration>` panics exactly on the `Bytes` on which the
+    text parser panics (`Val.timeTextPanics`): the complement of the hypothesis of
+    `from_value_opt_spec`. -/
 theorem time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration.from_value_opt_panic (v : value.Value) (hp : (Val.ofValue v).timeTextPanics) :
     value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration v = fail .panic :=
   ConvDeps.from_value_opt_fail_of _ rfl v (value.convert.ParseIrSignedDuration.Insts.CoreConvertTryFromValueFromValueError.try_from_panic v hp)
