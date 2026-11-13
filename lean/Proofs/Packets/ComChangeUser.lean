@@ -67,11 +67,11 @@ private theorem changeUserRead_enc (caps : Nat) (v : ChangeUser) (kvs : List (Li
       simp [changeUserEnc, Nat.min_eq_left ha, List.take_of_length_le ha]
     rw [e]
     simp only [changeUserRead, h17, ne_eq, not_true_eq_false, ite_false]
-    rw [nulStrRead_nulStr u _ hu]
+    rw [ConnHS.nulStrRead_nulStr u _ hu]
     simp only
     rw [checkedLenPrefixed_one a _ ha]
     simp only
-    rw [nulStrRead_nulStr d _ hd]
+    rw [ConnHS.nulStrRead_nulStr d _ hd]
     simp
   | some m =>
     have e : changeUserEnc ⟨u, a, d, some m⟩ kvs ++ tail =
@@ -79,11 +79,11 @@ private theorem changeUserRead_enc (caps : Nat) (v : ChangeUser) (kvs : List (Li
       simp [changeUserEnc, Nat.min_eq_left ha, List.take_of_length_le ha]
     rw [e]
     simp only [changeUserRead, h17, ne_eq, not_true_eq_false, ite_false]
-    rw [nulStrRead_nulStr u _ hu]
+    rw [ConnHS.nulStrRead_nulStr u _ hu]
     simp only
     rw [checkedLenPrefixed_one a _ ha]
     simp only
-    rw [nulStrRead_nulStr d _ hd]
+    rw [ConnHS.nulStrRead_nulStr d _ hd]
     have hne : changeUserMoreEnc m kvs ++ tail ≠ [] := by
       simp [changeUserMoreEnc, PBUtil.length_leBytes, ← List.length_eq_zero_iff]
     simp only [hne, ite_false]

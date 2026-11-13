@@ -20,6 +20,7 @@ set_option autoImplicit false
 
 open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.Shared
 open core.result.Result.Insts
+open Defs.ConnHS (attrsBody nulStrRead_nulStr)
 
 namespace mysql_common.CAUtil
 
@@ -198,14 +199,6 @@ theorem parse_null_bytes_spec (buf : io.ParseBuf) :
       · exact absurd ((hasNul_iff _).mp hh) hz
     simp only [this]
     simp [h.1, h.2]
-
-theorem nulStrRead_nulStr (nm tail : List U8) (hn : NoNul nm) :
-    nulStrRead (nulStr nm ++ tail) = (some nm, tail) := by
-  have hb : beforeZero nm = nm := PBUtil.beforeZero_of_all nm hn
-  have hz : beforeZero (nm ++ byte 0 :: tail) = nm := beforeZero_append_zero nm tail hn
-  have hh : hasNul (nm ++ byte 0 :: tail) = true := by
-    rw [hasNul_iff]; exact ⟨byte 0, by simp, by simp [byte]; rfl⟩
-  simp [nulStr, nulStrRead, hb, hz, hh]
 
 /-! ## Connect attributes (reading) -/
 
@@ -663,10 +656,6 @@ theorem opt_connect_attrs_step (h64 : Target64) (flags : constants.CapabilityFla
     simp [AttrsMatch]
 
 /-! ## Connect attributes (writing) -/
-
-/-- The body of the attributes on the wire (without the total length). -/
-def attrsBody (kvs : List (List U8 × List U8)) : List U8 :=
-  (kvs.map (fun kv => lenencStr kv.1 ++ lenencStr kv.2)).flatten
 
 theorem attrsEnc_eq (kvs : List (List U8 × List U8)) :
     attrsEnc kvs = lenencInt (attrsBody kvs).length ++ attrsBody kvs := rfl

@@ -181,7 +181,7 @@ theorem packets.AuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.ro
   have e : authSwitchRead buf.val = (some (nm, data), []) := by
     rw [h]
     simp only [authSwitchEnc, authSwitchRead]
-    simp [nulStrRead_nulStr nm data hn, byte_val]
+    simp [ConnHS.nulStrRead_nulStr nm data hn, byte_val]
   rw [e] at hr
   simpa using hr
 
