@@ -32,6 +32,16 @@ theorem sqlStrLit_quoteSql (nbe : Bool) (s rest : List U8)
     sqlStrLit nbe (quoteSql nbe s ++ rest) = some (s, rest) := by
   sorry
 
+/-- **Mode mismatch** (security): `no_backslash_escape` must be the server's
+    `NO_BACKSLASH_ESCAPES` mode. Quoted for one mode and read in the other, a value can end the
+    literal early and inject SQL, in both directions. -/
+theorem sqlStrLit_mode_mismatch :
+    sqlStrLit true (quoteSql false (ascii "x' OR 1=1 -- ")) =
+      some (ascii "x\\", ascii " OR 1=1 -- '") ∧
+    sqlStrLit false (quoteSql true (ascii "x\\' OR 1=1 -- ")) =
+      some (ascii "x'", ascii " OR 1=1 -- '") := by
+  sorry
+
 /-- A hexadecimal literal contains only `0`, `x` and upper-case hex digits. -/
 theorem hexLit_chars (bs : List U8) :
     ∀ c ∈ hexLit bs, c ∈ ascii "0x0123456789ABCDEF" := by

@@ -16,10 +16,12 @@ import Proofs.Params.FromTuples
     **Definitions used.** `Defs/SqlText.lean` §2 (`intoValuesMissing`); `Trusted.paramsMapLookup`
     and `Trusted.paramsMapEntries` (`FunsExternal.lean`) for the map of `Params::Named`.
 
-    **Trusted axioms:** the `HashMap` model of `FunsExternal.lean`: `Trusted.paramsMapEntries`,
-    `paramsMapEntries_keys_nodup`, `paramsMapEntries_length`, and for `From<Vec<(N, V)>>`
-    `paramsMapEmpty`/`paramsMapEntries_empty`/`paramsMapInsert`/`paramsMapEntries_insert`, for
-    `into_positional` `paramsMapRemove`/`paramsMapEntries_remove`. Respecting the model's limit,
+    **Trusted axioms:** the `HashMap` model of `FunsExternal.lean` (the `sql_trusted.params_map_*`
+    helpers): `Trusted.paramsMapEntries`, `paramsMapEntries_keys_nodup`,
+    `paramsMapEntries_length`, and for `From<Vec<(N, V)>>`
+    `paramsMapEmpty`/`paramsMapEntries_empty`/`paramsMapInsert`/`paramsMapEntries_insert` (whose
+    room-below-`usize::MAX` hypothesis follows from the input `Vec`'s length bound, so no extra
+    hypothesis is needed), for `into_positional` `paramsMapRemove`/`paramsMapEntries_remove`. Respecting the model's limit,
     no statement mentions the iteration order: maps are described by lookups or by their
     entries up to `List.Perm`.
 
@@ -191,7 +193,8 @@ recall params.Params.Insts.CoreConvertFromVecPair.from_spec {N V : Type}
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms params.Params.Insts.CoreConvertFromVecPair.from_spec`
 
 /-- `From<Vec<(N, V)>> for Params` panics ("Redefinition of named parameter") when two names
-    are equal (translated as an assertion failure). -/
+    are equal (translated as an assertion failure). (`hv` is stronger than needed: only the
+    values before the first repeated name are converted.) -/
 recall params.Params.Insts.CoreConvertFromVecPair.from_dup {N V : Type}
     (nInst : core.convert.From (alloc.vec.Vec U8) N) (vInst : core.convert.From value.Value V)
     (x : alloc.vec.Vec (N × V)) (gn : N → alloc.vec.Vec U8) (gv : V → value.Value)

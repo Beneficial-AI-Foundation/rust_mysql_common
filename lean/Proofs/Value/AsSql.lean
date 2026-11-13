@@ -48,15 +48,17 @@ theorem value.Value.as_sql_time (neg : Bool) (d : U32) (h mi s : U8) (us : U32) 
   sorry
 
 /-- `as_sql(Time ..)` panics (`u32` overflow of `days * 24 + hours`) exactly when the hours do
-    not fit in a `u32`, i.e. for `days ≥ 178956971`, or `days = 178956970` and `hours ≥ 16`.
-    (In release builds it would wrap instead.) -/
+    not fit in a `u32` (with `as_sql_time`, an exact split). For `hours < 24` (a valid TIME
+    value) that is `days ≥ 178956971`, or `days = 178956970` and `hours ≥ 16`; `hours` is an
+    unchecked `u8`. (In release builds it would wrap instead.) -/
 theorem value.Value.as_sql_time_overflow (neg : Bool) (d : U32) (h mi s : U8) (us : U32)
     (nbe : Bool) (hover : U32.max < d.val * 24 + h.val) :
     value.Value.as_sql (.Time neg d h mi s us) nbe = fail .integerOverflow := by
   sorry
 
 /-- `as_sql(Bytes b)` for `b` valid UTF-8: the MySQL string literal `quoteSql nbe b`. -/
-theorem value.Value.as_sql_bytes_utf8 (b : alloc.vec.Vec U8) (nbe : Bool) (h : IsUtf8 b.val) :
+theorem value.Value.as_sql_bytes_utf8 (b : alloc.vec.Vec U8) (nbe : Bool) (h : IsUtf8 b.val)
+    (hlen : (quoteSql nbe b.val).length ≤ Usize.max) :
     value.Value.as_sql (.Bytes b) nbe ⦃ r => utf8 r = quoteSql nbe b.val ⦄ := by
   sorry
 
@@ -72,8 +74,11 @@ theorem value.Value.as_sql_bytes_hex (b : alloc.vec.Vec U8) (nbe : Bool) (h : ¬
     starts with `'`, which would continue the literal as `''`). So the value cannot terminate
     the literal early or inject SQL. The reading is byte-wise: valid for connection character
     sets in which 0x27 and 0x5C are always `'` and `\` (e.g. utf8mb4, latin1), not for
-    `big5`/`cp932`/`gbk`/`gb18030`/`sjis` (see `Defs/SqlText.lean`). -/
-theorem value.Value.as_sql_bytes_literal (b : alloc.vec.Vec U8) (nbe : Bool) (h : IsUtf8 b.val) :
+    `big5`/`cp932`/`gbk`/`gb18030`/`sjis` (see `Defs/SqlText.lean`), and only when `nbe` is the
+    server's actual `NO_BACKSLASH_ESCAPES` mode (`Specs/DefsSqlText.lean`:
+    `sqlStrLit_mode_mismatch`). -/
+theorem value.Value.as_sql_bytes_literal (b : alloc.vec.Vec U8) (nbe : Bool) (h : IsUtf8 b.val)
+    (hlen : (quoteSql nbe b.val).length ≤ Usize.max) :
     value.Value.as_sql (.Bytes b) nbe ⦃ r =>
       ∀ rest : List U8, rest.head?.map (·.val) ≠ some 39 →
         sqlStrLit nbe (utf8 r ++ rest) = some (b.val, rest) ⦄ := by

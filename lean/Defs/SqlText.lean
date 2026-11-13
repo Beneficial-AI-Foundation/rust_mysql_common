@@ -10,8 +10,11 @@ All byte-level definitions are about ASCII: a byte `c` is the character with cod
 
 The placeholder language, written from the crate's documentation and the MySQL lexical rules
 (<https://dev.mysql.com/doc/refman/8.4/en/string-literals.html>, `.../comments.html`,
-`.../identifiers.html>`), *not* from the crate's state machine. A query is cut into tokens
-(`sqlLex`, maximal munch, left to right):
+`.../identifiers.html>`), *not* from the crate's state machine, for the **default `sql_mode`**
+(no `ANSI_QUOTES`, under which `"…"` is an identifier without backslash escapes, and no
+`NO_BACKSLASH_ESCAPES`, under which `\` is ordinary in literals: in those modes the placeholders
+can differ, e.g. `"a\" :b "` has the placeholder `b` under `ANSI_QUOTES`). A query is cut into
+tokens (`sqlLex`, maximal munch, left to right):
 
 * `:name`, where `name` is `[a-z_][a-z0-9_]*` (as long as possible): a **named placeholder**;
 * `?`: a **positional placeholder**;
@@ -22,12 +25,16 @@ The placeholder language, written from the crate's documentation and the MySQL l
 * a **quoted identifier** `` `…` `` (no escapes; a doubled backtick likewise);
 * a **comment**: `#…` to the end of the line, `--` followed by a space or control character
   (MySQL: whitespace or `iscntrl`, i.e. a byte `≤ 0x20` or `0x7F`) to the end of the line, or
-  `/* … */` up to the first `*/`;
-* the openers `/*!` (MySQL executable comment, whose body is SQL that the server runs) and
-  `/*+` (optimizer hint): **not** comments; their bodies are scanned like any SQL text, so
-  placeholders inside are recognised. (This is the crate's documented choice, its test
-  `comments_with_question_marks`; for optimizer hints it is debatable, see `Specs/NamedParams`.)
-  The closing `*/` of such a body is then ordinary text;
+  `/* … */` up to the first `*/`, including the optimizer hint form `/*+ … */` (MySQL never
+  reads a hint as SQL text: after a hintable keyword it goes to the hint parser, elsewhere it
+  is a plain comment);
+* the opener `/*!` (MySQL executable comment, whose body is SQL that the server runs): **not**
+  a comment; its body is scanned like any SQL text, so placeholders inside are recognised, and
+  its closing `*/` is ordinary text. (Not modelled: a versioned `/*!NNNNN … */` whose version is
+  above the server's is a comment for MySQL; that depends on the server.)
+* not modelled either: dollar-quoted strings `$tag$…$tag$` (MySQL 9 stored programs); `#` and
+  `--` comments ending at a NUL byte (MySQL's lexer also stops there); bytes `≥ 0x80` after
+  `--` (`isSpaceOrCntrl` is ASCII; in e.g. latin1 0xA0 is a space, charset-dependent);
 * any other byte: ordinary text.
 
 Literals, identifiers and comments that are never closed extend to the end of the query.
@@ -40,12 +47,19 @@ byte is taken as ordinary text:
 1. the byte after a lone `/` (not starting a comment) or a lone `-` (not starting a comment);
 2. the byte after `--` when it is not one of tab, form feed, CR, space (the crate does not
    treat `--` + newline, vertical tab or other control characters as a comment);
-3. the byte after a named placeholder or after a lone `:`, unless it is `:`, `'` or `"`;
+3. the byte after a named placeholder or after a lone `:`, unless it is `:`, `'` or `"`: so a
+   `?`, `#`, `--`, `/*`, `` ` `` right after a placeholder does not start anything (`:a?` and
+   `:a -?` mix unnoticed, `` :a`x:y` `` finds `y`);
 4. in a `/* */` comment, the byte after `/*`, and the byte after each `*` that does not close
-   the comment, are skipped when looking for `*/` (so `/**/` and `/* x **/` are not closed).
+   the comment, are skipped when looking for `*/` (so `/**/` and `/* x **/` are not closed);
+5. `/*+` optimizer hints are scanned as SQL text, like `/*!` (the crate's documented choice,
+   its test `comments_with_question_marks`), so `/*+ hint :p */` has a placeholder `p`.
 
-`QuirkFree q` is a readable condition on the intended tokens under which none of these
-deviations matters (`Specs/DefsSqlText.lean`: then `crateLex q = sqlLex q`).
+A consequence of 1: a placeholder right after the closing `*/` of a `/*!` (or `/*+`) body is
+missed (its `/` is a lone `/`).
+
+`QuirkFree q` is a readable condition (sufficient, not necessary) on the intended tokens under
+which none of these deviations matters (`Specs/DefsSqlText.lean`: then `crateLex q = sqlLex q`).
 
 ## 2. Parameter maps (`Params`)
 
@@ -57,7 +71,8 @@ never the iteration order. `intoValuesMissing` is the name `Params::into_values`
 
 `quoteSql` is the MySQL C API's escaping (`mysql_real_escape_string_quote` with quote `'`:
 backslash-escapes NUL, `\n`, `\r`, `\`, `'`, `"` and Ctrl-Z; in `NO_BACKSLASH_ESCAPES` mode only
-doubles `'`). `sqlStrLit` is the server's reading of a `'`-quoted literal (the String Literals
+doubles `'`) **for UTF-8 and single-byte connection character sets**: the C API is charset-aware
+(it copies multi-byte characters whole), the crate and `quoteSql` are not. `sqlStrLit` is the server's reading of a `'`-quoted literal (the String Literals
 page, table 11.1): `''` is `'`; outside `NO_BACKSLASH_ESCAPES`, `\` escapes the next byte
 (`\0 \' \" \b \n \r \t \Z \\` as in the table, `\%` and `\_` keep their backslash, any other
 `\x` is `x`); in `NO_BACKSLASH_ESCAPES` mode `\` is an ordinary byte. The reader is byte-wise,
@@ -194,7 +209,8 @@ def lexAux (crate : Bool) : Nat → List U8 → List Tok
           match r' with
           | [] => [.skip [c, d]]
           | e :: r'' =>
-            if e.val = 33 ∨ e.val = 43 then .plain c :: .plain d :: .plain e :: lexAux crate n r''
+            if e.val = 33 ∨ (e.val = 43 ∧ crate) then      -- `/*!`; `/*+`: deviation 5
+              .plain c :: .plain d :: .plain e :: lexAux crate n r''
             else if crate then
               .skip (c :: d :: e :: (cBodyCrate r'').1) :: lexAux crate n (cBodyCrate r'').2
             else .skip (c :: d :: (cBody r').1) :: lexAux crate n (cBody r').2
@@ -237,22 +253,22 @@ def Tok.harmlessAfterSlash : Tok → Bool
   | .plain c => !isSpecial c
   | _ => false
 
-/-- Whether token `u` may follow a placeholder or lone `:` without deviation 3 mattering: it
-    does not start with `/ - # ? `` ` ``. -/
+/-- Whether token `u` may follow a placeholder or lone `:` without deviation 3 mattering: it is
+    not `?` and not a comment or quoted identifier (a `skip` starting with `/ - # `` ` ``). -/
 def Tok.harmlessAfterColon : Tok → Bool
   | .qmark => false
-  | t => match t.src with
-    | c :: _ => !(c.val == 47 || c.val == 45 || c.val == 35 || c.val == 96)
-    | [] => true
+  | .skip (c :: _) => !(c.val == 47 || c.val == 45 || c.val == 35 || c.val == 96)
+  | _ => true
 
-/-- A token on which deviations 2 and 4 matter: a `--` comment whose third byte is not tab,
-    form feed, CR or space, or a `/* */` comment with an empty body or whose body ends in `*`
-    (sufficient, not necessary: `/***/` is flagged although the crate closes it). -/
+/-- A token on which deviations 2, 4 and 5 matter: a `--` comment whose third byte is not tab,
+    form feed, CR or space, a `/*+` hint, or a `/* */` comment with an empty body or whose body
+    ends in `*` (sufficient, not necessary: `/***/` is flagged although the crate closes it). -/
 def Tok.isQuirkyComment : Tok → Bool
   | .skip s =>
     match s with
     | a :: b :: e :: _ =>
       (a.val == 45 && b.val == 45 && !isCrateDashSpace e) ||
+      (a.val == 47 && b.val == 42 && e.val == 43) ||
       (a.val == 47 && b.val == 42 && 4 ≤ s.length &&
         (match s.reverse with
           | c1 :: c2 :: c3 :: _ => c1.val == 47 && c2.val == 42 && c3.val == 42

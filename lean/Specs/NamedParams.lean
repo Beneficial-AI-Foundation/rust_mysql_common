@@ -13,24 +13,27 @@ import Proofs.NamedParams.ParsedNamedParams
     `crateLex` (the crate's reading: the intended tokenizer with four documented deviations),
     `QuirkFree`, `parsedAs`, `ascii`), `Defs/Bytes.lean` (`cowList`).
 
-    **Trusted axioms:** none.
+    **Trusted axioms:** none. **Trusted models:** `Cow` `deref` (`FunsExternal.lean`, exact).
 
     **What is stated.** Exact and total: `parse` never panics and returns `parsedAs q
     (crateLex q)`. Headline: under `QuirkFree`, the intended placeholder language exactly
     (`Specs/DefsSqlText.lean`: `crateLex_eq_sqlLex`); on any query the rewrite only replaces
     `:name` pieces by `?` (`parse_rewrite`).
 
-    **Behaviour to note (crate deviations from MySQL's lexical rules, each with an example
-    theorem).** The state machine does not re-examine the byte after a lone `/` or `-`, after
-    `--` not followed by tab/FF/CR/space, after a named placeholder or a lone `:` (unless it is
-    `:`, `'` or `"`), nor the byte after `/*` and after each non-closing `*` in a comment. As a
-    result: mixed `:a?` is not reported (`parse_quirk_qmark_after_named`), placeholders after
-    `-`/`/` are missed (`1-:a`) or found inside string literals (`x/'a:b'`), comments after a
-    placeholder are not recognised (`:a#c`), and `/**/`, `/* x **/` swallow the rest of the
-    query. `/*! */` and `/*+ */` bodies are scanned for placeholders (the crate's documented
-    choice). Backslash escapes are always honoured in string literals (the
-    `NO_BACKSLASH_ESCAPES` mode is not considered); MySQL's `ANSI_QUOTES` mode (where `"…"` is
-    an identifier) gives the same placeholders.
+    **Behaviour to note (crate deviations from MySQL's lexical rules, `Defs/SqlText.lean` §1,
+    with example theorems).** The state machine does not re-examine the byte after a lone `/`
+    or `-`, after `--` not followed by tab/FF/CR/space, after a named placeholder or a lone `:`
+    (unless it is `:`, `'` or `"`), nor the byte after `/*` and after each non-closing `*` in a
+    comment; and it scans `/*+` optimizer hints as SQL. As a result: mixed `:a?` and `:a -?`
+    are not reported (`parse_quirk_qmark_after_named`), placeholders after `-`/`/` are missed
+    (`1-:a`, and right after the `*/` closing a `/*!` body) or found inside string literals
+    (`x/'a:b'`), comments and quoted identifiers right after a placeholder are not recognised
+    (`:a#c`), `/**/` and `/* x **/` swallow the rest of the query, and `/*+ hint :p */` has a
+    placeholder. `/*! */` bodies are scanned for placeholders (as MySQL runs them).
+    `sqlLex` is the reading under the **default `sql_mode`**: under `ANSI_QUOTES` (`"…"` is an
+    identifier without backslash escapes: `"a\" :b "` has the placeholder `b`) or
+    `NO_BACKSLASH_ESCAPES` (`\` ordinary in `'…'`) the placeholders can differ, and the crate
+    does not know the mode.
 
     **Not covered:** derived `Clone`/`PartialEq`/`Debug` impls.
 -/
@@ -123,6 +126,15 @@ recall named_params.ParsedNamedParams.parse_quirk_dash_vtab (q : Slice U8)
       cowList p.query = ascii "--\x0b?" ∧ p.params.val.map cowList = [ascii "a"] ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms named_params.ParsedNamedParams.parse_quirk_dash_vtab`
+
+/-- Quirk (deviation 5): an optimizer hint is scanned as SQL text, so `"/*+ h :p */"` gives
+    `"/*+ h ? */"`, names `[p]` (MySQL never reads a hint body as SQL). -/
+recall named_params.ParsedNamedParams.parse_quirk_hint (q : Slice U8)
+    (h : q.val = ascii "/*+ h :p */") :
+    named_params.ParsedNamedParams.parse q ⦃ r => ∃ p, r = .Ok p ∧
+      cowList p.query = ascii "/*+ h ? */" ∧ p.params.val.map cowList = [ascii "p"] ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms named_params.ParsedNamedParams.parse_quirk_hint`
 
 /-- `ParsedNamedParams::query`: the bytes of the (rewritten) query. -/
 recall named_params.ParsedNamedParams.impl.query_spec (p : named_params.ParsedNamedParams) :

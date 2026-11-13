@@ -4,7 +4,8 @@ import Proofs.Defs.LemmasSqlText
 # Facts about the SQL-text definitions (`lean/Defs/SqlText.lean`)
     Pure-Lean properties a signer should read: tokenizing loses nothing; on `QuirkFree` queries
     the crate's reading is the intended one; an example of the intended language; the server's
-    reading inverts `quoteSql`; hex literals contain only hex digits; the name `into_values`
+    reading inverts `quoteSql`, but not when quoted for the other `NO_BACKSLASH_ESCAPES` mode
+    (an injection example in each direction); hex literals contain only hex digits; the name `into_values`
     reports is a missing one. Proofs: `Proofs/Defs/LemmasSqlText.lean`.
 
     **Trusted axioms:** none, except `intoValuesMissing_spec` (the `HashMap` model:
@@ -45,6 +46,17 @@ recall sqlStrLit_quoteSql (nbe : Bool) (s rest : List U8)
     sqlStrLit nbe (quoteSql nbe s ++ rest) = some (s, rest)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sqlStrLit_quoteSql`
+
+/-- **Mode mismatch** (security): `no_backslash_escape` must be the server's
+    `NO_BACKSLASH_ESCAPES` mode. Quoted for one mode and read in the other, a value can end the
+    literal early and inject SQL, in both directions. -/
+recall sqlStrLit_mode_mismatch :
+    sqlStrLit true (quoteSql false (ascii "x' OR 1=1 -- ")) =
+      some (ascii "x\\", ascii " OR 1=1 -- '") ∧
+    sqlStrLit false (quoteSql true (ascii "x\\' OR 1=1 -- ")) =
+      some (ascii "x'", ascii " OR 1=1 -- '")
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.sqlStrLit_mode_mismatch`
 
 /-- A hexadecimal literal contains only `0`, `x` and upper-case hex digits. -/
 recall hexLit_chars (bs : List U8) :

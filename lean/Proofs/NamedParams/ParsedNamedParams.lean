@@ -80,6 +80,14 @@ theorem named_params.ParsedNamedParams.parse_quirk_dash_vtab (q : Slice U8)
       cowList p.query = ascii "--\x0b?" ∧ p.params.val.map cowList = [ascii "a"] ⦄ := by
   sorry
 
+/-- Quirk (deviation 5): an optimizer hint is scanned as SQL text, so `"/*+ h :p */"` gives
+    `"/*+ h ? */"`, names `[p]` (MySQL never reads a hint body as SQL). -/
+theorem named_params.ParsedNamedParams.parse_quirk_hint (q : Slice U8)
+    (h : q.val = ascii "/*+ h :p */") :
+    named_params.ParsedNamedParams.parse q ⦃ r => ∃ p, r = .Ok p ∧
+      cowList p.query = ascii "/*+ h ? */" ∧ p.params.val.map cowList = [ascii "p"] ⦄ := by
+  sorry
+
 /-- `ParsedNamedParams::query`: the bytes of the (rewritten) query. -/
 theorem named_params.ParsedNamedParams.impl.query_spec (p : named_params.ParsedNamedParams) :
     named_params.ParsedNamedParams.impl.query p ⦃ s => s.val = cowList p.query ⦄ := by

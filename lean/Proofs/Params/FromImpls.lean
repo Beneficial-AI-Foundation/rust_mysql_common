@@ -39,7 +39,8 @@ theorem params.Params.Insts.CoreConvertFromVecPair.from_spec {N V : Type}
   sorry
 
 /-- `From<Vec<(N, V)>> for Params` panics ("Redefinition of named parameter") when two names
-    are equal (translated as an assertion failure). -/
+    are equal (translated as an assertion failure). (`hv` is stronger than needed: only the
+    values before the first repeated name are converted.) -/
 theorem params.Params.Insts.CoreConvertFromVecPair.from_dup {N V : Type}
     (nInst : core.convert.From (alloc.vec.Vec U8) N) (vInst : core.convert.From value.Value V)
     (x : alloc.vec.Vec (N × V)) (gn : N → alloc.vec.Vec U8) (gv : V → value.Value)
