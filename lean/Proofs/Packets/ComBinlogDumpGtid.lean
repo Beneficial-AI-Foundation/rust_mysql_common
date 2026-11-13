@@ -104,6 +104,7 @@ open GtidUtil
 
 /-- `ComBinlogDumpGtid::new(server_id)`: no flags, the server id, an empty file name, position
     0, no SIDs. -/
+@[step]
 theorem packets.ComBinlogDumpGtid.new_spec (server_id : U32) :
     packets.ComBinlogDumpGtid.new server_id ⦃ g =>
       GtidDump.of g = ⟨0, server_id.val, [], 0, []⟩ ⦄ := by
@@ -145,6 +146,7 @@ theorem packets.ComBinlogDumpGtid.sids_spec (self : packets.ComBinlogDumpGtid) :
   exact misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref_spec _ _
 
 /-- `with_filename`: sets the file name (`filename.into()`); nothing else changes. -/
+@[step]
 theorem packets.ComBinlogDumpGtid.with_filename_spec {T : Type}
     (into : core.convert.Into T (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
     (self : packets.ComBinlogDumpGtid) (x : T) (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))
@@ -156,14 +158,17 @@ theorem packets.ComBinlogDumpGtid.with_filename_spec {T : Type}
   simp_all [GtidDump.of]
 
 /-- `with_server_id`: sets the server id; nothing else changes. -/
+@[step]
 theorem packets.ComBinlogDumpGtid.with_server_id_spec (self : packets.ComBinlogDumpGtid) (server_id : U32) :
     packets.ComBinlogDumpGtid.with_server_id self server_id ⦃ g =>
       GtidDump.of g = { GtidDump.of self with serverId := server_id.val } ⦄ := by
   unfold packets.ComBinlogDumpGtid.with_server_id
+  obtain ⟨hd, fl, ⟨sv, ps⟩, fn, ps2, sb⟩ := self
   simp [GtidDump.of]
 
 /-- `with_flags(flags)`: sets the flags, with `BINLOG_THROUGH_GTID` set exactly when there are
     SIDs; nothing else changes. -/
+@[step]
 theorem packets.ComBinlogDumpGtid.with_flags_spec (self : packets.ComBinlogDumpGtid)
     (flags : packets.BinlogDumpFlags) :
     packets.ComBinlogDumpGtid.with_flags self flags ⦃ g =>
@@ -171,15 +176,18 @@ theorem packets.ComBinlogDumpGtid.with_flags_spec (self : packets.ComBinlogDumpG
         flags := if cowList self.sid_block.1 = [] then andNot 16 flags.val BINLOG_THROUGH_GTID
                  else flags.val ||| BINLOG_THROUGH_GTID } ⦄ := by
   unfold packets.ComBinlogDumpGtid.with_flags
+  obtain ⟨hd, ⟨fv, pf⟩, sv, fn, pv, sb⟩ := self
   step*
   · simp_all [GtidDump.of, through_gtid_val]
   · simp_all [GtidDump.of, through_gtid_val]
 
 /-- `with_pos`: sets the position; nothing else changes. -/
+@[step]
 theorem packets.ComBinlogDumpGtid.with_pos_spec (self : packets.ComBinlogDumpGtid) (pos : U64) :
     packets.ComBinlogDumpGtid.with_pos self pos ⦃ g =>
       GtidDump.of g = { GtidDump.of self with pos := pos.val } ⦄ := by
   unfold packets.ComBinlogDumpGtid.with_pos
+  obtain ⟨hd, fl, sv, fn, ⟨pv, pp⟩, sb⟩ := self
   simp [GtidDump.of]
 
 /-- `with_sid(sid)`: appends the SID and sets `BINLOG_THROUGH_GTID`; nothing else changes.
@@ -196,6 +204,7 @@ theorem packets.ComBinlogDumpGtid.with_sid_spec (self : packets.ComBinlogDumpGti
 
 /-- `with_sids(sids)`: replaces the SIDs (`sids.into()`), with `BINLOG_THROUGH_GTID` set exactly
     when there are SIDs; nothing else changes. -/
+@[step]
 theorem packets.ComBinlogDumpGtid.with_sids_spec {T : Type}
     (into : core.convert.Into T (alloc.borrow.Cow (Slice packets.Sid) (alloc.vec.Vec packets.Sid)))
     (self : packets.ComBinlogDumpGtid) (x : T)
@@ -205,7 +214,17 @@ theorem packets.ComBinlogDumpGtid.with_sids_spec {T : Type}
         flags := if cowList c = [] then andNot 16 (GtidDump.of self).flags BINLOG_THROUGH_GTID
                  else (GtidDump.of self).flags ||| BINLOG_THROUGH_GTID,
         sids := (cowList c).map SidV.of } ⦄ := by
-  sorry
+  unfold packets.ComBinlogDumpGtid.with_sids
+  rw [misc.raw.seq.Seq.new_eq _ _ _ _ c h]
+  apply spec_bind_ok
+  obtain ⟨hd, ⟨fv, pf⟩, sv, fn, pv, sb⟩ := self
+  apply WP.spec_bind (seq_is_empty_spec _ ((c, ()) : misc.raw.seq.Seq packets.Sid misc.raw.int.LeU64))
+  intro b hb
+  split
+  · step*
+    simp_all [GtidDump.of, through_gtid_val]
+  · step*
+    simp_all [GtidDump.of, through_gtid_val]
 
 /-- `MySerialize for ComBinlogDumpGtid`: appends `gtidDumpEnc`: the file name with a 4-byte
     length, the position, `data_size` and the SID block (tagged format iff some SID has a tag;
