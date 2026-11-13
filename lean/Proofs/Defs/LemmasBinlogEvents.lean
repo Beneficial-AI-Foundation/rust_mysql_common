@@ -142,10 +142,65 @@ theorem statusVarsOf_over_max_dbs : statusVarsOf [byte 12, byte 254, byte 0, byt
 theorem statusVarsIter_not_fused : svStep [byte 11, byte 16, byte 1] 0 = none ∧ svStep [byte 11, byte 16, byte 1] 1 = some ((16, [byte 1]), 3) := by
   decide
 
+private theorem pgIntervals_read (is : List packets.GnoInterval) (tail : List U8) :
+    pgIntervalsRead is.length ((is.map gnoIntervalEnc).flatten ++ tail) =
+      some (is.map (fun i => (i.start.1.val, i.«end».1.val)), tail) := by
+  induction is with
+  | nil => rfl
+  | cons i is ih =>
+    have a1 := PBUtil.length_leBytes 8 i.start.1.val
+    have a2 := PBUtil.length_leBytes 8 i.«end».1.val
+    have b1 : i.start.1.val < 2 ^ (8 * 8) := by scalar_tac
+    have b2 : i.«end».1.val < 2 ^ (8 * 8) := by scalar_tac
+    have hL : ((i :: is).map gnoIntervalEnc).flatten ++ tail =
+        leBytes 8 i.start.1.val ++ (leBytes 8 i.«end».1.val ++ ((is.map gnoIntervalEnc).flatten ++ tail)) := by
+      simp [gnoIntervalEnc]
+    have d16 : (leBytes 8 i.start.1.val ++ (leBytes 8 i.«end».1.val ++ ((is.map gnoIntervalEnc).flatten ++ tail))).drop 16 =
+        (is.map gnoIntervalEnc).flatten ++ tail := by
+      rw [show 16 = 8 + 8 from rfl, ← List.drop_drop, List.drop_left' a1, List.drop_left' a2]
+    have hl : 16 ≤ (leBytes 8 i.start.1.val ++ (leBytes 8 i.«end».1.val ++ ((is.map gnoIntervalEnc).flatten ++ tail))).length := by
+      simp [a1, a2]; omega
+    rw [List.length_cons, pgIntervalsRead, hL]
+    simp only [hl, ↓reduceIte]
+    rw [d16, ih, List.take_left' a1, List.drop_left' a1,
+      List.take_left' a2, leNat_leBytes_lt 8 _ b1, leNat_leBytes_lt 8 _ b2]
+    rfl
+
+private theorem pgSids_read (ss : List binlog.events.previous_gtids_event.PreviousGtidsSid) (tail : List U8) :
+    pgSidsRead ss.length ((ss.map pgSidEnc).flatten ++ tail) = some (ss.map pgSidView, tail) := by
+  induction ss with
+  | nil => rfl
+  | cons sd ss ih =>
+    have hu : sd.uuid.val.length = 16 := by simp
+    have a1 := PBUtil.length_leBytes 8 sd.intervals.length
+    have b1 : sd.intervals.length < 2 ^ (8 * 8) := mysql_common.lt_two_pow_64_of_le_max (by scalar_tac)
+    have hL : ((sd :: ss).map pgSidEnc).flatten ++ tail =
+        sd.uuid.val ++ (leBytes 8 sd.intervals.length ++ ((sd.intervals.val.map gnoIntervalEnc).flatten ++
+          ((ss.map pgSidEnc).flatten ++ tail))) := by
+      simp [pgSidEnc]
+    have hl : ¬ (sd.uuid.val ++ (leBytes 8 sd.intervals.length ++ ((sd.intervals.val.map gnoIntervalEnc).flatten ++
+          ((ss.map pgSidEnc).flatten ++ tail)))).length < 24 := by
+      simp [hu, a1]; omega
+    have d24 : (sd.uuid.val ++ (leBytes 8 sd.intervals.length ++ ((sd.intervals.val.map gnoIntervalEnc).flatten ++
+          ((ss.map pgSidEnc).flatten ++ tail)))).drop 24 =
+        (sd.intervals.val.map gnoIntervalEnc).flatten ++ ((ss.map pgSidEnc).flatten ++ tail) := by
+      rw [show 24 = 16 + 8 from rfl, ← List.drop_drop, List.drop_left' hu, List.drop_left' a1]
+    have hlen : sd.intervals.length = sd.intervals.val.length := rfl
+    rw [List.length_cons, pgSidsRead, hL]
+    simp only [hl, ↓reduceIte]
+    rw [d24, List.drop_left' hu, List.take_left' a1,
+      leNat_leBytes_lt 8 _ b1, List.take_left' hu, hlen, pgIntervals_read]
+    simp only [ih, Option.map_some, List.map_cons, pgSidView]
+
 /-- The untagged previous-GTIDs reader inverts the encoder (fewer than `2^56` SIDs). -/
 theorem pgRead_pgEnc (e : binlog.events.previous_gtids_event.PreviousGtidsEvent) (hl : e.sids.length < 2 ^ 56) (tail : List U8) :
     pgRead (pgEnc e ++ tail) = some (e.sids.val.map pgSidView, tail) := by
-  sorry
+  have a1 := PBUtil.length_leBytes 8 e.sids.length
+  have b1 : e.sids.length < 2 ^ (8 * 8) := by omega
+  rw [pgRead]
+  simp only [pgEnc, List.append_assoc]
+  rw [List.take_left' a1, List.drop_left' a1, leNat_leBytes_lt 8 _ b1, Nat.mod_eq_of_lt hl]
+  exact pgSids_read _ _
 
 /-- The table map reader inverts the encoder for a consistent event (post-header not 6 bytes, table id below `2^48`). -/
 theorem tmRead_tmEnc (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
