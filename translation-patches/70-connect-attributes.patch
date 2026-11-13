@@ -1,0 +1,696 @@
+Translation patch: `ComChangeUser`, `ComChangeUserMoreData`, `HandshakeResponse` (connect attributes and combinators)
+
+Change:
+  - The connect-attributes map `HashMap<RawBytes<LenEnc>, RawBytes<LenEnc>>` is named `misc::trusted::ConnectAttrs` (a type alias), and every `HashMap` operation goes through a new function of the module of patch 64: `connect_attrs_new` (`HashMap::new()`, also replacing `&Default::default()`), `connect_attrs_insert`, `connect_attrs_entries` (the `(key, value)` byte slices in iteration order), `connect_attrs_from_strings` (the `into_iter().map(..).collect()` from `HashMap<String, String>`), `connect_attrs_into_owned`, `connect_attrs_to_strings` (the getter's `iter().map(..as_str().into_owned()..).collect()`).
+  - `serialize_connect_attrs` takes the entries once and computes the length (`connect_attrs_len`) and writes them (`serialize_connect_attrs_entries`, each key and value with `<LenEnc as BytesRepr>::serialize`) by recursion over the entries; `MySerialize for HandshakeResponse` calls it instead of its own copy of that code. `deserialize_connect_attrs`'s loop becomes the recursive `deserialize_connect_attrs_entries`.
+  - Combinators become `match`es: `opt.map(RawBytes::new).unwrap_or_default()`, `opt.map(|x| x.into_owned())`, `buf.parse(()).map(Some)?`, `opt.as_ref().map(..)`, `opt.as_ref()`, `scramble_buf.map(Into::into).unwrap_or_default()` (hoisted before the `if`, so the conversion is done once), and `server_version >= (5, 5, 3)` is written out lexicographically.
+  - Optional fields: the parsing of each optional field (`more_data`, the change-user `auth_plugin`, `connect_attributes`, `scramble_buf`, `db_name`, the response `auth_plugin`) moves into a helper taking `&mut ParseBuf` and returning the field; the optional trailing fields of the two serializers are written by helpers in tail position; `HandshakeResponse::new`'s `scramble_buf` and `connect_attributes` are built by helpers (`new_scramble_buf`, `opt_connect_attrs_from_strings`).
+Why: `HashMap` (std, with a random hasher) cannot be translated: the module is `opaque`, and each function has an opaque Lean model. Aeneas fails on closures and constructors as values, does not model `Option::as_ref`/`unwrap_or_default`, tuple `PartialOrd` or the `HashMap` iterators, fails on loops over slices whose elements hold borrows, on joins after an `if` that advances a `ParseBuf` or borrows `self` (patch 30), and ("Internal error") on the `HashMap<String, String>` conversion and the `if`/`else if` building `scramble_buf` inside `HandshakeResponse::new`.
+Behaviour: Identical. Each `match` is the definition of the combinator; `(a, b, c) >= (5, 5, 3)` is the lexicographic comparison written out; the helpers parse and write the same fields in the same order with the same early `Err` returns. The two iterations of `serialize_connect_attrs` (length, then entries) see the map's entries in its iteration order, which does not change between them, so taking the entries once gives the same bytes; the length is summed with the same overflow behaviour. `RawBytes<LenEnc>::serialize` is `LenEnc::serialize(self.as_bytes(), buf)`. For `HandshakeResponse`, `connect_attributes` is parsed via `CapabilityFlags::from_bits_retain(raw).contains(CLIENT_CONNECT_ATTRS)`, which equals `raw & CLIENT_CONNECT_ATTRS.bits() > 0` for this one-bit flag. The recursion uses stack proportional to the number of attributes.
+
+diff --git a/src/misc/trusted.rs b/src/misc/trusted.rs
+index 23773cc..3b93066 100644
+--- a/src/misc/trusted.rs
++++ b/src/misc/trusted.rs
+@@ -26,6 +26,70 @@ pub(crate) fn gno_interval_order_error(start: u64, end: u64) -> std::io::Error {
+     )
+ }
+ 
++// ---- HashMap (connect attributes) --------------------------------------------------------------
++
++/// The connect-attributes map of `ComChangeUserMoreData` and `HandshakeResponse`.
++pub(crate) type ConnectAttrs<'a> = std::collections::HashMap<
++    crate::misc::raw::RawBytes<'a, crate::misc::raw::bytes::LenEnc>,
++    crate::misc::raw::RawBytes<'a, crate::misc::raw::bytes::LenEnc>,
++>;
++
++/// `HashMap::new()`.
++pub(crate) fn connect_attrs_new<'a>() -> ConnectAttrs<'a> {
++    std::collections::HashMap::new()
++}
++
++/// `attrs.insert(key, value);` (the previous value, if any, is dropped).
++pub(crate) fn connect_attrs_insert<'a>(
++    attrs: &mut ConnectAttrs<'a>,
++    key: crate::misc::raw::RawBytes<'a, crate::misc::raw::bytes::LenEnc>,
++    value: crate::misc::raw::RawBytes<'a, crate::misc::raw::bytes::LenEnc>,
++) {
++    attrs.insert(key, value);
++}
++
++/// `attrs.iter().map(|(k, v)| (k.as_bytes(), v.as_bytes())).collect()`: the entries, in the
++/// map's iteration order.
++pub(crate) fn connect_attrs_entries<'b>(attrs: &'b ConnectAttrs<'_>) -> Vec<(&'b [u8], &'b [u8])> {
++    attrs
++        .iter()
++        .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
++        .collect()
++}
++
++/// `attrs.into_iter().map(|(k, v)| (RawBytes::new(k.into_bytes()), RawBytes::new(v.into_bytes()))).collect()`.
++pub(crate) fn connect_attrs_from_strings<'a>(
++    attrs: std::collections::HashMap<String, String>,
++) -> ConnectAttrs<'a> {
++    attrs
++        .into_iter()
++        .map(|(k, v)| {
++            (
++                crate::misc::raw::RawBytes::new(k.into_bytes()),
++                crate::misc::raw::RawBytes::new(v.into_bytes()),
++            )
++        })
++        .collect()
++}
++
++/// `attrs.into_iter().map(|(k, v)| (k.into_owned(), v.into_owned())).collect()`.
++pub(crate) fn connect_attrs_into_owned(attrs: ConnectAttrs<'_>) -> ConnectAttrs<'static> {
++    attrs
++        .into_iter()
++        .map(|(k, v)| (k.into_owned(), v.into_owned()))
++        .collect()
++}
++
++/// `attrs.iter().map(|(k, v)| (k.as_str().into_owned(), v.as_str().into_owned())).collect()`.
++pub(crate) fn connect_attrs_to_strings(
++    attrs: &ConnectAttrs<'_>,
++) -> std::collections::HashMap<String, String> {
++    attrs
++        .iter()
++        .map(|(k, v)| (k.as_str().into_owned(), v.as_str().into_owned()))
++        .collect()
++}
++
+ // ---- regex + btoi ------------------------------------------------------------------------------
+ 
+ // Copied verbatim from `src/packets/mod.rs`.
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 710f13f..1b46fd6 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -2076,12 +2076,18 @@ impl<'a> ComChangeUser<'a> {
+     }
+ 
+     pub fn with_user(mut self, user: Option<impl Into<Cow<'a, [u8]>>>) -> Self {
+-        self.user = user.map(RawBytes::new).unwrap_or_default();
++        self.user = match user {
++            Some(x) => RawBytes::new(x),
++            None => RawBytes::default(),
++        };
+         self
+     }
+ 
+     pub fn with_database(mut self, database: Option<impl Into<Cow<'a, [u8]>>>) -> Self {
+-        self.database = database.map(RawBytes::new).unwrap_or_default();
++        self.database = match database {
++            Some(x) => RawBytes::new(x),
++            None => RawBytes::default(),
++        };
+         self
+     }
+ 
+@@ -2089,7 +2095,10 @@ impl<'a> ComChangeUser<'a> {
+         mut self,
+         auth_plugin_data: Option<impl Into<Cow<'a, [u8]>>>,
+     ) -> Self {
+-        self.auth_plugin_data = auth_plugin_data.map(RawBytes::new).unwrap_or_default();
++        self.auth_plugin_data = match auth_plugin_data {
++            Some(x) => RawBytes::new(x),
++            None => RawBytes::default(),
++        };
+         self
+     }
+ 
+@@ -2104,7 +2113,10 @@ impl<'a> ComChangeUser<'a> {
+             user: self.user.into_owned(),
+             auth_plugin_data: self.auth_plugin_data.into_owned(),
+             database: self.database.into_owned(),
+-            more_data: self.more_data.map(|x| x.into_owned()),
++            more_data: match self.more_data {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
+         }
+     }
+ }
+@@ -2121,28 +2133,45 @@ impl<'de> MyDeserialize<'de> for ComChangeUser<'de> {
+     type Ctx = CapabilityFlags;
+ 
+     fn deserialize(flags: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
++        let __header = buf.parse(())?;
++        let user = buf.parse(())?;
++        let auth_plugin_data = buf.parse(())?;
++        let database = buf.parse(())?;
++        let more_data = parse_change_user_more_data(flags, buf)?;
+         Ok(Self {
+-            __header: buf.parse(())?,
+-            user: buf.parse(())?,
+-            auth_plugin_data: buf.parse(())?,
+-            database: buf.parse(())?,
+-            more_data: if !buf.is_empty() {
+-                Some(buf.parse(flags)?)
+-            } else {
+-                None
+-            },
++            __header,
++            user,
++            auth_plugin_data,
++            database,
++            more_data,
+         })
+     }
+ }
+ 
++// The `more_data` field of `MyDeserialize for ComChangeUser`.
++fn parse_change_user_more_data<'de>(
++    flags: CapabilityFlags,
++    buf: &mut ParseBuf<'de>,
++) -> io::Result<Option<ComChangeUserMoreData<'de>>> {
++    if !buf.is_empty() {
++        match buf.parse(flags) {
++            Ok(x) => Ok(Some(x)),
++            Err(e) => Err(e),
++        }
++    } else {
++        Ok(None)
++    }
++}
++
+ impl MySerialize for ComChangeUser<'_> {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         self.__header.serialize(&mut *buf);
+         self.user.serialize(&mut *buf);
+         self.auth_plugin_data.serialize(&mut *buf);
+         self.database.serialize(&mut *buf);
+-        if let Some(ref more_data) = self.more_data {
+-            more_data.serialize(&mut *buf);
++        match &self.more_data {
++            Some(more_data) => more_data.serialize(&mut *buf),
++            None => (),
+         }
+     }
+ }
+@@ -2151,7 +2180,7 @@ impl MySerialize for ComChangeUser<'_> {
+ pub struct ComChangeUserMoreData<'a> {
+     character_set: RawInt<LeU16>,
+     auth_plugin: Option<AuthPlugin<'a>>,
+-    connect_attributes: Option<HashMap<RawBytes<'a, LenEnc>, RawBytes<'a, LenEnc>>>,
++    connect_attributes: Option<crate::misc::trusted::ConnectAttrs<'a>>,
+ }
+ 
+ impl<'a> ComChangeUserMoreData<'a> {
+@@ -2172,24 +2201,24 @@ impl<'a> ComChangeUserMoreData<'a> {
+         mut self,
+         connect_attributes: Option<HashMap<String, String>>,
+     ) -> Self {
+-        self.connect_attributes = connect_attributes.map(|attrs| {
+-            attrs
+-                .into_iter()
+-                .map(|(k, v)| (RawBytes::new(k.into_bytes()), RawBytes::new(v.into_bytes())))
+-                .collect()
+-        });
++        self.connect_attributes = match connect_attributes {
++            Some(attrs) => Some(crate::misc::trusted::connect_attrs_from_strings(attrs)),
++            None => None,
++        };
+         self
+     }
+ 
+     pub fn into_owned(self) -> ComChangeUserMoreData<'static> {
+         ComChangeUserMoreData {
+             character_set: self.character_set,
+-            auth_plugin: self.auth_plugin.map(|x| x.into_owned()),
+-            connect_attributes: self.connect_attributes.map(|x| {
+-                x.into_iter()
+-                    .map(|(k, v)| (k.into_owned(), v.into_owned()))
+-                    .collect()
+-            }),
++            auth_plugin: match self.auth_plugin {
++                Some(x) => Some(x.into_owned()),
++                None => None,
++            },
++            connect_attributes: match self.connect_attributes {
++                Some(x) => Some(crate::misc::trusted::connect_attrs_into_owned(x)),
++                None => None,
++            },
+         }
+     }
+ }
+@@ -2197,32 +2226,56 @@ impl<'a> ComChangeUserMoreData<'a> {
+ // Helper that deserializes connect attributes.
+ fn deserialize_connect_attrs<'de>(
+     buf: &mut ParseBuf<'de>,
+-) -> io::Result<HashMap<RawBytes<'de, LenEnc>, RawBytes<'de, LenEnc>>> {
++) -> io::Result<crate::misc::trusted::ConnectAttrs<'de>> {
+     let data_len = buf.parse::<RawInt<LenEnc>>(())?;
+     let mut data: ParseBuf<'_> = buf.parse(data_len.0 as usize)?;
+-    let mut attrs = HashMap::new();
+-    while !data.is_empty() {
++    deserialize_connect_attrs_entries(&mut data, crate::misc::trusted::connect_attrs_new())
++}
++
++// The loop of `deserialize_connect_attrs` (recursive): inserts entries until `data` is empty.
++fn deserialize_connect_attrs_entries<'de>(
++    data: &mut ParseBuf<'de>,
++    mut attrs: crate::misc::trusted::ConnectAttrs<'de>,
++) -> io::Result<crate::misc::trusted::ConnectAttrs<'de>> {
++    if data.is_empty() {
++        Ok(attrs)
++    } else {
+         let key = data.parse::<RawBytes<'_, LenEnc>>(())?;
+         let value = data.parse::<RawBytes<'_, LenEnc>>(())?;
+-        attrs.insert(key, value);
++        crate::misc::trusted::connect_attrs_insert(&mut attrs, key, value);
++        deserialize_connect_attrs_entries(data, attrs)
+     }
+-    Ok(attrs)
+ }
+ 
+ // Helper that serializes connect attributes.
+ fn serialize_connect_attrs<'a>(
+-    connect_attributes: &HashMap<RawBytes<'a, LenEnc>, RawBytes<'a, LenEnc>>,
++    connect_attributes: &crate::misc::trusted::ConnectAttrs<'a>,
+     buf: &mut Vec<u8>,
+ ) {
+-    let len = connect_attributes
+-        .iter()
+-        .map(|(k, v)| lenenc_str_len(k.as_bytes()) + lenenc_str_len(v.as_bytes()))
+-        .sum::<u64>();
++    let entries = crate::misc::trusted::connect_attrs_entries(connect_attributes);
++    let len = connect_attrs_len(&entries, 0, 0);
+     buf.put_lenenc_int(len);
++    serialize_connect_attrs_entries(&entries, 0, buf);
++}
+ 
+-    for (name, value) in connect_attributes {
+-        name.serialize(&mut *buf);
+-        value.serialize(&mut *buf);
++// The sum `lenenc_str_len(k) + lenenc_str_len(v)` over `entries[i..]`, added to `acc`
++// (recursive).
++fn connect_attrs_len(entries: &[(&[u8], &[u8])], i: usize, acc: u64) -> u64 {
++    if i < entries.len() {
++        let (k, v) = entries[i];
++        connect_attrs_len(entries, i + 1, acc + (lenenc_str_len(k) + lenenc_str_len(v)))
++    } else {
++        acc
++    }
++}
++
++// Writes `entries[i..]`, each key and value as a length-encoded string (recursive).
++fn serialize_connect_attrs_entries(entries: &[(&[u8], &[u8])], i: usize, buf: &mut Vec<u8>) {
++    if i < entries.len() {
++        let (k, v) = entries[i];
++        <LenEnc as crate::misc::raw::bytes::BytesRepr>::serialize(k, &mut *buf);
++        <LenEnc as crate::misc::raw::bytes::BytesRepr>::serialize(v, &mut *buf);
++        serialize_connect_attrs_entries(entries, i + 1, buf)
+     }
+ }
+ 
+@@ -2233,23 +2286,8 @@ impl<'de> MyDeserialize<'de> for ComChangeUserMoreData<'de> {
+     fn deserialize(flags: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         // always assume CLIENT_PROTOCOL_41
+         let character_set = buf.parse(())?;
+-        let mut auth_plugin = None;
+-        let mut connect_attributes = None;
+-
+-        if flags.contains(CapabilityFlags::CLIENT_PLUGIN_AUTH) {
+-            // plugin name is null-terminated here
+-            match buf.parse::<RawBytes<'_, NullBytes>>(())?.0 {
+-                Cow::Borrowed(bytes) => {
+-                    let mut auth_plugin_buf = ParseBuf(bytes);
+-                    auth_plugin = Some(auth_plugin_buf.parse(())?);
+-                }
+-                _ => unreachable!(),
+-            }
+-        };
+-
+-        if flags.contains(CapabilityFlags::CLIENT_CONNECT_ATTRS) {
+-            connect_attributes = Some(deserialize_connect_attrs(&mut *buf)?);
+-        };
++        let auth_plugin = parse_change_user_auth_plugin(flags, &mut *buf)?;
++        let connect_attributes = parse_opt_connect_attrs(flags, &mut *buf)?;
+ 
+         Ok(Self {
+             character_set,
+@@ -2259,18 +2297,68 @@ impl<'de> MyDeserialize<'de> for ComChangeUserMoreData<'de> {
+     }
+ }
+ 
++// The `auth_plugin` field of `MyDeserialize for ComChangeUserMoreData`.
++fn parse_change_user_auth_plugin<'de>(
++    flags: CapabilityFlags,
++    buf: &mut ParseBuf<'de>,
++) -> io::Result<Option<AuthPlugin<'de>>> {
++    if flags.contains(CapabilityFlags::CLIENT_PLUGIN_AUTH) {
++        // plugin name is null-terminated here
++        match buf.parse::<RawBytes<'_, NullBytes>>(())?.0 {
++            Cow::Borrowed(bytes) => {
++                let mut auth_plugin_buf = ParseBuf(bytes);
++                match auth_plugin_buf.parse(()) {
++                    Ok(x) => Ok(Some(x)),
++                    Err(e) => Err(e),
++                }
++            }
++            _ => unreachable!(),
++        }
++    } else {
++        Ok(None)
++    }
++}
++
++// The `connect_attributes` field of `MyDeserialize for ComChangeUserMoreData` and
++// `HandshakeResponse`.
++fn parse_opt_connect_attrs<'de>(
++    flags: CapabilityFlags,
++    buf: &mut ParseBuf<'de>,
++) -> io::Result<Option<crate::misc::trusted::ConnectAttrs<'de>>> {
++    if flags.contains(CapabilityFlags::CLIENT_CONNECT_ATTRS) {
++        match deserialize_connect_attrs(&mut *buf) {
++            Ok(x) => Ok(Some(x)),
++            Err(e) => Err(e),
++        }
++    } else {
++        Ok(None)
++    }
++}
++
+ impl MySerialize for ComChangeUserMoreData<'_> {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         self.character_set.serialize(&mut *buf);
+-        if let Some(ref auth_plugin) = self.auth_plugin {
+-            auth_plugin.serialize(&mut *buf);
++        match &self.auth_plugin {
++            Some(auth_plugin) => {
++                auth_plugin.serialize(&mut *buf);
++                serialize_change_user_connect_attrs(&self.connect_attributes, buf)
++            }
++            None => serialize_change_user_connect_attrs(&self.connect_attributes, buf),
+         }
+-        if let Some(ref connect_attributes) = self.connect_attributes {
+-            serialize_connect_attrs(connect_attributes, buf);
+-        } else {
++    }
++}
++
++// The `connect_attributes` part of `MySerialize for ComChangeUserMoreData`.
++fn serialize_change_user_connect_attrs(
++    connect_attributes: &Option<crate::misc::trusted::ConnectAttrs<'_>>,
++    buf: &mut Vec<u8>,
++) {
++    match connect_attributes {
++        Some(connect_attributes) => serialize_connect_attrs(connect_attributes, buf),
++        None => {
+             // We'll always act like CLIENT_CONNECT_ATTRS is set,
+             // this is to avoid looking into the actual connection flags.
+-            serialize_connect_attrs(&Default::default(), buf);
++            serialize_connect_attrs(&crate::misc::trusted::connect_attrs_new(), buf)
+         }
+     }
+ }
+@@ -2288,7 +2376,7 @@ pub struct HandshakeResponse<'a> {
+     user: RawBytes<'a, NullBytes>,
+     db_name: Option<RawBytes<'a, NullBytes>>,
+     auth_plugin: Option<AuthPlugin<'a>>,
+-    connect_attributes: Option<HashMap<RawBytes<'a, LenEnc>, RawBytes<'a, LenEnc>>>,
++    connect_attributes: Option<crate::misc::trusted::ConnectAttrs<'a>>,
+     mariadb_ext_capabilities: Const<MariadbCapabilities, LeU32>,
+ }
+ 
+@@ -2304,20 +2392,11 @@ impl<'a> HandshakeResponse<'a> {
+         connect_attributes: Option<HashMap<String, String>>,
+         max_packet_size: u32,
+     ) -> Self {
+-        let scramble_buf =
+-            if capabilities.contains(CapabilityFlags::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
+-                Either::Left(RawBytes::new(
+-                    scramble_buf.map(Into::into).unwrap_or_default(),
+-                ))
+-            } else if capabilities.contains(CapabilityFlags::CLIENT_SECURE_CONNECTION) {
+-                Either::Right(Either::Left(RawBytes::new(
+-                    scramble_buf.map(Into::into).unwrap_or_default(),
+-                )))
+-            } else {
+-                Either::Right(Either::Right(RawBytes::new(
+-                    scramble_buf.map(Into::into).unwrap_or_default(),
+-                )))
+-            };
++        let scramble_buf: Cow<'a, [u8]> = match scramble_buf {
++            Some(x) => x.into(),
++            None => Cow::default(),
++        };
++        let scramble_buf = new_scramble_buf(capabilities, scramble_buf);
+ 
+         if db_name.is_some() {
+             capabilities.insert(CapabilityFlags::CLIENT_CONNECT_WITH_DB);
+@@ -2337,23 +2416,29 @@ impl<'a> HandshakeResponse<'a> {
+             capabilities.remove(CapabilityFlags::CLIENT_CONNECT_ATTRS);
+         }
+ 
++        let connect_attributes = opt_connect_attrs_from_strings(connect_attributes);
++        // `server_version >= (5, 5, 3)`, lexicographically.
++        let (major, minor, patch) = server_version;
++        let at_least_5_5_3 =
++            major > 5 || (major == 5 && (minor > 5 || (minor == 5 && patch >= 3)));
+         Self {
+             scramble_buf,
+-            collation: if server_version >= (5, 5, 3) {
++            collation: if at_least_5_5_3 {
+                 RawInt::new(CollationId::UTF8MB4_GENERAL_CI as u8)
+             } else {
+                 RawInt::new(CollationId::UTF8MB3_GENERAL_CI as u8)
+             },
+-            user: user.map(RawBytes::new).unwrap_or_default(),
+-            db_name: db_name.map(RawBytes::new),
++            user: match user {
++                Some(x) => RawBytes::new(x),
++                None => RawBytes::default(),
++            },
++            db_name: match db_name {
++                Some(x) => Some(RawBytes::new(x)),
++                None => None,
++            },
+             auth_plugin,
+             capabilities: Const::new(capabilities),
+-            connect_attributes: connect_attributes.map(|attrs| {
+-                attrs
+-                    .into_iter()
+-                    .map(|(k, v)| (RawBytes::new(k.into_bytes()), RawBytes::new(v.into_bytes())))
+-                    .collect()
+-            }),
++            connect_attributes,
+             max_packet_size: RawInt::new(max_packet_size),
+             mariadb_ext_capabilities: Const::new(MariadbCapabilities::empty()),
+         }
+@@ -2394,21 +2479,25 @@ impl<'a> HandshakeResponse<'a> {
+     }
+ 
+     pub fn db_name(&self) -> Option<&[u8]> {
+-        self.db_name.as_ref().map(|x| x.as_bytes())
++        match &self.db_name {
++            Some(x) => Some(x.as_bytes()),
++            None => None,
++        }
+     }
+ 
+     pub fn auth_plugin(&self) -> Option<&AuthPlugin<'a>> {
+-        self.auth_plugin.as_ref()
++        match &self.auth_plugin {
++            Some(x) => Some(x),
++            None => None,
++        }
+     }
+ 
+     #[must_use = "entails computation"]
+     pub fn connect_attributes(&self) -> Option<HashMap<String, String>> {
+-        self.connect_attributes.as_ref().map(|attrs| {
+-            attrs
+-                .iter()
+-                .map(|(k, v)| (k.as_str().into_owned(), v.as_str().into_owned()))
+-                .collect()
+-        })
++        match &self.connect_attributes {
++            Some(attrs) => Some(crate::misc::trusted::connect_attrs_to_strings(attrs)),
++            None => None,
++        }
+     }
+ }
+ 
+@@ -2425,30 +2514,11 @@ impl<'de> MyDeserialize<'de> for HandshakeResponse<'de> {
+         let mariadb_flags: RawConst<LeU32, MariadbCapabilities> = sbuf.parse_unchecked(())?;
+ 
+         let user = buf.parse(())?;
+-        let scramble_buf =
+-            if client_flags.0 & CapabilityFlags::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA.bits() > 0 {
+-                Either::Left(buf.parse(())?)
+-            } else if client_flags.0 & CapabilityFlags::CLIENT_SECURE_CONNECTION.bits() > 0 {
+-                Either::Right(Either::Left(buf.parse(())?))
+-            } else {
+-                Either::Right(Either::Right(buf.parse(())?))
+-            };
+-
+-        let mut db_name = None;
+-        if client_flags.0 & CapabilityFlags::CLIENT_CONNECT_WITH_DB.bits() > 0 {
+-            db_name = buf.parse(()).map(Some)?;
+-        }
+-
+-        let mut auth_plugin = None;
+-        if client_flags.0 & CapabilityFlags::CLIENT_PLUGIN_AUTH.bits() > 0 {
+-            let auth_plugin_name = buf.eat_null_str();
+-            auth_plugin = Some(AuthPlugin::from_bytes(auth_plugin_name));
+-        }
+-
+-        let mut connect_attributes = None;
+-        if client_flags.0 & CapabilityFlags::CLIENT_CONNECT_ATTRS.bits() > 0 {
+-            connect_attributes = Some(deserialize_connect_attrs(&mut *buf)?);
+-        }
++        let scramble_buf = parse_scramble_buf(client_flags.0, &mut *buf)?;
++        let db_name = parse_handshake_response_db_name(client_flags.0, &mut *buf)?;
++        let auth_plugin = parse_handshake_response_auth_plugin(client_flags.0, &mut *buf);
++        let connect_attributes =
++            parse_opt_connect_attrs(CapabilityFlags::from_bits_retain(client_flags.0), &mut *buf)?;
+ 
+         Ok(Self {
+             capabilities: Const::new(CapabilityFlags::from_bits_truncate(client_flags.0)),
+@@ -2466,6 +2536,75 @@ impl<'de> MyDeserialize<'de> for HandshakeResponse<'de> {
+     }
+ }
+ 
++// `connect_attributes.map(|attrs| attrs.into_iter().map(..).collect())` in `HandshakeResponse::new`.
++fn opt_connect_attrs_from_strings<'a>(
++    connect_attributes: Option<HashMap<String, String>>,
++) -> Option<crate::misc::trusted::ConnectAttrs<'a>> {
++    match connect_attributes {
++        Some(attrs) => Some(crate::misc::trusted::connect_attrs_from_strings(attrs)),
++        None => None,
++    }
++}
++
++// The `scramble_buf` field of `HandshakeResponse::new`.
++fn new_scramble_buf(capabilities: CapabilityFlags, scramble_buf: Cow<'_, [u8]>) -> ScrambleBuf<'_> {
++    if capabilities.contains(CapabilityFlags::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
++        Either::Left(RawBytes::new(scramble_buf))
++    } else if capabilities.contains(CapabilityFlags::CLIENT_SECURE_CONNECTION) {
++        Either::Right(Either::Left(RawBytes::new(scramble_buf)))
++    } else {
++        Either::Right(Either::Right(RawBytes::new(scramble_buf)))
++    }
++}
++
++// The `scramble_buf` field of `MyDeserialize for HandshakeResponse`.
++fn parse_scramble_buf<'de>(client_flags: u32, buf: &mut ParseBuf<'de>) -> io::Result<ScrambleBuf<'de>> {
++    if client_flags & CapabilityFlags::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA.bits() > 0 {
++        match buf.parse(()) {
++            Ok(x) => Ok(Either::Left(x)),
++            Err(e) => Err(e),
++        }
++    } else if client_flags & CapabilityFlags::CLIENT_SECURE_CONNECTION.bits() > 0 {
++        match buf.parse(()) {
++            Ok(x) => Ok(Either::Right(Either::Left(x))),
++            Err(e) => Err(e),
++        }
++    } else {
++        match buf.parse(()) {
++            Ok(x) => Ok(Either::Right(Either::Right(x))),
++            Err(e) => Err(e),
++        }
++    }
++}
++
++// The `db_name` field of `MyDeserialize for HandshakeResponse`.
++fn parse_handshake_response_db_name<'de>(
++    client_flags: u32,
++    buf: &mut ParseBuf<'de>,
++) -> io::Result<Option<RawBytes<'de, NullBytes>>> {
++    if client_flags & CapabilityFlags::CLIENT_CONNECT_WITH_DB.bits() > 0 {
++        match buf.parse(()) {
++            Ok(x) => Ok(Some(x)),
++            Err(e) => Err(e),
++        }
++    } else {
++        Ok(None)
++    }
++}
++
++// The `auth_plugin` field of `MyDeserialize for HandshakeResponse`.
++fn parse_handshake_response_auth_plugin<'de>(
++    client_flags: u32,
++    buf: &mut ParseBuf<'de>,
++) -> Option<AuthPlugin<'de>> {
++    if client_flags & CapabilityFlags::CLIENT_PLUGIN_AUTH.bits() > 0 {
++        let auth_plugin_name = buf.eat_null_str();
++        Some(AuthPlugin::from_bytes(auth_plugin_name))
++    } else {
++        None
++    }
++}
++
+ impl MySerialize for HandshakeResponse<'_> {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         self.capabilities.serialize(&mut *buf);
+@@ -2475,27 +2614,53 @@ impl MySerialize for HandshakeResponse<'_> {
+         self.mariadb_ext_capabilities.serialize(&mut *buf);
+         self.user.serialize(&mut *buf);
+         self.scramble_buf.serialize(&mut *buf);
++        serialize_handshake_response_tail(
++            &self.db_name,
++            &self.auth_plugin,
++            &self.connect_attributes,
++            buf,
++        );
++    }
++}
+ 
+-        if let Some(db_name) = &self.db_name {
++// The optional trailing fields written by `MySerialize for HandshakeResponse`.
++fn serialize_handshake_response_tail(
++    db_name: &Option<RawBytes<'_, NullBytes>>,
++    auth_plugin: &Option<AuthPlugin<'_>>,
++    connect_attributes: &Option<crate::misc::trusted::ConnectAttrs<'_>>,
++    buf: &mut Vec<u8>,
++) {
++    match db_name {
++        Some(db_name) => {
+             db_name.serialize(&mut *buf);
++            serialize_handshake_response_auth_plugin(auth_plugin, connect_attributes, buf)
+         }
++        None => serialize_handshake_response_auth_plugin(auth_plugin, connect_attributes, buf),
++    }
++}
+ 
+-        if let Some(auth_plugin) = &self.auth_plugin {
++fn serialize_handshake_response_auth_plugin(
++    auth_plugin: &Option<AuthPlugin<'_>>,
++    connect_attributes: &Option<crate::misc::trusted::ConnectAttrs<'_>>,
++    buf: &mut Vec<u8>,
++) {
++    match auth_plugin {
++        Some(auth_plugin) => {
+             auth_plugin.serialize(&mut *buf);
++            serialize_handshake_response_connect_attrs(connect_attributes, buf)
+         }
++        None => serialize_handshake_response_connect_attrs(connect_attributes, buf),
++    }
++}
+ 
+-        if let Some(attrs) = &self.connect_attributes {
+-            let len = attrs
+-                .iter()
+-                .map(|(k, v)| lenenc_str_len(k.as_bytes()) + lenenc_str_len(v.as_bytes()))
+-                .sum::<u64>();
+-            buf.put_lenenc_int(len);
+-
+-            for (name, value) in attrs {
+-                name.serialize(&mut *buf);
+-                value.serialize(&mut *buf);
+-            }
+-        }
++fn serialize_handshake_response_connect_attrs(
++    connect_attributes: &Option<crate::misc::trusted::ConnectAttrs<'_>>,
++    buf: &mut Vec<u8>,
++) {
++    match connect_attributes {
++        // The body of the original `if let` is `serialize_connect_attrs`, written out.
++        Some(attrs) => serialize_connect_attrs(attrs, buf),
++        None => (),
+     }
+ }
+ 

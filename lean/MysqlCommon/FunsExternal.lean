@@ -113,6 +113,146 @@ def alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
   {T : Type _} (A : Type _) (x : alloc.sync.Arc T) : Result T :=
   ok x
 
+/-- `Arc::make_mut(&mut a)`: a mutable reference to the value, which the `Arc` then holds. (std
+    clones the value first when it is shared; through the operations above, a shared `Arc` and
+    a clone of its value are indistinguishable, so the value model is exact.) -/
+@[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::make_mut"]
+def alloc.sync.Arc.make_mut
+  {T : Type _} {A : Type _} (corecloneCloneToUninitInst : core.clone.CloneToUninit T)
+  (coreallocAllocatorCloneInst : core.alloc.AllocatorClone A) (a : alloc.sync.Arc T) :
+  Result (T × (T → alloc.sync.Arc T)) :=
+  ok (a, fun t => t)
+
+/-- `impl Default for Arc<T>`: `Arc::new(T::default())`. -/
+@[rust_fun "alloc::sync::{core::default::Default<alloc::sync::Arc<@T>>}::default"]
+def alloc.sync.Arc.Insts.CoreDefaultDefault.default
+  {T : Type _} (coredefaultDefaultInst : core.default.Default T) : Result (alloc.sync.Arc T) :=
+  coredefaultDefaultInst.default
+
+/-- [core::clone::{impl CloneToUninit for T: Clone}::clone_to_uninit]: writes a clone through a
+    raw pointer. Only occurs as the `CloneToUninit` instance passed to `Arc::make_mut`, whose model
+    above does not use it. Nothing is assumed about it. -/
+@[rust_fun "core::clone::{core::clone::CloneToUninit<@T>}::clone_to_uninit"]
+axiom core.clone.CloneToUninit.Blanket.clone_to_uninit
+  {T : Type _} (CloneInst : core.clone.Clone T) :
+  T → MutRawPtr Std.U8 → Result Unit
+
+/-! ## Exact models of std items reached by the packets (`src/packets/`) -/
+
+/-- `impl Clone for PhantomData<T>`: `PhantomData` (a unit). -/
+@[rust_fun "core::marker::{core::clone::Clone<core::marker::PhantomData<@T>>}::clone"]
+def core.marker.PhantomData.Insts.CoreCloneClone.clone
+  {T : Type _} (x : core.marker.PhantomData T) : Result (core.marker.PhantomData T) :=
+  ok x
+
+/-- `impl Default for PhantomData<T>`: `PhantomData` (a unit). -/
+@[rust_fun "core::marker::{core::default::Default<core::marker::PhantomData<@T>>}::default"]
+def core.marker.PhantomData.Insts.CoreDefaultDefault.default
+  (T : Type _) : Result (core.marker.PhantomData T) :=
+  ok ()
+
+/-- `impl Clone for Option<T>`: `None`, or `Some` of the clone. -/
+@[rust_fun "core::option::{core::clone::Clone<core::option::Option<@T>>}::clone"]
+def core.option.Option.Insts.CoreCloneClone.clone
+  {T : Type _} (cloneCloneInst : core.clone.Clone T) : Option T → Result (Option T)
+  | none => ok none
+  | some x => do let y ← cloneCloneInst.clone x; ok (some y)
+
+/-- `impl Default for Vec<T>`: `Vec::new()`. -/
+@[rust_fun "alloc::vec::{core::default::Default<alloc::vec::Vec<@T>>}::default"]
+def alloc.vec.Vec.Insts.CoreDefaultDefault.default
+  (T : Type _) : Result (alloc.vec.Vec T) :=
+  ok (alloc.vec.Vec.new T)
+
+/-- `char::is_ascii_lowercase`: `'a' ..= 'z'`. -/
+@[rust_fun "core::char::methods::{char}::is_ascii_lowercase"]
+def core.char.methods.Char.is_ascii_lowercase (c : Char) : Result Bool :=
+  ok ('a' ≤ c && c ≤ 'z')
+
+/-- `char::is_ascii_digit`: `'0' ..= '9'`. -/
+@[rust_fun "core::char::methods::{char}::is_ascii_digit"]
+def core.char.methods.Char.is_ascii_digit (c : Char) : Result Bool :=
+  ok ('0' ≤ c && c ≤ '9')
+
+/-- `str::as_bytes`: the bytes (`Str = Slice U8`). -/
+@[rust_fun "core::str::{str}::as_bytes"]
+def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
+
+/-- `str::len`: the length in bytes. -/
+@[rust_fun "core::str::{str}::len"]
+def core.str.Str.len (s : Str) : Result Std.Usize := ok (Slice.len s)
+
+/-- `str::is_empty`: `len() == 0`. -/
+@[rust_fun "core::str::{str}::is_empty"]
+def core.str.Str.is_empty (s : Str) : Result Bool := ok (s.val.length = 0)
+
+/-- `impl Clone for Cow<B>`: `Borrowed(b)` stays borrowed; `Owned(o)` becomes
+    `Owned(o.borrow().to_owned())`. -/
+@[rust_fun
+  "alloc::borrow::{core::clone::Clone<alloc::borrow::Cow<'0, @B, @Clause0_Owned>>}::clone"]
+def alloc.borrow.Cow.Insts.CoreCloneClone.clone
+  {B : Type _} {Clause0_Owned : Type _} (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned) :
+  alloc.borrow.Cow B Clause0_Owned → Result (alloc.borrow.Cow B Clause0_Owned)
+  | .Borrowed b => ok (.Borrowed b)
+  | .Owned o => do
+    let b ← ToOwnedInst.coreborrowBorrowInst.borrow o
+    let o' ← ToOwnedInst.to_owned b
+    ok (.Owned o')
+
+/-- `Cow::into_owned`: `Borrowed(b)` gives `b.to_owned()`, `Owned(o)` gives `o`. -/
+@[rust_fun "alloc::borrow::{alloc::borrow::Cow<'0, @B, @Clause0_Owned>}::into_owned"]
+def alloc.borrow.Cow.into_owned
+  {B : Type _} {Clause0_Owned : Type _} (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned) :
+  alloc.borrow.Cow B Clause0_Owned → Result Clause0_Owned
+  | .Borrowed b => ToOwnedInst.to_owned b
+  | .Owned o => ok o
+
+/-- `impl Default for Cow<B>`: `Owned(<B as ToOwned>::Owned::default())`. -/
+@[rust_fun
+  "alloc::borrow::{core::default::Default<alloc::borrow::Cow<'0, @B, @Clause0_Owned>>}::default"]
+def alloc.borrow.Cow.Insts.CoreDefaultDefault.default
+  {B : Type _} {Clause0_Owned : Type _} (ToOwnedInst : alloc.borrow.ToOwned B Clause0_Owned)
+  (coredefaultDefaultInst : core.default.Default Clause0_Owned) :
+  Result (alloc.borrow.Cow B Clause0_Owned) := do
+  let o ← coredefaultDefaultInst.default
+  ok (.Owned o)
+
+/-- `impl From<&[T]> for Cow<[T]>`: `Cow::Borrowed`. -/
+@[rust_fun
+  "alloc::vec::cow::{core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, &'a [@T]>}::from"]
+def alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice.from
+  {T : Type _} (corecloneCloneInst : core.clone.Clone T) (s : Slice T) :
+  Result (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T)) :=
+  ok (.Borrowed s)
+
+/-- `impl From<Vec<T>> for Cow<[T]>`: `Cow::Owned`. -/
+@[rust_fun
+  "alloc::vec::cow::{core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, alloc::vec::Vec<@T>>}::from"]
+def alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec.from
+  {T : Type _} (corecloneCloneInst : core.clone.Clone T) (v : alloc.vec.Vec T) :
+  Result (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T)) :=
+  ok (.Owned v)
+
+/-- `impl From<&str> for Cow<str>`: `Cow::Borrowed`. -/
+@[rust_fun
+  "alloc::string::{core::convert::From<alloc::borrow::Cow<'a, str, alloc::string::String>, &'a str>}::from"]
+def alloc.borrow.CowAStrString.Insts.CoreConvertFromSharedAStr.from (s : Str) :
+  Result (alloc.borrow.Cow Str String) :=
+  ok (.Borrowed s)
+
+/-- `impl From<String> for Cow<str>`: `Cow::Owned`. -/
+@[rust_fun
+  "alloc::string::{core::convert::From<alloc::borrow::Cow<'a, str, alloc::string::String>, alloc::string::String>}::from"]
+def alloc.borrow.CowAStrString.Insts.CoreConvertFromString.from (s : String) :
+  Result (alloc.borrow.Cow Str String) :=
+  ok (.Owned s)
+
+/-- `Arguments::from_str_nonconst`: as Aeneas' model of `Arguments::from_str`, formatting
+    arguments are not modelled (`core.fmt.Arguments = Unit`). Only reached from the `Display`
+    impls of packet-header errors, which build opaque `io::Error`s. -/
+@[rust_fun "core::fmt::{core::fmt::Arguments<'a>}::from_str_nonconst"]
+def core.fmt.Arguments.from_str_nonconst : Str → Result core.fmt.Arguments := fun _ => ok ()
+
 /-! ## Axioms -/
 
 /-- [core::mem::size_of]: used only by `RawFlags::SIZE` (`size_of::<T::Bits>()` for a generic
@@ -948,3 +1088,153 @@ noncomputable def value.convert.trusted.json_from_slice (b : Slice Std.U8) :
     Result (Option serde_json.value.Value) := ok (Trusted.jsonFromSlice b)
 noncomputable def value.convert.trusted.json_to_string (x : serde_json.value.Value) :
     Result (Option String) := ok (Trusted.jsonToString x)
+
+/-! ## `String` / `str` conversions reached by the packets: exact -/
+
+/-- `impl Borrow<str> for String`: the UTF-8 bytes of the string (`Str = Slice U8`). The `fail`
+    branch is for a Lean string longer than `usize::MAX` bytes, which no Rust `String` is. -/
+@[rust_fun "alloc::str::{core::borrow::Borrow<alloc::string::String, str>}::borrow"]
+def alloc.string.String.Insts.CoreBorrowBorrowStr.borrow (s : String) : Result Str :=
+  let l := Trusted.u8sOf s.toUTF8
+  if h : l.length ≤ Usize.max then ok (Slice.from l h) else fail .panic
+
+/-- `impl ToOwned for str`: the `String` whose UTF-8 bytes are `s`. A Rust `&str` is always valid
+    UTF-8; the `fail` branch is only for byte slices that are not, which no `&str` is. -/
+@[rust_fun "alloc::str::{alloc::borrow::ToOwned<str, alloc::string::String>}::to_owned"]
+def Str.Insts.AllocBorrowToOwnedString.to_owned (s : Str) : Result String :=
+  match String.fromUTF8? (Trusted.bytesOf s.val) with
+  | some x => ok x
+  | none => fail .panic
+
+/-! ## Opaque `Display`/`Debug` impls of the packets' error types (opaque in Cargo.toml)
+
+Each formats with `{:b}` or formats a `char`, whose std implementations Aeneas does not model.
+They are only needed to build the `Error` instance passed to `io_error_from`, whose result is
+opaque. Nothing is assumed about them. -/
+
+axiom constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDisplay.fmt :
+  constants.UnknownStmtExecuteParamFlags → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+axiom constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDisplay.fmt :
+  constants.UnknownStmtBulkExecuteParamsFlags → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+axiom packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt :
+  packets.UnknownBinlogDumpFlags → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+axiom packets.InvalidTag.Insts.CoreFmtDisplay.fmt :
+  packets.InvalidTag → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+axiom packets.InvalidTag.Insts.CoreFmtDebug.fmt :
+  packets.InvalidTag → core.fmt.Formatter → Result
+    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+
+/-! ## The trust boundary of the packets: `mysql_common::misc::trusted`
+
+`translation-patches/64-packets-trusted-module.patch` adds this module (later patches add to it);
+as for `value::convert::trusted`, each function is one call into a dependency or into a std
+function Aeneas does not model, and the module is `opaque` in Cargo.toml. Each function gets:
+
+* an **exact model**: `btoi_u16`;
+* an **exact model on valid input, opaque otherwise**: `from_utf8_lossy` (borrowed bytes iff they
+  are valid UTF-8; the replaced string is opaque), `sid_tag_from_utf8` (`Ok` of the bytes iff they
+  are valid UTF-8; the error is opaque);
+* an **opaque value with no specification**: the `GnoInterval` error, the two version regexes, and
+  the `HashMap` of connect attributes (`std::collections::HashMap`, an opaque type in
+  TypesExternal.lean) and its operations.
+
+Every helper is assumed not to panic (it returns `ok`). -/
+
+namespace Trusted
+/-- `String::from_utf8_lossy` of bytes that are not valid UTF-8: opaque. -/
+axiom utf8LossyOwned : Slice Std.U8 → String
+/-- The `io::Error` of `Sid::deserialize_tagged` for bytes that are not valid UTF-8: opaque. -/
+axiom sidTagUtf8Error : Slice Std.U8 → core.io.error.Error
+/-- The `io::Error` of `GnoInterval::check_and_new` for `start >= end`: opaque. -/
+axiom gnoIntervalOrderError : Std.U64 → Std.U64 → core.io.error.Error
+/-- `VERSION_RE.captures` (groups 1–3): opaque. -/
+axiom versionReCaptures : Slice Std.U8 → Option (Slice Std.U8 × Slice Std.U8 × Slice Std.U8)
+/-- `MARIADB_VERSION_RE.captures` (groups 1–3): opaque. -/
+axiom mariadbVersionReCaptures :
+  Slice Std.U8 → Option (Slice Std.U8 × Slice Std.U8 × Slice Std.U8)
+
+/-- The connect-attributes map type. -/
+abbrev ConnectAttrs : Type :=
+  std.collections.hash.map.HashMap (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit)
+    (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) std.hash.random.RandomState
+    alloc.alloc.Global
+/-- A `HashMap<String, String>`. -/
+abbrev StringMap : Type :=
+  std.collections.hash.map.HashMap String String std.hash.random.RandomState alloc.alloc.Global
+
+/-- `HashMap::new()`: opaque. -/
+axiom connectAttrsNew : ConnectAttrs
+/-- `HashMap::insert`: opaque. -/
+axiom connectAttrsInsert :
+  ConnectAttrs → misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit →
+    misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit → ConnectAttrs
+/-- The entries in iteration order: opaque. -/
+axiom connectAttrsEntries : ConnectAttrs → alloc.vec.Vec (Slice Std.U8 × Slice Std.U8)
+/-- `HashMap<String, String>` to connect attributes: opaque. -/
+axiom connectAttrsFromStrings : StringMap → ConnectAttrs
+/-- `into_owned` of every key and value: opaque. -/
+axiom connectAttrsIntoOwned : ConnectAttrs → ConnectAttrs
+/-- Connect attributes to `HashMap<String, String>` (lossy UTF-8): opaque. -/
+axiom connectAttrsToStrings : ConnectAttrs → StringMap
+end Trusted
+
+/-- `String::from_utf8_lossy(bytes)`: `Cow::Borrowed(bytes)` exactly when the bytes are valid
+    UTF-8 (std returns the input itself then); otherwise an opaque owned string. -/
+noncomputable def misc.trusted.from_utf8_lossy (bytes : Slice Std.U8) :
+    Result (alloc.borrow.Cow Str String) :=
+  ok (if (Trusted.bytesOf bytes.val).IsValidUTF8 then .Borrowed bytes
+      else .Owned (Trusted.utf8LossyOwned bytes))
+
+/-- `std::str::from_utf8(tag_bytes)` with an opaque error: `Ok` of the bytes exactly when they
+    are valid UTF-8. -/
+noncomputable def misc.trusted.sid_tag_from_utf8 (tag_bytes : Slice Std.U8) :
+    Result (core.result.Result Str core.io.error.Error) :=
+  ok (if (Trusted.bytesOf tag_bytes.val).IsValidUTF8 then .Ok tag_bytes
+      else .Err (Trusted.sidTagUtf8Error tag_bytes))
+
+noncomputable def misc.trusted.gno_interval_order_error (start «end» : Std.U64) :
+    Result core.io.error.Error := ok (Trusted.gnoIntervalOrderError start «end»)
+
+noncomputable def misc.trusted.version_re_captures (b : Slice Std.U8) :
+    Result (Option (Slice Std.U8 × Slice Std.U8 × Slice Std.U8)) :=
+  ok (Trusted.versionReCaptures b)
+
+noncomputable def misc.trusted.mariadb_version_re_captures (b : Slice Std.U8) :
+    Result (Option (Slice Std.U8 × Slice Std.U8 × Slice Std.U8)) :=
+  ok (Trusted.mariadbVersionReCaptures b)
+
+/-- `btoi::btoi::<u16>(b).ok()`: exact (see the btoi section above). -/
+def misc.trusted.btoi_u16 (b : Slice Std.U8) : Result (Option Std.U16) :=
+  ok (Trusted.btoiUnsigned .U16 b)
+
+noncomputable def misc.trusted.connect_attrs_new : Result Trusted.ConnectAttrs :=
+  ok Trusted.connectAttrsNew
+
+noncomputable def misc.trusted.connect_attrs_insert (attrs : Trusted.ConnectAttrs)
+    (key value : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) :
+    Result Trusted.ConnectAttrs :=
+  ok (Trusted.connectAttrsInsert attrs key value)
+
+noncomputable def misc.trusted.connect_attrs_entries (attrs : Trusted.ConnectAttrs) :
+    Result (alloc.vec.Vec (Slice Std.U8 × Slice Std.U8)) :=
+  ok (Trusted.connectAttrsEntries attrs)
+
+noncomputable def misc.trusted.connect_attrs_from_strings (attrs : Trusted.StringMap) :
+    Result Trusted.ConnectAttrs :=
+  ok (Trusted.connectAttrsFromStrings attrs)
+
+noncomputable def misc.trusted.connect_attrs_into_owned (attrs : Trusted.ConnectAttrs) :
+    Result Trusted.ConnectAttrs :=
+  ok (Trusted.connectAttrsIntoOwned attrs)
+
+noncomputable def misc.trusted.connect_attrs_to_strings (attrs : Trusted.ConnectAttrs) :
+    Result Trusted.StringMap :=
+  ok (Trusted.connectAttrsToStrings attrs)

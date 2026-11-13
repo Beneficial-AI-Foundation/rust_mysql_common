@@ -1,0 +1,355 @@
+Translation patch: `Sid` and `ComBinlogDumpGtid`
+
+Change:
+  - `Sid::tag`: `self.tag.as_ref()` becomes a `match`; `with_interval`: `self.intervals.0.into_owned()` becomes `cow_into_vec(self.intervals.0)` (patch 14).
+  - `Sid::len`/`tagged_len`: `saturating::Saturating` arithmetic (`S(a) += S(b)`, `.0`) becomes `u64::saturating_add`; `self.tag.as_ref().map(|t| t.as_str()).unwrap_or("")` becomes a private method `tag_str()` (a `match`).
+  - `Sid::serialize_tagged`: `if !tag_str.is_empty() { buf.extend_from_slice(tag_str.as_bytes()) }` becomes the unconditional `extend_from_slice`.
+  - `Sid::deserialize_tagged`: the tag moves into a private `Sid::deserialize_tag(tag_len, buf)`; its `io::Error::new(UnexpectedEof, "..")` becomes `misc::io_error_msg`, `std::str::from_utf8(..).map_err(|e| io::Error::new(InvalidData, format!(.., e)))?` becomes `misc::trusted::sid_tag_from_utf8(..)?` (a new function of the module of patch 64 with that body), `buf.0 = &buf.0[tag_len..]` becomes `buf.skip(tag_len)`, and `Tag::new(..).map_err(|e| io::Error::new(InvalidData, e))?` becomes a `match` with `misc::io_error_from` (patch 02).
+  - `ComBinlogDumpGtid`: `is_tagged_format` (`iter().any(..)`), the loop of `sid_block_len` (with `Saturating<u32>` becoming `u32::saturating_add`), the serialization loop and the two deserialization loops become recursive free functions (`any_sid_tagged`, `sid_block_len_from`, `serialize_sids_from`, `deserialize_tagged_sids`, `deserialize_untagged_sids`); `serialize` calls `any_sid_tagged` and `sid_block_len_from` directly instead of the two methods, and its `n_sids_header` computation moves into a free function `n_sids_header(tagged, n_sids)`.
+Why: Aeneas fails on closures, does not model `Option::as_ref`/`unwrap_or`, `Cow::into_owned`, iterator adaptors or the slice iterator, or the `saturating` crate's operators (a dependency), does not support `dyn` (`io::Error::new`) or `format!`, and fails on loops over slices of `Sid` (which hold borrows) and on joins after an `if` in `serialize_tagged`/`serialize`, and on calling the `&self` methods from `serialize` ("Unreachable").
+Behaviour: Identical. `saturating` 0.1.0 defines `Saturating(a) + Saturating(b)` as `Saturating(a.saturating_add(b))` and `+=` as `*self = *self + other`. Appending an empty slice is a no-op. `skip(n)` is `self.0 = &self.0[n..]`. The recursion visits the sids in order and counts `n_sids` iterations, with the same early `Err` returns; `Vec::with_capacity(n_sids as usize)` is still allocated before the loop. The recursion uses stack proportional to the number of sids.
+
+diff --git a/src/misc/trusted.rs b/src/misc/trusted.rs
+index 3b93066..385315c 100644
+--- a/src/misc/trusted.rs
++++ b/src/misc/trusted.rs
+@@ -26,6 +26,16 @@ pub(crate) fn gno_interval_order_error(start: u64, end: u64) -> std::io::Error {
+     )
+ }
+ 
++/// `std::str::from_utf8(tag_bytes)`, with the error of `Sid::deserialize_tagged`.
++pub(crate) fn sid_tag_from_utf8(tag_bytes: &[u8]) -> std::io::Result<&str> {
++    std::str::from_utf8(tag_bytes).map_err(|e| {
++        std::io::Error::new(
++            std::io::ErrorKind::InvalidData,
++            format!("invalid UTF-8 in Sid tag: {}", e),
++        )
++    })
++}
++
+ // ---- HashMap (connect attributes) --------------------------------------------------------------
+ 
+ /// The connect-attributes map of `ComChangeUserMoreData` and `HandshakeResponse`.
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 1b46fd6..2f578ea 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -4340,7 +4340,10 @@ impl Sid<'_> {
+ 
+     /// Returns the `tag` field value (MySQL 8.4+).
+     pub fn tag(&self) -> Option<&Tag<'_>> {
+-        self.tag.as_ref()
++        match &self.tag {
++            Some(tag) => Some(tag),
++            None => None,
++        }
+     }
+ 
+     /// Returns the `intervals` field value.
+@@ -4350,7 +4353,7 @@ impl Sid<'_> {
+ 
+     /// Appends an GnoInterval to this block.
+     pub fn with_interval(mut self, interval: GnoInterval) -> Self {
+-        let mut intervals = self.intervals.0.into_owned();
++        let mut intervals = crate::misc::raw::cow_into_vec(self.intervals.0);
+         intervals.push(interval);
+         self.intervals = Seq::new(intervals);
+         self
+@@ -4363,25 +4366,31 @@ impl Sid<'_> {
+     }
+ 
+     fn len(&self) -> u64 {
+-        use saturating::Saturating as S;
+-        let mut len = S(UUID_LEN as u64); // SID
+-        len += S(8); // n_intervals
+-        len += S((self.intervals.len() * 16) as u64);
+-        len.0
++        let mut len = UUID_LEN as u64; // SID
++        len = len.saturating_add(8); // n_intervals
++        len = len.saturating_add((self.intervals.len() * 16) as u64);
++        len
++    }
++
++    // `self.tag.as_ref().map(|t| t.as_str()).unwrap_or("")`.
++    fn tag_str(&self) -> &str {
++        match &self.tag {
++            Some(t) => t.as_str(),
++            None => "",
++        }
+     }
+ 
+     /// Returns the serialized length in the tagged (TSID) wire format.
+     ///
+     /// Layout: UUID (16) + varlen(tag_len) + tag_bytes + n_intervals (8) + intervals (16 each)
+     fn tagged_len(&self) -> u64 {
+-        use saturating::Saturating as S;
+-        let tag_str = self.tag.as_ref().map(|t| t.as_str()).unwrap_or("");
+-        let mut len = S(UUID_LEN as u64);
+-        len += S(varlen_uint_size(tag_str.len() as u64) as u64);
+-        len += S(tag_str.len() as u64);
+-        len += S(8); // n_intervals
+-        len += S((self.intervals.len() * 16) as u64);
+-        len.0
++        let tag_str = self.tag_str();
++        let mut len = UUID_LEN as u64;
++        len = len.saturating_add(varlen_uint_size(tag_str.len() as u64) as u64);
++        len = len.saturating_add(tag_str.len() as u64);
++        len = len.saturating_add(8); // n_intervals
++        len = len.saturating_add((self.intervals.len() * 16) as u64);
++        len
+     }
+ 
+     /// Serializes this Sid in the tagged (TSID) wire format.
+@@ -4389,11 +4398,10 @@ impl Sid<'_> {
+     /// Layout: UUID (16) + varlen(tag_len) + tag_bytes + intervals (Seq<GnoInterval, LeU64>)
+     fn serialize_tagged(&self, buf: &mut Vec<u8>) {
+         self.uuid.serialize(&mut *buf);
+-        let tag_str = self.tag.as_ref().map(|t| t.as_str()).unwrap_or("");
++        let tag_str = self.tag_str();
+         write_varlen_uint(buf, tag_str.len() as u64);
+-        if !tag_str.is_empty() {
+-            buf.extend_from_slice(tag_str.as_bytes());
+-        }
++        // (Appending an empty `tag_str` is a no-op, so the `!tag_str.is_empty()` test is dropped.)
++        buf.extend_from_slice(tag_str.as_bytes());
+         self.intervals.serialize(buf);
+     }
+ }
+@@ -4403,34 +4411,36 @@ impl<'de> Sid<'de> {
+     fn deserialize_tagged(buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         let uuid: [u8; UUID_LEN] = buf.parse(())?;
+         let tag_len = read_varlen_uint(buf)? as usize;
+-        let tag = if tag_len > 0 {
++        let tag = Self::deserialize_tag(tag_len, &mut *buf)?;
++        let intervals: Seq<'de, GnoInterval, LeU64> = buf.parse(())?;
++        Ok(Sid {
++            uuid,
++            tag,
++            intervals,
++        })
++    }
++}
++
++impl<'de> Sid<'de> {
++    // The `tag` of `deserialize_tagged`, of `tag_len` bytes.
++    fn deserialize_tag(tag_len: usize, buf: &mut ParseBuf<'de>) -> io::Result<Option<Tag<'de>>> {
++        if tag_len > 0 {
+             if buf.len() < tag_len {
+-                return Err(io::Error::new(
++                return Err(crate::misc::io_error_msg(
+                     io::ErrorKind::UnexpectedEof,
+                     "unexpected end of buffer reading Sid tag",
+                 ));
+             }
+             let tag_bytes = &buf.0[..tag_len];
+-            let tag_str = std::str::from_utf8(tag_bytes).map_err(|e| {
+-                io::Error::new(
+-                    io::ErrorKind::InvalidData,
+-                    format!("invalid UTF-8 in Sid tag: {}", e),
+-                )
+-            })?;
+-            buf.0 = &buf.0[tag_len..];
+-            Some(
+-                Tag::new(tag_str.to_owned())
+-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+-            )
++            let tag_str = crate::misc::trusted::sid_tag_from_utf8(tag_bytes)?;
++            buf.skip(tag_len);
++            match Tag::new(tag_str.to_owned()) {
++                Ok(tag) => Ok(Some(tag)),
++                Err(e) => Err(crate::misc::io_error_from(io::ErrorKind::InvalidData, e)),
++            }
+         } else {
+-            None
+-        };
+-        let intervals: Seq<'de, GnoInterval, LeU64> = buf.parse(())?;
+-        Ok(Sid {
+-            uuid,
+-            tag,
+-            intervals,
+-        })
++            Ok(None)
++        }
+     }
+ }
+ 
+@@ -4716,21 +4726,109 @@ impl<'a> ComBinlogDumpGtid<'a> {
+     /// Returns `true` if any Sid in the block has a tag, requiring the tagged
+     /// (TSID) wire format.
+     fn is_tagged_format(&self) -> bool {
+-        self.sid_block.iter().any(|sid| sid.tag().is_some())
++        any_sid_tagged(&self.sid_block, 0)
+     }
+ 
+     fn sid_block_len(&self) -> u32 {
+-        use saturating::Saturating as S;
+-        let mut len = S(8_u32); // n_sids header (8 bytes including format indicator)
++        let len = 8_u32; // n_sids header (8 bytes including format indicator)
+         let tagged = self.is_tagged_format();
+-        for sid in self.sid_block.iter() {
+-            if tagged {
+-                len += S(sid.tagged_len() as u32);
+-            } else {
+-                len += S(sid.len() as u32);
++        sid_block_len_from(&self.sid_block, tagged, 0, len)
++    }
++}
++
++// The `n_sids_header` of `MySerialize for ComBinlogDumpGtid`.
++fn n_sids_header(tagged: bool, n_sids: u64) -> u64 {
++    let format_byte: u8 = if tagged { 0x01 } else { 0x00 };
++    // MySQL encodes the n_sids header differently for tagged vs untagged:
++    //   Untagged: bits [55:0] = n_sids, bits [63:56] = format (0x00)
++    //   Tagged:   bits [55:8] = n_sids, bits [63:56] = format (0x01), bits [7:0] = reserved
++    if tagged {
++        (n_sids << 8) | ((format_byte as u64) << 56)
++    } else {
++        n_sids | ((format_byte as u64) << 56)
++    }
++}
++
++// `sids[i..].iter().any(|sid| sid.tag().is_some())` (recursive).
++fn any_sid_tagged(sids: &[Sid<'_>], i: usize) -> bool {
++    if i < sids.len() {
++        if sids[i].tag().is_some() {
++            true
++        } else {
++            any_sid_tagged(sids, i + 1)
++        }
++    } else {
++        false
++    }
++}
++
++// The loop of `ComBinlogDumpGtid::sid_block_len` over `sids[i..]`, from the length `len`
++// (recursive).
++fn sid_block_len_from(sids: &[Sid<'_>], tagged: bool, i: usize, len: u32) -> u32 {
++    if i < sids.len() {
++        if tagged {
++            sid_block_len_from(
++                sids,
++                tagged,
++                i + 1,
++                len.saturating_add(sids[i].tagged_len() as u32),
++            )
++        } else {
++            sid_block_len_from(sids, tagged, i + 1, len.saturating_add(sids[i].len() as u32))
++        }
++    } else {
++        len
++    }
++}
++
++// The loop of `MySerialize for ComBinlogDumpGtid` over `sids[i..]` (recursive).
++fn serialize_sids_from(sids: &[Sid<'_>], tagged: bool, i: usize, buf: &mut Vec<u8>) {
++    if i < sids.len() {
++        if tagged {
++            sids[i].serialize_tagged(&mut *buf);
++            serialize_sids_from(sids, tagged, i + 1, buf)
++        } else {
++            sids[i].serialize(&mut *buf);
++            serialize_sids_from(sids, tagged, i + 1, buf)
++        }
++    }
++}
++
++// The tagged loop of `MyDeserialize for ComBinlogDumpGtid`: `n` more sids (recursive).
++fn deserialize_tagged_sids<'de>(
++    sid_buf: &mut ParseBuf<'de>,
++    n: u64,
++    mut sids: Vec<Sid<'de>>,
++) -> io::Result<Vec<Sid<'de>>> {
++    if n > 0 {
++        match Sid::deserialize_tagged(&mut *sid_buf) {
++            Ok(sid) => {
++                sids.push(sid);
++                deserialize_tagged_sids(sid_buf, n - 1, sids)
+             }
++            Err(e) => Err(e),
+         }
+-        len.0
++    } else {
++        Ok(sids)
++    }
++}
++
++// The untagged loop of `MyDeserialize for ComBinlogDumpGtid`: `n` more sids (recursive).
++fn deserialize_untagged_sids<'de>(
++    sid_buf: &mut ParseBuf<'de>,
++    n: u64,
++    mut sids: Vec<Sid<'de>>,
++) -> io::Result<Vec<Sid<'de>>> {
++    if n > 0 {
++        match sid_buf.parse::<Sid<'de>>(()) {
++            Ok(sid) => {
++                sids.push(sid);
++                deserialize_untagged_sids(sid_buf, n - 1, sids)
++            }
++            Err(e) => Err(e),
++        }
++    } else {
++        Ok(sids)
+     }
+ }
+ 
+@@ -4741,28 +4839,14 @@ impl MySerialize for ComBinlogDumpGtid<'_> {
+         self.server_id.serialize(&mut *buf);
+         self.filename.serialize(&mut *buf);
+         self.pos.serialize(&mut *buf);
+-        buf.put_u32_le(self.sid_block_len());
++        // `self.sid_block_len()` and `self.is_tagged_format()`, inlined.
++        let tagged = any_sid_tagged(&self.sid_block, 0);
++        buf.put_u32_le(sid_block_len_from(&self.sid_block, tagged, 0, 8));
+ 
+-        let tagged = self.is_tagged_format();
+-        let format_byte: u8 = if tagged { 0x01 } else { 0x00 };
+         let n_sids = self.sid_block.len() as u64;
+-        // MySQL encodes the n_sids header differently for tagged vs untagged:
+-        //   Untagged: bits [55:0] = n_sids, bits [63:56] = format (0x00)
+-        //   Tagged:   bits [55:8] = n_sids, bits [63:56] = format (0x01), bits [7:0] = reserved
+-        let n_sids_header = if tagged {
+-            (n_sids << 8) | ((format_byte as u64) << 56)
+-        } else {
+-            n_sids | ((format_byte as u64) << 56)
+-        };
+-        buf.put_u64_le(n_sids_header);
++        buf.put_u64_le(n_sids_header(tagged, n_sids));
+ 
+-        for sid in self.sid_block.iter() {
+-            if tagged {
+-                sid.serialize_tagged(&mut *buf);
+-            } else {
+-                sid.serialize(&mut *buf);
+-            }
+-        }
++        serialize_sids_from(&self.sid_block, tagged, 0, buf);
+     }
+ }
+ 
+@@ -4795,21 +4879,17 @@ impl<'de> MyDeserialize<'de> for ComBinlogDumpGtid<'de> {
+             raw_n_sids.0 & 0x00FF_FFFF_FFFF_FFFF
+         };
+ 
+-        let mut sids = Vec::with_capacity(n_sids as usize);
+-        match format_byte {
++        let sids = Vec::with_capacity(n_sids as usize);
++        let sids = match format_byte {
+             0x01 => {
+                 // Tagged (TSID) format
+-                for _ in 0..n_sids {
+-                    sids.push(Sid::deserialize_tagged(&mut sid_buf)?);
+-                }
++                deserialize_tagged_sids(&mut sid_buf, n_sids, sids)?
+             }
+             _ => {
+                 // Untagged (legacy) format — format_byte 0x00 or any unknown value
+-                for _ in 0..n_sids {
+-                    sids.push(sid_buf.parse::<Sid<'de>>(())?);
+-                }
++                deserialize_untagged_sids(&mut sid_buf, n_sids, sids)?
+             }
+-        }
++        };
+ 
+         Ok(Self {
+             header,

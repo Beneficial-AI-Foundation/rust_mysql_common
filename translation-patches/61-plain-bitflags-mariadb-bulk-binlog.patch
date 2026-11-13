@@ -1,0 +1,65 @@
+Translation patch: the flags types `MariadbCapabilities`, `StmtBulkExecuteFlags`, `BinlogDumpFlags`
+
+Change: These three `my_bitflags!` invocations become `my_plain_bitflags!` (the macro of patch 20), and drop `Debug` from their `derive` list (the macro writes the `bitflags` one).
+Why: As for patch 20: `bitflags!` goes through the external `bitflags::Bits`/`Flags` traits, which Aeneas has no model for. The handshake, SSL request, bulk-execute and binlog-dump packets store these types.
+Behaviour: Identical, for the reasons given in patch 20 (the macro writes out the `bitflags` 2.13 API with the same bodies, constants, `Debug` output and derived impls).
+
+diff --git a/src/constants.rs b/src/constants.rs
+index 72e1421..23260e5 100644
+--- a/src/constants.rs
++++ b/src/constants.rs
+@@ -360,14 +360,14 @@ my_plain_bitflags! {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     MariadbCapabilities,
+     #[error("Unknown flags in the raw value of MariadbCapabilities (raw={0:b})")]
+     UnknownMariadbCapabilityFlags,
+     u32,
+ 
+     /// MariaDB client capability flags
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct MariadbCapabilities: u32 {
+         /// Permits feedback during long-running operations
+         const MARIADB_CLIENT_PROGRESS               = 0x0000_0001;
+@@ -431,14 +431,14 @@ my_plain_bitflags! {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     StmtBulkExecuteFlags,
+     #[error("Unknown flags in the raw value of StmtBulkExecuteParamsFlags (raw={0:b})")]
+     UnknownStmtBulkExecuteParamsFlags,
+     u16,
+ 
+     /// MySql stmt execute params flags.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct StmtBulkExecuteFlags: u16 {
+         const SEND_UNIT_RESULTS  = 64_u16;
+         const SEND_TYPES_TO_SERVER = 128_u16;
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index cd4b73f..29c2812 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -3674,14 +3674,14 @@ impl<'de> MyDeserialize<'de> for ComTableDump<'de> {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     BinlogDumpFlags,
+     #[error("Unknown flags in the raw value of BinlogDumpFlags (raw={0:b})")]
+     UnknownBinlogDumpFlags,
+     u16,
+ 
+     /// Empty flags of a `LoadEvent`.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct BinlogDumpFlags: u16 {
+         /// If there is no more event to send a EOF_Packet instead of blocking the connection
+         const BINLOG_DUMP_NON_BLOCK = 0x01;
