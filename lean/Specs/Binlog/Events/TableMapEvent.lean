@@ -55,32 +55,32 @@ namespace mysql_common
 recall binlog.events.table_map_event.TableMapEvent.impl.table_id_eq (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.impl.table_id e = ok e.table_id.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.impl.table_id_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.impl.table_id_eq
 /-- `columns_count`. -/
 recall binlog.events.table_map_event.TableMapEvent.impl.columns_count_eq (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.impl.columns_count_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.impl.columns_count_eq
 /-- `json_column_count`: the number of `JSON` (245) column types. -/
 recall binlog.events.table_map_event.TableMapEvent.json_column_count_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.json_column_count e ⦃ n => n.val = (cowList e.columns_type.1).countP (fun b => b.val = 245) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.json_column_count_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.json_column_count_spec
 /-- `database_name_raw`: the name, its first 255 bytes. -/
 recall binlog.events.table_map_event.TableMapEvent.database_name_raw_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.database_name_raw e ⦃ s => s.val = (cowList e.database_name.1).take 255 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.database_name_raw_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.database_name_raw_spec
 /-- `table_name_raw`: the name, its first 255 bytes. -/
 recall binlog.events.table_map_event.TableMapEvent.table_name_raw_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.table_name_raw e ⦃ s => s.val = (cowList e.table_name.1).take 255 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.table_name_raw_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.table_name_raw_spec
 /-- `get_raw_column_type(i)`: `Ok(None)` past the last column, the type with that code, or the unknown code as an error. -/
 recall binlog.events.table_map_event.TableMapEvent.get_raw_column_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
     binlog.events.table_map_event.TableMapEvent.get_raw_column_type e i ⦃ r => match (cowList e.columns_type.1)[i.val]? with
@@ -89,14 +89,14 @@ recall binlog.events.table_map_event.TableMapEvent.get_raw_column_type_spec (e :
         | some t => r = .Ok (some t)
         | none => r = .Err b ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_raw_column_type_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_raw_column_type_spec
 /-- `get_column_metadata(i)`: the metadata of column `i` (`tmMetaAt`). -/
 recall binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
     binlog.events.table_map_event.TableMapEvent.get_column_metadata e i ⦃ o => o.map (·.val) = tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec
 /-- `get_column_type(i)`: as `get_raw_column_type`, but `DATE` is `NEWDATE`, and a `STRING` column with metadata has the real type of its first metadata byte (`tmStringRealType`; another value `x` is `BadColumnType::Unexpected(x | 0x30)`). -/
 recall binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
     binlog.events.table_map_event.TableMapEvent.get_column_type e i ⦃ r => match (cowList e.columns_type.1)[i.val]? with
@@ -113,64 +113,64 @@ recall binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : bin
               | none => r = .Err (.Unexpected (byte ((m.headD (byte 0)).val ||| 0x30)))
           else r = .Ok (some t) ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_column_type_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_column_type_spec
 /-- `into_owned`: the same fields (now owned). -/
 recall binlog.events.table_map_event.TableMapEvent.into_owned_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.into_owned e ⦃ e' => tmView e' = tmView e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.into_owned_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.into_owned_spec
 /-- `MyDeserialize::SIZE` is `None`. -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq
 /-- `MyDeserialize`: total; `tmRead` with the FDE's table-map post-header length. -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs tmView (tmRead (postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT) buf.val) r rest ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec
 /-- `MySerialize`: appends the layout `tmEnc`. (64-bit target, as configured). -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (tmEnc e).length ≤ Usize.max) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ tmEnc e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec
 /-- Round trip, for a consistent event (`TmConsistent`) with a table id below `2^48`, read with a post-header other than 6 bytes. -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
     (ctx : binlog.BinlogCtx) (hp : postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT ≠ 6) (buf : io.ParseBuf) (h : buf.val = tmEnc e) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map tmView = some (tmView e) ∧ rest.val = [] ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip
 /-- `BinlogEvent::EVENT_TYPE`: `TABLE_MAP_EVENT` (19). -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .TABLE_MAP_EVENT
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq
 /-- `BinlogStruct::len`: `tmLenCrate` (with the bitmap counted as `(n + 8) / 7` bytes: a bug). The metadata block is assumed to have a length-encoded length below `2^64`: `lenenc_str_len` is computed in `u64` and overflows (panics) otherwise. -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64)
     (hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = tmLenCrate e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec
 /-- **Upstream bug:** for a consistent event, `len` differs from the length `serialize` writes by `(n + 8) / 7 - (n + 7) / 8` (when under the cap). -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_bug (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64)
     (hcap : (tmEnc e).length + (e.columns_count.1.val + 8) / 7 ≤ evLenCap) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val + (e.columns_count.1.val + 7) / 8 = (tmEnc e).length + (e.columns_count.1.val + 8) / 7 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_bug`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_bug
 /-- `BinlogStruct::len` panics (overflow of `columns_count as usize + 8`) for a column count of `2^64 - 8` or more. -/
 recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_panics (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : 2 ^ 64 ≤ e.columns_count.1.val + 8) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v = fail .integerOverflow
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_panics`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_panics
 end mysql_common

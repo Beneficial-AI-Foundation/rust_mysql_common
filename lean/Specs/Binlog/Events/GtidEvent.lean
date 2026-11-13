@@ -54,8 +54,8 @@ recall binlog.events.gtid_event.GtidEvent.new_spec (sid : Array U8 16#usize) (gn
         immediateServerVersion := 0, originalServerVersion := 0 } ∧
       e.tag = none ∧ e.serialization_version.val = 0 ∧ e.commit_group_ticket.val = 0 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.new_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.new_spec
 /-- `new_tagged(sid, tag, gno)`: tagged (serialization version 2), no logical-clock part, server versions `UNDEFINED_SERVER_VERSION`. -/
 recall binlog.events.gtid_event.GtidEvent.new_tagged_spec (sid : Array U8 16#usize) (tag : packets.Tag) (gno : U64) :
     binlog.events.gtid_event.GtidEvent.new_tagged sid tag gno ⦃ e => gtidView e =
@@ -64,220 +64,220 @@ recall binlog.events.gtid_event.GtidEvent.new_tagged_spec (sid : Array U8 16#usi
         immediateServerVersion := undefinedServerVersion, originalServerVersion := undefinedServerVersion } ∧
       e.tag = some tag ∧ e.serialization_version.val = 2 ∧ e.commit_group_ticket.val = 0 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.new_tagged_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.new_tagged_spec
 /-- `is_tagged`: whether there is a tag. -/
 recall binlog.events.gtid_event.GtidEvent.is_tagged_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.is_tagged e = ok e.tag.isSome
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.is_tagged_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.is_tagged_eq
 /-- `event_type`: `GTID_TAGGED_LOG_EVENT` if tagged, else `GTID_EVENT`. -/
 recall binlog.events.gtid_event.GtidEvent.event_type_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.event_type e = ok (if e.tag.isSome then .GTID_TAGGED_LOG_EVENT else .GTID_EVENT)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.event_type_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.event_type_eq
 /-- `with_flags`. -/
 recall binlog.events.gtid_event.GtidEvent.with_flags_spec (e : binlog.events.gtid_event.GtidEvent) (f : binlog.consts.GtidFlags) :
     binlog.events.gtid_event.GtidEvent.with_flags e f = ok { e with flags := (f, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_flags_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_flags_spec
 /-- `flags_raw`: all the flag bits. -/
 recall binlog.events.gtid_event.GtidEvent.flags_raw_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.flags_raw e = ok e.flags.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.flags_raw_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.flags_raw_eq
 /-- `flags`: the known flag bits. -/
 recall binlog.events.gtid_event.GtidEvent.impl.flags_spec (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.flags e ⦃ f => f.val = e.flags.1.val &&& gtidFlagsAll ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.flags_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.flags_spec
 /-- `with_sid`. -/
 recall binlog.events.gtid_event.GtidEvent.with_sid_eq (e : binlog.events.gtid_event.GtidEvent) (s : Array U8 16#usize) :
     binlog.events.gtid_event.GtidEvent.with_sid e s = ok { e with sid := s }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_sid_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_sid_eq
 /-- `sid`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.sid_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.sid e = ok e.sid
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.sid_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.sid_eq
 /-- `with_gno`. -/
 recall binlog.events.gtid_event.GtidEvent.with_gno_eq (e : binlog.events.gtid_event.GtidEvent) (g : U64) :
     binlog.events.gtid_event.GtidEvent.with_gno e g = ok { e with gno := (g, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_gno_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_gno_eq
 /-- `gno`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.gno_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.gno e = ok e.gno.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.gno_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.gno_eq
 /-- `tag`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.tag_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.tag e = ok e.tag
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.tag_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.tag_eq
 /-- `with_tag`: the tag, and serialization version 2. -/
 recall binlog.events.gtid_event.GtidEvent.with_tag_eq (e : binlog.events.gtid_event.GtidEvent) (t : packets.Tag) :
     binlog.events.gtid_event.GtidEvent.with_tag e t = ok { e with tag := some t, serialization_version := 2#u8 }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_tag_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_tag_eq
 /-- `lc_typecode`: 2 iff the logical-clock part is present. -/
 recall binlog.events.gtid_event.GtidEvent.impl.lc_typecode_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.lc_typecode e = ok (if e.lc_typecode.isSome then some 2#u8 else none)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.lc_typecode_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.lc_typecode_eq
 /-- `with_lc_typecode`: adds the logical-clock part. -/
 recall binlog.events.gtid_event.GtidEvent.with_lc_typecode_spec (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.with_lc_typecode e ⦃ e' => gtidView e' = { gtidView e with lc := true } ∧ e'.tag = e.tag ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_lc_typecode_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_lc_typecode_spec
 /-- `with_last_committed`. -/
 recall binlog.events.gtid_event.GtidEvent.with_last_committed_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_last_committed e x = ok { e with last_committed := (x, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_last_committed_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_last_committed_eq
 /-- `last_committed`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.last_committed_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.last_committed e = ok e.last_committed.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.last_committed_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.last_committed_eq
 /-- `with_sequence_number`. -/
 recall binlog.events.gtid_event.GtidEvent.with_sequence_number_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_sequence_number e x = ok { e with sequence_number := (x, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_sequence_number_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_sequence_number_eq
 /-- `sequence_number`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.sequence_number_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.sequence_number e = ok e.sequence_number.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.sequence_number_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.sequence_number_eq
 /-- `with_immediate_commit_timestamp` (stored as given; 56 bits are written). -/
 recall binlog.events.gtid_event.GtidEvent.with_immediate_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_immediate_commit_timestamp e x = ok { e with immediate_commit_timestamp := (x, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_immediate_commit_timestamp_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_immediate_commit_timestamp_eq
 /-- `immediate_commit_timestamp`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.immediate_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.immediate_commit_timestamp e = ok e.immediate_commit_timestamp.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.immediate_commit_timestamp_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.immediate_commit_timestamp_eq
 /-- `with_original_commit_timestamp`. -/
 recall binlog.events.gtid_event.GtidEvent.with_original_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_original_commit_timestamp e x = ok { e with original_commit_timestamp := (x, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_original_commit_timestamp_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_original_commit_timestamp_eq
 /-- `original_commit_timestamp`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.original_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.original_commit_timestamp e = ok e.original_commit_timestamp.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.original_commit_timestamp_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.original_commit_timestamp_eq
 /-- `with_tx_length`. -/
 recall binlog.events.gtid_event.GtidEvent.with_tx_length_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_tx_length e x = ok { e with tx_length := (x, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_tx_length_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_tx_length_eq
 /-- `tx_length`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.tx_length_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.tx_length e = ok e.tx_length.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.tx_length_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.tx_length_eq
 /-- `with_original_server_version`. -/
 recall binlog.events.gtid_event.GtidEvent.with_original_server_version_eq (e : binlog.events.gtid_event.GtidEvent) (x : U32) :
     binlog.events.gtid_event.GtidEvent.with_original_server_version e x = ok { e with original_server_version := (x, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_original_server_version_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_original_server_version_eq
 /-- `original_server_version`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.original_server_version_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.original_server_version e = ok e.original_server_version.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.original_server_version_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.original_server_version_eq
 /-- `with_immediate_server_version`. -/
 recall binlog.events.gtid_event.GtidEvent.with_immediate_server_version_eq (e : binlog.events.gtid_event.GtidEvent) (x : U32) :
     binlog.events.gtid_event.GtidEvent.with_immediate_server_version e x = ok { e with immediate_server_version := (x, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_immediate_server_version_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_immediate_server_version_eq
 /-- `immediate_server_version`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.immediate_server_version_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.immediate_server_version e = ok e.immediate_server_version.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.immediate_server_version_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.immediate_server_version_eq
 /-- `commit_group_ticket`. -/
 recall binlog.events.gtid_event.GtidEvent.impl.commit_group_ticket_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.commit_group_ticket e = ok e.commit_group_ticket
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.commit_group_ticket_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.impl.commit_group_ticket_eq
 /-- `with_commit_group_ticket`. -/
 recall binlog.events.gtid_event.GtidEvent.with_commit_group_ticket_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_commit_group_ticket e x = ok { e with commit_group_ticket := x }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_commit_group_ticket_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.with_commit_group_ticket_eq
 /-- `MyDeserialize::SIZE` is `None`. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq
 /-- `MyDeserialize` for `GTID_EVENT` (33) and `ANONYMOUS_GTID_EVENT` (34): total; `gtidRead`; untagged, serialization version 0, no commit group ticket. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 33 ∨ ctx.event_type_raw.val = 34) (buf : io.ParseBuf) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs gtidView (gtidRead buf.val) r rest ∧
       ∀ e, okPart r = some e → e.tag = none ∧ e.serialization_version.val = 0 ∧ e.commit_group_ticket.val = 0 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged`
-
+/-- [propext, Classical.choice, Quot.sound, core.mem.size_of, core.io.error.Error, binlog.events.gtid_event.GtidEvent.deserialize_tagged, core.io.error.Error.ofError, core.io.error.Error.ofMsg, binlog.consts.UnknownEventType.Insts.CoreFmtDebug.fmt, binlog.consts.UnknownEventType.Insts.CoreFmtDisplay.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDebug.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDisplay.fmt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged
 /-- `MyDeserialize` for `GTID_TAGGED_LOG_EVENT` (42): the (opaque) tagged reader. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_tagged (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 42) (buf : io.ParseBuf) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf = binlog.events.gtid_event.GtidEvent.deserialize_tagged buf
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_tagged`
-
+/-- [propext, Classical.choice, Quot.sound, core.mem.size_of, core.io.error.Error, binlog.events.gtid_event.GtidEvent.deserialize_tagged, core.io.error.Error.ofError, core.io.error.Error.ofMsg, binlog.consts.UnknownEventType.Insts.CoreFmtDebug.fmt, binlog.consts.UnknownEventType.Insts.CoreFmtDisplay.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDebug.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDisplay.fmt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_tagged
 /-- `MyDeserialize` with any other event type in the context: an error. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_other (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val ∉ [33, 34, 42]) (buf : io.ParseBuf) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r _ => okPart r = none ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_other`
-
+/-- [propext, Classical.choice, Quot.sound, core.mem.size_of, core.io.error.Error, binlog.events.gtid_event.GtidEvent.deserialize_tagged, core.io.error.Error.ofError, core.io.error.Error.ofMsg, binlog.consts.UnknownEventType.Insts.CoreFmtDebug.fmt, binlog.consts.UnknownEventType.Insts.CoreFmtDisplay.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDebug.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDisplay.fmt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_other
 /-- `MySerialize` of an untagged event: appends `gtidEnc`. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (buf : alloc.vec.Vec U8)
     (h : buf.length + (gtidEnc e).length ≤ Usize.max) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ gtidEnc e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, binlog.events.gtid_event.GtidEvent.serialize_tagged, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec
 /-- `MySerialize` of a tagged event: the (opaque) tagged writer. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_tagged (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag.isSome) (buf : alloc.vec.Vec U8) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf = binlog.events.gtid_event.GtidEvent.serialize_tagged e buf
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_tagged`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, binlog.events.gtid_event.GtidEvent.serialize_tagged, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_tagged
 /-- Round trip (untagged, with the logical-clock part): the event reads back, for timestamps below `2^55` (immediate) and `2^56` (original) and an immediate server version below `2^31`; bytes after it are left. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (hlc : e.lc_typecode.isSome)
     (hi : e.immediate_commit_timestamp.1.val < 2 ^ 55) (ho : e.original_commit_timestamp.1.val < 2 ^ 56)
@@ -286,8 +286,8 @@ recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDe
     (tail : List U8) (buf : io.ParseBuf) (h : buf.val = gtidEnc e ++ tail) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map gtidView = some (gtidView e) ∧ rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip`
-
+/-- [propext, Classical.choice, Quot.sound, core.mem.size_of, core.io.error.Error, binlog.events.gtid_event.GtidEvent.deserialize_tagged, core.io.error.Error.ofError, core.io.error.Error.ofMsg, binlog.consts.UnknownEventType.Insts.CoreFmtDebug.fmt, binlog.consts.UnknownEventType.Insts.CoreFmtDisplay.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDebug.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDisplay.fmt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip
 /-- Round trip of an untagged event without the logical-clock part (pre-5.7): the 25-byte prefix reads back with the defaults (zeros, server versions `UNDEFINED_SERVER_VERSION`), provided the following bytes do not start with `2`. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip_no_lc (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (hlc : e.lc_typecode = none)
     (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 33 ∨ ctx.event_type_raw.val = 34)
@@ -298,24 +298,24 @@ recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDe
         originalCommitTs := 0, txLength := 0, immediateServerVersion := undefinedServerVersion,
         originalServerVersion := undefinedServerVersion } ∧ rest.val = tail ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip_no_lc`
-
+/-- [propext, Classical.choice, Quot.sound, core.mem.size_of, core.io.error.Error, binlog.events.gtid_event.GtidEvent.deserialize_tagged, core.io.error.Error.ofError, core.io.error.Error.ofMsg, binlog.consts.UnknownEventType.Insts.CoreFmtDebug.fmt, binlog.consts.UnknownEventType.Insts.CoreFmtDisplay.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDebug.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDisplay.fmt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip_no_lc
 /-- `BinlogStruct::len` of an untagged event: `gtidLenCrate`, which always counts the logical-clock part. **Quirk:** without it (`lc_typecode` `None`) `serialize` writes 25 bytes but `len` is at least 54 (`Defs.gtidLenCrate_ne`); with it, `len` is the length of `gtidEnc` (`Defs.gtidLenCrate_eq`). -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (v : binlog.consts.BinlogVersion) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = gtidLenCrate e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, binlog.events.gtid_event.GtidEvent.len_tagged, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec
 /-- `BinlogStruct::len` of a tagged event: the (opaque) tagged length. -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_tagged (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag.isSome) (v : binlog.consts.BinlogVersion) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v = binlog.events.gtid_event.GtidEvent.len_tagged e
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_tagged`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, binlog.events.gtid_event.GtidEvent.len_tagged, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_tagged
 /-- `BinlogEvent::EVENT_TYPE`: `GTID_EVENT` (33). -/
 recall binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .GTID_EVENT
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq
 end mysql_common

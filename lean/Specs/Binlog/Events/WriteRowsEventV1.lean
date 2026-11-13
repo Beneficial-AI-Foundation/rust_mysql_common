@@ -39,72 +39,72 @@ namespace mysql_common
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.table_id_eq (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.table_id e = ok e.table_id.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.table_id_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.table_id_eq
 /-- `num_columns`. -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.num_columns_eq (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.num_columns e = ok e.num_columns.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.num_columns_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.num_columns_eq
 /-- `rows_data`: the raw rows. -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.rows_data_spec (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.rows_data e ⦃ s => s.val = cowList e.rows_data.1 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.rows_data_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.rows_data_spec
 /-- `flags`: the known flag bits. -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.flags_spec (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.flags e ⦃ f => f.val = e.flags.1.val &&& rowsEventFlagsAll ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.flags_spec`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.flags_spec
 /-- `flags_raw`: all the flag bits. -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.flags_raw_eq (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.flags_raw e = ok e.flags.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.flags_raw_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.flags_raw_eq
 /-- `rows(tme)`: an iterator over the raw rows, with that table map. -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.rows_spec (e : binlog.events.rows_event.RowsEvent) (tme : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.rows e tme ⦃ it => it.rows_event = e ∧ it.table_map_event = tme ∧ it.rows_data.val = cowList e.rows_data.1 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.rows_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.rows_spec
 /-- `into_owned`: the same fields (now owned). -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.into_owned_spec (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.into_owned e ⦃ e' => rowsView e' = rowsView e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.into_owned_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.into_owned_spec
 /-- `MyDeserialize::SIZE` is `None`. -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq
 /-- `MyDeserialize`: total; `rowsRead` with type `WRITE_ROWS_EVENT_V1` and the FDE's post-header lengths. `RawFlags::SIZE` is `size_of::<u16>()`, which is 2 in Rust; the Lean `size_of` is deliberately unspecified (FunsExternal.lean), so this is a hypothesis, not an axiom. -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs rowsView (rowsRead .WRITE_ROWS_EVENT_V1 (postHeaderLen (fdeLens ctx.fde) .WRITE_ROWS_EVENT_V1) (postHeaderLen (fdeLens ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.mem.size_of, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec
 /-- `MySerialize`: appends `rowsEnc`. (64-bit target, as configured). -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ rowsEnc e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec
 /-- `BinlogStruct::len`: `rowsLenCrate` (see `RowsEvent::len`). (64-bit target, as configured). -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = rowsLenCrate e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogStruct.len_spec
 /-- `BinlogEvent::EVENT_TYPE`: `WRITE_ROWS_EVENT_V1` (23). -/
 recall binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .WRITE_ROWS_EVENT_V1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq
 end mysql_common

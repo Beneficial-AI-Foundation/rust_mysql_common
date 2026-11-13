@@ -30,30 +30,30 @@ namespace mysql_common
 recall binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq
 /-- `MyDeserialize`: `GtidEvent::deserialize` (with the same context, so the event type in `ctx` selects the format). -/
 recall binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_eq (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf = binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.mem.size_of, core.io.error.Error, binlog.events.gtid_event.GtidEvent.deserialize_tagged, core.io.error.Error.ofError, core.io.error.Error.ofMsg, binlog.consts.UnknownEventType.Insts.CoreFmtDebug.fmt, binlog.consts.UnknownEventType.Insts.CoreFmtDisplay.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDebug.fmt, binlog.events.gtid_event.InvalidLogicalTimestampTypecode.Insts.CoreFmtDisplay.fmt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_eq
 /-- `MySerialize`: `GtidEvent::serialize`. -/
 recall binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_eq (e : binlog.events.anonymous_gtid_event.AnonymousGtidEvent) (buf : alloc.vec.Vec U8) :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf = binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, binlog.events.gtid_event.GtidEvent.serialize_tagged, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_eq
 /-- `BinlogStruct::len`: `GtidEvent::len`. -/
 recall binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq (e : binlog.events.anonymous_gtid_event.AnonymousGtidEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v = binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, binlog.events.gtid_event.GtidEvent.len_tagged, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq
 /-- `BinlogEvent::EVENT_TYPE`: `ANONYMOUS_GTID_EVENT` (34). -/
 recall binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .ANONYMOUS_GTID_EVENT
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq
 end mysql_common

@@ -49,91 +49,91 @@ recall binlog.events.transaction_payload_event.TransactionPayloadEvent.new_spec 
     (h : into.into p = ok c) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.new into ps alg us p ⦃ e => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e = (ps.val, txCompressionCode alg, us.val, cowList c) ∧ e.header_size.val = 0 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.new_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.new_spec
 /-- `with_payload_size`: replaces the stored payload size. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload_size_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (ps : U64) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload_size e ps = ok { e with payload_size := (ps, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload_size_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload_size_spec
 /-- `with_algorithm`: replaces the compression type. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.with_algorithm_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (alg : binlog.consts.TransactionPayloadCompressionType) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.with_algorithm e alg = ok { e with algorithm := alg }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_algorithm_spec`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_algorithm_spec
 /-- `with_uncompressed_size`: replaces the uncompressed size. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.with_uncompressed_size_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (us : U64) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.with_uncompressed_size e us = ok { e with uncompressed_size := (us, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_uncompressed_size_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_uncompressed_size_spec
 /-- `with_payload`: replaces the payload (not the stored payload size). -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload_spec {T1 : Type} (into : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (p : T1) (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) (h : into.into p = ok c) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload into e p = ok { e with payload := (c, ()) }
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.with_payload_spec
 /-- `payload_size`: the stored payload size. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.payload_size_eq (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.payload_size e = ok e.payload_size.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.payload_size_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.payload_size_eq
 /-- `payload_raw`: the payload. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.payload_raw_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.payload_raw e ⦃ s => s.val = cowList e.payload.1 ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.payload_raw_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.payload_raw_spec
 /-- `algorithm`. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.algorithm_eq (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.algorithm e = ok e.algorithm
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.algorithm_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.algorithm_eq
 /-- `uncompressed_size`. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.uncompressed_size_eq (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.uncompressed_size e = ok e.uncompressed_size.1
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.uncompressed_size_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.uncompressed_size_eq
 /-- `into_owned`: the same fields (and `header_size`). -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned e ⦃ e' => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e' = (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e ∧ e'.header_size = e.header_size ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned_spec
 /-- `MyDeserialize::SIZE` is `None` (a hand-written model, as `deserialize` is opaque). -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = ok none
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq`
-
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq
 /-- `MySerialize`: appends the layout `tpEnc`. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (tpEnc e).length ≤ Usize.max) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ tpEnc e ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec`
-
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec
 /-- `BinlogEvent::EVENT_TYPE`: `TRANSACTION_PAYLOAD_EVENT` (40). -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .TRANSACTION_PAYLOAD_EVENT
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq`
-
+/-- does not depend on any axioms -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq
 /-- `BinlogStruct::len`: `header_size` (set only by `deserialize`; 0 after `new`) plus the payload length, capped. **Quirk:** for an event built with `new`, this is not the length `serialize` writes (`tpEnc`), which includes the header fields. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (e.header_size.val + (cowList e.payload.1).length) evLenCap ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq
 /-- **Upstream bug:** for an event with `header_size` 0 (every event built with `new`), `len` is the capped payload length, strictly less than the length `serialize` writes (`tpEnc`, which has at least 7 header bytes). -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_new_bug (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (h0 : e.header_size.val = 0) (v : binlog.consts.BinlogVersion) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (cowList e.payload.1).length evLenCap ∧ n.val + 7 ≤ (tpEnc e).length ⦄
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_new_bug`
-
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_new_bug
 end mysql_common
