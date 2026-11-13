@@ -109,12 +109,139 @@ theorem dbNamesCrate_ne_dbNames : dbNames 2 [byte 97, byte 0, byte 98, byte 0] =
       dbNamesCrate 2 [byte 97, byte 0, byte 98, byte 0] = some [[byte 97], []] := by
   decide
 
+private theorem testBit_add_pow (x i : Nat) (h : x < 2 ^ i) : (x + 2 ^ i).testBit i = true := by
+  rw [Nat.add_comm, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow h]; rfl
+
+private theorem gtid_aux (F : U8) (S : List U8) (hS : S.length = 16) (G LC SQ I O T IV OV : Nat)
+    (hG : G < 2 ^ (8 * 8)) (hLC : LC < 2 ^ (8 * 8)) (hSQ : SQ < 2 ^ (8 * 8)) (hI : I < 2 ^ 55) (hO : O < 2 ^ (8 * 7))
+    (hT : T < 2 ^ 64) (hIV : IV < 2 ^ 31) (hOV : OV < 2 ^ (8 * 4)) (tail : List U8) :
+    gtidRead (F :: (S ++ (leBytes 8 G ++ (byte 2 :: (leBytes 8 LC ++ (leBytes 8 SQ ++
+      (leBytes 7 (I % 2 ^ 55 + if I ≠ O then 2 ^ 55 else 0) ++ ((if I ≠ O then leBytes 7 O else []) ++
+      (lenencInt T ++ (leBytes 4 (IV % 2 ^ 31 + if IV ≠ OV then 2 ^ 31 else 0) ++
+      ((if IV ≠ OV then leBytes 4 OV else []) ++ tail))))))))))) =
+    some ({ flags := F.val, sid := S, gno := G, lc := true, lastCommitted := LC, sequenceNumber := SQ,
+            immediateCommitTs := I, originalCommitTs := O, txLength := T, immediateServerVersion := IV,
+            originalServerVersion := OV }, tail) := by
+  have l8G := PBUtil.length_leBytes 8 G
+  have l8L := PBUtil.length_leBytes 8 LC
+  have l8S := PBUtil.length_leBytes 8 SQ
+  have hIm : I % 2 ^ 55 = I := Nat.mod_eq_of_lt hI
+  have hIVm : IV % 2 ^ 31 = IV := Nat.mod_eq_of_lt hIV
+  rw [hIm, hIVm]
+  set R3 := lenencInt T ++ (leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++ ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)) with hR3
+  set R2 := leBytes 7 (I + if I ≠ O then 2 ^ 55 else 0) ++ ((if I ≠ O then leBytes 7 O else []) ++ R3) with hR2
+  set R1 := leBytes 8 LC ++ (leBytes 8 SQ ++ R2) with hR1
+  have hl : ¬ (F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).length < 25 := by
+    simp [hS, l8G]; omega
+  have d25 : (F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).drop 25 = byte 2 :: R1 := by
+    rw [show 25 = 1 + 16 + 8 from rfl, ← List.drop_drop, ← List.drop_drop]
+    simp only [List.drop_succ_cons, List.drop_zero]
+    rw [List.drop_left' hS, List.drop_left' l8G]
+  have t16 : ((F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).drop 1).take 16 = S := by
+    simp only [List.drop_succ_cons, List.drop_zero]; exact List.take_left' hS
+  have t8 : ((F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).drop 17).take 8 = leBytes 8 G := by
+    rw [show 17 = 1 + 16 from rfl, ← List.drop_drop]
+    simp only [List.drop_succ_cons, List.drop_zero]
+    rw [List.drop_left' hS, List.take_left' l8G]
+  have hR1l : ¬ R1.length < 16 := by simp [hR1, l8L, l8S]; omega
+  have hR1d : R1.drop 16 = R2 := by
+    rw [hR1, show 16 = 8 + 8 from rfl, ← List.drop_drop, List.drop_left' l8L, List.drop_left' l8S]
+  have hR1t : R1.take 8 = leBytes 8 LC := by rw [hR1]; exact List.take_left' l8L
+  have hR1t' : (R1.drop 8).take 8 = leBytes 8 SQ := by rw [hR1, List.drop_left' l8L]; exact List.take_left' l8S
+  have hb2 : (byte 2).val = 2 := rfl
+  simp only [gtidRead, hl, ite_false, t16, t8, leNat_leBytes_lt 8 _ hG, d25, hb2, ne_eq, not_true_eq_false,
+    hR1l, hR1d, hR1t, hR1t', leNat_leBytes_lt 8 _ hLC, leNat_leBytes_lt 8 _ hSQ]
+  have hF : (F :: (S ++ (leBytes 8 G ++ (byte 2 :: R1)))).headD (byte 0) = F := rfl
+  have l7 := PBUtil.length_leBytes 7 (I + if I ≠ O then 2 ^ 55 else 0)
+  have l4 := PBUtil.length_leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0)
+  have hne : lenencInt T ≠ [] := by unfold lenencInt; split_ifs <;> simp
+  have hR3ne : ∃ b r, R3 = b :: r := by
+    obtain ⟨b, r, h⟩ := List.exists_cons_of_ne_nil hne
+    exact ⟨b, _, by rw [hR3, h, List.cons_append]⟩
+  obtain ⟨b3, r3', hbr⟩ := hR3ne
+  have hR3c : optFst (checkedLenencInt R3) = some (T, leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++
+      ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)) := by
+    rw [hR3, PBUtil.checkedLenencInt_lenencInt _ _ hT]; rfl
+  have hR2l : 7 ≤ R2.length := by rw [hR2]; simp
+  have hR2t : leNat (R2.take 7) = I + if I ≠ O then 2 ^ 55 else 0 := by
+    rw [hR2, List.take_left' l7, leNat_leBytes_lt 7 _ (by split_ifs <;> omega)]
+  simp only [hF, hR2l, ite_true, hR2t]
+  by_cases hIO : I = O
+  · subst hIO
+    simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero, Nat.testBit_lt_two_pow hI, Bool.false_eq_true]
+    have hd : R2.drop 7 = R3 := by
+      rw [hR2]; simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero] at l7 ⊢; rw [List.drop_left' l7]; rfl
+    rw [hd, hbr]
+    simp only []
+    rw [← hbr, hR3c]
+    simp only []
+    have hl4 : 4 ≤ (leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++ ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)).length := by
+      simp
+    simp only [hl4, ite_true]
+    rw [List.take_left' l4, leNat_leBytes_lt 4 _ (by split_ifs <;> omega)]
+    by_cases hV : IV = OV
+    · subst hV
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero, Nat.testBit_lt_two_pow hIV, Bool.false_eq_true,
+        List.nil_append]
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero] at l4
+      rw [List.drop_left' l4]
+      rfl
+    · have l4O := PBUtil.length_leBytes 4 OV
+      simp only [ne_eq, hV, not_false_eq_true, ite_true, testBit_add_pow IV 31 hIV]
+      simp only [ne_eq, hV, not_false_eq_true, ite_true] at l4
+      have hl8 : 4 ≤ ((leBytes 4 (IV + 2 ^ 31) ++ (leBytes 4 OV ++ tail)).drop 4).length := by
+        rw [List.drop_left' l4]; simp [l4O]
+      simp only [hl8, ite_true]
+      rw [List.drop_left' l4, List.take_left' l4O, leNat_leBytes_lt 4 _ hOV, Nat.add_sub_cancel,
+        show 8 = 4 + 4 from rfl, ← List.drop_drop, List.drop_left' l4, List.drop_left' l4O]
+      rfl
+  · have l7O := PBUtil.length_leBytes 7 O
+    simp only [ne_eq, hIO, not_false_eq_true, ite_true, testBit_add_pow I 55 hI]
+    have hd : R2.drop 7 = leBytes 7 O ++ R3 := by
+      rw [hR2]; simp only [ne_eq, hIO, not_false_eq_true, ite_true] at l7 ⊢; rw [List.drop_left' l7]
+    have hd14 : R2.drop 14 = R3 := by
+      rw [show 14 = 7 + 7 from rfl, ← List.drop_drop, hd, List.drop_left' l7O]
+    have hl7 : 7 ≤ (leBytes 7 O ++ R3).length := by simp [l7O]
+    simp only [hd14, hd, hl7, ite_true, List.take_left' l7O, leNat_leBytes_lt 7 _ hO, Nat.add_sub_cancel]
+    rw [hbr]
+    simp only []
+    rw [← hbr, hR3c]
+    simp only []
+    have hl4 : 4 ≤ (leBytes 4 (IV + if IV ≠ OV then 2 ^ 31 else 0) ++ ((if IV ≠ OV then leBytes 4 OV else []) ++ tail)).length := by
+      simp
+    simp only [hl4, ite_true]
+    rw [List.take_left' l4, leNat_leBytes_lt 4 _ (by split_ifs <;> omega)]
+    by_cases hV : IV = OV
+    · subst hV
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero, Nat.testBit_lt_two_pow hIV, Bool.false_eq_true,
+        List.nil_append]
+      simp only [ne_eq, not_true_eq_false, ite_false, Nat.add_zero] at l4
+      rw [List.drop_left' l4]
+      rfl
+    · have l4O := PBUtil.length_leBytes 4 OV
+      simp only [ne_eq, hV, not_false_eq_true, ite_true, testBit_add_pow IV 31 hIV]
+      simp only [ne_eq, hV, not_false_eq_true, ite_true] at l4
+      have hl8 : 4 ≤ ((leBytes 4 (IV + 2 ^ 31) ++ (leBytes 4 OV ++ tail)).drop 4).length := by
+        rw [List.drop_left' l4]; simp [l4O]
+      simp only [hl8, ite_true]
+      rw [List.drop_left' l4, List.take_left' l4O, leNat_leBytes_lt 4 _ hOV, Nat.add_sub_cancel,
+        show 8 = 4 + 4 from rfl, ← List.drop_drop, List.drop_left' l4, List.drop_left' l4O]
+      rfl
+
 /-- The GTID reader inverts the encoder (untagged, with the logical-clock part, timestamps below `2^55` / `2^56`, immediate server version below `2^31`). -/
 theorem gtidRead_gtidEnc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode.isSome)
     (hi : e.immediate_commit_timestamp.1.val < 2 ^ 55) (ho : e.original_commit_timestamp.1.val < 2 ^ 56)
     (hs : e.immediate_server_version.1.val < 2 ^ 31) (tail : List U8) :
     gtidRead (gtidEnc e ++ tail) = some (gtidView e, tail) := by
-  sorry
+  obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hlc
+  have hS : e.sid.val.length = 16 := by simp
+  have h := gtid_aux e.flags.1 e.sid.val hS e.gno.1.val e.last_committed.1.val e.sequence_number.1.val
+    e.immediate_commit_timestamp.1.val e.original_commit_timestamp.1.val e.tx_length.1.val
+    e.immediate_server_version.1.val e.original_server_version.1.val (by scalar_tac) (by scalar_tac) (by scalar_tac)
+    hi (by simpa using ho) (by scalar_tac) hs (by scalar_tac) tail
+  simp only [gtidEnc, gtidView, hc, List.append_assoc, List.cons_append, List.nil_append]
+  rw [h]
+  simp
 
 /-- With the logical-clock part, the crate's GTID length is the encoded length. -/
 theorem gtidLenCrate_eq (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode.isSome) :
