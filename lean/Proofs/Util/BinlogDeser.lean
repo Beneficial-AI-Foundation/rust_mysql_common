@@ -1,12 +1,9 @@
 import Proofs.Util.BinlogValue
 import Proofs.Binlog.Misc.TimeFromPacked
 import Proofs.Binlog.Misc.DatetimeFromPacked
+
 set_option autoImplicit false
-set_option linter.unusedTactic false
-set_option linter.unusedSimpArgs false
-set_option linter.unreachableTactic false
-set_option linter.unnecessarySeqFocus false
-set_option linter.deprecated false
+-- Several statements keep hypotheses (`h64`, `hmeta`, `hb`) that their proofs do not use.
 set_option linter.unusedVariables false
 
 /-! `BinlogValue::deserialize` per column type against `Defs.binlogRead` (helpers for
@@ -27,7 +24,7 @@ def binRel : BinlogOut → core.result.Result binlog.value.BinlogValue core.io.e
 theorem slice_parse_eq (buf : io.ParseBuf) (n : Usize) :
     io.ParseBuf.parse SharedDeSliceU8.Insts.Mysql_commonProtoMyDeserializeDeUsize buf n =
       SharedDeSliceU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize n buf :=
-  io.ParseBuf.parse_of_size_none _ _ _ (by simp [SharedDeSliceU8.Insts.Mysql_commonProtoMyDeserializeDeUsize, SharedDeSliceU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE])
+  io.ParseBuf.parse_of_size_none _ _ _ (by simp [SharedDeSliceU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE])
 
 theorem binlogStr_long (k : Nat) (bs : List U8) (hk : k ≤ bs.length) (hn : leNat (bs.take k) ≤ (bs.drop k).length) :
     binlogStr k bs = .ok (.bytes ((bs.drop k).take (leNat (bs.take k)))) ((bs.drop k).drop (leNat (bs.take k))) := by
@@ -120,7 +117,7 @@ theorem meta_of_nopanic (t : constants.ColumnType) (md : List U8) (uns : Bool) (
   unfold binlogRead at hp
   split at hp
   · exact ht ⟨rfl, rfl⟩
-  · exact hp _ (if_pos (by omega))
+  · exact hp _ (ite_eq_left (by omega))
 
 theorem flags_spec (uns : Bool) :
     (do let f ← constants.ColumnFlags.empty; constants.ColumnFlags.set f constants.ColumnFlags.UNSIGNED_FLAG uns)
@@ -129,7 +126,7 @@ theorem flags_spec (uns : Bool) :
   step with constants.ColumnFlags.set_spec as ⟨g, hg⟩
   unfold isUnsigned
   rw [hg, hf]
-  cases uns <;> simp [andNot, constants.ColumnFlags.UNSIGNED_FLAG] <;> decide
+  cases uns <;> simp [andNot, constants.ColumnFlags.UNSIGNED_FLAG]; decide
 
 set_option hygiene false in
 local macro "pre_tac " t:term:max : tactic => `(tactic| (
@@ -248,17 +245,17 @@ local macro "blob_tac " T:term:max : tactic => `(tactic| (
 theorem hcast64_u32 (x : U32) : (UScalar.hcast .I64 x).val = x.val := by
   rw [UScalar.hcast_val_eq]; have := x.hBounds; simp only [IScalarTy.numBits]; unfold Int.bmod
   have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by simp at this ⊢; omega)
-  simp only [this]; split_ifs <;> simp at * <;> omega
+  simp only [this]; split_ifs <;> simp at *; omega
 
 theorem hcast64_u16 (x : U16) : (UScalar.hcast .I64 x).val = x.val := by
   rw [UScalar.hcast_val_eq]; have := x.hBounds; simp only [IScalarTy.numBits]; unfold Int.bmod
   have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by simp at this ⊢; omega)
-  simp only [this]; split_ifs <;> simp at * <;> omega
+  simp only [this]; split_ifs <;> simp at *; omega
 
 theorem hcast64_u8 (x : U8) : (UScalar.hcast .I64 x).val = x.val := by
   rw [UScalar.hcast_val_eq]; have := x.hBounds; simp only [IScalarTy.numBits]; unfold Int.bmod
   have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by simp at this ⊢; omega)
-  simp only [this]; split_ifs <;> simp at * <;> omega
+  simp only [this]; split_ifs <;> simp at *; omega
 
 
 theorem deser_MYSQL_TYPE_DECIMAL (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
@@ -329,7 +326,7 @@ theorem deser_MYSQL_TYPE_INT24 (h64 : Target64) (md : Slice U8) (uns part : Bool
     have hlt : leNat (buf.val.take 3) < 2 ^ 23 := by
       by_contra hc; exact hb (by simp only [binlogBug, binlogEffType]; exact ⟨trivial, hkl, by omega⟩)
     simp [WP.spec_ok, WP.uncurry'_pair, binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel, okPart, binlogValView,
-      Val.ofValue, hb1, cast64_i32, hx, toSigned, hlt]
+      Val.ofValue, hb1, hx, toSigned]
     omega
   · simp only [ite_true]
     rawint_tac (misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf) 3
@@ -345,10 +342,10 @@ theorem deser_MYSQL_TYPE_TIME (h64 : Target64) (md : Slice U8) (uns part : Bool)
     by_contra hc; exact hb (by simp only [binlogBug, binlogEffType]; exact ⟨hkl, by omega⟩)
   step*
   have hts : toSigned 24 (leNat (buf.val.take 3)) = (leNat (buf.val.take 3) : Int) := by
-    unfold toSigned; rw [if_pos (by omega)]
-  simp only [WP.spec_ok, WP.uncurry'_pair, binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
-    okPart, binlogValView, Val.ofValue, hb1, oldTimeVal, hts, Int.natAbs_natCast, if_true, Nat.not_lt_zero, ite_false,
-    Option.map, Option.some.injEq, Val.time.injEq, BinlogOut.ok.injEq]
+    unfold toSigned; rw [ite_eq_left (by omega)]
+  simp only [binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
+    okPart, binlogValView, Val.ofValue, hb1, oldTimeVal, hts, Int.natAbs_natCast, ite_true, Nat.not_lt_zero, ite_false,
+    Option.map, Option.some.injEq, Val.time.injEq]
   simp only [UScalar.cast_val_eq, UScalarTy.numBits] at *
   and_intros <;> first | rfl | (simp; done) | omega
 
@@ -358,8 +355,8 @@ theorem deser_MYSQL_TYPE_DATETIME (h64 : Target64) (md : Slice U8) (uns part : B
   pre_tac MYSQL_TYPE_DATETIME
   rawint_tac (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf) 8
   step*
-  simp only [WP.spec_ok, WP.uncurry'_pair, binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
-    okPart, binlogValView, Val.ofValue, hb1, if_true, Nat.not_lt_zero, ite_false,
+  simp only [binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
+    okPart, binlogValView, Val.ofValue, hb1, ite_true, Nat.not_lt_zero, ite_false,
     Option.map, Option.some.injEq, Val.date.injEq]
   simp only [UScalar.cast_val_eq, UScalarTy.numBits] at *
   and_intros <;> first | rfl | (simp; done) | omega
@@ -377,7 +374,7 @@ theorem deser_MYSQL_TYPE_YEAR (h64 : Target64) (md : Slice U8) (uns part : Bool)
   have hyv : (UScalar.hcast IScalarTy.I32 xv).val = leNat (buf.val.take 1) := by
     rw [UScalar.hcast_val_eq, hx]; have := hxb; simp only [IScalarTy.numBits]; unfold Int.bmod
     have : ((leNat (buf.val.take 1) : Int) % ((2^32 : Nat) : Int)) = leNat (buf.val.take 1) := Int.emod_eq_of_lt (by omega) (by norm_num at this ⊢; omega)
-    simp only [this]; split_ifs <;> norm_num at * <;> omega
+    simp only [this]; split_ifs <;> norm_num at *; omega
   have := ConvInts.usize_max_ge
   have hlen := ConvInts.decimalBytes_length (1900 + (leNat (buf.val.take 1) : Int)) (by norm_num at hxb; omega)
   step
@@ -385,9 +382,9 @@ theorem deser_MYSQL_TYPE_YEAR (h64 : Target64) (md : Slice U8) (uns part : Bool)
   have hi : (IScalar.cast IScalarTy.I128 i1).val = 1900 + (leNat (buf.val.take 1) : Int) := by rw [cast128_i32, i1_post, hyv]
   rw [hi] at hst
   step with string_into_bytes_spec' st (by rw [hst]; omega) as ⟨v, hv⟩
-  simp only [WP.spec_ok, WP.uncurry'_pair, binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
-    okPart, binlogValView, Val.ofValue, hb1, if_true, Nat.not_lt_zero, ite_false, hy0,
-    Option.map, Option.some.injEq, Val.bytes.injEq, hv, hst, and_true]
+  simp only [binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
+    okPart, binlogValView, Val.ofValue, hb1, ite_true, Nat.not_lt_zero, ite_false, hy0,
+    Option.map, hv, hst, and_true]
 
 theorem deser_MYSQL_TYPE_NEWDATE (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
     (hmeta : binlogMetaLen MYSQL_TYPE_NEWDATE ≤ md.val.length) (hb : ¬ binlogBug MYSQL_TYPE_NEWDATE md.val uns buf.val) :
@@ -395,11 +392,11 @@ theorem deser_MYSQL_TYPE_NEWDATE (h64 : Target64) (md : Slice U8) (uns part : Bo
   pre_tac MYSQL_TYPE_NEWDATE
   rawint_tac (misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf) 3
   step*
-  simp only [WP.spec_ok, WP.uncurry'_pair, binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
-    okPart, binlogValView, Val.ofValue, hb1, if_true, Nat.not_lt_zero, ite_false,
+  simp only [binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE, hkl, binRel,
+    okPart, binlogValView, Val.ofValue, hb1, ite_true, Nat.not_lt_zero, ite_false,
     Option.map, Option.some.injEq, Val.date.injEq]
   simp only [UScalar.cast_val_eq, UScalarTy.numBits, UScalar.val_and, Nat.shiftRight_eq_div_pow] at *
-  simp only [UScalar.val_and, show (31#u32 : U32).val = 31 from rfl, show (15#u32 : U32).val = 15 from rfl, and31, and15] at *
+  simp only [show (31#u32 : U32).val = 31 from rfl, show (15#u32 : U32).val = 15 from rfl, and31, and15] at *
   and_intros <;> first | rfl | (simp; done) | omega
 
 theorem deser_MYSQL_TYPE_BIT (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
@@ -600,24 +597,23 @@ theorem deser_MYSQL_TYPE_STRING (h64 : Target64) (md : Slice U8) (uns part : Boo
           rw [Nat.shiftLeft_eq]; have : (m0.val &&& 48 ^^^ 48) * 2 ^ 4 < 1024 := by omega
           scalar_tac
         rw [Nat.mod_eq_of_lt hs]
-      try simp only [Std.bind_ok]
       split_ifs with hlt
       · have hlt' : stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
-        rw [hrd _ rfl, if_pos hlt']
+        rw [hrd _ rfl, ite_eq_left hlt']
         lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
       · have hlt' : ¬ stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
-        rw [hrd _ rfl, if_neg hlt']
+        rw [hrd _ rfl, ite_eq_right hlt']
         lenpref_tac (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf) 2
     · have h48' : m0.val &&& 48 = 48 := by
         rw [Bool.not_eq_true, bne_eq_false_iff_eq] at h48
         have := congrArg UScalar.val h48; rw [UScalar.val_and, c0, v48] at this; exact this
-      rw [if_neg h48]
+      rw [ite_eq_right h48]
       simp only [Std.bind_ok]
       have hLv : (UScalar.cast UScalarTy.Usize m1).val = stringFieldLen m0.val m1.val := by
-        rw [c1]; unfold stringFieldLen; rw [if_pos h0', if_neg (by rw [h48']; exact fun h => h rfl)]
+        rw [c1]; unfold stringFieldLen; rw [ite_eq_left h0', ite_eq_right (by rw [h48']; exact fun h => h rfl)]
       split_ifs with hlt
       · have hlt' : stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
-        rw [hrd _ rfl, if_pos hlt']
+        rw [hrd _ rfl, ite_eq_left hlt']
         lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
       · exfalso; rw [UScalar.lt_equiv, c1] at hlt; simp at hlt; omega
   · have h0' : m0.val = 0 := by scalar_tac
@@ -630,10 +626,10 @@ theorem deser_MYSQL_TYPE_STRING (h64 : Target64) (md : Slice U8) (uns part : Boo
       simp [stringFieldLen, h0', leNat]
     split_ifs with hlt
     · have hlt' : stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
-      rw [hrd _ rfl, if_pos hlt']
+      rw [hrd _ rfl, ite_eq_left hlt']
       lenpref_tac (U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec buf) 1
     · have hlt' : ¬ stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
-      rw [hrd _ rfl, if_neg hlt']
+      rw [hrd _ rfl, ite_eq_right hlt']
       lenpref_tac (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf) 2
 
 theorem deser_MYSQL_TYPE_TIMESTAMP2 (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
@@ -653,7 +649,7 @@ theorem deser_MYSQL_TYPE_TIMESTAMP2 (h64 : Target64) (md : Slice U8) (uns part :
     simp only [Prod.mk.injEq] at hr
     cases r with
     | Ok _ => simp [okPart] at hr
-    | Err e => simp [core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq, binRel, okPart, hr.2]
+    | Err e => simp [core.result.Result.Insts.CoreOpsTry.branch, binRel, okPart, hr.2]
   · rw [hT] at hr hno
     simp only [Prod.mk.injEq] at hr
     obtain ⟨h1, h2⟩ := hr
@@ -667,7 +663,7 @@ theorem deser_MYSQL_TYPE_TIMESTAMP2 (h64 : Target64) (md : Slice U8) (uns part :
       · have : usec = 0#i32 := IScalar.eq_of_val_eq (by rw [hu, hu0]; rfl)
         subst this
         simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, Std.uncurry_apply_pair]
-        rw [if_pos trivial]
+        rw [ite_eq_left trivial]
         simp only [hu0, ite_true]
         have := ConvInts.usize_max_ge
         have hsb : -2 ^ 31 ≤ sec.val ∧ sec.val < 2 ^ 31 := by have := sec.hBounds; simpa [IScalarTy.numBits] using this
@@ -676,7 +672,7 @@ theorem deser_MYSQL_TYPE_TIMESTAMP2 (h64 : Target64) (md : Slice U8) (uns part :
         have hi : (IScalar.cast IScalarTy.I128 sec).val = sv := by rw [cast128_i32, hs]
         rw [hi] at hst
         step with string_into_bytes_spec' st (by rw [hst]; omega) as ⟨v, hv⟩
-        simp only [WP.spec_ok, WP.uncurry'_pair, binRel, okPart, Option.map, binlogValView, Val.ofValue, hv, hst, h2, and_true, hu0, ite_true]
+        simp only [binRel, okPart, Option.map, binlogValView, Val.ofValue, hv, hst, h2, and_true]
       · simp [hu0] at hno
 
 theorem time2Read_lower (d : Nat) (bs t : List U8) (p : Int) (h : time2Read d bs = some (p, t)) : -2 ^ 63 < p := by
@@ -699,7 +695,7 @@ theorem deser_MYSQL_TYPE_DATETIME2 (h64 : Target64) (md : Slice U8) (uns part : 
   simp only [index0 md m0 _ hmd, Std.bind_ok]
   simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 1 from by omega, ite_false, hg0] at hp ⊢
   have hlow : ∀ p t, datetime2Read m0.val buf.val = some (p, t) → -2 ^ 63 ≤ p := by
-    intro p t ht; rw [ht] at hp; by_contra hc'; exact hp .integerOverflow (by simp only; rw [if_pos (by omega)])
+    intro p t ht; rw [ht] at hp; by_contra hc'; exact hp .integerOverflow (by simp only; rw [ite_eq_left (by omega)])
   step with datetime_spec buf (UScalar.cast .U32 m0) (by rw [hc]; exact hlow) as ⟨r, rb, hr⟩
   rw [hc] at hr
   rcases hT : datetime2Read m0.val buf.val with _ | ⟨p, rest⟩
@@ -711,12 +707,12 @@ theorem deser_MYSQL_TYPE_DATETIME2 (h64 : Target64) (md : Slice U8) (uns part : 
   · rw [hT] at hr hp
     simp only [Prod.mk.injEq] at hr
     obtain ⟨h1, h2⟩ := hr
-    have hne : ¬ p ≤ -2 ^ 63 := by intro hc'; exact hp .integerOverflow (by simp only; rw [if_pos hc'])
+    have hne : ¬ p ≤ -2 ^ 63 := by intro hc'; exact hp .integerOverflow (by simp only; rw [ite_eq_left hc'])
     cases r with
     | Err _ => simp [okPart] at h1
     | Ok pk =>
       simp only [okPart, Option.map, Option.some.injEq] at h1
-      simp only [Std.bind_ok]
+      simp only []
       step with mysql_common.binlog.misc.datetime_from_packed_spec pk (by omega) as ⟨v, hv⟩
       simp only [hne, ite_false, binRel, okPart, Option.map, binlogValView, hv, h1, h2, and_true]
 
@@ -749,7 +745,7 @@ theorem deser_MYSQL_TYPE_TIME2 (h64 : Target64) (md : Slice U8) (uns part : Bool
     | Err _ => simp [okPart] at h1
     | Ok pk =>
       simp only [okPart, Option.map, Option.some.injEq] at h1
-      simp only [Std.bind_ok]
+      simp only []
       step with mysql_common.binlog.misc.time_from_packed_spec pk (by omega) as ⟨v, hv⟩
       simp only [binRel, okPart, Option.map, binlogValView, hv, h1, h2, and_true]
 
@@ -864,9 +860,9 @@ theorem bug_not_err (ct : constants.ColumnType) (md : List U8) (uns : Bool) (bs 
     · simp [h, binlogRead, binlogEffType, binlogMetaLen, binlogNum, readLE] at hr
   case MYSQL_TYPE_TIME2 =>
     obtain ⟨hd, h4, -⟩ := hb
-    have hfb : fracBytes (md.getD 0 (byte 0)).val = 1 := by unfold fracBytes; rw [if_pos hd]
+    have hfb : fracBytes (md.getD 0 (byte 0)).val = 1 := by unfold fracBytes; rw [ite_eq_left hd]
     have : time2Read ((md.getD 0 (byte 0)).val) bs ≠ none := by
-      unfold time2Read; rw [if_neg (by rw [hfb]; omega)]; simp
+      unfold time2Read; rw [ite_eq_right (by rw [hfb]; omega)]; simp
     unfold binlogRead at hr
     simp only [binlogEffType, binlogMetaLen] at hr
     by_cases hml : md.length < 1
@@ -896,7 +892,7 @@ theorem index_fail (md : Slice U8) (i : Usize) (h : md.val.length ≤ i.val) :
     Slice.index_usize md i = fail .arrayOutOfBounds := by
   unfold Slice.index_usize
   have : md[i]? = none := by
-    simp [Slice.length] at *
+    simp [] at *
     omega
   rw [this]
 
@@ -921,16 +917,16 @@ theorem deser_meta_panic (t : constants.ColumnType) (md : Slice U8) (uns part : 
   case MYSQL_TYPE_ENUM =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd])]
     · simp [hmd] at hlt
   case MYSQL_TYPE_SET =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd])]
     · simp [hmd] at hlt
   case MYSQL_TYPE_VARCHAR =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
@@ -949,65 +945,56 @@ theorem deser_meta_panic (t : constants.ColumnType) (md : Slice U8) (uns part : 
   case MYSQL_TYPE_TIMESTAMP2 =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_DATETIME2 =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_TIME2 =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_TINY_BLOB =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_MEDIUM_BLOB =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_LONG_BLOB =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_BLOB =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_GEOMETRY =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_VECTOR =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
     rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
-    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd])]
     · simp [hmd] at hlt
-      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
     · simp [hmd] at hlt
   case MYSQL_TYPE_STRING =>
     rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
@@ -1107,6 +1094,6 @@ theorem deser_panics (ct : constants.ColumnType) (md : Slice U8) (uns part : Boo
       first
         | (simp at hr; done)
         | (revert hr; simp [BinlogOut.ofRead, binlogNum, binlogTake, binlogStr]; done)
-        | (revert hr; simp [BinlogOut.ofRead, binlogNum, binlogTake, binlogStr]; (repeat' split) <;> simp; done)
+        | (revert hr; simp [BinlogOut.ofRead, binlogNum, binlogTake, binlogStr]; (repeat' split) <;> simp)
 
 end mysql_common.BinlogUtil

@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.ParseBuf
+import Proofs.Util.BinlogCommon
 import Proofs.Util.IntAndMisc
 import Proofs.Util.RawBytesSeq
 import Proofs.Io.ParseBuf
@@ -26,6 +27,8 @@ open Aeneas Aeneas.Std Result mysql_common Defs
 
 namespace mysql_common.EvHdrUtil
 
+export _root_.mysql_common.BinlogCommon (leNat_leBytes_lt byte_val_self sat_sub_usize constu8_default_spec skip_default_spec)
+
 /-! ## Bytes -/
 
 theorem leBytes_leNat (l : List U8) : leBytes l.length (leNat l) = l := by
@@ -46,9 +49,6 @@ theorem leBytes_leNat_take (k : Nat) (l : List U8) (h : k ≤ l.length) :
   have := leBytes_leNat (l.take k)
   rwa [List.length_take, Nat.min_eq_left h] at this
 
-theorem leNat_leBytes_lt (k n : Nat) (h : n < 2 ^ (8 * k)) : leNat (leBytes k n) = n := by
-  rw [PBUtil.leNat_leBytes, Nat.mod_eq_of_lt h]
-
 theorem leBytes_of_val (k : Nat) (n : Nat) (l : List U8) (h : n = leNat (l.take k)) (hl : k ≤ l.length) :
     leBytes k n = l.take k := by
   rw [h]; exact leBytes_leNat_take k l hl
@@ -61,9 +61,6 @@ theorem singleton_of_val (x : U8) (l : List U8) (h : x.val = leNat (l.take 1)) (
 
 theorem take_append_of_drop {l r : List U8} (k : Nat) (h : r = l.drop k) : l = l.take k ++ r := by
   rw [h, List.take_append_drop]
-
-theorem byte_val_self (x : U8) : byte x.val = x := by
-  unfold byte; cases x; simp [UScalar.val]
 
 theorem evHeaderEnc_len (h : binlog.events.BinlogEventHeader) : (evHeaderEnc h).length = 19 := by
   simp [evHeaderEnc]
@@ -106,13 +103,6 @@ theorem sat_add_usize (x y : Usize) :
   have := sat_add_val x y
   rw [UScalar.max_USize_eq] at this
   exact this
-
-theorem sat_sub_usize (x y : Usize) :
-    (core.num.Usize.saturating_sub x y).val = x.val - y.val := by
-  have hb : x.val - y.val < 2 ^ UScalarTy.Usize.numBits := lt_of_le_of_lt (Nat.sub_le _ _) x.hBounds
-  show (UScalar.saturating_sub x y).val = _
-  simp only [UScalar.saturating_sub, Nat.zero_max]
-  exact Nat.mod_eq_of_lt hb
 
 /-! ## `parse_unchecked` of fixed-size integers, as `Ok` results -/
 
@@ -218,10 +208,6 @@ theorem readLE_app (k n : Nat) (r : List U8) (hn : n < 2 ^ (8 * k)) : readLE k (
   simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
   exact (WP.spec_ok _).mpr rfl
 
-@[step] theorem constu8_default_spec {T : Type} (N : U8) (d : core.default.Default T) :
-    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
-  simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-
 /-! ## FDE pieces -/
 
 theorem pu_binlog_version (buf : io.ParseBuf) (h : 2 ≤ buf.length) :
@@ -279,10 +265,6 @@ theorem pu_constu8 {T : Type} (N : U8) (e : core.error.Error T) (d : core.defaul
       misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 core.default.DefaultU16 ⦃ r => r.1.val = 0 ⦄ := by
   simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
   exact (WP.spec_ok _).mpr rfl
-
-@[step] theorem skip_default_spec (L : Usize) :
-    misc.raw.Skip.Insts.CoreDefaultDefault.default L ⦃ _ => True ⦄ := by
-  simp [misc.raw.Skip.Insts.CoreDefaultDefault.default]
 
 @[step] theorem bare_len_spec (M : Usize) (self : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes M) Usize) :
     misc.raw.bytes.RawBytes.len (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize M) self

@@ -302,7 +302,6 @@ theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql
     | Err e =>
       simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, elqRead, takeExact, hfr]
 
-set_option linter.unusedSimpArgs false in
 /-- `MySerialize`: appends the layout `elqEnc`. -/
 theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.execute_load_query_event.ExecuteLoadQueryEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (elqEnc e).length ≤ Usize.max) :
@@ -314,28 +313,28 @@ theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql
   simp only [misc.raw.int.RawInt.serialize_eq]
   step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b1, hb1⟩
   step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b2, hb2⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, hb1]; omega
   step with U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec as ⟨b3, hb3⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, hb2, hb1]; omega
   step with misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec as ⟨b4, hb4⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb3, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, hb3, hb2, hb1]; omega
   step with misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec as ⟨b5, hb5⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb4, hb3, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, hb4, hb3, hb2, hb1]; omega
   step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b6, hb6⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb5, hb4, hb3, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, hb5, hb4, hb3, hb2, hb1]; omega
   step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b7, hb7⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb6, hb5, hb4, hb3, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, hb6, hb5, hb4, hb3, hb2, hb1]; omega
   step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b8, hb8⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb7, hb6, hb5, hb4, hb3, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, hb7, hb6, hb5, hb4, hb3, hb2, hb1]; omega
   have hp : (core.convert.IntoFrom U8.Insts.CoreConvertFromLoadDuplicateHandling).into e.dup_handling.1 =
       ok (UScalar.cast .U8 (read_discriminant e.dup_handling.1)) := rfl
   have hpv : UScalar.cast .U8 (read_discriminant e.dup_handling.1) = byte (loadDupCode e.dup_handling.1) := by
     cases e.dup_handling.1 <;> rfl
   rw [misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize_eq _ _ _ _ _ hp]
   step with U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec as ⟨b9, hb9⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1]; omega
   step with binlog.events.query_event.StatusVars.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨b10, hb10⟩
-  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take, hb9, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1]; omega
+  · simp only [alloc.vec.Vec.length, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil, hb9, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1]; omega
   apply WP.spec_bind (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec _ e.schema b10
     (fun b => b.val = b10.val ++ (cowList e.schema.1).take 255) (fun sl hsl => by
       apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize_spec 255#usize sl b10 (by

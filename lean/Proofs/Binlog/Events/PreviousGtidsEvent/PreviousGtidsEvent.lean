@@ -447,7 +447,7 @@ private theorem pgSidsRead_enc (l : List binlog.events.previous_gtids_event.Prev
     have hd24 : (pgSidEnc x ++ A).drop 24 = (x.intervals.val.map gnoIntervalEnc).flatten ++ A := by
       rw [show 24 = 16 + 8 by rfl, ← List.drop_drop, hd, BinlogEvGtid.drop_leBytes_append]
     simp only [h24, ↓reduceIte]
-    rw [hd, BinlogEvGtid.take_leBytes_append, BinlogEvGtid.leNat_leBytes_of_lt _ _ hn, hd24, ht]
+    rw [hd, BinlogEvGtid.take_leBytes_append, BinlogEvGtid.leNat_leBytes_lt _ _ hn, hd24, ht]
     have := pgIntervalsRead_enc x.intervals.val A
     simp only [alloc.vec.Vec.length] at this ⊢
     rw [this]
@@ -468,7 +468,7 @@ private theorem pgRead_enc (e : binlog.events.previous_gtids_event.PreviousGtids
   unfold pgRead
   simp only [h8, ↓reduceIte]
   simp only [pgEnc, List.append_assoc, BinlogEvGtid.take_leBytes_append, BinlogEvGtid.drop_leBytes_append,
-    BinlogEvGtid.leNat_leBytes_of_lt _ _ (show e.sids.length < 2 ^ (8 * 8) by omega), Nat.mod_eq_of_lt hl]
+    BinlogEvGtid.leNat_leBytes_lt _ _ (show e.sids.length < 2 ^ (8 * 8) by omega), Nat.mod_eq_of_lt hl]
   exact pgSidsRead_enc e.sids.val tail
 
 /-- `MyDeserialize` in the untagged format (byte 7 of the count is 0): total; `pgRead`; no SID has a tag. -/

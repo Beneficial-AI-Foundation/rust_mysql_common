@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.ParseBuf
+import Proofs.Util.BinlogCommon
 import Proofs.Util.IntAndMisc
 import Proofs.Util.RawBytesSeq
 import Proofs.Util.PacketsColStmt
@@ -33,6 +34,8 @@ set_option autoImplicit false
 open Aeneas Aeneas.Std Result mysql_common Defs
 
 namespace mysql_common.BERUtil
+
+open BinlogCommon
 
 theorem eof_as_bytes (rb : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) :
     misc.raw.bytes.RawBytes.as_bytes misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
@@ -77,10 +80,6 @@ theorem ev_eq (a b : binlog.consts.EventType) :
   simp only [UScalar.val, BitVec.toNat_ofNat]
   rw [Nat.mod_eq_of_lt (by have := min_le_left (UScalar.max UScalarTy.Usize) (x.bv.toNat + y.bv.toNat); simp [UScalar.max] at *)]
   simp [UScalar.max, Usize.max, Nat.min_comm, Usize.numBits_def]
-
-theorem usize_max_ge_cap : 2 ^ 32 - 1 ≤ Usize.max := by
-  have h1 := Usize.max_def; rw [Usize.numBits_def] at h1
-  rcases System.Platform.numBits_eq with h | h <;> simp [h] at h1 <;> omega
 
 theorem bitmap_max_len (h64 : Target64) :
     misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN ⦃ m => m.val = 2 ^ 61 ⦄ := by
@@ -151,7 +150,7 @@ theorem extra_core (ex : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 65533
     rw [misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN_spec]
   step with misc.raw.bytes.RawBytes.len_spec _ 65533#usize hm as ⟨ i, hi ⟩
   step*
-  have hcap := usize_max_ge_cap
+  have hcap := u32_max_le_usize
   have hi2 : i2.val = 65535 := by
     rw [i2_post]; simp [UScalar.cast_val_eq, core.num.U16.MAX]
     rcases System.Platform.numBits_eq with h | h <;> simp [h, U16.rMax]
@@ -224,15 +223,8 @@ theorem rows_serialize64 (h64 : Target64) (e : binlog.events.rows_event.RowsEven
 
 /-! ## Lengths -/
 
-theorem lenencInt_length_le (n : Nat) : (lenencInt n).length ≤ 9 := by
-  unfold lenencInt; split_ifs <;> simp
-
 theorem cast_small (x : U64) (h : x.val ≤ Usize.max) : (UScalar.cast UScalarTy.Usize x).val = x.val := by
   rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (usize_lt_of_le_max h)
-
-theorem sat_val (x y : Usize) : (core.num.Usize.saturating_add x y).val = min (x.val + y.val) Usize.max := by
-  have := usize_sat_add x y
-  simpa [lift] using this
 
 theorem cast_u8max : (UScalar.cast UScalarTy.Usize core.num.U8.MAX).val = 255 := by
   simp [UScalar.cast_val_eq, core.num.U8.MAX]
@@ -246,14 +238,14 @@ theorem cast_u32max : (UScalar.cast UScalarTy.Usize core.num.U32.MAX).val = 2 ^ 
   simp [UScalar.cast_val_eq, core.num.U32.MAX]
   rcases System.Platform.numBits_eq with h | h <;> simp [h, U32.rMax]
 
-set_option maxHeartbeats 2000000 in
+set_option maxHeartbeats 500000 in
 theorem rows_event_len_spec (nc : U64) (exl : Usize) (hb ha : Bool) (rdl : Usize)
     (hbl : hb = true ∨ ha = true → (nc.val + 7) / 8 ≤ Usize.max) :
     binlog.events.rows_event.rows_event_len nc exl hb ha rdl ⦃ n => n.val =
       min (6 + 2 + 2 + min exl.val 65533 + (lenencInt nc.val).length +
         (if hb then (nc.val + 7) / 8 else 0) + (if ha then (nc.val + 7) / 8 else 0) + rdl.val) evLenCap ⦄ := by
   unfold binlog.events.rows_event.rows_event_len
-  have hcap := usize_max_ge_cap
+  have hcap := u32_max_le_usize
   step*
   · rw [i_post, cast_u16max]; simp
   step with misc.lenenc_int_len_spec as ⟨ i3, hi3 ⟩
@@ -266,7 +258,7 @@ theorem rows_event_len_spec (nc : U64) (exl : Usize) (hb ha : Bool) (rdl : Usize
     intro hh; rw [bitmap_len_post, cast_small _ (by have := hbl hh; omega), hdc]
   have hcp : (UScalar.cast UScalarTy.Usize core.num.U32.MAX).val = 2 ^ 32 - 1 := cast_u32max
   have hL : binlog.events.BinlogEventHeader.LEN.val = 19 := by simp [binlog.events.BinlogEventHeader.LEN]
-  have hsat := fun (x y : Usize) => (sat_val x y)
+  have hsat := fun (x y : Usize) => (usize_saturating_add_val x y)
   cases hb <;> cases ha <;> simp only [Bool.false_eq_true, ↓reduceIte, true_or, or_true, forall_const] at hbm ⊢ <;> step* <;>
     simp only [hsat, i6_post, hcp, hL, hi4, hbm, hi, len_post, len1_post, len2_post, len3_post, len4_post, i2_post, i1_post, evLenCap] at * <;> omega
 
@@ -628,7 +620,7 @@ theorem tm_len_gen (h64 : Target64) (e : binlog.events.table_map_event.TableMapE
     (hn : e.columns_count.1.val + 8 < 2 ^ 64) (hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = tmLenCrate e ⦄ := by
   unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len
-  have hcap := usize_max_ge_cap
+  have hcap := u32_max_le_usize
   have hmax : Usize.max = 2 ^ 64 - 1 := by simp [Target64] at h64; simp [Usize.max, Usize.numBits, h64]
   have hcc : binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1 := rfl
   simp only [hcc, bind_ok]
@@ -696,34 +688,6 @@ theorem tm_len_panics (h64 : Target64) (e : binlog.events.table_map_event.TableM
     simp [hs, hs1, hi6, hs2, h9, lift, hadd]
 
 /-! ## Readers -/
-
-theorem pstep {T U : Type} (m : Result (core.result.Result T core.io.error.Error × io.ParseBuf))
-    (P : Option T → io.ParseBuf → Prop) (hm : m ⦃ r rest => P (okPart r) rest ⦄)
-    (k : T → io.ParseBuf → Result (core.result.Result U core.io.error.Error × io.ParseBuf))
-    (Q : core.result.Result U core.io.error.Error → io.ParseBuf → Prop)
-    (hErr : ∀ rest e, P none rest → Q (.Err e) rest)
-    (hOk : ∀ v rest, P (some v) rest → k v rest ⦃ r rest' => Q r rest' ⦄) :
-    (do
-      let (r, buf1) ← m
-      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-      match cf with
-      | .Continue v => k v buf1
-      | .Break residual => do
-        let r' ← core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual U
-          (core.convert.FromSame core.io.error.Error) residual
-        ok (r', buf1)) ⦃ r rest => Q r rest ⦄ := by
-  obtain ⟨⟨r, b⟩, he, hp⟩ := PBUtil.spec_eq_ok hm
-  rw [he]
-  cases r with
-  | Ok v =>
-    apply spec_bind_ok
-    simp only [core.result.Result.Insts.CoreOpsTry.branch]
-    apply spec_bind_ok
-    exact hOk v b (by simpa using hp)
-  | Err e =>
-    simp [core.result.Result.Insts.CoreOpsTry.branch,
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
-    exact hErr b _ (by simpa using hp)
 
 theorem take_form {T : Type} (k : Nat) (f : T → List U8) (r : Option T) (rest buf : io.ParseBuf)
     (h : if k ≤ buf.length then r.map f = some (buf.val.take k) ∧ rest.val = buf.val.drop k
@@ -958,37 +922,37 @@ theorem u8b_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) (buf 
   intro b hb
   rw [hb, u8Str, ← hs]
 
-set_option linter.unusedSimpArgs false in
-set_option linter.unusedTactic false in
-set_option linter.unreachableTactic false in
+/-- Discharges the buffer-length side condition `h` a serializer `step` leaves, if any. -/
+macro "ser_side" : tactic => `(tactic|
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega))
+
 theorem tm_serialize64 (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (tmEnc e).length ≤ Usize.max) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ tmEnc e ⦄ := by
   unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize
   have hb : buf.length = buf.val.length := rfl
-  simp only [tmEnc, u8Str, List.length_append, List.length_cons, length_leBytes, List.length_take, List.length_singleton, List.length_nil] at h
+  simp only [tmEnc, u8Str, List.length_append, List.length_cons, length_leBytes, List.length_take, List.length_nil] at h
   step with leu48_ser as ⟨ b1, hb1 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
   step with PCSUtil.rawint_u16_serialize as ⟨ b2, hb2 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with u8b_ser as ⟨ b3, hb3 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b4, hb4 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with u8b_ser as ⟨ b5, hb5 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b6, hb6 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with lenenc_rawint_ser as ⟨ b7, hb7 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b8, hb8 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with PCSUtil.lenenc_raw_serialize as ⟨ b9, hb9 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with bitmap_ser h64 as ⟨ b10, hb10 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   step with eof_ser as ⟨ b11, hb11 ⟩
-  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega)
+  ser_side
   rw [hb11, hb10, hb9, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1]
   simp [tmEnc, u8Str]
 
@@ -997,10 +961,42 @@ theorem from_res_spec (T : Type) (e : core.io.error.Error) :
       (core.convert.FromSame core.io.error.Error) (core.result.Result.Err e) ⦃ r => r = core.result.Result.Err e ⦄ := by
   simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
-set_option maxHeartbeats 8000000 in
-set_option linter.unusedSimpArgs false in
-set_option linter.unusedTactic false in
-set_option linter.unreachableTactic false in
+/-! ## Reader steps -/
+
+theorem rd_bind {T U A V : Type} {m : Result (core.result.Result T core.io.error.Error × io.ParseBuf)}
+    {s : Option (A × List U8)} {f : T → A}
+    (hm : m ⦃ r rest => s = (okPart r).map (fun x => (f x, rest.val)) ⦄)
+    {K : core.result.Result T core.io.error.Error × io.ParseBuf →
+      Result (core.result.Result U core.io.error.Error × io.ParseBuf)}
+    {view : U → V} {G : A × List U8 → Option (V × List U8)}
+    (hErr : ∀ e b, K (.Err e, b) ⦃ r _ => okPart r = none ⦄)
+    (hOk : ∀ v b, K (.Ok v, b) ⦃ r rest => ReadsAs view (G (f v, b.val)) r rest ⦄) :
+    Std.bind m K ⦃ r rest => ReadsAs view (s >>= G) r rest ⦄ := by
+  apply WP.spec_bind hm
+  rintro ⟨r, b⟩ h
+  simp only [WP.uncurry'] at h
+  cases r with
+  | Ok v => subst h; exact hOk v b
+  | Err e =>
+    subst h
+    apply WP.spec_mono (hErr e b)
+    rintro ⟨r', b'⟩ h'
+    simpa [ReadsAs] using h'
+
+/-- The error branch of a `?` after a reader: the residual is returned. -/
+macro "rd_err" : tactic => `(tactic| (
+  intro _ _
+  apply spec_bind_ok
+  apply WP.spec_bind (from_res_spec _ _)
+  intro _ h
+  exact (WP.spec_ok _).mpr (by rw [h]; rfl)))
+
+/-- One `?`-step `let (r, b) ← parse ..; match branch r ..` with a reader spec `h`. -/
+macro "rd_step " h:term " as " v:ident b:ident : tactic => `(tactic| (
+  refine rd_bind $h ?_ (fun $v $b => ?_)
+  · rd_err
+  apply spec_bind_ok))
+
 theorem tm_deser (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest =>
       ReadsAs tmView (tmRead (postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT) buf.val) r rest ⦄ := by
@@ -1009,401 +1005,49 @@ theorem tm_deser (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
   rw [hET]
   step with binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec as ⟨ ph, hph ⟩
-  split
-  · rename_i h6
+  have hc32 : ∀ x : U32, (UScalar.cast .U64 x).val = x.val := fun x => by
+    rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by have := x.hBounds; simp at this ⊢; omega)
+  split <;> rename_i h6
+  on_goal 1 =>
     have hp : postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT = 6 := by rw [← hph, ← h6]; rfl
-    have hc32 : ∀ x : U32, (UScalar.cast .U64 x).val = x.val := fun x => by rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by have := x.hBounds; simp at this ⊢; omega)
-    apply WP.spec_bind (p32 buf)
-    rintro ⟨r1, b1⟩ h1
-    simp only [WP.uncurry'] at h1
-    rcases r1 with v1 | e1
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, okPart, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
+    rw [hp]; unfold tmRead
+    rd_step p32 buf as v1 b1
     apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .U64 v1.1)) _) _
     apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.int.RawInt.new misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 (UScalar.cast .U64 v1.1)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-    apply WP.spec_bind (p16 b1)
-    rintro ⟨r2, b2⟩ h2
-    simp only [WP.uncurry'] at h2
-    rcases r2 with v2 | e2
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, okPart, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b2 ()) _) _
-    apply WP.spec_bind (pU8B b2)
-    rintro ⟨r3, b3⟩ h3
-    simp only [WP.uncurry'] at h3
-    rcases r3 with v3 | e3
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, okPart, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize) b3 ()) _) _
-    apply WP.spec_bind (pSkip1 b3)
-    rintro ⟨r4, b4⟩ h4
-    simp only [WP.uncurry'] at h4
-    rcases r4 with v4 | e4
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, okPart, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b4 ()) _) _
-    apply WP.spec_bind (pU8B b4)
-    rintro ⟨r5, b5⟩ h5
-    simp only [WP.uncurry'] at h5
-    rcases r5 with v5 | e5
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, okPart, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize) b5 ()) _) _
-    apply WP.spec_bind (pSkip1 b5)
-    rintro ⟨r6, b6⟩ h6
-    simp only [WP.uncurry'] at h6
-    rcases r6 with v6 | e6
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e6)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e6)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, okPart, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b6 ()) _) _
-    apply WP.spec_bind (pLEI b6)
-    rintro ⟨r7, b7⟩ h7
-    simp only [WP.uncurry'] at h7
-    rcases r7 with v7 | e7
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e7)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e7)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, okPart, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v7)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize v7.1)) _) _
-    apply spec_bind_ok
-    have hcast : (UScalar.cast .Usize v7.1).val = v7.1.val := PBUtil.cast_usize_64 h64 _
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize constants.ColumnType U8.Insts.Mysql_commonMiscRawIntIntReprU8) b7 (UScalar.cast .Usize v7.1)) _) _
-    apply WP.spec_bind (pSeq _ b7)
-    rintro ⟨r8, b8⟩ h8
-    simp only [WP.uncurry'] at h8
-    rw [hcast] at h8
-    rcases r8 with v8 | e8
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e8)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e8)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, okPart, hcast, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v8)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b8 ()) _) _
-    apply WP.spec_bind (pLEB h64 b8)
-    rintro ⟨r9, b9⟩ h9
-    simp only [WP.uncurry'] at h9
-    rcases r9 with v9 | e9
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e9)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e9)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, h9, okPart, hcast, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v9)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v7.1 8#u64) _) _
-    apply WP.spec_bind (core.num.U64.div_ceil.spec v7.1 8#u64 (by simp))
-    intro i5 hi5
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b9 (UScalar.cast .Usize i5)) _) _
-    have hbm : (UScalar.cast .Usize i5).val = (v7.1.val + 7) / 8 := by
-      rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-    apply WP.spec_bind (pBM _ b9)
-    rintro ⟨r10, b10⟩ h10
-    simp only [WP.uncurry'] at h10
-    rw [hbm] at h10
-    rcases r10 with v10 | e10
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e10)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e10)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, okPart, hcast, hbm, hc32]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v10)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b10 ()) _) _
-    apply WP.spec_bind (pEof b10)
-    rintro ⟨r11, b11⟩ h11
-    simp only [WP.uncurry'] at h11
-    rcases r11 with v11 | e11
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e11)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e11)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [okPart] at h11
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v11)) _) _
-    apply spec_bind_ok
-    apply (WP.spec_ok _).mpr
-    simp only [WP.uncurry']
-    simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h11
-    obtain ⟨h11a, h11b⟩ := h11
-    simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11a, h11b, okPart, hcast, hbm, hc32, tmView]
-  · rename_i h6
+  on_goal 2 =>
     have hp : ¬ postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT = 6 := by
       intro h; apply h6; apply UScalar.eq_of_val_eq; rw [hph, h]; rfl
-    apply WP.spec_bind (p48 buf)
-    rintro ⟨r1, b1⟩ h1
-    simp only [WP.uncurry'] at h1
-    rcases r1 with v1 | e1
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, okPart]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
+    unfold tmRead; rw [ite_eq_right hp]
+    rd_step p48 buf as v1 b1
+  all_goals
+    rd_step p16 b1 as v2 b2
+    rd_step pU8B b2 as v3 b3
+    rd_step pSkip1 b3 as v4 b4
+    rd_step pU8B b4 as v5 b5
+    rd_step pSkip1 b5 as v6 b6
+    rd_step pLEI b6 as v7 b7
     apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-    apply WP.spec_bind (p16 b1)
-    rintro ⟨r2, b2⟩ h2
-    simp only [WP.uncurry'] at h2
-    rcases r2 with v2 | e2
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, okPart]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b2 ()) _) _
-    apply WP.spec_bind (pU8B b2)
-    rintro ⟨r3, b3⟩ h3
-    simp only [WP.uncurry'] at h3
-    rcases r3 with v3 | e3
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, okPart]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize) b3 ()) _) _
-    apply WP.spec_bind (pSkip1 b3)
-    rintro ⟨r4, b4⟩ h4
-    simp only [WP.uncurry'] at h4
-    rcases r4 with v4 | e4
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, okPart]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b4 ()) _) _
-    apply WP.spec_bind (pU8B b4)
-    rintro ⟨r5, b5⟩ h5
-    simp only [WP.uncurry'] at h5
-    rcases r5 with v5 | e5
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, okPart]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize) b5 ()) _) _
-    apply WP.spec_bind (pSkip1 b5)
-    rintro ⟨r6, b6⟩ h6
-    simp only [WP.uncurry'] at h6
-    rcases r6 with v6 | e6
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e6)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e6)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, okPart]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b6 ()) _) _
-    apply WP.spec_bind (pLEI b6)
-    rintro ⟨r7, b7⟩ h7
-    simp only [WP.uncurry'] at h7
-    rcases r7 with v7 | e7
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e7)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e7)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, okPart]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v7)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize v7.1)) _) _
-    apply spec_bind_ok
-    have hcast : (UScalar.cast .Usize v7.1).val = v7.1.val := PBUtil.cast_usize_64 h64 _
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize constants.ColumnType U8.Insts.Mysql_commonMiscRawIntIntReprU8) b7 (UScalar.cast .Usize v7.1)) _) _
-    apply WP.spec_bind (pSeq _ b7)
-    rintro ⟨r8, b8⟩ h8
-    simp only [WP.uncurry'] at h8
-    rw [hcast] at h8
-    rcases r8 with v8 | e8
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e8)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e8)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, okPart, hcast]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v8)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b8 ()) _) _
-    apply WP.spec_bind (pLEB h64 b8)
-    rintro ⟨r9, b9⟩ h9
-    simp only [WP.uncurry'] at h9
-    rcases r9 with v9 | e9
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e9)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e9)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, h9, okPart, hcast]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v9)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v7.1 8#u64) _) _
+    have h8 := pSeq (UScalar.cast .Usize v7.1) b7
+    rw [PBUtil.cast_usize_64 h64] at h8
+    rd_step h8 as v8 b8
+    rd_step pLEB h64 b8 as v9 b9
     apply WP.spec_bind (core.num.U64.div_ceil.spec v7.1 8#u64 (by simp))
     intro i5 hi5
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
     apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b9 (UScalar.cast .Usize i5)) _) _
     have hbm : (UScalar.cast .Usize i5).val = (v7.1.val + 7) / 8 := by
       rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-    apply WP.spec_bind (pBM _ b9)
-    rintro ⟨r10, b10⟩ h10
-    simp only [WP.uncurry'] at h10
+    have h10 := pBM (UScalar.cast .Usize i5) b9
     rw [hbm] at h10
-    rcases r10 with v10 | e10
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e10)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e10)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
-      apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, okPart, hcast, hbm]
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v10)) _) _
-    apply spec_bind_ok
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b10 ()) _) _
+    rd_step h10 as v10 b10
     apply WP.spec_bind (pEof b10)
     rintro ⟨r11, b11⟩ h11
-    simp only [WP.uncurry'] at h11
     rcases r11 with v11 | e11
-    swap
-    · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e11)) _) _
-      apply spec_bind_ok
-      change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e11)) _) _
-      apply WP.spec_bind (from_res_spec _ _)
-      rintro _ rfl
+    · apply spec_bind_ok
       apply (WP.spec_ok _).mpr
-      simp only [WP.uncurry']
-      simp [okPart] at h11
-    change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v11)) _) _
-    apply spec_bind_ok
-    apply (WP.spec_ok _).mpr
-    simp only [WP.uncurry']
-    simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h11
-    obtain ⟨h11a, h11b⟩ := h11
-    simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11a, h11b, okPart, hcast, hbm, tmView]
+      simp only [WP.uncurry', okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h11 ⊢
+      obtain ⟨h11a, h11b⟩ := h11
+      simp [ReadsAs, okPart, hc32, tmView, h11a, h11b]
+    · simp [WP.uncurry', okPart] at h11
 
 /-! ## Rows reader -/
 
@@ -1468,12 +1112,6 @@ theorem pEat16 (buf : io.ParseBuf) :
   · obtain ⟨h1, h2⟩ := h; cases o <;> simp_all
   · obtain ⟨h1, h2⟩ := h; subst h1 h2; simp; omega
 
-theorem sat_sub_val (x y : Usize) : (core.num.Usize.saturating_sub x y).val = x.val - y.val := by
-  simp only [core.num.Usize.saturating_sub, UScalar.saturating_sub, UScalar.val, BitVec.toNat_ofNat]
-  have := x.hBounds
-  simp only [UScalar.val] at this
-  rw [Nat.mod_eq_of_lt (by omega)]; omega
-
 theorem cast16_val (x : U16) : (UScalar.cast UScalarTy.Usize x).val = x.val := by
   rw [UScalar.cast_val_eq]; apply Nat.mod_eq_of_lt
   have := x.hBounds
@@ -1490,1446 +1128,159 @@ theorem ec : eventTypeCode .DELETE_ROWS_EVENT = 32 ∧ eventTypeCode .DELETE_ROW
     eventTypeCode .UPDATE_ROWS_EVENT = 31 ∧ eventTypeCode .UPDATE_ROWS_EVENT_V1 = 24 ∧
     eventTypeCode .PARTIAL_UPDATE_ROWS_EVENT = 39 := ⟨rfl, rfl, rfl, rfl, rfl⟩
 
-set_option maxHeartbeats 40000000 in
-set_option linter.unusedSimpArgs false in
-set_option linter.unusedTactic false in
-set_option linter.unreachableTactic false in
+theorem rd_bind_map {T U A A' V : Type} {m : Result (core.result.Result T core.io.error.Error × io.ParseBuf)}
+    {s : Option (A × List U8)} {f : T → A} {g : A × List U8 → A' × List U8}
+    (hm : m ⦃ r rest => s = (okPart r).map (fun x => (f x, rest.val)) ⦄)
+    {K : core.result.Result T core.io.error.Error × io.ParseBuf →
+      Result (core.result.Result U core.io.error.Error × io.ParseBuf)}
+    {view : U → V} {G : A' × List U8 → Option (V × List U8)}
+    (hErr : ∀ e b, K (.Err e, b) ⦃ r _ => okPart r = none ⦄)
+    (hOk : ∀ v b, K (.Ok v, b) ⦃ r rest => ReadsAs view (G (g (f v, b.val))) r rest ⦄) :
+    Std.bind m K ⦃ r rest => ReadsAs view (s.map g >>= G) r rest ⦄ := by
+  apply WP.spec_bind hm
+  rintro ⟨r, b⟩ h
+  simp only [WP.uncurry'] at h
+  cases r with
+  | Ok v => subst h; exact hOk v b
+  | Err e =>
+    subst h
+    apply WP.spec_mono (hErr e b)
+    rintro ⟨r', b'⟩ h'
+    simpa [ReadsAs] using h'
+
+theorem rd_eat {U V B : Type} {buf : io.ParseBuf}
+    {K : Option U16 × io.ParseBuf → Result (core.result.Result U core.io.error.Error × io.ParseBuf)}
+    {view : U → V} {H : Nat × List U8 → Option (B × List U8)} {G : B × List U8 → Option (V × List U8)}
+    (hNone : ∀ b, K (none, b) ⦃ r _ => okPart r = none ⦄)
+    (hSome : ∀ l b, K (some l, b) ⦃ r rest => ReadsAs view (H (l.val, b.val) >>= G) r rest ⦄) :
+    Std.bind (io.ParseBuf.checked_eat_u16_le buf) K ⦃ r rest =>
+      ReadsAs view ((readLE 2 buf.val >>= H) >>= G) r rest ⦄ := by
+  apply WP.spec_bind (pEat16 buf)
+  rintro ⟨o, b⟩ h
+  simp only [WP.uncurry'] at h
+  cases o with
+  | some l => rw [h]; exact hSome l b
+  | none =>
+    rw [h]
+    apply WP.spec_mono (hNone b)
+    rintro ⟨r', b'⟩ h'
+    simpa [ReadsAs] using h'
+
+theorem spec_ite_pos {α : Type} {c : Prop} [Decidable c] (h : c) {a b : Result α} {P : WP.Post α}
+    (ha : WP.spec a P) : WP.spec (if c then a else b) P := by rw [ite_eq_left h]; exact ha
+
+theorem spec_ite_neg {α : Type} {c : Prop} [Decidable c] (h : ¬ c) {a b : Result α} {P : WP.Post α}
+    (hb : WP.spec b P) : WP.spec (if c then a else b) P := by rw [ite_eq_right h]; exact hb
+
+/-- Decides a program condition `ph = 6#u8` / `ph = pw` from the case hypotheses. -/
+macro "rd_cond" : tactic => `(tactic| first
+  | (apply UScalar.eq_of_val_eq; simp_all; done)
+  | (intro hc; have := congrArg UScalar.val hc; simp_all; done))
+
+theorem some_bindM {α β : Type} (a : α) (f : α → Option β) : (some a >>= f) = f a := rfl
+
+theorem pBM' (len : Usize) (n : Nat) (hn : len.val = n) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) buf len ⦃ r rest =>
+      takeExact n buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := hn ▸ pBM len buf
+
+theorem pBare' (len : Usize) (n : Nat) (hn : len.val = n) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) buf len ⦃ r rest =>
+      takeExact n buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := hn ▸ pBare len buf
+
+macro "rd_step_map " h:term " as " v:ident b:ident : tactic => `(tactic| (
+  refine rd_bind_map $h ?_ (fun $v $b => ?_)
+  · rd_err
+  apply spec_bind_ok))
+
 theorem rows_deser (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (t : binlog.consts.EventType)
     (ph pw : U8) (buf : io.ParseBuf) :
     binlog.events.rows_event.deserialize_rows_event t ph pw buf ⦃ r rest =>
       ReadsAs rowsView (rowsRead t ph.val pw.val buf.val) r rest ⦄ := by
-  unfold binlog.events.rows_event.deserialize_rows_event
   have hc32 : ∀ x : U32, (UScalar.cast .U64 x).val = x.val := fun x => by
     rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by have := x.hBounds; simp at this ⊢; omega)
+  unfold binlog.events.rows_event.deserialize_rows_event
   apply WP.spec_bind (ev_bool t .DELETE_ROWS_EVENT)
   intro b hb
   apply WP.spec_bind (Pₘ := fun d => d = rowsIsDelete t) (by
     split
-    · rename_i h; apply (WP.spec_ok _).mpr; subst hb; simp [ec] at h; (simp [rowsIsDelete, h, ec]) <;> omega
+    · rename_i h; apply (WP.spec_ok _).mpr; subst hb; simp [ec] at h; simp [rowsIsDelete, h]
     · rename_i h; apply WP.spec_mono (ev_bool t .DELETE_ROWS_EVENT_V1); intro d hd; subst hb; simp [ec] at h
-      (simp [hd, rowsIsDelete, h, ec]) <;> omega)
+      simp [hd, rowsIsDelete, h, ec])
   intro isDel hD
   apply WP.spec_bind (ev_bool t .UPDATE_ROWS_EVENT)
   intro b1 hb1
   apply WP.spec_bind (Pₘ := fun d => d = rowsIsUpdate t) (by
     split
-    · rename_i h; apply (WP.spec_ok _).mpr; subst hb1; simp [ec] at h; (simp [rowsIsUpdate, h, ec]) <;> omega
+    · rename_i h; apply (WP.spec_ok _).mpr; subst hb1; simp [ec] at h; simp [rowsIsUpdate, h]
     · rename_i h
       apply WP.spec_bind (ev_bool t .UPDATE_ROWS_EVENT_V1); intro b2 hb2
       split
-      · rename_i h2; apply (WP.spec_ok _).mpr; subst hb1 hb2; simp [ec] at h h2; (simp [rowsIsUpdate, h, h2, ec]) <;> omega
-      · rename_i h2; apply WP.spec_mono (ev_bool t .PARTIAL_UPDATE_ROWS_EVENT); intro d hd; subst hb1 hb2; simp [ec] at h h2
-        (simp [hd, rowsIsUpdate, h, h2, ec]) <;> omega)
+      · rename_i h2; apply (WP.spec_ok _).mpr; subst hb1 hb2; simp [ec] at h h2; simp [rowsIsUpdate, h2]
+      · rename_i h2; apply WP.spec_mono (ev_bool t .PARTIAL_UPDATE_ROWS_EVENT); intro d hd; subst hb1 hb2
+        simp [ec] at h h2
+        simp [hd, rowsIsUpdate, h, h2, ec])
   intro isUpd hU
-  split
-  · have hp6 : ph.val = 6 := by rename_i h; rw [h]; rfl
-    split
-    · have hpw : ph.val = pw.val := by rename_i h; rw [h]
-      have hpwv : pw.val = 6 := by omega
-      split
-      · rename_i hu
-        have hupd : rowsIsUpdate t = true := by rw [← hU]; exact hu
-        have hdel : rowsIsDelete t = false := by revert hupd; simp [rowsIsUpdate, rowsIsDelete]; omega
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf ()) _) _
-        apply WP.spec_bind (p32 buf)
-        rintro ⟨r1, b1⟩ h1
-        simp only [WP.uncurry'] at h1
-        rcases r1 with v1 | e1
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .U64 v1.1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.int.RawInt.new misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 (UScalar.cast .U64 v1.1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-        apply WP.spec_bind (pFlags hsz b1)
-        rintro ⟨r2, b2⟩ h2
-        simp only [WP.uncurry'] at h2
-        rcases r2 with v2 | e2
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.checked_eat_u16_le b2) _) _
-        apply WP.spec_bind (pEat16 b2)
-        rintro ⟨o3, bx⟩ hx
-        simp only [WP.uncurry'] at hx
-        rcases o3 with _ | l3
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.unexpected_buf_eof) _) _
-          apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
-          intro _ _
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize l3)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) bx (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-        apply WP.spec_bind (pBare _ bx)
-        rintro ⟨r3, b3⟩ h3
-        simp only [WP.uncurry'] at h3
-        rw [sat_sub_val, cast16_val, show (2#usize).val = 2 from rfl] at h3
-        rcases r3 with v3 | e3
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b3 ()) _) _
-        apply WP.spec_bind (pLEI b3)
-        rintro ⟨r4, b4⟩ h4
-        simp only [WP.uncurry'] at h4
-        rcases r4 with v4 | e4
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v4.1 8#u64) _) _
-        apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
-        intro i5 hi5
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-        apply spec_bind_ok
-        have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
-          rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b4)
-        rintro ⟨r5, b5⟩ h5
-        simp only [WP.uncurry'] at h5
-        rw [hbm] at h5
-        rcases r5 with v5 | e5
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, h5, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b5 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b5)
-        rintro ⟨r6, b6⟩ h6
-        simp only [WP.uncurry'] at h6
-        rw [hbm] at h6
-        rcases r6 with v6 | e6
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e6)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e6)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, h5, h6, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b6 ()) _) _
-        apply WP.spec_bind (pEof b6)
-        rintro ⟨r7, b7⟩ h7
-        simp only [WP.uncurry'] at h7
-        rcases r7 with v7 | e7
-        swap
-        · simp [okPart] at h7
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v7)) _) _
-        apply spec_bind_ok
-        apply (WP.spec_ok _).mpr
-        simp only [WP.uncurry']
-        simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h7
-        obtain ⟨hza, hzb⟩ := h7
-        simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, h5, h6, hza, hzb, okPart, rowsView]
-      · rename_i hu
-        have hupd : rowsIsUpdate t = false := by rw [← hU]; simpa using hu
-        split
-        · rename_i hd
-          have hdel : rowsIsDelete t = true := by rw [← hD]; exact hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf ()) _) _
-          apply WP.spec_bind (p32 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.int.RawInt.new misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.checked_eat_u16_le b2) _) _
-          apply WP.spec_bind (pEat16 b2)
-          rintro ⟨o3, bx⟩ hx
-          simp only [WP.uncurry'] at hx
-          rcases o3 with _ | l3
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.unexpected_buf_eof) _) _
-            apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
-            intro _ _
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize l3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) bx (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply WP.spec_bind (pBare _ bx)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rw [sat_sub_val, cast16_val, show (2#usize).val = 2 from rfl] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b3 ()) _) _
-          apply WP.spec_bind (pLEI b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v4.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rw [hbm] at h5
-          rcases r5 with v5 | e5
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, h5, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b5 ()) _) _
-          apply WP.spec_bind (pEof b5)
-          rintro ⟨r6, b6⟩ h6
-          simp only [WP.uncurry'] at h6
-          rcases r6 with v6 | e6
-          swap
-          · simp [okPart] at h6
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h6
-          obtain ⟨hza, hzb⟩ := h6
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, h5, hza, hzb, okPart, rowsView]
-        · rename_i hd
-          have hdel : rowsIsDelete t = false := by rw [← hD]; simpa using hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf ()) _) _
-          apply WP.spec_bind (p32 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.int.RawInt.new misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.checked_eat_u16_le b2) _) _
-          apply WP.spec_bind (pEat16 b2)
-          rintro ⟨o3, bx⟩ hx
-          simp only [WP.uncurry'] at hx
-          rcases o3 with _ | l3
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.unexpected_buf_eof) _) _
-            apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
-            intro _ _
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize l3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) bx (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply WP.spec_bind (pBare _ bx)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rw [sat_sub_val, cast16_val, show (2#usize).val = 2 from rfl] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b3 ()) _) _
-          apply WP.spec_bind (pLEI b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v4.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rw [hbm] at h5
-          rcases r5 with v5 | e5
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, h5, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b5 ()) _) _
-          apply WP.spec_bind (pEof b5)
-          rintro ⟨r6, b6⟩ h6
-          simp only [WP.uncurry'] at h6
-          rcases r6 with v6 | e6
-          swap
-          · simp [okPart] at h6
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h6
-          obtain ⟨hza, hzb⟩ := h6
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hx, h3, h4, h5, hza, hzb, okPart, rowsView]
-    · have hpw : ¬ ph.val = pw.val := by rename_i h; intro h2; exact h (UScalar.eq_of_val_eq h2)
-      have hpwv : ¬ pw.val = 6 := by omega
-      split
-      · rename_i hu
-        have hupd : rowsIsUpdate t = true := by rw [← hU]; exact hu
-        have hdel : rowsIsDelete t = false := by revert hupd; simp [rowsIsUpdate, rowsIsDelete]; omega
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf ()) _) _
-        apply WP.spec_bind (p32 buf)
-        rintro ⟨r1, b1⟩ h1
-        simp only [WP.uncurry'] at h1
-        rcases r1 with v1 | e1
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .U64 v1.1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.int.RawInt.new misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 (UScalar.cast .U64 v1.1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-        apply WP.spec_bind (pFlags hsz b1)
-        rintro ⟨r2, b2⟩ h2
-        simp only [WP.uncurry'] at h2
-        rcases r2 with v2 | e2
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.array.Array.index (core.ops.index.IndexSlice (core.slice.index.SliceIndexRangeFullSlice U8)) (Std.Array.empty U8) ()) _) _
-        apply WP.spec_bind PKUtil.empty_index_spec
-        intro s0 hs0
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) (core.convert.IntoFrom (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8)) s0) _) _
-        apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
-        intro rbx hrbx
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b2 ()) _) _
-        apply WP.spec_bind (pLEI b2)
-        rintro ⟨r3, b3⟩ h3
-        simp only [WP.uncurry'] at h3
-        rcases r3 with v3 | e3
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v3.1 8#u64) _) _
-        apply WP.spec_bind (core.num.U64.div_ceil.spec v3.1 8#u64 (by simp))
-        intro i5 hi5
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-        apply spec_bind_ok
-        have hbm : (UScalar.cast .Usize i5).val = (v3.1.val + 7) / 8 := by
-          rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b3 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b3)
-        rintro ⟨r4, b4⟩ h4
-        simp only [WP.uncurry'] at h4
-        rw [hbm] at h4
-        rcases r4 with v4 | e4
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, h4, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b4)
-        rintro ⟨r5, b5⟩ h5
-        simp only [WP.uncurry'] at h5
-        rw [hbm] at h5
-        rcases r5 with v5 | e5
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, h4, h5, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b5 ()) _) _
-        apply WP.spec_bind (pEof b5)
-        rintro ⟨r6, b6⟩ h6
-        simp only [WP.uncurry'] at h6
-        rcases r6 with v6 | e6
-        swap
-        · simp [okPart] at h6
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-        apply spec_bind_ok
-        apply (WP.spec_ok _).mpr
-        simp only [WP.uncurry']
-        simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h6
-        obtain ⟨hza, hzb⟩ := h6
-        simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, h4, h5, hza, hzb, okPart, rowsView]
-      · rename_i hu
-        have hupd : rowsIsUpdate t = false := by rw [← hU]; simpa using hu
-        split
-        · rename_i hd
-          have hdel : rowsIsDelete t = true := by rw [← hD]; exact hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf ()) _) _
-          apply WP.spec_bind (p32 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.int.RawInt.new misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.array.Array.index (core.ops.index.IndexSlice (core.slice.index.SliceIndexRangeFullSlice U8)) (Std.Array.empty U8) ()) _) _
-          apply WP.spec_bind PKUtil.empty_index_spec
-          intro s0 hs0
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) (core.convert.IntoFrom (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8)) s0) _) _
-          apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
-          intro rbx hrbx
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b2 ()) _) _
-          apply WP.spec_bind (pLEI b2)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v3.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v3.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v3.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b3 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rw [hbm] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b4 ()) _) _
-          apply WP.spec_bind (pEof b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rcases r5 with v5 | e5
-          swap
-          · simp [okPart] at h5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h5
-          obtain ⟨hza, hzb⟩ := h5
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, h4, hza, hzb, okPart, rowsView]
-        · rename_i hd
-          have hdel : rowsIsDelete t = false := by rw [← hD]; simpa using hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf ()) _) _
-          apply WP.spec_bind (p32 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.int.RawInt.new misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 (UScalar.cast .U64 v1.1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.array.Array.index (core.ops.index.IndexSlice (core.slice.index.SliceIndexRangeFullSlice U8)) (Std.Array.empty U8) ()) _) _
-          apply WP.spec_bind PKUtil.empty_index_spec
-          intro s0 hs0
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) (core.convert.IntoFrom (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8)) s0) _) _
-          apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
-          intro rbx hrbx
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b2 ()) _) _
-          apply WP.spec_bind (pLEI b2)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v3.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v3.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v3.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b3 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rw [hbm] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b4 ()) _) _
-          apply WP.spec_bind (pEof b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rcases r5 with v5 | e5
-          swap
-          · simp [okPart] at h5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h5
-          obtain ⟨hza, hzb⟩ := h5
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, hc32, h1, h2, hs0, hrbx, h3, h4, hza, hzb, okPart, rowsView]
-  · have hp6 : ¬ ph.val = 6 := by rename_i h; intro h2; apply h; exact UScalar.eq_of_val_eq (by rw [h2]; rfl)
-    split
-    · have hpw : ph.val = pw.val := by rename_i h; rw [h]
-      have hpwv : pw.val = ph.val := by omega
-      split
-      · rename_i hu
-        have hupd : rowsIsUpdate t = true := by rw [← hU]; exact hu
-        have hdel : rowsIsDelete t = false := by revert hupd; simp [rowsIsUpdate, rowsIsDelete]; omega
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()) _) _
-        apply WP.spec_bind (p48 buf)
-        rintro ⟨r1, b1⟩ h1
-        simp only [WP.uncurry'] at h1
-        rcases r1 with v1 | e1
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-        apply WP.spec_bind (pFlags hsz b1)
-        rintro ⟨r2, b2⟩ h2
-        simp only [WP.uncurry'] at h2
-        rcases r2 with v2 | e2
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.checked_eat_u16_le b2) _) _
-        apply WP.spec_bind (pEat16 b2)
-        rintro ⟨o3, bx⟩ hx
-        simp only [WP.uncurry'] at hx
-        rcases o3 with _ | l3
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.unexpected_buf_eof) _) _
-          apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
-          intro _ _
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize l3)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) bx (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-        apply WP.spec_bind (pBare _ bx)
-        rintro ⟨r3, b3⟩ h3
-        simp only [WP.uncurry'] at h3
-        rw [sat_sub_val, cast16_val, show (2#usize).val = 2 from rfl] at h3
-        rcases r3 with v3 | e3
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b3 ()) _) _
-        apply WP.spec_bind (pLEI b3)
-        rintro ⟨r4, b4⟩ h4
-        simp only [WP.uncurry'] at h4
-        rcases r4 with v4 | e4
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v4.1 8#u64) _) _
-        apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
-        intro i5 hi5
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-        apply spec_bind_ok
-        have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
-          rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b4)
-        rintro ⟨r5, b5⟩ h5
-        simp only [WP.uncurry'] at h5
-        rw [hbm] at h5
-        rcases r5 with v5 | e5
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, h5, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b5 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b5)
-        rintro ⟨r6, b6⟩ h6
-        simp only [WP.uncurry'] at h6
-        rw [hbm] at h6
-        rcases r6 with v6 | e6
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e6)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e6)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, h5, h6, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b6 ()) _) _
-        apply WP.spec_bind (pEof b6)
-        rintro ⟨r7, b7⟩ h7
-        simp only [WP.uncurry'] at h7
-        rcases r7 with v7 | e7
-        swap
-        · simp [okPart] at h7
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v7)) _) _
-        apply spec_bind_ok
-        apply (WP.spec_ok _).mpr
-        simp only [WP.uncurry']
-        simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h7
-        obtain ⟨hza, hzb⟩ := h7
-        simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, h5, h6, hza, hzb, okPart, rowsView]
-      · rename_i hu
-        have hupd : rowsIsUpdate t = false := by rw [← hU]; simpa using hu
-        split
-        · rename_i hd
-          have hdel : rowsIsDelete t = true := by rw [← hD]; exact hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()) _) _
-          apply WP.spec_bind (p48 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.checked_eat_u16_le b2) _) _
-          apply WP.spec_bind (pEat16 b2)
-          rintro ⟨o3, bx⟩ hx
-          simp only [WP.uncurry'] at hx
-          rcases o3 with _ | l3
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.unexpected_buf_eof) _) _
-            apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
-            intro _ _
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize l3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) bx (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply WP.spec_bind (pBare _ bx)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rw [sat_sub_val, cast16_val, show (2#usize).val = 2 from rfl] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b3 ()) _) _
-          apply WP.spec_bind (pLEI b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v4.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rw [hbm] at h5
-          rcases r5 with v5 | e5
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, h5, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b5 ()) _) _
-          apply WP.spec_bind (pEof b5)
-          rintro ⟨r6, b6⟩ h6
-          simp only [WP.uncurry'] at h6
-          rcases r6 with v6 | e6
-          swap
-          · simp [okPart] at h6
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h6
-          obtain ⟨hza, hzb⟩ := h6
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, h5, hza, hzb, okPart, rowsView]
-        · rename_i hd
-          have hdel : rowsIsDelete t = false := by rw [← hD]; simpa using hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()) _) _
-          apply WP.spec_bind (p48 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.checked_eat_u16_le b2) _) _
-          apply WP.spec_bind (pEat16 b2)
-          rintro ⟨o3, bx⟩ hx
-          simp only [WP.uncurry'] at hx
-          rcases o3 with _ | l3
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.unexpected_buf_eof) _) _
-            apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
-            intro _ _
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize l3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) bx (core.num.Usize.saturating_sub (UScalar.cast .Usize l3) 2#usize)) _) _
-          apply WP.spec_bind (pBare _ bx)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rw [sat_sub_val, cast16_val, show (2#usize).val = 2 from rfl] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b3 ()) _) _
-          apply WP.spec_bind (pLEI b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v4.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rw [hbm] at h5
-          rcases r5 with v5 | e5
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, h5, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b5 ()) _) _
-          apply WP.spec_bind (pEof b5)
-          rintro ⟨r6, b6⟩ h6
-          simp only [WP.uncurry'] at h6
-          rcases r6 with v6 | e6
-          swap
-          · simp [okPart] at h6
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h6
-          obtain ⟨hza, hzb⟩ := h6
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hx, h3, h4, h5, hza, hzb, okPart, rowsView]
-    · have hpw : ¬ ph.val = pw.val := by rename_i h; intro h2; exact h (UScalar.eq_of_val_eq h2)
-      have hpwv : ¬ ph.val = pw.val := by omega
-      split
-      · rename_i hu
-        have hupd : rowsIsUpdate t = true := by rw [← hU]; exact hu
-        have hdel : rowsIsDelete t = false := by revert hupd; simp [rowsIsUpdate, rowsIsDelete]; omega
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()) _) _
-        apply WP.spec_bind (p48 buf)
-        rintro ⟨r1, b1⟩ h1
-        simp only [WP.uncurry'] at h1
-        rcases r1 with v1 | e1
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-        apply WP.spec_bind (pFlags hsz b1)
-        rintro ⟨r2, b2⟩ h2
-        simp only [WP.uncurry'] at h2
-        rcases r2 with v2 | e2
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.array.Array.index (core.ops.index.IndexSlice (core.slice.index.SliceIndexRangeFullSlice U8)) (Std.Array.empty U8) ()) _) _
-        apply WP.spec_bind PKUtil.empty_index_spec
-        intro s0 hs0
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) (core.convert.IntoFrom (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8)) s0) _) _
-        apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
-        intro rbx hrbx
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b2 ()) _) _
-        apply WP.spec_bind (pLEI b2)
-        rintro ⟨r3, b3⟩ h3
-        simp only [WP.uncurry'] at h3
-        rcases r3 with v3 | e3
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v3.1 8#u64) _) _
-        apply WP.spec_bind (core.num.U64.div_ceil.spec v3.1 8#u64 (by simp))
-        intro i5 hi5
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-        apply spec_bind_ok
-        have hbm : (UScalar.cast .Usize i5).val = (v3.1.val + 7) / 8 := by
-          rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b3 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b3)
-        rintro ⟨r4, b4⟩ h4
-        simp only [WP.uncurry'] at h4
-        rw [hbm] at h4
-        rcases r4 with v4 | e4
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b4 (UScalar.cast .Usize i5)) _) _
-        apply WP.spec_bind (pBM _ b4)
-        rintro ⟨r5, b5⟩ h5
-        simp only [WP.uncurry'] at h5
-        rw [hbm] at h5
-        rcases r5 with v5 | e5
-        swap
-        · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e5)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e5)) _) _
-          apply WP.spec_bind (from_res_spec _ _)
-          rintro _ rfl
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, h5, okPart]
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-        apply spec_bind_ok
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b5 ()) _) _
-        apply WP.spec_bind (pEof b5)
-        rintro ⟨r6, b6⟩ h6
-        simp only [WP.uncurry'] at h6
-        rcases r6 with v6 | e6
-        swap
-        · simp [okPart] at h6
-        change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v6)) _) _
-        apply spec_bind_ok
-        apply (WP.spec_ok _).mpr
-        simp only [WP.uncurry']
-        simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h6
-        obtain ⟨hza, hzb⟩ := h6
-        simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, h5, hza, hzb, okPart, rowsView]
-      · rename_i hu
-        have hupd : rowsIsUpdate t = false := by rw [← hU]; simpa using hu
-        split
-        · rename_i hd
-          have hdel : rowsIsDelete t = true := by rw [← hD]; exact hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()) _) _
-          apply WP.spec_bind (p48 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.array.Array.index (core.ops.index.IndexSlice (core.slice.index.SliceIndexRangeFullSlice U8)) (Std.Array.empty U8) ()) _) _
-          apply WP.spec_bind PKUtil.empty_index_spec
-          intro s0 hs0
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) (core.convert.IntoFrom (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8)) s0) _) _
-          apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
-          intro rbx hrbx
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b2 ()) _) _
-          apply WP.spec_bind (pLEI b2)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v3.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v3.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v3.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b3 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rw [hbm] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b4 ()) _) _
-          apply WP.spec_bind (pEof b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rcases r5 with v5 | e5
-          swap
-          · simp [okPart] at h5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h5
-          obtain ⟨hza, hzb⟩ := h5
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, hza, hzb, okPart, rowsView]
-        · rename_i hd
-          have hdel : rowsIsDelete t = false := by rw [← hD]; simpa using hd
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()) _) _
-          apply WP.spec_bind (p48 buf)
-          rintro ⟨r1, b1⟩ h1
-          simp only [WP.uncurry'] at h1
-          rcases r1 with v1 | e1
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e1)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e1)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v1)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16 misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) b1 ()) _) _
-          apply WP.spec_bind (pFlags hsz b1)
-          rintro ⟨r2, b2⟩ h2
-          simp only [WP.uncurry'] at h2
-          rcases r2 with v2 | e2
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e2)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e2)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v2)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.array.Array.index (core.ops.index.IndexSlice (core.slice.index.SliceIndexRangeFullSlice U8)) (Std.Array.empty U8) ()) _) _
-          apply WP.spec_bind PKUtil.empty_index_spec
-          intro s0 hs0
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (misc.raw.bytes.RawBytes.new (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) (core.convert.IntoFrom (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice core.clone.CloneU8)) s0) _) _
-          apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
-          intro rbx hrbx
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) b2 ()) _) _
-          apply WP.spec_bind (pLEI b2)
-          rintro ⟨r3, b3⟩ h3
-          simp only [WP.uncurry'] at h3
-          rcases r3 with v3 | e3
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e3)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e3)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v3)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.num.U64.div_ceil v3.1 8#u64) _) _
-          apply WP.spec_bind (core.num.U64.div_ceil.spec v3.1 8#u64 (by simp))
-          intro i5 hi5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (lift (UScalar.cast .Usize i5)) _) _
-          apply spec_bind_ok
-          have hbm : (UScalar.cast .Usize i5).val = (v3.1.val + 7) / 8 := by
-            rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) b3 (UScalar.cast .Usize i5)) _) _
-          apply WP.spec_bind (pBM _ b3)
-          rintro ⟨r4, b4⟩ h4
-          simp only [WP.uncurry'] at h4
-          rw [hbm] at h4
-          rcases r4 with v4 | e4
-          swap
-          · change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e4)) _) _
-            apply spec_bind_ok
-            change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual _ _ (core.result.Result.Err e4)) _) _
-            apply WP.spec_bind (from_res_spec _ _)
-            rintro _ rfl
-            apply (WP.spec_ok _).mpr
-            simp only [WP.uncurry']
-            simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, okPart]
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v4)) _) _
-          apply spec_bind_ok
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) b4 ()) _) _
-          apply WP.spec_bind (pEof b4)
-          rintro ⟨r5, b5⟩ h5
-          simp only [WP.uncurry'] at h5
-          rcases r5 with v5 | e5
-          swap
-          · simp [okPart] at h5
-          change Aeneas.Std.WP.spec (Aeneas.Std.bind (core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok v5)) _) _
-          apply spec_bind_ok
-          apply (WP.spec_ok _).mpr
-          simp only [WP.uncurry']
-          simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h5
-          obtain ⟨hza, hzb⟩ := h5
-          simp [ReadsAs, rowsRead, hp6, hpwv, hupd, hdel, h1, h2, hs0, hrbx, h3, h4, hza, hzb, okPart, rowsView]
+  generalize hS : rowsRead t ph.val pw.val buf.val = S
+  generalize hp : ph.val = p at hS
+  generalize hq : pw.val = q at hS
+  by_cases h6 : p = 6 <;> by_cases hw : p = q <;> (try subst h6) <;> (try subst hw) <;>
+    rcases hu : rowsIsUpdate t with _ | _ <;> rcases hd : rowsIsDelete t with _ | _
+  all_goals try (exfalso; revert hu hd; simp [rowsIsUpdate, rowsIsDelete]; omega)
+  all_goals
+    simp only [rowsRead, *, Bool.or_true, Bool.or_false, ↓reduceIte, some_bindM, Bool.false_eq_true] at hS
+    subst hS
+    rw [hu] at hU; rw [hd] at hD; subst hU hD
+    first
+    | (apply spec_ite_pos (by rd_cond)
+       rd_step p32 buf as v1 b1
+       apply spec_bind_ok
+       apply spec_bind_ok)
+    | (apply spec_ite_neg (by rd_cond)
+       rd_step p48 buf as v1 b1)
+    rd_step pFlags hsz _ as v2 b2
+    first
+    | (apply spec_ite_pos (by rd_cond)
+       refine rd_eat (fun _ => ?_) (fun l3 bx => ?_)
+       · apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
+         intro _ _
+         exact (WP.spec_ok _).mpr rfl
+       apply spec_bind_ok
+       apply spec_bind_ok
+       rd_step (pBare' _ _ (by rw [sat_sub_usize, cast16_val]; rfl) _) as v3 b3)
+    | (apply spec_ite_neg (by rd_cond)
+       apply WP.spec_bind PKUtil.empty_index_spec
+       intro s0 hs0
+       apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
+       intro rbx hrbx)
+    rd_step pLEI _ as v4 b4
+    apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
+    intro i5 hi5
+    apply spec_bind_ok
+    have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
+      rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
+    first
+    | (apply spec_ite_pos rfl
+       rd_step_map (pBM' _ _ hbm _) as v5 b5
+       rd_step_map (pBM' _ _ hbm _) as v6 b6)
+    | (apply spec_ite_neg (by decide)
+       first
+       | (apply spec_ite_pos rfl
+          rd_step_map (pBM' _ _ hbm _) as v5 b5)
+       | (apply spec_ite_neg (by decide)
+          rd_step_map (pBM' _ _ hbm _) as v5 b5))
+    apply WP.spec_bind (pEof _)
+    rintro ⟨r7, b7⟩ h7
+    rcases r7 with v7 | e7
+    · apply spec_bind_ok
+      apply (WP.spec_ok _).mpr
+      simp only [WP.uncurry', okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h7 ⊢
+      obtain ⟨h7a, h7b⟩ := h7
+      first
+      | simp [ReadsAs, okPart, hc32, rowsView, h7a, h7b]; done
+      | simp [ReadsAs, okPart, hc32, rowsView, h7a, h7b, hs0, hrbx]
+    · simp [WP.uncurry', okPart] at h7
 
 theorem rows_deser_ctx (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize)
     (ctx : binlog.events.rows_event.RowsEventCtx) (buf : io.ParseBuf) :
