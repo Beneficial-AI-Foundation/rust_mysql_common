@@ -1,4 +1,10 @@
+import Proofs.Row.NewRow
 import Proofs.Row.Row
+import Proofs.Row.RowAccess
+import Proofs.Row.IndexUsize
+import Proofs.Row.IndexStr
+import Proofs.Row.ColumnIndexUsize
+import Proofs.Row.ColumnIndexStr
 import Proofs.Row.RowDeserializer
 
 /-!
@@ -30,9 +36,22 @@ import Proofs.Row.RowDeserializer
     (`nullBitmapLen`, `bitmapBit`), `Defs/Value.lean` (`Val`, `textRead`, `binRead`, `binSupported`,
     `binCompatible`, `binNorm`, `isUnsigned`), `Defs/Bytes.lean`.
 
-    **Not covered.** `new_row` (collects through an iterator `map`), `Row::as_ref`, `get`,
-    `get_opt`, `take`, `take_opt`, `unwrap`, `place`, `Index` impls, `ColumnIndex`, `Debug`,
-    `row/convert` (not translated, or later stages).
+    **Row access** (`new_row`, `as_ref`, `get`, `get_opt`, `take`, `take_opt`, `unwrap`, `place`,
+    the `Index` impls, `ColumnIndex` for `usize` and `&str`). Patches 100 (combinator chains as
+    `match`es), 101 (the `new_row`/`unwrap` iterators as index loops), 102 and 104 (the search by
+    name as a recursion, reused by `Index<&str>`; O(columns) stack in the patched copy only), 103
+    (the `Index<&str>` panic message drops the row's `Debug`), 106, 107. `get`/`get_opt`/
+    `take`/`take_opt` are stated for any `FromValue` and any `ColumnIndex` impl, given what its
+    `idx` returns; combine with the `ColumnIndex` statements here and the per-type conversions of
+    `Specs/Value/Convert*.lean`. Definitions: `Defs/RowConvert.lean` (`cellAt`, `cellAtIdx`,
+    `allCells`, `colName`, `colIndexByName`); facts in `Specs/DefsRowConvert.lean`
+    (`colIndexByName` is the first match). Trusted axioms: none of the `Trusted.*` axioms
+    (`str::as_bytes` is an exact model; `Column::name_ref` is stated in `Specs/Packets.lean`).
+
+    **Not covered.** `Debug for Row` (formatting); `new_row_raw`'s and the deserializers' row
+    invariant (one cell per column) is not stated as a type invariant: the access statements hold
+    for any `Row` value, and the out-of-bounds cases they list cannot happen for rows the crate
+    builds.
 
     **Behaviour to note.**
     * The binary row's header byte is not checked (the protocol says `0x00`).
@@ -43,6 +62,11 @@ import Proofs.Row.RowDeserializer
       the buffer).
     * Text rows inherit the value decoder's quirk: a value starting with `0xFF` decodes as the
       empty string.
+    * Columns are found by name byte for byte (case-sensitive, unlike MySQL's column names), and
+      with duplicate names the first column wins (`row["a"]`, `get("a")`, `take("a")`).
+    * `get`/`take` panic when the value does not convert (documented); `take_opt` leaves the cell
+      empty even when the value does not convert (the value is only in the `FromValueError`).
+    * `row[i]` and `row[name]` panic when the value was taken.
 -/
 
 set_option autoImplicit false
@@ -53,6 +77,19 @@ namespace mysql_common
 
 /-! ### `struct Row and its impls` -/
 
+/-- `new_row`: the row of the given values (every cell present) and columns, when there are as
+    many of each. -/
+recall row.new_row_spec (values : alloc.vec.Vec value.Value) (columns : alloc.sync.Arc (Slice packets.Column))
+    (h : values.length = columns.length) :
+    row.new_row values columns ⦃ r => r.values.val = values.val.map some ∧ r.columns = columns ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.new_row_spec`
+/-- `new_row` panics (`assert!`) when the numbers of values and columns differ. -/
+recall row.new_row_panics (values : alloc.vec.Vec value.Value) (columns : alloc.sync.Arc (Slice packets.Column))
+    (h : values.length ≠ columns.length) :
+    row.new_row values columns = fail .assertionFailure
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.new_row_panics`
 /-- `new_row_raw`: the row of the given cells and columns, when there are as many of each. -/
 recall row.new_row_raw_spec (values : alloc.vec.Vec (Option value.Value)) (columns : alloc.sync.Arc (Slice packets.Column))
     (h : values.length = columns.length) :
@@ -91,12 +128,188 @@ recall row.Row.impl.columns_eq (self : row.Row) :
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.impl.columns_eq
+/-- `as_ref`: the value in cell `index`, or `None` when there is no such cell or its value was
+    taken. Never panics. -/
+recall row.Row.as_ref_eq (self : row.Row) (index : Usize) :
+    row.Row.as_ref self index = ok (cellAt self.values.val index.val)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.as_ref_eq`
+/-- `get`: finds the column with the `ColumnIndex` impl; `None` when there is no such column, or
+    its value was taken; otherwise converts a copy of the value with `from_value` (which panics
+    when the value does not convert). The row is not changed (`&self`). -/
+recall row.Row.get_eq {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o) :
+    row.Row.get inst ci self index =
+      match cellAtIdx self.values.val o with
+      | none => ok none
+      | some v => inst.from_value v >>= fun x => ok (some x)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.get_eq`
+/-- `get_opt`: as `get`, converting with `from_value_opt` (so a value that does not convert
+    gives `Some(Err(..))` instead of a panic). -/
+recall row.Row.get_opt_eq {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o) :
+    row.Row.get_opt inst ci self index =
+      match cellAtIdx self.values.val o with
+      | none => ok none
+      | some v => inst.from_value_opt v >>= fun x => ok (some x)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.get_opt_eq`
+/-- `take`: `None`, and the row unchanged, when there is no such column or its value was already
+    taken. -/
+recall row.Row.take_none {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o)
+    (hc : cellAtIdx self.values.val o = none) :
+    row.Row.take inst ci self index = ok (none, self)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_none`
+/-- `take`: moves the value out of cell `i` (leaving it empty, the columns unchanged) and
+    returns it converted by `from_value`. -/
+recall row.Row.take_some {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
+    (v : value.Value) (hc : cellAt self.values.val i.val = some v) (x : T)
+    (hx : inst.from_value v = ok x) :
+    row.Row.take inst ci self index ⦃ y r =>
+      y = some x ∧ r.values.val = self.values.val.set i.val none ∧ r.columns = self.columns ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_some`
+/-- `take`: fails exactly as `from_value` does on the value moved out (e.g. a panic when the
+    value does not convert). -/
+recall row.Row.take_fail {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
+    (v : value.Value) (hc : cellAt self.values.val i.val = some v) (e : Error)
+    (hx : inst.from_value v = fail e) :
+    row.Row.take inst ci self index = fail e
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_fail`
+/-- `take_opt`: `None`, and the row unchanged, when there is no such column or its value was
+    already taken. -/
+recall row.Row.take_opt_none {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o)
+    (hc : cellAtIdx self.values.val o = none) :
+    row.Row.take_opt inst ci self index = ok (none, self)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_opt_none`
+/-- `take_opt`: moves the value out of cell `i` (leaving it empty, the columns unchanged) and
+    returns `from_value_opt` of it. The cell stays empty even when the value does not convert
+    (the `FromValueError` holds the value). -/
+recall row.Row.take_opt_some {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
+    (v : value.Value) (hc : cellAt self.values.val i.val = some v)
+    (res : core.result.Result T value.convert.FromValueError)
+    (hx : inst.from_value_opt v = ok res) :
+    row.Row.take_opt inst ci self index ⦃ y r =>
+      y = some res ∧ r.values.val = self.values.val.set i.val none ∧ r.columns = self.columns ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_opt_some`
+/-- `take_opt`: fails exactly as `from_value_opt` does on the value moved out. -/
+recall row.Row.take_opt_fail {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
+    (v : value.Value) (hc : cellAt self.values.val i.val = some v) (e : Error)
+    (hx : inst.from_value_opt v = fail e) :
+    row.Row.take_opt inst ci self index = fail e
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_opt_fail`
+/-- `unwrap`: the values, in order, when no value was taken. -/
+recall row.Row.unwrap_spec (self : row.Row) (vs : List value.Value)
+    (h : allCells self.values.val = some vs) :
+    row.Row.unwrap self ⦃ out => out.val = vs ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.unwrap_spec`
+/-- `unwrap` panics when some value was taken. -/
+recall row.Row.unwrap_panics (self : row.Row) (h : allCells self.values.val = none) :
+    row.Row.unwrap self = fail .panic
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.unwrap_panics`
 /-- `unwrap_raw`: the cells. -/
 recall row.Row.unwrap_raw_eq (self : row.Row) :
     row.Row.unwrap_raw self = ok self.values
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.unwrap_raw_eq
+/-- `place`: puts `v` in cell `index` (whether or not it was taken), the other cells and the
+    columns unchanged. -/
+recall row.Row.place_spec (self : row.Row) (index : Usize) (v : value.Value)
+    (h : index.val < self.values.length) :
+    row.Row.place self index v ⦃ r =>
+      r.values.val = self.values.val.set index.val (some v) ∧ r.columns = self.columns ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.place_spec`
+/-- `place` panics (index out of bounds) when there is no cell `index`. -/
+recall row.Row.place_panics (self : row.Row) (index : Usize) (v : value.Value)
+    (h : self.values.length ≤ index.val) :
+    row.Row.place self index v = fail .arrayOutOfBounds
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.place_panics`
+/-! ### `impl Index<usize> for Row` -/
+
+/-- `row[i]`: the value in cell `i`, when it is there. -/
+recall row.Row.Insts.CoreOpsIndexIndexUsizeValue.index_ok (self : row.Row) (index : Usize) (v : value.Value)
+    (h : cellAt self.values.val index.val = some v) :
+    row.Row.Insts.CoreOpsIndexIndexUsizeValue.index self index = ok v
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.Insts.CoreOpsIndexIndexUsizeValue.index_ok`
+/-- `row[i]` panics (`unwrap` on `None`) when the value in cell `i` was taken. -/
+recall row.Row.Insts.CoreOpsIndexIndexUsizeValue.index_taken (self : row.Row) (index : Usize)
+    (h : self.values.val[index.val]? = some none) :
+    row.Row.Insts.CoreOpsIndexIndexUsizeValue.index self index = fail .panic
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.Insts.CoreOpsIndexIndexUsizeValue.index_taken`
+/-- `row[i]` panics (index out of bounds) when there is no cell `i`. -/
+recall row.Row.Insts.CoreOpsIndexIndexUsizeValue.index_oob (self : row.Row) (index : Usize)
+    (h : self.values.length ≤ index.val) :
+    row.Row.Insts.CoreOpsIndexIndexUsizeValue.index self index = fail .arrayOutOfBounds
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.Insts.CoreOpsIndexIndexUsizeValue.index_oob`
+/-! ### `impl Index<&str> for Row` -/
+
+/-- `row[name]`: the value in the cell of the first column named exactly `name` (byte for byte,
+    case-sensitive), when it is there. -/
+recall row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_ok (self : row.Row) (index : Str) (i : Nat)
+    (hi : colIndexByName index.val self.columns.val = some i) (v : value.Value)
+    (h : cellAt self.values.val i = some v) :
+    row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index self index = ok v
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_ok`
+/-- `row[name]` panics ("No such column") when no column is named `name`. -/
+recall row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_no_column (self : row.Row) (index : Str)
+    (hi : colIndexByName index.val self.columns.val = none) :
+    row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index self index = fail .panic
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_no_column`
+/-- `row[name]` panics (`unwrap` on `None`) when the value of the first column named `name` was
+    taken. -/
+recall row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_taken (self : row.Row) (index : Str) (i : Nat)
+    (hi : colIndexByName index.val self.columns.val = some i)
+    (h : self.values.val[i]? = some none) :
+    row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index self index = fail .panic
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_taken`
+/-- `row[name]` panics (index out of bounds) when the column has no cell. (Impossible for rows
+    built by the crate, which have one cell per column.) -/
+recall row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_oob (self : row.Row) (index : Str) (i : Nat)
+    (hi : colIndexByName index.val self.columns.val = some i)
+    (h : self.values.length ≤ i) :
+    row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index self index = fail .arrayOutOfBounds
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index_oob`
+/-! ### `impl ColumnIndex for usize` -/
+
+/-- `ColumnIndex for usize`: the index itself when there is such a column, otherwise `None`. -/
+recall Usize.Insts.Mysql_commonRowColumnIndex.idx_eq (self : Usize) (columns : Slice packets.Column) :
+    Usize.Insts.Mysql_commonRowColumnIndex.idx self columns =
+      ok (if self.val < columns.length then some self else none)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Usize.Insts.Mysql_commonRowColumnIndex.idx_eq`
+/-! ### `impl ColumnIndex for &str` -/
+
+/-- `ColumnIndex for &str`: the position of the first column named exactly `self` (byte for
+    byte, case-sensitive), or `None`. Never panics. -/
+recall Shared0Str.Insts.Mysql_commonRowColumnIndex.idx_spec (self : Str) (columns : Slice packets.Column) :
+    Shared0Str.Insts.Mysql_commonRowColumnIndex.idx self columns ⦃ o =>
+      o.map (·.val) = colIndexByName self.val columns.val ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Shared0Str.Insts.Mysql_commonRowColumnIndex.idx_spec`
 /-! ### `struct RowDeserializer and its impls` -/
 
 /-- `into_inner`: the row. -/
