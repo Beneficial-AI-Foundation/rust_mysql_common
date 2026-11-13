@@ -36,7 +36,7 @@ theorem fdeRead_fdeEnc (e : binlog.events.format_description_event.FormatDescrip
   have hlen : ¬ (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ fixedText 50 (cowList e.server_version.1) ++
       leBytes 4 e.create_timestamp.1.val ++ [byte 19] ++ fdeLens e).length < 57 := by
     simp only [List.length_append, hA, hB, hC, List.length_cons, List.length_nil]; omega
-  rw [ite_cond_eq_false _ _ (eq_false hlen)]
+  simp only [hlen, ite_false]
   simp only [List.append_assoc]
   rw [List.take_left' hA, mysql_common.EvHdrUtil.leNat_leBytes_lt 2 _ hv, hvc]
   have e56 : (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ (fixedText 50 (cowList e.server_version.1) ++
