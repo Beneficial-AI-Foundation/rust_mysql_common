@@ -238,7 +238,7 @@ theorem cast_u32max : (UScalar.cast UScalarTy.Usize core.num.U32.MAX).val = 2 ^ 
   simp [UScalar.cast_val_eq, core.num.U32.MAX]
   rcases System.Platform.numBits_eq with h | h <;> simp [h, U32.rMax]
 
-set_option maxHeartbeats 2000000 in
+set_option maxHeartbeats 500000 in
 theorem rows_event_len_spec (nc : U64) (exl : Usize) (hb ha : Bool) (rdl : Usize)
     (hbl : hb = true ∨ ha = true → (nc.val + 7) / 8 ≤ Usize.max) :
     binlog.events.rows_event.rows_event_len nc exl hb ha rdl ⦃ n => n.val =

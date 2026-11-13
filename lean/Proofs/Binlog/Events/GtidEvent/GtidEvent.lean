@@ -1696,7 +1696,7 @@ theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeD
   rw [deserialize_eq_untagged ctx hc]
   exact (fun _ => untagged_no_lc e hlc tail hb buf h) ht
 
-set_option maxHeartbeats 1000000 in
+set_option maxHeartbeats 400000 in
 /-- `BinlogStruct::len` of an untagged event: `gtidLenCrate`, which always counts the logical-clock part. **Quirk:** without it (`lc_typecode` `None`) `serialize` writes 25 bytes but `len` is at least 54 (`Defs.gtidLenCrate_ne`); with it, `len` is the length of `gtidEnc` (`Defs.gtidLenCrate_eq`). -/
 theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (v : binlog.consts.BinlogVersion) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = gtidLenCrate e ⦄ := by
