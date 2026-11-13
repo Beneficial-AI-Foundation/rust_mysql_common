@@ -295,6 +295,19 @@ theorem cast_u8_small (x : Usize) (h : x.val < 256) : (UScalar.cast .U8 x).val =
 theorem cast_u16_small (x : Usize) (h : x.val < 65536) : (UScalar.cast .U16 x).val = x.val := by
   rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by simpa using h)
 
+theorem clp_u8Str (s t : List U8) (h : s.length ≤ 255) : checkedLenPrefixed 1 (u8Str s ++ t) = (some s, t) := by
+  have hm : min s.length 255 = s.length := Nat.min_eq_left h
+  have ht : s.take 255 = s := List.take_of_length_le h
+  have hr : readLE 1 (byte s.length :: (s ++ t)) = some (s.length, s ++ t) := by
+    have := PBUtil.readLE_leBytes 1 s.length (s ++ t) (by omega)
+    simpa [leBytes] using this
+  simp only [u8Str, hm, ht, List.cons_append, checkedLenPrefixed, hr]
+  simp
+
+theorem cls_lenencStr (s t : List U8) (h : s.length < 2 ^ 64) : checkedLenencStr (lenencStr s ++ t) = (some s, t) := by
+  simp only [checkedLenencStr, lenencStr, List.append_assoc, PBUtil.checkedLenencInt_lenencInt _ _ h]
+  simp
+
 /-! ## The readers consume everything -/
 
 theorem queryRead_tail (p : Nat) (bs : List U8) (v : QueryView) (t : List U8) (ht : queryRead p bs = some (v, t)) : t = [] := by

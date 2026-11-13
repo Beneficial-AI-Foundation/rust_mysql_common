@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.BinlogEvHdr
+import Proofs.Util.PacketsOkErr
 
 /-! Facts about the binlog-event definitions (`lean/Defs/BinlogEvents.lean`) (spec file:
 `Specs/DefsBinlogEvents.lean`). -/
@@ -149,7 +150,31 @@ theorem pgRead_pgEnc (e : binlog.events.previous_gtids_event.PreviousGtidsEvent)
 /-- The table map reader inverts the encoder for a consistent event (post-header not 6 bytes, table id below `2^48`). -/
 theorem tmRead_tmEnc (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
     (p : Nat) (hp : p ≠ 6) : tmRead p (tmEnc e) = some (tmView e, []) := by
-  sorry
+  obtain ⟨h1, h2, h3, h4⟩ := hc
+  have hf : e.flags.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have ht' : e.table_id.1.val < 2 ^ (8 * 6) := by simpa using ht
+  have hn : e.columns_count.1.val < 2 ^ 64 := by scalar_tac
+  have hm : (cowList e.columns_metadata.1).length < 2 ^ 64 :=
+    mysql_common.lt_two_pow_64_of_le_max (PKUtil.cowList_length_le _)
+  have hb : (cowList e.null_bitmask.1).take (2 ^ 61) = cowList e.null_bitmask.1 := by
+    apply List.take_of_length_le; rw [h4]; omega
+  have r6 : ∀ R, readLE 6 (leBytes 6 e.table_id.1.val ++ R) = some (e.table_id.1.val, R) := fun R => readLE_app 6 _ R ht'
+  have r2 : ∀ R, readLE 2 (leBytes 2 e.flags.1.val ++ R) = some (e.flags.1.val, R) := fun R => readLE_app 2 _ R hf
+  have c1 : ∀ R, checkedLenPrefixed 1 (u8Str (cowList e.database_name.1) ++ R) = (some (cowList e.database_name.1), R) :=
+    fun R => clp_u8Str _ R h1
+  have c2 : ∀ R, checkedLenPrefixed 1 (u8Str (cowList e.table_name.1) ++ R) = (some (cowList e.table_name.1), R) :=
+    fun R => clp_u8Str _ R h2
+  have c3 : ∀ R, checkedLenencInt (lenencInt e.columns_count.1.val ++ R) = (some e.columns_count.1.val, R) :=
+    fun R => PBUtil.checkedLenencInt_lenencInt _ R hn
+  have c4 : ∀ R, checkedLenencStr (lenencStr (cowList e.columns_metadata.1) ++ R) = (some (cowList e.columns_metadata.1), R) :=
+    fun R => cls_lenencStr _ R hm
+  have t1 : ∀ R, takeExact 1 ([byte 0] ++ R) = some ([byte 0], R) := fun R => takeExact_app _ R 1 rfl
+  have tn : ∀ R, takeExact e.columns_count.1.val (cowList e.columns_type.1 ++ R) = some (cowList e.columns_type.1, R) :=
+    fun R => takeExact_app _ R _ h3
+  have tb : ∀ R, takeExact ((e.columns_count.1.val + 7) / 8) (cowList e.null_bitmask.1 ++ R) = some (cowList e.null_bitmask.1, R) :=
+    fun R => takeExact_app _ R _ h4
+  simp only [tmRead, tmEnc, hp, ite_false, Option.bind_eq_bind, List.append_assoc, r6, Option.bind_some, r2, c1, optFst,
+    t1, c2, c3, tn, c4, hb, tb, tmView]
 
 /-- The table map length bug on the smallest case: a consistent event without columns is counted one byte too long. -/
 theorem tmLenCrate_zero (e : binlog.events.table_map_event.TableMapEvent) (hc : TmConsistent e) (h0 : e.columns_count.1.val = 0)
