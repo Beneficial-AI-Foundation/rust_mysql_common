@@ -2,6 +2,18 @@ import Defs
 import Proofs.Util.BinlogEvHdr
 import Proofs.Binlog.Events.Mod.BinlogEventFooter
 import Proofs.Binlog.Consts.EventType
+import Proofs.Binlog.Events.QueryEvent.QueryEvent
+import Proofs.Binlog.Events.RotateEvent.RotateEvent
+import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
+import Proofs.Binlog.Events.TableMapEvent.TableMapEvent
+import Proofs.Binlog.Events.GtidEvent.GtidEvent
+import Proofs.Binlog.Events.WriteRowsEventV1.WriteRowsEventV1
+import Proofs.Binlog.Events.UpdateRowsEventV1.UpdateRowsEventV1
+import Proofs.Binlog.Events.DeleteRowsEventV1.DeleteRowsEventV1
+import Proofs.Binlog.Events.WriteRowsEvent.WriteRowsEvent
+import Proofs.Binlog.Events.UpdateRowsEvent.UpdateRowsEvent
+import Proofs.Binlog.Events.DeleteRowsEvent.DeleteRowsEvent
+import Proofs.Binlog.Events.PartialUpdateRowsEvent.PartialUpdateRowsEvent
 
 /-! Statements for `struct Event and its impls` (spec file: `Specs/Binlog/Events.lean`). -/
 
@@ -208,7 +220,47 @@ theorem binlog.events.Event.read_data_unknown (self : binlog.events.Event) (h : 
 theorem binlog.events.Event.read_data_unparsed (self : binlog.events.Event) (h : self.header.event_type.1.val ∈ edUnitCodes ++ edRawCodes) :
     binlog.events.Event.read_data self ⦃ r => ∃ d, r = .Ok (some d) ∧ edTypeCode d = self.header.event_type.1.val ∧
       (if self.header.event_type.1.val ∈ edUnitCodes then edUnit d = true else edRaw d = some self.data.val) ⦄ := by
-  sorry
+  have hc := h
+  simp only [edUnitCodes, edRawCodes, List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at hc
+  unfold binlog.events.Event.read_data
+  rw [read_data_get]
+  rcases hc with hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc | hc
+  · rw [hc, show eventTypeOfCode 0 = some .UNKNOWN_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edUnit, alloc.vec.Vec.deref]
+  · rw [hc, show eventTypeOfCode 3 = some .STOP_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edUnit, alloc.vec.Vec.deref]
+  · rw [hc, show eventTypeOfCode 7 = some .SLAVE_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edUnit, alloc.vec.Vec.deref]
+  · rw [hc, show eventTypeOfCode 27 = some .HEARTBEAT_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edUnit, alloc.vec.Vec.deref]
+  · rw [hc, show eventTypeOfCode 1 = some .START_EVENT_V3 from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 6 = some .LOAD_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 8 = some .CREATE_FILE_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 9 = some .APPEND_BLOCK_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 10 = some .EXEC_LOAD_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 11 = some .DELETE_FILE_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 12 = some .NEW_LOAD_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 20 = some .PRE_GA_WRITE_ROWS_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 21 = some .PRE_GA_UPDATE_ROWS_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 22 = some .PRE_GA_DELETE_ROWS_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 28 = some .IGNORABLE_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 36 = some .TRANSACTION_CONTEXT_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 37 = some .VIEW_CHANGE_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
+  · rw [hc, show eventTypeOfCode 38 = some .XA_PREPARE_LOG_EVENT from rfl]
+    simp [edUnitCodes, edTypeCode, edRaw, alloc.vec.Vec.deref, cowList]
 
 /-- `read_data` for type code 2: `read_event::<QueryEvent>`, wrapped in `EventData::QueryEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code2 (self : binlog.events.Event) (h : self.header.event_type.1.val = 2) :
@@ -522,33 +574,153 @@ theorem binlog.events.Event.read_data_code15 (self : binlog.events.Event) (h : s
   simp only [bind_ok]
   congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, binlog.events.format_description_event.FormatDescriptionEvent.with_footer]
 
+/-- `read_event::<T>` composed with a specification of `T`'s `parse`: a reader `spec` that
+    consumes the whole data gives `Ok` with that view (and any extra property `P` of the parsed
+    value); a failing `spec` gives an error. -/
+private theorem read_event_wire {T V : Type} (inst : binlog.BinlogEvent T) (self : binlog.events.Event)
+    (hlen : self.data.length + 19 ≤ Usize.max) (view : T → V) (spec : Option (V × List U8)) (P : T → Prop)
+    (hrest : ∀ v t, spec = some (v, t) → t = [])
+    (hdes : ∀ (ctx : binlog.BinlogCtx) (buf : io.ParseBuf), ctx.fde = self.fde →
+      ctx.event_type_raw = self.header.event_type.1 → buf.val = self.data.val →
+      io.ParseBuf.parse inst.BinlogStructInst.protoMyDeserializeASelfBinlogCtxInst buf ctx ⦃ r rest =>
+        ReadsAs view spec r rest ∧ ∀ e, okPart r = some e → P e ⦄) :
+    binlog.events.Event.read_event inst self ⦃ r =>
+      (∀ v t, spec = some (v, t) → ∃ x, r = .Ok x ∧ view x = v ∧ P x) ∧ (spec = none → okPart r = none) ⦄ := by
+  have hL : binlog.events.BinlogEventHeader.LEN = 19#usize := by unfold binlog.events.BinlogEventHeader.LEN; rfl
+  obtain ⟨es, -, hesv⟩ := PBUtil.spec_eq_ok (show (binlog.events.BinlogEventHeader.LEN + alloc.vec.Vec.len self.data)
+      ⦃ z => z.val = 19 + self.data.length ⦄ by rw [hL]; step*)
+  let ctx : binlog.BinlogCtx := { event_size := es, fde := self.fde, event_type_raw := self.header.event_type.1 }
+  obtain ⟨⟨r0, rest0⟩, hp, hq⟩ := PBUtil.spec_eq_ok (hdes ctx (alloc.vec.Vec.deref self.data) rfl rfl (by simp only [alloc.vec.Vec.deref, Slice.from_val]))
+  rw [binlog.events.Event.read_event_spec inst self hlen ctx ⟨hesv, rfl, rfl⟩ (alloc.vec.Vec.deref self.data) (by simp only [alloc.vec.Vec.deref, Slice.from_val]) r0 rest0 hp]
+  obtain ⟨hr, hP⟩ := hq
+  cases hs : spec with
+  | none =>
+    rw [hs] at hr
+    simp only [ReadsAs] at hr
+    cases r0 with
+    | Ok x => simp [okPart] at hr
+    | Err e => exact (WP.spec_ok _).mpr ⟨fun _ _ h => by simp at h, fun _ => rfl⟩
+  | some vt =>
+    obtain ⟨v, t⟩ := vt
+    rw [hs] at hr
+    have ht := hrest v t hs
+    simp only [ReadsAs] at hr
+    obtain ⟨h1, h2⟩ := hr
+    cases r0 with
+    | Ok x =>
+      simp only [okPart, Option.map_some, Option.some.injEq] at h1
+      simp only [h2, ht, ite_true]
+      refine (WP.spec_ok _).mpr ⟨fun v' t' h => ?_, fun h => by simp at h⟩
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      exact ⟨x, rfl, h1, hP x rfl⟩
+    | Err e => simp [okPart] at h1
+
 /-- End to end: the `EventData` of a query event (2) is the `queryRead` of its data (the post-header length from the event's FDE); an error iff that fails. -/
 theorem binlog.events.Event.read_data_query_wire (self : binlog.events.Event) (h : self.header.event_type.1.val = 2) (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match queryRead (postHeaderLen (fdeLens self.fde) .QUERY_EVENT) self.data.val with
       | some (v, _) => ∃ x, r = .Ok (some (.QueryEvent x)) ∧ queryView x = v
       | none => okPart r = none ⦄ := by
-  sorry
+  rw [binlog.events.Event.read_data_code2 self h]
+  apply WP.spec_bind (read_event_wire _ self hlen queryView (queryRead (postHeaderLen (fdeLens self.fde) .QUERY_EVENT) self.data.val) (fun _ => True) (by
+      intro v t ht; exact queryRead_tail _ _ v t ht)
+    (fun ctx buf hf _ hb => by
+      rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+      apply WP.spec_mono (binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec ctx buf)
+      rintro ⟨r, rest⟩ hr
+      simp only [hb] at hr
+      rw [hf] at hr
+      exact ⟨hr, fun _ _ => trivial⟩))
+  intro r ⟨hs, hn⟩
+  cases hsp : (queryRead (postHeaderLen (fdeLens self.fde) .QUERY_EVENT) self.data.val) with
+  | none =>
+    have := hn hsp
+    cases r with
+    | Ok x => simp [okPart] at this
+    | Err e => exact (WP.spec_ok _).mpr rfl
+  | some vt =>
+    obtain ⟨v, t⟩ := vt
+    obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+    exact (WP.spec_ok _).mpr ⟨x, rfl, hx⟩
 
 /-- End to end: the `EventData` of a rotate event (4): `rotateRead` of its data. -/
 theorem binlog.events.Event.read_data_rotate_wire (self : binlog.events.Event) (h : self.header.event_type.1.val = 4) (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match rotateRead self.data.val with
       | some (v, _) => ∃ x, r = .Ok (some (.RotateEvent x)) ∧ rotateView x = v
       | none => okPart r = none ⦄ := by
-  sorry
+  rw [binlog.events.Event.read_data_code4 self h]
+  apply WP.spec_bind (read_event_wire _ self hlen rotateView (rotateRead self.data.val) (fun _ => True) (by
+      intro v t ht; exact rotateRead_tail _ v t ht)
+    (fun ctx buf hf _ hb => by
+      rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.rotate_event.RotateEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+      apply WP.spec_mono (binlog.events.rotate_event.RotateEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec ctx buf)
+      rintro ⟨r, rest⟩ hr
+      simp only [hb] at hr
+      exact ⟨hr, fun _ _ => trivial⟩))
+  intro r ⟨hs, hn⟩
+  cases hsp : (rotateRead self.data.val) with
+  | none =>
+    have := hn hsp
+    cases r with
+    | Ok x => simp [okPart] at this
+    | Err e => exact (WP.spec_ok _).mpr rfl
+  | some vt =>
+    obtain ⟨v, t⟩ := vt
+    obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+    exact (WP.spec_ok _).mpr ⟨x, rfl, hx⟩
 
 /-- End to end: the `EventData` of a format description event (15): `fdeRead` of its data, with the event's footer. -/
 theorem binlog.events.Event.read_data_fde_wire (self : binlog.events.Event) (h : self.header.event_type.1.val = 15) (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match fdeRead self.data.val with
       | some (v, _) => ∃ x, r = .Ok (some (.FormatDescriptionEvent x)) ∧ fdeView x = v ∧ x.footer = self.footer
       | none => okPart r = none ⦄ := by
-  sorry
+  rw [binlog.events.Event.read_data_code15 self h]
+  apply WP.spec_bind (read_event_wire _ self hlen fdeView (fdeRead self.data.val) (fun _ => True) (by
+      intro v t ht; exact fdeRead_tail _ v t ht)
+    (fun ctx buf hf _ hb => by
+      rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+      apply WP.spec_mono (binlog.events.format_description_event.FormatDescriptionEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec ctx buf)
+      rintro ⟨r, rest⟩ ⟨hr, -⟩
+      simp only [hb] at hr
+      exact ⟨hr, fun _ _ => trivial⟩))
+  intro r ⟨hs, hn⟩
+  cases hsp : fdeRead self.data.val with
+  | none =>
+    have := hn hsp
+    cases r with
+    | Ok x => simp [okPart] at this
+    | Err e => exact (WP.spec_ok _).mpr rfl
+  | some vt =>
+    obtain ⟨v, t⟩ := vt
+    obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+    exact (WP.spec_ok _).mpr ⟨_, rfl, hx, rfl⟩
 
 /-- End to end: the `EventData` of a table map event (19): `tmRead` of its data. -/
 theorem binlog.events.Event.read_data_table_map_wire (h64 : Target64) (self : binlog.events.Event) (h : self.header.event_type.1.val = 19) (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match tmRead (postHeaderLen (fdeLens self.fde) .TABLE_MAP_EVENT) self.data.val with
       | some (v, _) => ∃ x, r = .Ok (some (.TableMapEvent x)) ∧ tmView x = v
       | none => okPart r = none ⦄ := by
-  sorry
+  rw [binlog.events.Event.read_data_code19 self h]
+  apply WP.spec_bind (read_event_wire _ self hlen tmView (tmRead (postHeaderLen (fdeLens self.fde) .TABLE_MAP_EVENT) self.data.val) (fun _ => True) (by
+      intro v t ht; exact tmRead_tail _ _ v t ht)
+    (fun ctx buf hf _ hb => by
+      rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+      apply WP.spec_mono (binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+      rintro ⟨r, rest⟩ hr
+      simp only [hb] at hr
+      rw [hf] at hr
+      exact ⟨hr, fun _ _ => trivial⟩))
+  intro r ⟨hs, hn⟩
+  cases hsp : (tmRead (postHeaderLen (fdeLens self.fde) .TABLE_MAP_EVENT) self.data.val) with
+  | none =>
+    have := hn hsp
+    cases r with
+    | Ok x => simp [okPart] at this
+    | Err e => exact (WP.spec_ok _).mpr rfl
+  | some vt =>
+    obtain ⟨v, t⟩ := vt
+    obtain ⟨x, rfl, hx, -⟩ := hs v t hsp
+    exact (WP.spec_ok _).mpr ⟨x, rfl, hx⟩
 
 /-- End to end: the `EventData` of a rows event (23–25, 30–32, 39): the `RowsEventData` variant of its type, with `rowsRead` of its data (post-header lengths from the event's FDE). -/
 theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.events.Event) (t : binlog.consts.EventType)
@@ -565,7 +737,29 @@ theorem binlog.events.Event.read_data_gtid_wire (self : binlog.events.Event) (h 
     binlog.events.Event.read_data self ⦃ r => match gtidRead self.data.val with
       | some (v, _) => ∃ x, r = .Ok (some (.GtidEvent x)) ∧ gtidView x = v ∧ x.tag = none
       | none => okPart r = none ⦄ := by
-  sorry
+  rw [binlog.events.Event.read_data_code33 self h]
+  apply WP.spec_bind (read_event_wire _ self hlen gtidView (gtidRead self.data.val) (fun e => e.tag = none) (by
+      intro v t ht
+      cases t with
+      | nil => rfl
+      | cons b bs => exact absurd ht (hg v b bs))
+    (fun ctx buf _ he hb => by
+      rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+      apply WP.spec_mono (binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged ctx (Or.inl (by rw [he, h])) buf)
+      rintro ⟨r, rest⟩ ⟨hr, hP⟩
+      simp only [hb] at hr
+      exact ⟨hr, fun e he => (hP e he).1⟩))
+  intro r ⟨hs, hn⟩
+  cases hsp : gtidRead self.data.val with
+  | none =>
+    have := hn hsp
+    cases r with
+    | Ok x => simp [okPart] at this
+    | Err e => exact (WP.spec_ok _).mpr rfl
+  | some vt =>
+    obtain ⟨v, t⟩ := vt
+    obtain ⟨x, rfl, hx, hP⟩ := hs v t hsp
+    exact (WP.spec_ok _).mpr ⟨x, rfl, hx, hP⟩
 
 /-- A GTID event (33) whose data has bytes after what the GTID reader reads (e.g. MySQL 8.0.33+'s `commit_group_ticket`): `read_data` is the (opaque) bytes-remaining error. -/
 theorem binlog.events.Event.read_data_gtid_leftover (self : binlog.events.Event) (h : self.header.event_type.1.val = 33) (hlen : self.data.length + 19 ≤ Usize.max)
@@ -573,6 +767,26 @@ theorem binlog.events.Event.read_data_gtid_leftover (self : binlog.events.Event)
     binlog.events.Event.read_data self = (do
       let e ← binlog.trusted.bytes_remaining_error binlog.events.gtid_event.GtidEvent
       ok (.Err e)) := by
-  sorry
+  have hL : binlog.events.BinlogEventHeader.LEN = 19#usize := by unfold binlog.events.BinlogEventHeader.LEN; rfl
+  obtain ⟨es, -, hesv⟩ := PBUtil.spec_eq_ok (show (binlog.events.BinlogEventHeader.LEN + alloc.vec.Vec.len self.data)
+      ⦃ z => z.val = 19 + self.data.length ⦄ by rw [hL]; step*)
+  let ctx : binlog.BinlogCtx := { event_size := es, fde := self.fde, event_type_raw := self.header.event_type.1 }
+  have hbv : (alloc.vec.Vec.deref self.data).val = self.data.val := by simp only [alloc.vec.Vec.deref, Slice.from_val]
+  have hpar : io.ParseBuf.parse binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.BinlogStructInst.protoMyDeserializeASelfBinlogCtxInst
+      (alloc.vec.Vec.deref self.data) ctx ⦃ r rest => ReadsAs gtidView (gtidRead self.data.val) r rest ⦄ := by
+    rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
+    apply WP.spec_mono (binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged ctx (Or.inl h) _)
+    rintro ⟨r, rest⟩ ⟨hr, -⟩
+    rwa [hbv] at hr
+  obtain ⟨⟨r0, rest0⟩, hp, hr⟩ := PBUtil.spec_eq_ok hpar
+  rw [hg] at hr
+  simp only [ReadsAs] at hr
+  obtain ⟨h1, h2⟩ := hr
+  cases r0 with
+  | Err e => simp [okPart] at h1
+  | Ok x =>
+    rw [binlog.events.Event.read_data_code33 self h,
+      binlog.events.Event.read_event_spec _ self hlen ctx ⟨hesv, rfl, rfl⟩ (alloc.vec.Vec.deref self.data) hbv _ rest0 hp]
+    simp [h2]
 
 end mysql_common

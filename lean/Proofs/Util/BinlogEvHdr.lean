@@ -190,4 +190,30 @@ theorem pu_rawflags {T U B : Type} (fl : bitflags.traits.Flags T B) (inst : misc
     | Err e => simp [okPart] at h1
   · exact h
 
+/-! ## The readers consume everything -/
+
+theorem queryRead_tail (p : Nat) (bs : List U8) (v : QueryView) (t : List U8) (ht : queryRead p bs = some (v, t)) : t = [] := by
+  simp only [queryRead, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq, Prod.mk.injEq] at ht
+  aesop
+
+theorem tmRead_tail (p : Nat) (bs : List U8) (v : TmView) (t : List U8) (ht : tmRead p bs = some (v, t)) : t = [] := by
+  unfold tmRead at ht
+  split at ht <;> (simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq, Prod.mk.injEq] at ht; aesop)
+
+theorem fdeRead_tail (bs : List U8) (v : FdeView) (t : List U8) (ht : fdeRead bs = some (v, t)) : t = [] := by
+  unfold fdeRead at ht
+  split at ht
+  · simp at ht
+  · split at ht
+    · simp at ht
+    · split at ht
+      · simp at ht
+      · simp only [Option.some.injEq, Prod.mk.injEq] at ht; exact ht.2.symm
+
+theorem rotateRead_tail (bs : List U8) (v : Nat × List U8) (t : List U8) (ht : rotateRead bs = some (v, t)) : t = [] := by
+  unfold rotateRead at ht
+  split at ht
+  · simp only [Option.some.injEq, Prod.mk.injEq] at ht; exact ht.2.symm
+  · simp at ht
+
 end mysql_common.EvHdrUtil
