@@ -13,6 +13,51 @@ open Aeneas Aeneas.Std Result mysql_common Defs
 
 namespace mysql_common
 
+open proto.codec.buf_model in
+private theorem decode_idle_hdr_err (src dst : VecBuf) (max : Usize) (inf : Option flate2.mem.Decompress)
+    (hl7 : 7 ≤ src.val.length)
+    (herr : max.val < Nat.max (compHeaderRead src.val).1 (compHeaderRead src.val).2.2 ∨
+      ((compHeaderRead src.val).1 = 0 ∧ (compHeaderRead src.val).2.2 ≠ 0)) :
+    proto.codec.CompDecoder.decode_with VecBuf.Insts.CoreOpsDerefDerefSliceU8 VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut
+      .Idle src dst max inf ⦃ _ cd src' dst' inf' => inf' = inf ∧ cd = .Idle ∧ src' = src ∧ dst' = dst ⦄ := by
+  rw [proto.codec.CompDecoder.decode_with]
+  simp only [proto.codec.CompData.new_eq]
+  step*
+  all_goals
+    have hl := hl7
+    obtain ⟨a, b, c, d, e, f, g, rr, hsrc⟩ : ∃ a b c d e f g rr, src.val = a :: b :: c :: d :: e :: f :: g :: rr := by
+      match hh : src.val with
+      | a :: b :: c :: d :: e :: f :: g :: rr => exact ⟨a, b, c, d, e, f, g, rr, rfl⟩
+      | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _] | [_, _, _, _, _, _] => simp [hh] at hl
+    have hcl : compressed_len.val = leNat [a, b, c] := by
+      rw [compressed_len_post, UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by cases System.Platform.numBits_eq <;> simp [*])]
+      have : i4.val = i4.bv.toNat := rfl
+      rw [this, i4_post, PBUtil.fromLEBytes_cast_toNat]
+      simp only [Array.make_val]
+      have := PBUtil.leNat_append_zeros [a, b, c] 1
+      simp_all
+    have hpl : uncompressed_len.val = leNat [e, f, g] := by
+      rw [uncompressed_len_post, UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by cases System.Platform.numBits_eq <;> simp [*])]
+      have : i8.val = i8.bv.toNat := rfl
+      rw [this, i8_post, PBUtil.fromLEBytes_cast_toNat]
+      simp only [Array.make_val]
+      have := PBUtil.leNat_append_zeros [e, f, g] 1
+      simp_all
+    have hseq : seq_id = d := by simp_all
+    have hb1 : leNat [a, b, c] < 2 ^ 24 := by have := PBUtil.leNat_lt [a, b, c]; simpa using this
+    have hb2 : leNat [e, f, g] < 2 ^ 24 := by have := PBUtil.leNat_lt [e, f, g]; simpa using this
+    have hhdr : compHeaderRead src.val = (leNat [a, b, c], d, leNat [e, f, g]) := by
+      simp [compHeaderRead, hsrc]
+    rw [hcl, hpl] at cf_post
+  all_goals
+    rw [hhdr] at herr
+    simp only at herr
+    clear i1_post i2_post i3_post i5_post i6_post i7_post i4_post i8_post compressed_len_post
+      uncompressed_len_post seq_id_post
+    generalize leNat [a, b, c] = cl at *
+    generalize leNat [e, f, g] = pl at *
+    split_ifs at cf_post <;> simp_all
+
 /-- `reset_seq_id`: both the compressed and the plain sequence ids become 0. -/
 theorem proto.codec.CompPacketCodec.reset_seq_id_eq (self : proto.codec.CompPacketCodec) :
     proto.codec.CompPacketCodec.reset_seq_id self =
@@ -51,7 +96,27 @@ theorem proto.codec.CompPacketCodec.decode_buffered (self : proto.codec.CompPack
       c'.plain_codec.seq_id = byte (self.plain_codec.seq_id.val + frameCount p.length) ∧
       c'.plain_codec.chunk_decoder = .Idle ∧ c'.out_buf = self.out_buf ∧ c'.deflater = self.deflater ∧
       c'.inflater = self.inflater ∧ c'.level = self.level ⦄ := by
-  sorry
+  rw [proto.codec.CompPacketCodec.decode]
+  have hne : ¬ (alloc.vec.Vec.deref self.in_buf).length = 0 := by
+    have : (frame self.plain_codec.seq_id.val p).length > 0 := by
+      rw [frame_length]; simp [frameCount]
+    simp [Slice.length, alloc.vec.Vec.deref, hin]; intro e
+    rw [e] at this; simp at this
+  simp only [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+    Std.bind_ok, hne, decide_false, Bool.false_eq_true, ↓reduceIte, lift]
+  have hdl : alloc.vec.Vec.length dst = 0 := by simp [alloc.vec.Vec.length, hdst]
+  obtain ⟨⟨r, ppc, vb, dst1⟩, hv, hp⟩ := PBUtil.spec_eq_ok
+    (proto.codec.PlainPacketCodec.decode_frame self.plain_codec hidle p rest self.in_buf dst hin hdst max hmax
+      (some (core.num.U8.wrapping_sub self.comp_seq_id 1#u8)) (by have := h; simp [alloc.vec.Vec.length] at *; omega))
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hp
+  obtain ⟨rfl, hseq, hcd, hvb, hd1⟩ := hp
+  simp [core.result.Result.Insts.CoreOpsTry.branch, proto.codec.trusted.vec_capacity,
+    proto.codec.COMP_CODEC_SHRINK_THRESHOLD]
+  split_ifs with he
+  · step*
+    all_goals simp_all [alloc.vec.Vec.new, alloc.vec.Vec.deref]
+  · simp [hd1, hvb, hseq, hcd]
 
 /-- Headline round trip (decoding). Take a decoder with nothing pending (`in_buf` empty, both readers idle). Feed it any compressed stream (`CompStreamOf`) whose pieces carry the chunks of a payload `p` followed by `rest`, then anything (`tail`). The chunks are `frame`, from the decoder's plain sequence id; the packets' sequence ids start at the decoder's compressed one.
     The pieces may be cut anywhere (non-empty, at most `min(2^24 - 1, max_allowed_packet)` bytes), each stored or deflated by flate2. The payload's chunks must end in the last piece, so `rest` is the start of what comes next.
@@ -123,7 +188,27 @@ theorem proto.codec.CompPacketCodec.decode_out_of_sync (self : proto.codec.CompP
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r c' src' dst' =>
       r = .Err .PacketsOutOfSync ∧ c'.comp_seq_id = self.comp_seq_id ∧ c'.comp_decoder = .Idle ∧
       c'.in_buf.val = chunk ∧ src'.val = tail ∧ dst' = dst ⦄ := by
-  sorry
+  obtain ⟨hib, hcd, -⟩ := hfresh
+  rw [proto.codec.CompPacketCodec.decode]
+  have he : (alloc.vec.Vec.deref self.in_buf).length = 0 := by simp [Slice.length, alloc.vec.Vec.deref, hib]
+  simp only [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+    Std.bind_ok, he, decide_true, ↓reduceIte]
+  obtain ⟨⟨r, cd, src1, vb, o⟩, hv, hp⟩ := PBUtil.spec_eq_ok (CompCodec.decode_with_spec self.comp_decoder src self.in_buf
+    max self.inflater (by rw [hcd]; simp only [CompState.of, compStepFits, hib, List.length_nil]; omega))
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hp
+  rw [hcd, hib] at hp
+  simp only [CompState.of] at hp
+  rw [hsrc, compStep_compPacket _ s.val chunk zo hz tail [] max.val hmax] at hp
+  simp only [Prod.mk.injEq, List.nil_append] at hp
+  obtain ⟨rfl, hcd', hs1, hvb⟩ := hp
+  have hcd'' : cd = .Idle := by cases cd with
+    | Idle => rfl
+    | Packet a b => cases b <;> simp at hcd'
+  subst hcd''
+  have hbs : byte s.val = s := by apply UScalar.eq_of_val_eq; rw [PBUtil.byte_val]; have := s.hBounds; simp at this ⊢
+  have hne' : ¬ self.comp_seq_id.val = s.val := fun e => hs (UScalar.eq_of_val_eq e).symm
+  simp [core.result.Result.Insts.CoreOpsTry.branch, proto.codec.ChunkInfo.seq_id, hbs, hne', hvb, hs1]
 
 /-- A compressed-packet header with a length above `max_allowed_packet` (either length), seen with nothing pending: `PacketTooLarge`, and nothing changes (the codec, input and output are as before). -/
 theorem proto.codec.CompPacketCodec.decode_too_large (self : proto.codec.CompPacketCodec)
@@ -132,7 +217,35 @@ theorem proto.codec.CompPacketCodec.decode_too_large (self : proto.codec.CompPac
     (hbig : max.val < Nat.max (compHeaderRead src.val).1 (compHeaderRead src.val).2.2) :
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r c' src' dst' =>
       r = .Err .PacketTooLarge ∧ c' = self ∧ src' = src ∧ dst' = dst ⦄ := by
-  sorry
+  obtain ⟨hib, hcd⟩ := hfresh
+  rw [proto.codec.CompPacketCodec.decode]
+  have he : (alloc.vec.Vec.deref self.in_buf).length = 0 := by simp [Slice.length, alloc.vec.Vec.deref, hib]
+  simp only [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+    Std.bind_ok, he, decide_true, ↓reduceIte]
+  have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  obtain ⟨⟨r, cd, src1, vb, o⟩, hv, hp⟩ := PBUtil.spec_eq_ok (CompCodec.decode_with_spec self.comp_decoder src self.in_buf
+    max self.inflater (by rw [hcd]; simp only [CompState.of, compStepFits, hib, List.length_nil]; omega))
+  obtain ⟨⟨r', cd', src1', vb', o'⟩, hv', hp'⟩ := PBUtil.spec_eq_ok (decode_idle_hdr_err src self.in_buf
+    max self.inflater h7 (Or.inl hbig))
+  rw [hcd] at hv
+  rw [hv] at hv'
+  simp only [ok.injEq, Prod.mk.injEq] at hv'
+  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := hv'
+  simp only [WP.uncurry'_pair] at hp hp'
+  obtain ⟨rfl, rfl, hs, rfl⟩ := hp'
+  subst src1
+  rw [hcd, hv]
+  rw [hib, hcd] at hp
+  simp only [CompState.of] at hp
+  rcases hh : compHeaderRead src.val with ⟨cl, sq, pl⟩
+  rw [hh] at hbig
+  simp only at hbig
+  rw [CompCodec.compStep_idle_hdr _ _ _ _ _ _ _ h7 hh] at hp
+  simp only [hbig, ↓reduceIte, Prod.mk.injEq] at hp
+  obtain ⟨rfl, -, -, -⟩ := hp
+  simp [core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+  rw [← hcd]
 
 /-- A compressed-packet header with compressed length 0 but a non-zero uncompressed length, within `max_allowed_packet`, seen with nothing pending: `BadCompressedPacketHeader`, and nothing changes. -/
 theorem proto.codec.CompPacketCodec.decode_bad_header (self : proto.codec.CompPacketCodec)
@@ -142,7 +255,39 @@ theorem proto.codec.CompPacketCodec.decode_bad_header (self : proto.codec.CompPa
     (hmax : (compHeaderRead src.val).2.2 ≤ max.val) :
     proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r c' src' dst' =>
       r = .Err .BadCompressedPacketHeader ∧ c' = self ∧ src' = src ∧ dst' = dst ⦄ := by
-  sorry
+  obtain ⟨hib, hcd⟩ := hfresh
+  rw [proto.codec.CompPacketCodec.decode]
+  have he : (alloc.vec.Vec.deref self.in_buf).length = 0 := by simp [Slice.length, alloc.vec.Vec.deref, hib]
+  simp only [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+    Std.bind_ok, he, decide_true, ↓reduceIte]
+  have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  obtain ⟨⟨r, cd, src1, vb, o⟩, hv, hp⟩ := PBUtil.spec_eq_ok (CompCodec.decode_with_spec self.comp_decoder src self.in_buf
+    max self.inflater (by rw [hcd]; simp only [CompState.of, compStepFits, hib, List.length_nil]; omega))
+  obtain ⟨⟨r', cd', src1', vb', o'⟩, hv', hp'⟩ := PBUtil.spec_eq_ok (decode_idle_hdr_err src self.in_buf
+    max self.inflater h7 (Or.inr ⟨hcl, hpl⟩))
+  rw [hcd] at hv
+  rw [hv] at hv'
+  simp only [ok.injEq, Prod.mk.injEq] at hv'
+  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := hv'
+  simp only [WP.uncurry'_pair] at hp hp'
+  obtain ⟨rfl, rfl, hs, rfl⟩ := hp'
+  subst src1
+  rw [hcd, hv]
+  rw [hib, hcd] at hp
+  simp only [CompState.of] at hp
+  rcases hh : compHeaderRead src.val with ⟨cl, sq, pl⟩
+  rw [hh] at hcl hpl hmax
+  simp only at hcl hpl hmax
+  rw [CompCodec.compStep_idle_hdr _ _ _ _ _ _ _ h7 hh] at hp
+  have hmx : ¬ max.val < Nat.max 0 pl := by
+    have : Nat.max 0 pl = pl := Nat.zero_max pl
+    omega
+  simp only [hcl] at hp
+  simp only [hmx, hpl, ↓reduceIte, Prod.mk.injEq] at hp
+  obtain ⟨rfl, -, -, -⟩ := hp
+  simp [core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+  rw [← hcd]
 
 /-- Inflate failure. A whole compressed packet (non-zero lengths within `max_allowed_packet`) whose payload the decoder's inflate stream fails to inflate to the declared length, seen with nothing pending, gives `Err(Io(e))` with flate2's error. **Quirk:** the 7 header bytes have been consumed, but the packet reader stays in the pending state of that header. A later call would therefore read the payload's bytes as if a header still preceded them, unless the codec is discarded (as callers do after an error). -/
 theorem proto.codec.CompPacketCodec.decode_inflate_error (self : proto.codec.CompPacketCodec)
@@ -159,7 +304,28 @@ theorem proto.codec.CompPacketCodec.decode_inflate_error (self : proto.codec.Com
       CompState.of c'.comp_decoder =
         .packet (compHeaderRead src.val).2.1 (compHeaderRead src.val).1 (some (compHeaderRead src.val).2.2) ∧
       src'.val = src.val.drop 7 ∧ dst' = dst ⦄ := by
-  sorry
+  obtain ⟨hib, hcd⟩ := hfresh
+  rw [proto.codec.CompPacketCodec.decode]
+  have he : (alloc.vec.Vec.deref self.in_buf).length = 0 := by simp [Slice.length, alloc.vec.Vec.deref, hib]
+  simp only [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+    Std.bind_ok, he, decide_true, ↓reduceIte]
+  obtain ⟨⟨r, cd, src1, vb, o⟩, hv, hp⟩ := PBUtil.spec_eq_ok (CompCodec.decode_with_spec self.comp_decoder src self.in_buf
+    max self.inflater (by rw [hcd]; simp only [CompState.of, compStepFits, hib, List.length_nil]; omega))
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hp
+  rw [hcd, hib] at hp
+  simp only [CompState.of] at hp
+  have hl7 : 7 ≤ src.val.length := by omega
+  rcases hh : compHeaderRead src.val with ⟨cl, sq, pl⟩
+  rw [hh] at h7 hcl hpl hmax hinf
+  simp only at h7 hcl hpl hmax hinf
+  rw [CompCodec.compStep_idle_hdr _ _ _ _ _ _ _ hl7 hh] at hp
+  have hmx : ¬ max.val < Nat.max cl pl := by omega
+  simp only [hmx, hcl, hpl, ↓reduceIte, compStep, h7, hinf, Prod.mk.injEq] at hp
+  obtain ⟨rfl, hcd', hs1, hvb⟩ := hp
+  simp [core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from, hvb, hs1]
+  exact hcd'
 
 /-- `encode(packet, dst, max_allowed_packet)`, whenever it does not panic (`max_allowed_packet ≠ 0` or the packet is too large; level at most 10, a kept deflate stream, or no piece long enough to deflate).
     * `PacketTooLarge` if the packet is longer than `max_allowed_packet`; nothing changes.
