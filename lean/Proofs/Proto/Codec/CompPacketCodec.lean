@@ -4,12 +4,503 @@ import Proofs.Proto.Codec.CompressWith
 import Proofs.Proto.Codec.CompDecoder
 import Proofs.Proto.Codec.PlainPacketCodec
 import Proofs.Defs.LemmasCF
+import Proofs.Defs.LemmasComp
 
 /-! Statements for `struct CompPacketCodec and its impls` (spec file: `Specs/Proto/Codec.lean`). -/
 
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Result mysql_common Defs
+
+/-! Helper lemmas: the plain packet reader on a growing input, and the compressed reader on a
+stream of compressed packets (`run_main`). -/
+
+namespace mysql_common.CompCodec
+
+open WP
+
+theorem plainDecodeAux_none (f : Nat) : ∀ (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat)
+    (comp : Option U8),
+    (plainDecodeAux f seq st src dst max none).1 ≠ .Err .PacketsOutOfSync →
+    plainDecodeAux f seq st src dst max comp = plainDecodeAux f seq st src dst max none := by
+  induction f with
+  | zero => intros; rfl
+  | succ f ih =>
+    intro seq st src dst max comp h
+    simp only [plainDecodeAux] at h ⊢
+    rcases hc : chunkStep st src dst max with ⟨r, st', src', dst'⟩
+    rw [hc] at h
+    rcases r with ((_ | info) | e)
+    · rfl
+    · simp only at h ⊢
+      by_cases hs : seq = chunkInfoSeq info
+      · have h1 : ¬ (seq ≠ chunkInfoSeq info ∧ comp ≠ some (chunkInfoSeq info)) := fun h => h.1 hs
+        have h2 : ¬ (seq ≠ chunkInfoSeq info ∧ (none : Option U8) ≠ some (chunkInfoSeq info)) := fun h => h.1 hs
+        simp only [h1, h2, ↓reduceIte] at h ⊢
+        cases info with
+        | Last _ => rfl
+        | Middle s0 =>
+          simp only at h ⊢
+          split_ifs at h ⊢
+          · rfl
+          · exact ih _ _ _ _ _ _ h
+      · have h2 : (seq ≠ chunkInfoSeq info ∧ (none : Option U8) ≠ some (chunkInfoSeq info)) := ⟨hs, by simp⟩
+        simp [h2] at h
+    · rfl
+
+theorem chunkStep_some_append (st : ChunkState) (src dst : List U8) (max : Nat) (info : proto.codec.ChunkInfo)
+    (st' : ChunkState) (src' dst' : List U8) (h : chunkStep st src dst max = (.Ok (some info), st', src', dst'))
+    (more : List U8) :
+    chunkStep st (src ++ more) dst max = (.Ok (some info), st', src' ++ more, dst') ∧ src'.length < src.length := by
+  cases st with
+  | idle =>
+    simp only [chunkStep] at h ⊢
+    by_cases h1 : src.length < 4
+    · simp [h1] at h
+    · have e1 : ¬ (src ++ more).length < 4 := by simp; omega
+      have e2 : (src ++ more).take 3 = src.take 3 := List.take_append_of_le_length (by omega)
+      have e3 : (src ++ more).getD 3 (byte 0) = src.getD 3 (byte 0) := by
+        simp [List.getD_eq_getElem?_getD, List.getElem?_append_left (show 3 < src.length by omega)]
+      simp only [h1, ↓reduceIte] at h
+      simp only [e1, e2, e3, ↓reduceIte]
+      by_cases h2 : leNat (src.take 3) = 0
+      · simp only [h2, ↓reduceIte, Prod.mk.injEq] at h ⊢
+        obtain ⟨hr, rfl, rfl, rfl⟩ := h
+        simp only [hr, List.drop_append_of_le_length (show 4 ≤ src.length by omega), true_and]
+        simp; omega
+      · by_cases h3 : max < dst.length + leNat (src.take 3)
+        · simp [h2, h3] at h
+        · by_cases h4 : 4 + leNat (src.take 3) ≤ src.length
+          · have e4 : 4 + leNat (src.take 3) ≤ (src ++ more).length := by simp; omega
+            simp only [h2, h3, h4, e4, ↓reduceIte, Prod.mk.injEq] at h ⊢
+            obtain ⟨hr, rfl, rfl, rfl⟩ := h
+            simp only [true_and]
+            rw [List.drop_append_of_le_length (show 4 ≤ src.length by omega),
+              List.drop_append_of_le_length h4, List.take_append_of_le_length (l₁ := List.drop 4 src) (l₂ := more) (by simp; omega)]
+            exact ⟨⟨hr, rfl, rfl⟩, by simp; omega⟩
+          · simp [h2, h3, h4] at h
+  | chunk seq len =>
+    simp only [chunkStep] at h ⊢
+    by_cases h1 : 4 + len ≤ src.length
+    · have e4 : 4 + len ≤ (src ++ more).length := by simp; omega
+      simp only [h1, e4, ↓reduceIte, Prod.mk.injEq] at h ⊢
+      obtain ⟨hr, rfl, rfl, rfl⟩ := h
+      simp only [true_and]
+      rw [List.drop_append_of_le_length (show 4 ≤ src.length by omega),
+        List.drop_append_of_le_length h1, List.take_append_of_le_length (l₁ := List.drop 4 src) (l₂ := more) (by simp; omega)]
+      exact ⟨⟨hr, rfl, rfl⟩, by simp; omega⟩
+    · simp [h1] at h
+
+theorem chunkStep_none_append (st : ChunkState) (src dst : List U8) (max : Nat)
+    (st' : ChunkState) (src' dst' : List U8) (h : chunkStep st src dst max = (.Ok none, st', src', dst'))
+    (more : List U8) :
+    src' = src ∧ dst' = dst ∧ chunkStep st' (src ++ more) dst max = chunkStep st (src ++ more) dst max := by
+  cases st with
+  | idle =>
+    simp only [chunkStep] at h
+    by_cases h1 : src.length < 4
+    · simp only [h1, ↓reduceIte, Prod.mk.injEq] at h
+      obtain ⟨-, rfl, rfl, rfl⟩ := h; exact ⟨rfl, rfl, rfl⟩
+    · simp only [h1, ↓reduceIte] at h
+      by_cases h2 : leNat (src.take 3) = 0
+      · simp [h2] at h
+      · by_cases h3 : max < dst.length + leNat (src.take 3)
+        · simp [h2, h3] at h
+        · by_cases h4 : 4 + leNat (src.take 3) ≤ src.length
+          · simp [h2, h3, h4] at h
+          · simp only [h2, h3, h4, ↓reduceIte, Prod.mk.injEq] at h
+            obtain ⟨-, rfl, rfl, rfl⟩ := h
+            refine ⟨rfl, rfl, ?_⟩
+            have e1 : ¬ (src ++ more).length < 4 := by simp; omega
+            have e2 : (src ++ more).take 3 = src.take 3 := List.take_append_of_le_length (by omega)
+            have e3 : (src ++ more).getD 3 (byte 0) = src.getD 3 (byte 0) := by
+              simp [List.getD_eq_getElem?_getD, List.getElem?_append_left (show 3 < src.length by omega)]
+            simp only [chunkStep, e1, e2, e3, h2, h3, ↓reduceIte]
+  | chunk seq len =>
+    simp only [chunkStep] at h
+    by_cases h1 : 4 + len ≤ src.length
+    · simp [h1] at h
+    · simp only [h1, ↓reduceIte, Prod.mk.injEq] at h
+      obtain ⟨-, rfl, rfl, rfl⟩ := h
+      exact ⟨rfl, rfl, rfl⟩
+
+theorem plainDecode_nil (seq : U8) (st : ChunkState) (dst : List U8) (max : Nat) (comp : Option U8) :
+    plainDecode seq st [] dst max comp = (.Ok false, seq, st, [], dst) := by
+  unfold plainDecode
+  cases st <;> simp [plainDecodeAux, chunkStep]
+
+theorem plainDecode_step_middle (seq : U8) (st : ChunkState) (X dst : List U8) (max : Nat) (comp : Option U8)
+    (s0 : U8) (st' : ChunkState) (Y dst' : List U8)
+    (hc : chunkStep st X dst max = (.Ok (some (.Middle s0)), st', Y, dst'))
+    (hm : ¬ (seq ≠ s0 ∧ comp ≠ some s0)) (hlt : Y.length < X.length) :
+    plainDecode seq st X dst max comp =
+      if Y = [] then (.Ok false, byte (s0.val + 1), st', Y, dst')
+      else plainDecode (byte (s0.val + 1)) st' Y dst' max comp := by
+  conv_lhs => unfold plainDecode; simp only [plainDecodeAux, hc, chunkInfoSeq, hm, ↓reduceIte]
+  split_ifs
+  · rfl
+  · exact plainDecodeAux_fuel _ _ _ _ _ _ _ (by omega)
+
+theorem plainDecodeAux_append (f : Nat) : ∀ (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat)
+    (comp : Option U8) (seq1 : U8) (st1 : ChunkState) (src1 dst1 : List U8),
+    plainDecodeAux f seq st src dst max comp = (.Ok false, seq1, st1, src1, dst1) →
+    ∀ more, plainDecode seq1 st1 (src1 ++ more) dst1 max comp = plainDecode seq st (src ++ more) dst max comp := by
+  induction f with
+  | zero =>
+    intro seq st src dst max comp seq1 st1 src1 dst1 h more
+    simp only [plainDecodeAux, Prod.mk.injEq] at h
+    obtain ⟨-, rfl, rfl, rfl, rfl⟩ := h
+    rfl
+  | succ f ih =>
+    intro seq st src dst max comp seq1 st1 src1 dst1 h more
+    simp only [plainDecodeAux] at h
+    rcases hc : chunkStep st src dst max with ⟨r, st', src', dst'⟩
+    rw [hc] at h
+    rcases r with ((_ | info) | e)
+    · simp only [Prod.mk.injEq] at h
+      obtain ⟨-, rfl, rfl, rfl, rfl⟩ := h
+      obtain ⟨rfl, rfl, he⟩ := chunkStep_none_append st src dst max st' src' dst' hc more
+      unfold plainDecode
+      simp only [plainDecodeAux, he]
+    · simp only at h
+      obtain ⟨hcs, hlt⟩ := chunkStep_some_append st src dst max info st' src' dst' hc more
+      by_cases hm : seq ≠ chunkInfoSeq info ∧ comp ≠ some (chunkInfoSeq info)
+      · rw [ite_eq_left_of_eq_true _ _ (eq_true hm)] at h; simp at h
+      · rw [ite_eq_right_of_eq_false _ _ (eq_false hm)] at h
+        cases info with
+        | Last _ => simp at h
+        | Middle s0 =>
+          simp only [chunkInfoSeq] at h hm
+          rw [plainDecode_step_middle seq st (src ++ more) dst max comp s0 st' (src' ++ more) dst' hcs hm
+            (by simp; omega)]
+          by_cases he : src' = []
+          · simp only [he, ↓reduceIte, Prod.mk.injEq] at h
+            obtain ⟨-, rfl, rfl, rfl, rfl⟩ := h
+            subst he
+            simp only [List.nil_append]
+            split_ifs with hmo
+            · subst hmo; exact plainDecode_nil _ _ _ _ _
+            · rfl
+          · simp only [he, ↓reduceIte] at h
+            have hne : src' ++ more ≠ [] := by simp [he]
+            simp only [hne, ↓reduceIte]
+            exact ih _ _ _ _ _ _ _ _ _ _ h more
+    · simp at h
+
+theorem chunkStep_sizes (st : ChunkState) (src dst : List U8) (max : Nat) :
+    (chunkStep st src dst max).2.2.2.length + (chunkStep st src dst max).2.2.1.length ≤ dst.length + src.length := by
+  unfold chunkStep
+  cases st <;> simp only <;> split_ifs <;> simp <;> omega
+
+theorem plainDecodeAux_sizes (n : Nat) : ∀ (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat) (comp : Option U8),
+    (plainDecodeAux n seq st src dst max comp).2.2.2.2.length + (plainDecodeAux n seq st src dst max comp).2.2.2.1.length ≤
+      dst.length + src.length := by
+  induction n with
+  | zero => intros; simp [plainDecodeAux]
+  | succ n ih =>
+    intro seq st src dst max comp
+    have hsz := chunkStep_sizes st src dst max
+    simp only [plainDecodeAux]
+    rcases hc : chunkStep st src dst max with ⟨r, st', src', dst'⟩
+    rw [hc] at hsz
+    simp only at hsz
+    rcases r with ((_ | info) | e)
+    · simp; omega
+    · cases info with
+      | Last _ => simp only; split_ifs <;> simp <;> omega
+      | Middle s0 =>
+        simp only; split_ifs
+        all_goals first
+          | (simp; omega)
+          | (have := ih (byte ((chunkInfoSeq (.Middle s0)).val + 1)) st' src' dst' max comp; omega)
+    · simp; omega
+
+theorem compStep_none_append (inf : List U8 → Nat → core.result.Result (List U8) core.io.error.Error)
+    (st : CompState) (src dst : List U8) (max : Nat)
+    (st' : CompState) (src' dst' : List U8) (h : compStep inf st src dst max = (.Ok none, st', src', dst'))
+    (more : List U8) (d : List U8) :
+    src' = src ∧ dst' = dst ∧ compStep inf st' (src ++ more) d max = compStep inf st (src ++ more) d max := by
+  cases st with
+  | idle =>
+    by_cases h1 : src.length < 7
+    · simp only [compStep, h1, ↓reduceIte, Prod.mk.injEq] at h
+      obtain ⟨-, rfl, rfl, rfl⟩ := h; exact ⟨rfl, rfl, rfl⟩
+    · rcases hh : compHeaderRead src with ⟨cl, sq, pl⟩
+      rw [compStep_idle_hdr _ _ _ _ _ _ _ (by omega) hh] at h
+      have hh' : compHeaderRead (src ++ more) = (cl, sq, pl) := by
+        rw [← hh]; simp only [compHeaderRead]
+        rw [List.take_append_of_le_length (by omega), List.drop_append_of_le_length (by omega),
+          List.take_append_of_le_length (by simp; omega)]
+        simp [List.getD_eq_getElem?_getD, List.getElem?_append_left (show 3 < src.length by omega)]
+      by_cases h2 : max < Nat.max cl pl
+      · simp [h2] at h
+      · by_cases h3 : cl = 0
+        · by_cases h4 : pl = 0 <;> simp only [h3, h4, ↓reduceIte] at h <;> (try split_ifs at h) <;> simp at h
+        · simp only [h2, h3, ↓reduceIte] at h
+          rw [compStep_idle_hdr _ _ _ _ _ _ _ (by simp; omega) hh']
+          simp only [h2, h3, ↓reduceIte]
+          simp only [compStep] at h
+          by_cases h5 : 7 + cl ≤ src.length
+          · simp only [h5, ↓reduceIte] at h
+            revert h; split <;> (try split) <;> simp
+          · simp only [h5, ↓reduceIte, Prod.mk.injEq] at h
+            obtain ⟨-, rfl, rfl, rfl⟩ := h
+            exact ⟨rfl, rfl, rfl⟩
+  | packet sq cl pl =>
+    simp only [compStep] at h
+    by_cases h5 : 7 + cl ≤ src.length
+    · simp only [h5, ↓reduceIte] at h
+      revert h; split <;> (try split) <;> simp
+    · simp only [h5, ↓reduceIte, Prod.mk.injEq] at h
+      obtain ⟨-, rfl, rfl, rfl⟩ := h
+      exact ⟨rfl, rfl, rfl⟩
+
+theorem flatten_take_prefix (l : List (List U8)) (j : Nat) :
+    l.flatten = (l.take j).flatten ++ (l.drop j).flatten := by
+  rw [← List.flatten_append, List.take_append_drop]
+
+theorem flatten_take_length_le (l : List (List U8)) (j : Nat) : (l.take j).flatten.length ≤ l.flatten.length := by
+  have := congrArg List.length (flatten_take_prefix l j)
+  simp only [List.length_append] at this; omega
+
+/-- Before the last piece, the pieces read so far are a strict prefix of the frame. -/
+theorem stream_prefix (pieces : List (List U8)) (F rest : List U8) (hp : pieces.flatten = F ++ rest)
+    (hlast : pieces.dropLast.flatten.length < F.length) (j : Nat) (hj : j < pieces.length) :
+    (pieces.take j).flatten = F.take (pieces.take j).flatten.length ∧ (pieces.take j).flatten.length < F.length := by
+  have h1 : (pieces.take j).flatten.length ≤ pieces.dropLast.flatten.length := by
+    rw [List.dropLast_eq_take]
+    have : pieces.take j = (pieces.take (pieces.length - 1)).take j := by
+      rw [List.take_take]; congr 1; omega
+    rw [this]; exact flatten_take_length_le _ _
+  refine ⟨?_, by omega⟩
+  have h2 := flatten_take_prefix pieces j
+  rw [hp] at h2
+  have := congrArg (List.take (pieces.take j).flatten.length) h2
+  rw [List.take_left' rfl, List.take_append_of_le_length (by omega)] at this
+  exact this.symm
+
+theorem compPackets_drop (seq0 : Nat) (pieces : List (List U8)) (zs : List (Option (List U8)))
+    (hl : pieces.length = zs.length) (j : Nat) (hj : j < pieces.length) :
+    compPackets (seq0 + j) (pieces.drop j) (zs.drop j) =
+      compPacket (seq0 + j) pieces[j] zs[j] ++ compPackets (seq0 + (j + 1)) (pieces.drop (j + 1)) (zs.drop (j + 1)) := by
+  rw [List.drop_eq_getElem_cons (l := pieces) (i := j) hj, List.drop_eq_getElem_cons (l := zs) (i := j) (by rw [← hl]; exact hj)]
+  simp only [compPackets]
+  congr 1
+
+open proto.codec.buf_model
+
+theorem compStepFits_of (st : proto.codec.CompDecoder) (hv : (CompState.of st).Valid) (b : List U8)
+    (h : b.length + 2 ^ 24 ≤ Usize.max) : compStepFits (CompState.of st) b := by
+  have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  cases st with
+  | Idle => simpa [CompState.of, compStepFits] using h
+  | Packet sq d =>
+    cases d <;> simp only [CompState.of, CompState.Valid, compStepFits] at hv ⊢
+    · obtain ⟨h1, h2, h3⟩ := hv
+      have := h3 _ rfl
+      simp; omega
+    · obtain ⟨h1, h2, -⟩ := hv; simp; omega
+
+theorem chunkValid_hv (c : proto.codec.PlainPacketCodec) (hv : (ChunkState.of c.chunk_decoder).Valid) :
+    ∀ seq needed, c.chunk_decoder = .Chunk seq needed → 4 + needed.val ≤ Usize.max := by
+  intro seq needed h
+  rw [h] at hv
+  have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  simp only [ChunkState.of, ChunkState.Valid] at hv; omega
+
+theorem of_idle (cd : proto.codec.CompDecoder) (h : CompState.of cd = .idle) : cd = .Idle := by
+  cases cd with
+  | Idle => rfl
+  | Packet a b => cases b <;> simp [CompState.of] at h
+
+theorem chunk_of_idle (cd : proto.codec.ChunkDecoder) (h : ChunkState.of cd = .idle) : cd = .Idle := by
+  cases cd with
+  | Idle => rfl
+  | Chunk a b => simp [ChunkState.of] at h
+
+theorem take_succ_flatten (l : List (List U8)) (j : Nat) (hj : j < l.length) :
+    (l.take (j + 1)).flatten = (l.take j).flatten ++ l[j] := by
+  have : l.take (j + 1) = l.take j ++ [l[j]] := by
+    rw [List.take_add_one, List.getElem?_eq_getElem hj]; rfl
+  rw [this, List.flatten_append]; simp
+
+theorem PS_next (ps : U8) (pieces : List (List U8)) (max : Nat) (j : Nat) (hj : j < pieces.length)
+    (s : U8) (st : ChunkState) (r d : List U8)
+    (h : plainDecode ps .idle ((pieces.take j).flatten) [] max none = (.Ok false, s, st, r, d)) :
+    plainDecode s st (r ++ pieces[j]) d max none = plainDecode ps .idle ((pieces.take (j + 1)).flatten) [] max none := by
+  rw [take_succ_flatten _ _ hj]
+  exact plainDecodeAux_append _ _ _ _ _ _ _ _ _ _ _ h _
+
+theorem compPackets_length_ge (seq : Nat) (cs : List (List U8)) (zs : List (Option (List U8)))
+    (hl : cs.length = zs.length) : 7 * cs.length ≤ (compPackets seq cs zs).length := by
+  induction cs generalizing seq zs with
+  | nil => simp
+  | cons c cs ih =>
+    cases zs with
+    | nil => simp at hl
+    | cons z zs' =>
+      have := ih (seq + 1) zs' (by simpa using hl)
+      have h7 : 7 ≤ (compPacket seq c z).length := by
+        cases z <;> simp [compPacket, compHeader, PBUtil.length_leBytes] <;> omega
+      simp only [compPackets, List.length_append, List.length_cons]
+      omega
+
+theorem run_main (pieces : List (List U8)) (zs : List (Option (List U8)))
+    (hF : List.Forall₂ (fun c zo => ∀ z, zo = some z → Deflates c z) pieces zs)
+    (ps : U8) (p rest tail : List U8) (hpieces : pieces.flatten = frame ps.val p ++ rest)
+    (hlast : pieces.dropLast.flatten.length < (frame ps.val p).length)
+    (max : Usize) (hsize : ∀ c ∈ pieces, c ≠ [] ∧ c.length ≤ Nat.min maxPayloadLen max.val)
+    (hmax : p.length ≤ max.val) (seq0 : Nat)
+    (hbound : pieces.flatten.length + 2 ^ 24 ≤ Usize.max) :
+    ∀ m j (c : proto.codec.CompPacketCodec) (src dst : VecBuf), pieces.length - j = m → j ≤ pieces.length →
+    c.comp_seq_id = byte (seq0 + j) →
+    plainDecode c.plain_codec.seq_id (ChunkState.of c.plain_codec.chunk_decoder) c.in_buf.val dst.val max.val none =
+      plainDecode ps .idle ((pieces.take j).flatten) [] max.val none →
+    (∀ inf d, compStep inf (CompState.of c.comp_decoder) src.val d max.val =
+      compStep inf .idle (compPackets (seq0 + j) (pieces.drop j) (zs.drop j) ++ tail) d max.val) →
+    (CompState.of c.comp_decoder).Valid → (ChunkState.of c.plain_codec.chunk_decoder).Valid →
+    c.in_buf.val.length + dst.val.length ≤ ((pieces.take j).flatten).length →
+    (j = pieces.length → src.val = tail ∧ c.comp_decoder = .Idle) →
+    proto.codec.CompPacketCodec.decode VecBuf.Insts.CoreOpsDerefDerefSliceU8 VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf VecBuf.Insts.CoreConvertAsRefSliceU8 VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut c src dst max ⦃ r c' src' dst' =>
+      r = .Ok true ∧ dst'.val = p ∧ src'.val = tail ∧ c'.in_buf.val = rest ∧
+      c'.comp_seq_id = byte (seq0 + pieces.length) ∧
+      c'.plain_codec.seq_id = byte (ps.val + frameCount p.length) ∧
+      c'.comp_decoder = .Idle ∧ c'.plain_codec.chunk_decoder = .Idle ⦄ := by
+  have hzl : pieces.length = zs.length := hF.length_eq
+  have hK : ∀ j, ((pieces.take j).flatten).length ≤ pieces.flatten.length := flatten_take_length_le pieces
+  have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  -- the plain decoder on the pieces read so far
+  have hPSlt : ∀ j, j < pieces.length → ∃ s st r d, plainDecode ps .idle ((pieces.take j).flatten) [] max.val none =
+      (.Ok false, s, st, r, d) := by
+    intro j hj
+    obtain ⟨e1, e2⟩ := stream_prefix pieces _ rest hpieces hlast j hj
+    rcases hpd : plainDecode ps .idle ((pieces.take j).flatten) [] max.val none with ⟨r0, s, st, r, d⟩
+    rw [e1] at hpd
+    have := (plainDecode_resume ps p [] _ e2 max.val hmax none r0 s st r d hpd).1
+    exact ⟨s, st, r, d, by rw [← this]⟩
+  have hPSn : plainDecode ps .idle ((pieces.take pieces.length).flatten) [] max.val none =
+      (.Ok true, byte (ps.val + frameCount p.length), .idle, rest, p) := by
+    rw [List.take_length, hpieces]
+    have := plainDecode_frame ps p rest max.val hmax none
+    exact this
+  intro m
+  induction m with
+  | zero =>
+    intro j c src dst hm hj hseq hpd hcc hvc hvp hbd hend
+    have hjn : j = pieces.length := by omega
+    subst hjn
+    obtain ⟨hsrc, hcd⟩ := hend rfl
+    rw [hPSn] at hpd
+    have hne : c.in_buf.val ≠ [] := by intro e; rw [e, plainDecode_nil] at hpd; simp at hpd
+    rw [proto.codec.CompPacketCodec.decode]
+    have hne' : ¬ (alloc.vec.Vec.deref c.in_buf).length = 0 := by
+      simpa [Slice.length, alloc.vec.Vec.deref] using hne
+    simp only [VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+      Std.bind_ok, hne', decide_false, Bool.false_eq_true, ↓reduceIte, lift]
+    have hKn := hK pieces.length
+    obtain ⟨⟨r, ppc, vb, dst1⟩, hv, hp, -⟩ := PBUtil.spec_eq_ok (proto.codec.PlainPacketCodec.decode_spec c.plain_codec
+      (chunkValid_hv _ hvp) c.in_buf dst max (some (core.num.U8.wrapping_sub c.comp_seq_id 1#u8))
+      (by simp only [alloc.vec.Vec.length]; omega))
+    rw [hv]
+    unfold plainDecode at hp hpd
+    rw [plainDecodeAux_none (c.in_buf.val.length + 1) c.plain_codec.seq_id (ChunkState.of c.plain_codec.chunk_decoder)
+      c.in_buf.val dst.val max.val _ (by rw [hpd]; simp), hpd] at hp
+    simp only [Prod.mk.injEq] at hp
+    obtain ⟨rfl, hseq', hcd', hvb, hd1⟩ := hp
+    have hcd'' := chunk_of_idle _ hcd'
+    simp [core.result.Result.Insts.CoreOpsTry.branch, proto.codec.trusted.vec_capacity,
+      proto.codec.COMP_CODEC_SHRINK_THRESHOLD]
+    split_ifs with he
+    · step*
+      all_goals simp_all [alloc.vec.Vec.new, alloc.vec.Vec.deref]
+    · simp [hd1, hvb, hseq', hcd'', hsrc, hseq, hcd]
+  | succ m ih =>
+    intro j c src dst hm hj hseq hpd hcc hvc hvp hbd hend
+    have hjn : j < pieces.length := by omega
+    obtain ⟨s, st, r, d, hPS⟩ := hPSlt j hjn
+    have hKj1 := hK (j + 1)
+    have hz : ∀ z, zs[j]'(by rw [← hzl]; exact hjn) = some z → Deflates pieces[j] z :=
+      (List.forall₂_iff_get.mp hF).2 j hjn (by rw [← hzl]; exact hjn)
+    have hcs := (hsize _ (List.getElem_mem hjn)).2
+    have hread : ∀ (i : flate2.mem.Decompress) (b : List U8), compStep (inflateList i) (CompState.of c.comp_decoder) src.val b max.val =
+        (.Ok (some (.Last (byte (seq0 + j)))), .idle,
+          compPackets (seq0 + (j + 1)) (pieces.drop (j + 1)) (zs.drop (j + 1)) ++ tail, b ++ pieces[j]) := by
+      intro i b
+      rw [hcc, compPackets_drop seq0 pieces zs hzl j hjn, List.append_assoc]
+      exact compStep_compPacket i _ _ _ hz _ b max.val hcs
+    have hbseq : (c.comp_seq_id != byte (seq0 + j)) = false := by simp [hseq]
+    have hwrap : core.num.U8.wrapping_add c.comp_seq_id 1#u8 = byte (seq0 + (j + 1)) := by
+      rw [wrap_one, hseq, byte_succ]
+    have hflat := take_succ_flatten pieces j hjn
+    rw [proto.codec.CompPacketCodec.decode]
+    by_cases hib : c.in_buf.val = []
+    · have he : (alloc.vec.Vec.deref c.in_buf).length = 0 := by simp [Slice.length, alloc.vec.Vec.deref, hib]
+      simp only [VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+        Std.bind_ok, he, decide_true, ↓reduceIte]
+      obtain ⟨⟨r1, cd1, src1, vb1, o1⟩, hv, hp⟩ := PBUtil.spec_eq_ok (decode_with_spec c.comp_decoder src c.in_buf max
+        c.inflater (compStepFits_of _ hvc _ (by rw [hib]; simp; omega)))
+      rw [hv]
+      simp only [WP.uncurry'_pair] at hp
+      rw [hread, hib] at hp
+      simp only [Prod.mk.injEq, List.nil_append] at hp
+      obtain ⟨rfl, hcd1, hs1, hvb1⟩ := hp
+      rw [hib, plainDecode_nil, hPS] at hpd
+      simp only [Prod.mk.injEq] at hpd
+      obtain ⟨-, rfl, rfl, rfl, rfl⟩ := hpd
+      simp [core.result.Result.Insts.CoreOpsTry.branch, proto.codec.ChunkInfo.seq_id, hseq, lift]
+      refine ih (j + 1) _ src1 dst (by omega) (by omega) ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      · show core.num.U8.wrapping_add (byte (seq0 + j)) 1#u8 = _
+        rw [wrap_one, byte_succ]
+      · simp only [hvb1]
+        exact PS_next ps pieces max.val j hjn _ _ _ _ hPS
+      · intro inf d; rw [hcd1, hs1]
+      · rw [hcd1]; trivial
+      · exact hvp
+      · simp only [hvb1, hflat, List.length_append]; omega
+      · intro hjj; rw [hjj] at hs1
+        refine ⟨by rw [hs1]; simp [compPackets], of_idle _ hcd1⟩
+    · have hne' : ¬ (alloc.vec.Vec.deref c.in_buf).length = 0 := by
+        simpa [Slice.length, alloc.vec.Vec.deref] using hib
+      simp only [VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+        Std.bind_ok, hne', decide_false, Bool.false_eq_true, ↓reduceIte, lift]
+      have hKj := hK j
+      obtain ⟨⟨r0, ppc, vb, dst1⟩, hv, hp, hvalid⟩ := PBUtil.spec_eq_ok (proto.codec.PlainPacketCodec.decode_spec
+        c.plain_codec (chunkValid_hv _ hvp) c.in_buf dst max (some (core.num.U8.wrapping_sub c.comp_seq_id 1#u8))
+        (by simp only [alloc.vec.Vec.length]; omega))
+      rw [hv]
+      have hpd2 := hpd.trans hPS
+      have hsz := plainDecodeAux_sizes ((pieces.take j).flatten.length + 1) ps .idle ((pieces.take j).flatten) [] max.val none
+      have hPS' := hPS
+      unfold plainDecode at hp hpd2 hPS'
+      rw [hPS'] at hsz
+      simp only [List.length_nil, zero_add] at hsz
+      rw [plainDecodeAux_none (c.in_buf.val.length + 1) c.plain_codec.seq_id (ChunkState.of c.plain_codec.chunk_decoder)
+        c.in_buf.val dst.val max.val _ (by rw [hpd2]; simp), hpd2] at hp
+      simp only [Prod.mk.injEq] at hp
+      obtain ⟨rfl, rfl, rfl, hvb, hd1⟩ := hp
+      subst hvb hd1
+      simp [core.result.Result.Insts.CoreOpsTry.branch]
+      obtain ⟨⟨r1, cd1, src1, vb1, o1⟩, hv2, hp2⟩ := PBUtil.spec_eq_ok (decode_with_spec c.comp_decoder src vb max
+        c.inflater (compStepFits_of _ hvc _ (by omega)))
+      rw [hv2]
+      simp only [WP.uncurry'_pair] at hp2
+      rw [hread] at hp2
+      simp only [Prod.mk.injEq] at hp2
+      obtain ⟨rfl, hcd1, hs1, hvb1⟩ := hp2
+      simp [proto.codec.ChunkInfo.seq_id, hseq]
+      refine ih (j + 1) _ src1 dst1 (by omega) (by omega) ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      · show core.num.U8.wrapping_add (byte (seq0 + j)) 1#u8 = _
+        rw [wrap_one, byte_succ]
+      · simp only [hvb1]
+        exact PS_next ps pieces max.val j hjn _ _ _ _ hPS
+      · intro inf d; rw [hcd1, hs1]
+      · rw [hcd1]; trivial
+      · exact hvalid hvp
+      · simp only [hvb1, hflat, List.length_append]; omega
+      · intro hjj; rw [hjj] at hs1
+        refine ⟨by rw [hs1]; simp [compPackets], of_idle _ hcd1⟩
+
+end mysql_common.CompCodec
 
 namespace mysql_common
 
@@ -137,7 +628,36 @@ theorem proto.codec.CompPacketCodec.decode_compStream (self : proto.codec.CompPa
       c'.comp_seq_id = byte (self.comp_seq_id.val + pieces.length) ∧
       c'.plain_codec.seq_id = byte (self.plain_codec.seq_id.val + frameCount p.length) ∧
       c'.comp_decoder = .Idle ∧ c'.plain_codec.chunk_decoder = .Idle ⦄ := by
-  sorry
+  obtain ⟨hib, hcd, hpcd⟩ := hfresh
+  obtain ⟨zs, hF, hout⟩ := hstream
+  have hzl : pieces.length = zs.length := hF.length_eq
+  have hn : pieces ≠ [] := by
+    intro e; rw [e] at hpieces
+    have := congrArg List.length hpieces; simp [frame_length, frameCount] at this
+  have hnl : 0 < pieces.length := List.length_pos_iff.mpr hn
+  have hflat : pieces.flatten.length ≤ pieces.length * 2 ^ 24 := by
+    have hall : ∀ c ∈ pieces, c.length ≤ 2 ^ 24 := fun c hc => by
+      have := (hsize c hc).2
+      have : Nat.min maxPayloadLen max.val = min (2 ^ 24 - 1) max.val := rfl
+      omega
+    clear hpieces hlast hsize hF hout hzl hn hnl
+    induction pieces with
+    | nil => simp
+    | cons c cs ih =>
+      simp only [List.flatten_cons, List.length_append, List.length_cons]
+      have := hall c (by simp); have := ih (fun c' h => hall c' (by simp [h])); rw [Nat.succ_mul]; omega
+  have hpk : 7 * pieces.length ≤ out.length := by
+    rw [hout]; exact CompCodec.compPackets_length_ge _ _ _ hzl
+  have hU : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  have hsl : src.val.length = out.length + tail.length := by rw [hsrc]; simp
+  have hrm := CompCodec.run_main pieces zs hF self.plain_codec.seq_id p rest tail hpieces hlast max hsize hmax
+    self.comp_seq_id.val (by omega) pieces.length 0 self src dst (by simp) (by simp)
+    (by apply UScalar.eq_of_val_eq; rw [PBUtil.byte_val]; have := self.comp_seq_id.hBounds; simp at this ⊢)
+    (by rw [hib, hdst, hpcd]; rfl)
+    (by intro inf d; rw [hcd, hsrc, hout]; rfl)
+    (by rw [hcd]; trivial) (by rw [hpcd]; trivial) (by rw [hib, hdst]; simp)
+    (by intro h0; omega)
+  exact hrm
 
 /-- Streaming. On a strict prefix of such a compressed stream (as in `decode_compStream`), a decoder with nothing pending reports that more input is needed (`Ok(false)`), never an error. Plain chunks completed so far may already be in `dst`. -/
 theorem proto.codec.CompPacketCodec.decode_prefix (self : proto.codec.CompPacketCodec)
