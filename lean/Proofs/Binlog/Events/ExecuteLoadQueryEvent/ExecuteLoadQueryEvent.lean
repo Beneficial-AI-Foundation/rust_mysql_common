@@ -351,12 +351,67 @@ theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql
   intro b hb
   simp [hb, hb12, hb11, hb10, hb9, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1, elqEnc, hpv]
 
+private theorem elqRead_elqEnc (e : binlog.events.execute_load_query_event.ExecuteLoadQueryEvent)
+    (hsv : e.status_vars_len.1.val = (cowList e.status_vars.1).length) (hsv' : (cowList e.status_vars.1).length ≤ 65535)
+    (hs : e.schema_len.1.val = (cowList e.schema.1).length) (hs' : (cowList e.schema.1).length ≤ 255) :
+    elqRead (elqEnc e) = some (elqView e, []) := by
+  have hsvt : (cowList e.status_vars.1).take 65535 = cowList e.status_vars.1 := List.take_of_length_le hsv'
+  have hsct : (cowList e.schema.1).take 255 = cowList e.schema.1 := List.take_of_length_le hs'
+  have a1 := PBUtil.length_leBytes 4 e.thread_id.1.val
+  have a2 := PBUtil.length_leBytes 4 e.execution_time.1.val
+  have a3 := PBUtil.length_leBytes 2 e.error_code.1.val
+  have a4 := PBUtil.length_leBytes 2 e.status_vars_len.1.val
+  have a5 := PBUtil.length_leBytes 4 e.file_id.1.val
+  have a6 := PBUtil.length_leBytes 4 e.start_pos.1.val
+  have a7 := PBUtil.length_leBytes 4 e.end_pos.1.val
+  have b1 : e.thread_id.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b2 : e.execution_time.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b3 : e.error_code.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have b4 : e.status_vars_len.1.val < 2 ^ (8 * 2) := by scalar_tac
+  have b5 : e.file_id.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b6 : e.start_pos.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have b7 : e.end_pos.1.val < 2 ^ (8 * 4) := by scalar_tac
+  have hd : (byte (loadDupCode e.dup_handling.1)).val = loadDupCode e.dup_handling.1 := by
+    cases e.dup_handling.1 <;> rfl
+  have hd2 : loadDupCode e.dup_handling.1 ≤ 2 := by cases e.dup_handling.1 <;> simp [loadDupCode]
+  set H := leBytes 4 e.thread_id.1.val ++ leBytes 4 e.execution_time.1.val ++ [e.schema_len.1] ++
+    leBytes 2 e.error_code.1.val ++ leBytes 2 e.status_vars_len.1.val ++ leBytes 4 e.file_id.1.val ++
+    leBytes 4 e.start_pos.1.val ++ leBytes 4 e.end_pos.1.val ++ [byte (loadDupCode e.dup_handling.1)] with hH
+  have hHl : H.length = 26 := by simp [hH, a1, a2, a3, a4, a5, a6, a7]
+  have hq : elqEnc e = H ++ (cowList e.status_vars.1 ++ (cowList e.schema.1 ++ ([byte 0] ++ cowList e.query.1))) := by
+    simp only [elqEnc, hsvt, hsct, hH, List.append_assoc]
+  have t4 : H.take 4 = leBytes 4 e.thread_id.1.val := by simp [hH, a1]
+  have t44 : (H.drop 4).take 4 = leBytes 4 e.execution_time.1.val := by simp [hH, a1, a2]
+  have t8 : (H.drop 8).headD (byte 0) = e.schema_len.1 := by simp [hH, List.drop_append, a1, a2]
+  have t92 : (H.drop 9).take 2 = leBytes 2 e.error_code.1.val := by simp [hH, List.drop_append, a1, a2, a3]
+  have t112 : (H.drop 11).take 2 = leBytes 2 e.status_vars_len.1.val := by simp [hH, List.drop_append, a1, a2, a3, a4]
+  have t13 : (H.drop 13).take 4 = leBytes 4 e.file_id.1.val := by simp [hH, List.drop_append, a1, a2, a3, a4, a5]
+  have t17 : (H.drop 17).take 4 = leBytes 4 e.start_pos.1.val := by simp [hH, List.drop_append, a1, a2, a3, a4, a5, a6]
+  have t21 : (H.drop 21).take 4 = leBytes 4 e.end_pos.1.val := by simp [hH, List.drop_append, a1, a2, a3, a4, a5, a6, a7]
+  have t25 : (H.drop 25).headD (byte 0) = byte (loadDupCode e.dup_handling.1) := by
+    simp [hH, List.drop_append, a1, a2, a3, a4, a5, a6, a7]
+  rw [hq]
+  simp only [elqRead, Option.bind_eq_bind]
+  rw [takeExact_app _ _ 26 hHl]
+  simp only [Option.bind_some, t112, t8, t4, t44, t92, t13, t17, t21, t25, hd]
+  simp only [leNat_leBytes_lt 2 _ b4, leNat_leBytes_lt 2 _ b3, leNat_leBytes_lt 4 _ b1,
+    leNat_leBytes_lt 4 _ b2, leNat_leBytes_lt 4 _ b5, leNat_leBytes_lt 4 _ b6, leNat_leBytes_lt 4 _ b7]
+  rw [hsv, takeExact_app _ _ _ rfl]
+  simp only [Option.bind_some]
+  rw [hs, takeExact_app _ _ _ rfl]
+  simp only [Option.bind_some]
+  rw [takeExact_app [byte 0] _ 1 rfl]
+  simp only [Option.bind_some, elqView, hsv, hs, show ¬ 2 < loadDupCode e.dup_handling.1 from by omega, ite_false]
+
 /-- Round trip, for an event whose stored lengths are those of its status variables (at most 65535 bytes) and schema (at most 255). -/
 theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (e : binlog.events.execute_load_query_event.ExecuteLoadQueryEvent) (hsv : e.status_vars_len.1.val = (cowList e.status_vars.1).length)
     (hsv' : (cowList e.status_vars.1).length ≤ 65535) (hs : e.schema_len.1.val = (cowList e.schema.1).length)
     (hs' : (cowList e.schema.1).length ≤ 255) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) (h : buf.val = elqEnc e) :
     binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map elqView = some (elqView e) ∧ rest.val = [] ⦄ := by
-  sorry
+  apply WP.spec_mono (binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec ctx buf)
+  rintro ⟨r, rest⟩ hr
+  rw [h, elqRead_elqEnc e hsv hsv' hs hs'] at hr
+  simpa [ReadsAs] using hr
 
 private theorem elq_len_arith (A B C M : Nat) (hM : 2 ^ 32 - 1 ≤ M) (hA : A ≤ 65522) :
     min (min M (min M (min M (min M (min M (min M (min M (min M (min M (min M (min M (min M (min M (0 + 4) + 4) + 1) + 2) + 2) + 4) + 4) + 4) + 1) +
