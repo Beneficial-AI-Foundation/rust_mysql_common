@@ -1357,7 +1357,166 @@ theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.de
 theorem packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
     (h64 : Target64) (buf : io.ParseBuf) (e : Error) (h : gtidDumpRead buf.val = .panic e) :
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail e := by
-  sorry
+  unfold gtidDumpRead at h
+  by_cases hl : buf.val.length < 7
+  · simp [hl] at h
+  simp only [hl, ↓reduceIte] at h
+  obtain ⟨⟨r1, buf1⟩, he1, h1⟩ := spec_eq_ok (parse_usize_spec buf 7#usize)
+  simp only [WP.uncurry'_pair] at h1
+  have h7 : ((7#usize : Usize).val) = 7 := rfl
+  simp only [h7, Slice.length, show 7 ≤ buf.val.length by omega, ↓reduceIte] at h1
+  obtain ⟨h1a, h1b⟩ := h1
+  cases r1 with
+  | Err _ => simp [okPart] at h1a
+  | Ok pb =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h1a
+  obtain ⟨a0, a1, a2, a3, a4, a5, a6, rest, hbuf⟩ :
+      ∃ a0 a1 a2 a3 a4 a5 a6 rest, (↑buf : List U8) = a0 :: a1 :: a2 :: a3 :: a4 :: a5 :: a6 :: rest := by
+    match hb : (↑buf : List U8), (by omega : 7 ≤ buf.val.length) with
+    | a0 :: a1 :: a2 :: a3 :: a4 :: a5 :: a6 :: rest, _ => exact ⟨a0, a1, a2, a3, a4, a5, a6, rest, rfl⟩
+  rw [hbuf] at h1a h1b h
+  simp only [List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero, List.getD_cons_zero] at h1a h1b h
+  obtain ⟨⟨r2, sbuf⟩, he2, h2a, h2b⟩ := spec_eq_ok (parse_unchecked_hdr_spec pb (by simp [Slice.length, h1a]))
+  rw [h1a] at h2a h2b
+  simp only [List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero, leNat] at h2a h2b
+  cases r2 with
+  | Err _ =>
+    have ha : ¬ (a0.val = 30) := by intro hh; simp [okPart, hh] at h2a
+    simp [ha] at h
+  | Ok hd =>
+  have ha : a0.val = 30 := by simpa [okPart] using h2a
+  obtain ⟨⟨r3, sbuf2⟩, he3, h3a, h3b⟩ := spec_eq_ok (parse_unchecked_flags_spec sbuf (by simp [Slice.length, h2b]))
+  simp only [h2b, List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero] at h3a h3b
+  cases r3 with
+  | Err _ =>
+    have hf : leNat [a1, a2] &&& binlogDumpFlagsAll ≠ leNat [a1, a2] := by
+      intro hh; simp [hh, okPart] at h3a
+    simp [hf] at h
+  | Ok flv =>
+  have hf : leNat [a1, a2] &&& binlogDumpFlagsAll = leNat [a1, a2] := by
+    by_contra hh; simp [hh, okPart] at h3a
+  simp only [ha, hf, ne_eq, not_true_eq_false, or_self, ↓reduceIte] at h
+  obtain ⟨⟨r4, sbuf3⟩, he4, h4a, -⟩ := spec_eq_ok (parse_unchecked_leu32_spec sbuf2 (by simp [Slice.length, h3b]))
+  cases r4 with
+  | Err _ => simp [okPart] at h4a
+  | Ok sidv =>
+  obtain ⟨⟨r5, buf2⟩, he5, h5⟩ := spec_eq_ok (parse_u32bytes_spec buf1)
+  simp only [WP.uncurry'_pair] at h5
+  rw [h1b] at h5
+  rcases hc : checkedLenPrefixed 4 rest with ⟨_ | fname, r⟩
+  · rw [hc] at h; simp at h
+  rw [hc] at h5 h
+  simp only [Prod.mk.injEq] at h5
+  cases r5 with
+  | Err e => simp [okPart] at h5
+  | Ok rb =>
+  obtain ⟨-, hb2⟩ := h5
+  obtain ⟨⟨r6, buf3⟩, he6, h6⟩ := spec_eq_ok
+    (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf2)
+  simp only [WP.uncurry'_pair] at h6
+  simp only [Slice.length, hb2] at h6
+  by_cases h8 : 8 ≤ r.length
+  swap
+  · simp [readLE, h8] at h
+  simp only [readLE, h8, ↓reduceIte] at h h6
+  cases r6 with
+  | Err e => simp [okPart] at h6
+  | Ok posv =>
+  obtain ⟨-, hb3⟩ := h6
+  obtain ⟨⟨r7, buf4⟩, he7, h7'⟩ := spec_eq_ok
+    (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf3)
+  simp only [WP.uncurry'_pair] at h7'
+  simp only [Slice.length, hb3] at h7'
+  by_cases h4 : 4 ≤ (r.drop 8).length
+  swap
+  · simp only [h4, ↓reduceIte] at h; simp at h
+  simp only [h4, ↓reduceIte] at h h7'
+  cases r7 with
+  | Err e => simp [okPart] at h7'
+  | Ok lenv =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h7'
+  obtain ⟨hlen, hb4⟩ := h7'
+  obtain ⟨i, pd⟩ := lenv
+  simp only at hlen
+  have hi1v : (UScalar.cast .Usize i).val = leNat (List.take 4 (List.drop 8 r)) := by rw [← hlen]; simp
+  obtain ⟨⟨r8, buf5⟩, he8, h9⟩ := spec_eq_ok (parse_usize_spec buf4 (UScalar.cast .Usize i))
+  simp only [WP.uncurry'_pair] at h9
+  simp only [Slice.length, hb4, hi1v] at h9
+  generalize hL : leNat (List.take 4 (List.drop 8 r)) = L at h h9
+  generalize hR : List.drop 4 (List.drop 8 r) = R at h h9
+  by_cases hLR : R.length < L
+  · simp [hLR] at h
+  simp only [hLR, ↓reduceIte] at h
+  simp only [show L ≤ R.length by omega, ↓reduceIte] at h9
+  cases r8 with
+  | Err e => simp [okPart] at h9
+  | Ok pb1 =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h9
+  obtain ⟨hpb1, -⟩ := h9
+  obtain ⟨⟨r9, sid_buf⟩, he9, h10⟩ := spec_eq_ok
+    (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec pb1)
+  simp only [WP.uncurry'_pair] at h10
+  simp only [Slice.length, hpb1] at h10
+  by_cases hb8 : 8 ≤ (R.take L).length
+  swap
+  · simp only [hb8, ↓reduceIte] at h; simp at h
+  simp only [hb8, ↓reduceIte] at h h10
+  cases r9 with
+  | Err e => simp [okPart] at h10
+  | Ok rawv =>
+  simp only [okPart, Option.map_some, Option.some.injEq] at h10
+  obtain ⟨hraw, hsb⟩ := h10
+  obtain ⟨raw, pd2⟩ := rawv
+  simp only at hraw
+  rw [← hraw, ← hsb] at h
+  have hraw64 : raw.val < 2 ^ 64 := by scalar_tac
+  obtain ⟨i3, he10, hi3⟩ := spec_eq_ok (show (raw >>> 56#i32) ⦃ z => z.val = raw.val >>> 56 ⦄ by step*)
+  have hfbv : (UScalar.cast .U8 i3).val = raw.val / 2 ^ 56 := by
+    simp only [UScalar.cast_val_eq]
+    rw [hi3, Nat.shiftRight_eq_div_pow]
+    apply Nat.mod_eq_of_lt
+    show raw.val / 2 ^ 56 < 2 ^ 8
+    omega
+  unfold packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  delta misc.raw.int.RawInt misc.raw._const.Const misc.raw.seq.Seq misc.raw.bytes.RawBytes misc.raw.int.ConstU8 at *
+  by_cases htg : raw.val / 2 ^ 56 = 1
+  · have hfb1 : UScalar.cast .U8 i3 = 1#u8 := UScalar.eq_of_val_eq (by rw [hfbv, htg]; rfl)
+    simp only [htg, decide_true, ↓reduceIte] at h
+    obtain ⟨i4, he11, hi4⟩ := spec_eq_ok
+      (show ((raw &&& 72057594037927680#u64) >>> 8#i32) ⦃ z => z.val = (raw &&& 72057594037927680#u64).val >>> 8 ⦄ by
+        step*)
+    have hnsv : i4.val = raw.val / 2 ^ 8 % 2 ^ 48 := by
+      rw [hi4, UScalar.val_and]; exact mask_shift _
+    rcases hsr : sidsRead true (raw.val / 2 ^ 8 % 2 ^ 48) sid_buf.val with ⟨o, rr⟩ | e' | _
+    · rw [hsr] at h; rcases o with _ | ss <;> simp at h
+    · rw [hsr] at h
+      simp only [ReadOut.panic.injEq] at h
+      subst h
+      have hp := (tagged_loop h64 (raw.val / 2 ^ 8 % 2 ^ 48) sid_buf i4
+        (alloc.vec.Vec.with_capacity packets.Sid (UScalar.cast .Usize i4)) hnsv
+        (by simp [alloc.vec.Vec.with_capacity])).2 e' hsr
+      simp [he1, he2, he3, he4, he5, he6, he7, he8, he9, he10, he11, hfb1, hp, CoreOpsTry.branch, lift]
+      split
+      · rfl
+      · rename_i hne; exact absurd rfl hne
+    · rw [hsr] at h; simp at h
+  · have hfb1 : UScalar.cast .U8 i3 ≠ 1#u8 := fun hh => htg (by rw [← hfbv, hh]; rfl)
+    simp only [htg, decide_false, ↓reduceIte] at h
+    have hnsv : (raw &&& 72057594037927935#u64).val = raw.val % 2 ^ 56 := by
+      rw [UScalar.val_and]; exact mask_low _
+    rcases hsr : sidsRead false (raw.val % 2 ^ 56) sid_buf.val with ⟨o, rr⟩ | e' | _
+    · rw [hsr] at h; rcases o with _ | ss <;> simp at h
+    · rw [hsr] at h
+      simp only [ReadOut.panic.injEq] at h
+      subst h
+      have hp := (untagged_loop h64 (raw.val % 2 ^ 56) sid_buf (raw &&& 72057594037927935#u64)
+        (alloc.vec.Vec.with_capacity packets.Sid (UScalar.cast .Usize (raw &&& 72057594037927935#u64))) hnsv
+        (by simp [alloc.vec.Vec.with_capacity])).2 e' hsr
+      simp [he1, he2, he3, he4, he5, he6, he7, he8, he9, he10, hfb1, hp, CoreOpsTry.branch, lift]
+      split
+      · rename_i hh; exact absurd hh hfb1
+      · rfl
+    · rw [hsr] at h; simp at h
 
 /-- Round trip (untagged format): a request without tags, with known flags, a file name shorter
     than `2^32` bytes and a SID block shorter than `2^32` bytes, is read back from
