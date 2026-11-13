@@ -38,6 +38,14 @@ def core.f64.F64.from_le_bytes (a : Array Std.U8 8#usize) : Result F64 :=
 def core.f64.F64.from_be_bytes (a : Array Std.U8 8#usize) : Result F64 :=
   ok ⟨core.num.U64.from_be_bytes a⟩
 
+/-- `impl Clone for f32`: `*self` (a bitwise copy). Used by the derived `Clone for Value`. -/
+@[rust_fun "core::clone::impls::{core::clone::Clone<f32>}::clone"]
+def F32.Insts.CoreCloneClone.clone (x : F32) : Result F32 := ok x
+
+/-- `impl Clone for f64`: `*self` (a bitwise copy). Used by the derived `Clone for Value`. -/
+@[rust_fun "core::clone::impls::{core::clone::Clone<f64>}::clone"]
+def F64.Insts.CoreCloneClone.clone (x : F64) : Result F64 := ok x
+
 /-! ## `Cow<'_, [T]>` and its trait instances: the std bodies.
     (These cannot be patched into the crate: Aeneas fails on matching a `&Cow` whose
     `Borrowed` variant holds a shared borrow, see translation notes.) -/
@@ -93,6 +101,11 @@ def Shared0T.Insts.CoreFmtDisplay.fmt
   {T : Type _} (DisplayInst : core.fmt.Display T) (x : T) (f : core.fmt.Formatter) :
   Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter) :=
   DisplayInst.fmt x f
+
+/-- `Option::as_ref` (`&Option<T>` to `Option<&T>`): the identity, since Aeneas translates a
+    shared borrow as the value it points to. -/
+@[rust_fun "core::option::{core::option::Option<@T>}::as_ref"]
+def core.option.Option.as_ref {T : Type _} (x : Option T) : Result (Option T) := ok x
 
 /-! ## `Arc<T>`, modelled by its value (see `alloc.sync.Arc` in TypesExternal.lean). -/
 

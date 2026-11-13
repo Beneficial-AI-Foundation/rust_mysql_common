@@ -164,6 +164,13 @@ structure bitflags.traits.Flags (Self : Type _) (Self_Bits : Type _) where
   from_bits_truncate : Self_Bits → Result Self
   from_bits_retain : Self_Bits → Result Self
 
+/-- [frunk_core::hlist::HNil]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/frunk_core-0.5.0/src/hlist.rs', lines 170:0-170:15
+    Name pattern: [frunk_core::hlist::HNil]
+    Visibility: public -/
+@[reducible, rust_type "frunk_core::hlist::HNil"]
+def frunk_core.hlist.HNil := Unit
+
 /-- [time::error::try_from_parsed::TryFromParsed]
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.55/src/error/try_from_parsed.rs', lines 11:0-11:22
     Name pattern: [time::error::try_from_parsed::TryFromParsed]
@@ -954,8 +961,55 @@ structure row.Row where
   values : alloc.vec.Vec (Option value.Value)
   columns : alloc.sync.Arc (Slice packets.Column)
 
+/-- [mysql_common::row::convert::FromRowError]
+    Source: 'src/row/convert/mod.rs', lines 23:0-23:33
+    Visibility: public -/
+@[reducible]
+def row.convert.FromRowError := row.Row
+
+/-- Trait declaration: [mysql_common::row::convert::FromRow]
+    Source: 'src/row/convert/mod.rs', lines 77:0-93:1
+    Visibility: public -/
+structure row.convert.FromRow (Self : Type _) where
+  from_row : row.Row → Result Self
+  from_row_opt : row.Row → Result (core.result.Result Self
+    row.convert.FromRowError)
+
+/-- [mysql_common::value::convert::FromValueError]
+    Source: 'src/value/convert/mod.rs', lines 86:0-86:37
+    Visibility: public -/
+@[reducible]
+def value.convert.FromValueError := value.Value
+
+/-- Trait declaration: [mysql_common::value::convert::FromValue]
+    Source: 'src/value/convert/mod.rs', lines 93:0-116:1
+    Visibility: public -/
+structure value.convert.FromValue (Self : Type _) (Self_Intermediate : Type _)
+  where
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :
+    core.convert.TryFrom Self_Intermediate value.Value
+    value.convert.FromValueError
+  coreconvertIntoInst : core.convert.Into Self_Intermediate Self
+  from_value : value.Value → Result Self
+  from_value_opt : value.Value → Result (core.result.Result Self
+    value.convert.FromValueError)
+  get_intermediate : value.Value → Result (core.result.Result
+    Self_Intermediate value.convert.FromValueError)
+
+/-- [mysql_common::value::convert::ValueIr]
+    Source: 'src/value/convert/mod.rs', lines 562:0-562:30
+    Visibility: public -/
+@[reducible]
+def value.convert.ValueIr := value.Value
+
+/-- Trait declaration: [mysql_common::row::ColumnIndex]
+    Source: 'src/row/mod.rs', lines 238:0-240:1
+    Visibility: public -/
+structure row.ColumnIndex (Self : Type _) where
+  idx : Self → Slice packets.Column → Result (Option Std.Usize)
+
 /-- [mysql_common::row::RowDeserializer]
-    Source: 'src/row/mod.rs', lines 232:0-232:59
+    Source: 'src/row/mod.rs', lines 283:0-283:59
     Visibility: public -/
 def row.RowDeserializer (S : Type _) (P : Type _) :=
   row.Row × core.marker.PhantomData (S × P)
@@ -982,27 +1036,6 @@ def value.BinValue := Unit
     Source: 'src/value/convert/mod.rs', lines 120:0-120:40
     Visibility: public -/
 def value.convert.ParseIr (T : Type _) := T × value.Value
-
-/-- [mysql_common::value::convert::FromValueError]
-    Source: 'src/value/convert/mod.rs', lines 86:0-86:37
-    Visibility: public -/
-@[reducible]
-def value.convert.FromValueError := value.Value
-
-/-- Trait declaration: [mysql_common::value::convert::FromValue]
-    Source: 'src/value/convert/mod.rs', lines 93:0-116:1
-    Visibility: public -/
-structure value.convert.FromValue (Self : Type _) (Self_Intermediate : Type _)
-  where
-  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :
-    core.convert.TryFrom Self_Intermediate value.Value
-    value.convert.FromValueError
-  coreconvertIntoInst : core.convert.Into Self_Intermediate Self
-  from_value : value.Value → Result Self
-  from_value_opt : value.Value → Result (core.result.Result Self
-    value.convert.FromValueError)
-  get_intermediate : value.Value → Result (core.result.Result
-    Self_Intermediate value.convert.FromValueError)
 
 /-- [mysql_common::value::convert::parse_mysql_datetime_string::{closure#3}]
     Source: 'src/value/convert/mod.rs', lines 79:19-79:50 -/
@@ -1064,12 +1097,6 @@ inductive value.convert.OptionIr2 (T : Type _) (Clause0_Intermediate : Type _)
 | Some :
   Clause0_Intermediate →
   value.convert.OptionIr2 T Clause0_Intermediate
-
-/-- [mysql_common::value::convert::ValueIr]
-    Source: 'src/value/convert/mod.rs', lines 562:0-562:30
-    Visibility: public -/
-@[reducible]
-def value.convert.ValueIr := value.Value
 
 /-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from::{closure}]
     Source: 'src/value/convert/mod.rs', lines 632:25-632:60 -/
