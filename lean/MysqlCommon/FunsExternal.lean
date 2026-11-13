@@ -1155,18 +1155,23 @@ function Aeneas does not model, and the module is `opaque` in Cargo.toml. Each f
 * an **exact model on valid input, opaque otherwise**: `from_utf8_lossy` (borrowed bytes iff they
   are valid UTF-8; the replaced string is opaque), `sid_tag_from_utf8` (`Ok` of the bytes iff they
   are valid UTF-8; the error is opaque);
-* an **opaque value with no specification**: the `GnoInterval` error, the two version regexes, and
-  the `HashMap` of connect attributes (`std::collections::HashMap`, an opaque type in
+* an **opaque value, exact on ASCII input**: the two version regexes (`versionReCaptures_ascii`,
+  `mariadbVersionReCaptures_ascii`);
+* an **opaque value with no specification** (except that a new map is empty): the `GnoInterval`
+  error and the `HashMap` of connect attributes (`std::collections::HashMap`, an opaque type in
   TypesExternal.lean) and its operations.
 
-**Caveat (connect attributes):** no property of the `connectAttrs*` axioms is stated. Any Lean
+**Caveat (connect attributes):** the only property of the `connectAttrs*` axioms stated is
+that a new map has no entries (`connectAttrsEntries_new`). Any Lean
 model of them makes a map's iteration order (`connectAttrsEntries`) a deterministic function of
 the operations that built it, while Rust seeds every `HashMap` randomly (std `hash/random.rs`):
 serializing the same attributes twice can give different bytes. Specs must not relate the
 order, the serialized bytes or the Lean equality of separately built maps, or of the same
 construction in separate calls. If property axioms are ever added (e.g. that a new map has no
 entries), every insert-style law needs a length `< Usize.max` guard, and a model of them belongs
-in `lean/Proofs/Consistency/` (as for `ParamsMap`).
+in `lean/Proofs/Consistency/` (as for `ParamsMap`). The specs describe a parsed map only up to
+the bytes of its keys and values (`Defs.BuiltFrom`): whether they are `Cow::Borrowed` or `Owned`
+is left open.
 
 Every helper is assumed not to panic (it returns `ok`). -/
 
@@ -1182,6 +1187,101 @@ axiom versionReCaptures : Slice Std.U8 → Option (Slice Std.U8 × Slice Std.U8 
 /-- `MARIADB_VERSION_RE.captures` (groups 1–3): opaque. -/
 axiom mariadbVersionReCaptures :
   Slice Std.U8 → Option (Slice Std.U8 × Slice Std.U8 × Slice Std.U8)
+
+/-! #### The version regexes on ASCII input
+
+What the two regexes of `misc::trusted` capture (groups 1–3) on ASCII input, where `\d` is an
+ASCII digit and `.` one byte other than `\n` (in Unicode mode `.` matches one *character*, which
+on ASCII input is one byte). The regexes, verbatim from `src/misc/trusted.rs` (copied from
+`src/packets/mod.rs`):
+
+* `VERSION_RE`: `^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)`
+* `MARIADB_VERSION_RE`: `^(?:5.5.5-)?(\d{1,2})\.(\d{1,2})\.(\d{1,3})(?:-\d+)?-MariaDB`
+
+`regex` uses leftmost-first (backtracking-equivalent) semantics and both are anchored at the
+start, so: `\d{1,2}\.` is a maximal digit run of length 1 or 2 followed by `.` (a run of 3 or
+more digits cannot be split before a `.`); `(\d{1,3})(.*)` takes the first 1–3 digits of the next
+run; `(\d{1,3})(?:-\d+)?-MariaDB` needs the whole run (1–3 digits), then `-MariaDB`, or `-`, a
+maximal digit run and `-MariaDB`; the optional prefix is tried first, and the unprefixed
+alternative only if the prefixed one fails.
+
+**Evidence** for `versionReCaptures_ascii` / `mariadbVersionReCaptures_ascii`: these
+definitions were checked against the pinned `regex` 1.13.1 (`Regex::captures` on `&[u8]`, the
+crate's two patterns) on the crate's test strings and on 200 000 random ASCII strings over the
+alphabet `0-9 . - 5 M a r i D B x \n` with lengths 0–30, plus every string of length ≤ 7 over
+`{0, 1, ., -}`; all agreed (script: the commit that added these axioms). Reviewers checked the
+definitions against the regex semantics. Off ASCII nothing is assumed (`\d` there matches
+non-ASCII Unicode digits). -/
+
+/-- The maximal run of ASCII digits at the front of `bs`. -/
+def reDigitRun (bs : List Std.U8) : List Std.U8 := bs.takeWhile isAsciiDigit
+
+/-- `bs` starts with the byte `c`. -/
+def reStartsWith (c : Nat) (bs : List Std.U8) : Bool := (bs.head?.map (·.val)) == some c
+
+/-- `(\d{1,2})\.(\d{1,2})\.` at the front of ASCII `bs`: the two groups and the rest. -/
+def reTwoGroups (bs : List Std.U8) : Option (List Std.U8 × List Std.U8 × List Std.U8) :=
+  let g1 := reDigitRun bs
+  let r1 := bs.drop g1.length
+  if 1 ≤ g1.length ∧ g1.length ≤ 2 ∧ reStartsWith 46 r1 then
+    let g2 := reDigitRun (r1.drop 1)
+    let r2 := (r1.drop 1).drop g2.length
+    if 1 ≤ g2.length ∧ g2.length ≤ 2 ∧ reStartsWith 46 r2 then some (g1, g2, r2.drop 1)
+    else none
+  else none
+
+/-- Groups 1–3 of `VERSION_RE` on ASCII input. -/
+def versionReMatch (bs : List Std.U8) : Option (List Std.U8 × List Std.U8 × List Std.U8) :=
+  match reTwoGroups bs with
+  | some (g1, g2, r) =>
+    let g3 := reDigitRun r
+    if 1 ≤ g3.length then some (g1, g2, g3.take 3) else none
+  | none => none
+
+/-- `r` starts with `-MariaDB`. -/
+def reHasMariadbTag (r : List Std.U8) : Bool :=
+  (r.take 8).map (·.val) == [45, 77, 97, 114, 105, 97, 68, 66]
+
+/-- `(\d{1,3})(?:-\d+)?-MariaDB` at the front of ASCII `bs`: group 3. -/
+def reMariadbTail (bs : List Std.U8) : Option (List Std.U8) :=
+  let g3 := reDigitRun bs
+  let r := bs.drop g3.length
+  if 1 ≤ g3.length ∧ g3.length ≤ 3 ∧
+      (reHasMariadbTag r ∨
+        (reStartsWith 45 r ∧ 1 ≤ (reDigitRun (r.drop 1)).length ∧
+          reHasMariadbTag ((r.drop 1).drop (reDigitRun (r.drop 1)).length)))
+  then some g3 else none
+
+/-- `(\d{1,2})\.(\d{1,2})\.(\d{1,3})(?:-\d+)?-MariaDB` at the front of ASCII `bs`. -/
+def reMariadbCore (bs : List Std.U8) : Option (List Std.U8 × List Std.U8 × List Std.U8) :=
+  match reTwoGroups bs with
+  | some (g1, g2, r) => (reMariadbTail r).map (fun g3 => (g1, g2, g3))
+  | none => none
+
+/-- Groups 1–3 of `MARIADB_VERSION_RE` on ASCII input: with the prefix `5.5.5-` (each `.` any
+    byte but `\n`) if that matches, else without it. -/
+def mariadbVersionReMatch (bs : List Std.U8) : Option (List Std.U8 × List Std.U8 × List Std.U8) :=
+  let p := (bs.take 6).map (·.val)
+  let prefixOk : Bool := p.length == 6 && p.getD 0 0 == 53 && p.getD 1 0 != 10 &&
+    p.getD 2 0 == 53 && p.getD 3 0 != 10 && p.getD 4 0 == 53 && p.getD 5 0 == 45
+  match (if prefixOk then reMariadbCore (bs.drop 6) else none) with
+  | some g => some g
+  | none => reMariadbCore bs
+
+/-- The bytes of three captured slices. -/
+def capturesVal (c : Option (Slice Std.U8 × Slice Std.U8 × Slice Std.U8)) :
+    Option (List Std.U8 × List Std.U8 × List Std.U8) :=
+  c.map (fun t => (t.1.val, t.2.1.val, t.2.2.val))
+
+/-- **Trusted:** on ASCII input `VERSION_RE` captures exactly `versionReMatch` (see the
+    evidence above). Model: `lean/Proofs/Consistency/ConnTrusted.lean`. -/
+axiom versionReCaptures_ascii (s : Slice Std.U8) (h : ∀ b ∈ s.val, b.val < 128) :
+    capturesVal (versionReCaptures s) = versionReMatch s.val
+
+/-- **Trusted:** on ASCII input `MARIADB_VERSION_RE` captures exactly `mariadbVersionReMatch`
+    (see the evidence above). Model: `lean/Proofs/Consistency/ConnTrusted.lean`. -/
+axiom mariadbVersionReCaptures_ascii (s : Slice Std.U8) (h : ∀ b ∈ s.val, b.val < 128) :
+    capturesVal (mariadbVersionReCaptures s) = mariadbVersionReMatch s.val
 
 /-- The connect-attributes map type. -/
 abbrev ConnectAttrs : Type :=
@@ -1200,6 +1300,9 @@ axiom connectAttrsInsert :
     misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit → ConnectAttrs
 /-- The entries in iteration order: opaque. -/
 axiom connectAttrsEntries : ConnectAttrs → alloc.vec.Vec (Slice Std.U8 × Slice Std.U8)
+/-- **Trusted:** a new map has no entries (`HashMap::new()` is empty, whatever its seed; the
+    statement is order-free). Model: `lean/Proofs/Consistency/ConnTrusted.lean`. -/
+axiom connectAttrsEntries_new : (connectAttrsEntries connectAttrsNew).val = []
 /-- `HashMap<String, String>` to connect attributes: opaque. -/
 axiom connectAttrsFromStrings : StringMap → ConnectAttrs
 /-- `into_owned` of every key and value: opaque. -/
