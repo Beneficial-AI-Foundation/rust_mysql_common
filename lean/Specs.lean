@@ -34,6 +34,12 @@ import Specs.DefsSqlText
 import Specs.Packets.Connection
 import Specs.Packets.CachingSha2Password
 import Specs.DefsConn
+import Specs.Binlog.Mod
+import Specs.Binlog.Consts
+import Specs.Binlog.Misc
+import Specs.Binlog.Value
+import Specs.Binlog.Row
+import Specs.DefsBinlogCore
 import Specs.Packets.StmtBinlog
 import Specs.Packets.SessionStateChange
 import Specs.Packets.BinlogRequest
