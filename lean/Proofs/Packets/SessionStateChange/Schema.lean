@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.StmtBulkSsA
+import Proofs.Util.Shared
 
 /-! Statements for `struct Schema and its impls` (spec file: `Specs/Packets/SessionStateChange.lean`).
 Helper lemmas: `Proofs/Util/StmtBulkSsA.lean`. -/
@@ -28,7 +29,7 @@ theorem packets.session_state_change.Schema.as_bytes_spec (self : packets.sessio
 /-- `as_str`: the schema name as a string, lossily converted (exact on valid UTF-8). -/
 theorem packets.session_state_change.Schema.as_str_spec (self : packets.session_state_change.Schema) :
     packets.session_state_change.Schema.as_str self ⦃ c => LossyUtf8Valid (cowList self.1) c ⦄ := by
-  exact SBSsA.lenenc_as_str self
+  exact Shared.lenenc_as_str self
 
 /-- `into_owned`: the same bytes. -/
 theorem packets.session_state_change.Schema.into_owned_spec (self : packets.session_state_change.Schema) :

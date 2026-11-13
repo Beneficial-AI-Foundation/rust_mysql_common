@@ -5,7 +5,7 @@ import Proofs.Util.ConnHandshake
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common
@@ -81,7 +81,7 @@ theorem packets.SslRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deseriali
       have e1 : v1 = (i1, ph) := by injection hv1
       subst e1
       step*
-      step with pu_rawint_leu32 as ⟨r2, s2, h3a, h3b⟩
+      step with parse_unchecked_leu32_spec as ⟨r2, s2, h3a, h3b⟩
       · simp [Slice.length, h2b, hpb]; omega
       cases r2 with
       | Err e => simp [okPart] at h3a

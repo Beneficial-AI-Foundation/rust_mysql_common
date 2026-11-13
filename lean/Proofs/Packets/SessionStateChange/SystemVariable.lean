@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.StmtBulkSsA
+import Proofs.Util.Shared
 
 /-! Statements for `struct SystemVariable and its impls` (spec file: `Specs/Packets/SessionStateChange.lean`).
 Helper lemmas: `Proofs/Util/StmtBulkSsA.lean`. -/
@@ -32,7 +33,7 @@ theorem packets.session_state_change.SystemVariable.name_bytes_spec (self : pack
 /-- `name_str`: the name as a string, lossily converted (exact on valid UTF-8). -/
 theorem packets.session_state_change.SystemVariable.name_str_spec (self : packets.session_state_change.SystemVariable) :
     packets.session_state_change.SystemVariable.name_str self ⦃ c => LossyUtf8Valid (cowList self.«name».1) c ⦄ := by
-  exact SBSsA.lenenc_as_str self.«name»
+  exact Shared.lenenc_as_str self.«name»
 
 /-- `value_bytes`: the raw value. -/
 theorem packets.session_state_change.SystemVariable.value_bytes_spec (self : packets.session_state_change.SystemVariable) :
@@ -42,7 +43,7 @@ theorem packets.session_state_change.SystemVariable.value_bytes_spec (self : pac
 /-- `value_str`: the value as a string, lossily converted (exact on valid UTF-8). -/
 theorem packets.session_state_change.SystemVariable.value_str_spec (self : packets.session_state_change.SystemVariable) :
     packets.session_state_change.SystemVariable.value_str self ⦃ c => LossyUtf8Valid (cowList self.value.1) c ⦄ := by
-  exact SBSsA.lenenc_as_str self.value
+  exact Shared.lenenc_as_str self.value
 
 /-- `into_owned`: the same name and value. -/
 theorem packets.session_state_change.SystemVariable.into_owned_spec (self : packets.session_state_change.SystemVariable) :

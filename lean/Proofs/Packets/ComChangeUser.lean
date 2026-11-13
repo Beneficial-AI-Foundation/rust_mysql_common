@@ -1,26 +1,16 @@
 import Defs
 import Proofs.Util.ConnAuth
 import Proofs.Packets.ComChangeUserMoreData
+import Proofs.Util.Shared
 
 /-! Statements for `struct ComChangeUser and its impls` (spec file: `Specs/Packets/Connection.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common
-
-private theorem parse_u8_bytes_spec (buf : io.ParseBuf) :
-    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
-      ((okPart r).map (fun rb => cowList rb.1), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
-  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
-    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
-  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
-    (fun o rest => (o, rest.val) = checkedLenPrefixed 1 buf.val)
-    (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
 
 private theorem more_data_spec (h64 : Target64) (flags : constants.CapabilityFlags) (buf : io.ParseBuf) :
     packets.parse_change_user_more_data flags buf ⦃ r rest =>
@@ -77,11 +67,11 @@ private theorem changeUserRead_enc (caps : Nat) (v : ChangeUser) (kvs : List (Li
       simp [changeUserEnc, Nat.min_eq_left ha, List.take_of_length_le ha]
     rw [e]
     simp only [changeUserRead, h17, ne_eq, not_true_eq_false, ite_false]
-    rw [nulStrRead_nulStr u _ hu]
+    rw [ConnHS.nulStrRead_nulStr u _ hu]
     simp only
     rw [checkedLenPrefixed_one a _ ha]
     simp only
-    rw [nulStrRead_nulStr d _ hd]
+    rw [ConnHS.nulStrRead_nulStr d _ hd]
     simp
   | some m =>
     have e : changeUserEnc ⟨u, a, d, some m⟩ kvs ++ tail =
@@ -89,11 +79,11 @@ private theorem changeUserRead_enc (caps : Nat) (v : ChangeUser) (kvs : List (Li
       simp [changeUserEnc, Nat.min_eq_left ha, List.take_of_length_le ha]
     rw [e]
     simp only [changeUserRead, h17, ne_eq, not_true_eq_false, ite_false]
-    rw [nulStrRead_nulStr u _ hu]
+    rw [ConnHS.nulStrRead_nulStr u _ hu]
     simp only
     rw [checkedLenPrefixed_one a _ ha]
     simp only
-    rw [nulStrRead_nulStr d _ hd]
+    rw [ConnHS.nulStrRead_nulStr d _ hd]
     have hne : changeUserMoreEnc m kvs ++ tail ≠ [] := by
       simp [changeUserMoreEnc, PBUtil.length_leBytes, ← List.length_eq_zero_iff]
     simp only [hne, ite_false]
@@ -239,7 +229,7 @@ theorem packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFl
           obtain ⟨hou, hrr⟩ := h2
           subst hou
           simp only [branch_ok, bind_ok]
-          step with parse_u8_bytes_spec as ⟨r3, buf3, h3⟩
+          step with parse_u8bytes_spec as ⟨r3, buf3, h3⟩
           rw [hrr] at h3
           cases hc : checkedLenPrefixed 1 rr1 with
           | mk oa rr2 =>

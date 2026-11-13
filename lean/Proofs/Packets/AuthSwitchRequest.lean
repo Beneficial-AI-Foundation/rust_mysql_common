@@ -6,7 +6,7 @@ import Proofs.Packets.AuthPlugin
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.CAUtil mysql_common.Shared
 
 namespace mysql_common
 
@@ -181,7 +181,7 @@ theorem packets.AuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.ro
   have e : authSwitchRead buf.val = (some (nm, data), []) := by
     rw [h]
     simp only [authSwitchEnc, authSwitchRead]
-    simp [nulStrRead_nulStr nm data hn, byte_val]
+    simp [ConnHS.nulStrRead_nulStr nm data hn, byte_val]
   rw [e] at hr
   simpa using hr
 

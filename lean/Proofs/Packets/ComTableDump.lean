@@ -3,69 +3,19 @@ import Proofs.Util.PacketsOkErr
 import Proofs.Util.PacketsColStmt
 import Proofs.Misc.Raw.Bytes.U8Bytes
 import Proofs.Defs.LemmasG
+import Proofs.Util.Shared
 
 /-! Statements for `struct ComTableDump and its impls` (spec file:
 `Specs/Packets/StmtBinlog.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.Shared
 open core.result.Result.Insts mysql_common.PCSUtil
 
 namespace mysql_common
 
-@[step] private theorem constu8_default_spec {T : Type} (N : U8) (d : core.default.Default T) :
-    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
-  have e : misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d = ok () := by
-    simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-  rw [e]; exact (WP.spec_ok _).mpr trivial
-
-private theorem u8bytes_as_bytes_spec (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) :
-    misc.raw.bytes.RawBytes.as_bytes misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
-      ⦃ s => s.val = (cowList rb.1).take 255 ⦄ := by
-  have ⟨m, hm, hmv⟩ := spec_eq_ok misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
-  apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec _ m hm rb)
-  intro s hs; rw [hs, hmv]
-
-private theorem u8bytes_as_str_spec (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) :
-    misc.raw.bytes.RawBytes.as_str misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
-      ⦃ c => LossyUtf8Valid ((cowList rb.1).take 255) c ⦄ := by
-  unfold misc.raw.bytes.RawBytes.as_str
-  step with u8bytes_as_bytes_spec as ⟨s, hs⟩
-  simp only [misc.trusted.from_utf8_lossy, WP.spec_ok]
-  intro hu
-  rw [← hs] at hu
-  rw [ite_eq_left_iff.mpr (fun h => absurd ((Defs.isUtf8_iff_isValidUTF8 _).1 hu) h)]
-  exact ⟨s, rfl, hs⟩
-
-private theorem u8bytes_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (u8LenStr ((cowList rb.1).take 255)).length ≤ Usize.max) :
-    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb buf
-      ⦃ b => b.val = buf.val ++ u8LenStr ((cowList rb.1).take 255) ⦄ := by
-  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
-  intro s hs
-  simp only [u8LenStr, List.length_cons, List.length_take] at h
-  apply WP.spec_mono (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
-    (by simp only [Slice.length, hs]; omega))
-  intro b hb
-  rw [hb]
-  simp [u8LenStr, Slice.length, hs, Nat.min_comm]
-
-private theorem parse_u8bytes_spec (buf : io.ParseBuf) :
-    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
-      ((okPart r).map (fun rb => cowList rb.1), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
-  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
-    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
-  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
-    (fun o rest => (o, rest.val) = checkedLenPrefixed 1 buf.val)
-    (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
-
-private theorem checkedLenPrefixed_u8LenStr (s t : List U8) (hs : s.length ≤ 255) :
-    checkedLenPrefixed 1 (u8LenStr s ++ t) = (some s, t) := by
-  simp [checkedLenPrefixed, readLE, u8LenStr, leNat, byte_val, Nat.mod_eq_of_lt (by omega : s.length < 256)]
+attribute [local step] constu8_default_spec
 
 private theorem tableDumpRead_enc (db tbl : List U8) (hdb : db.length ≤ 255) (htbl : tbl.length ≤ 255)
     (tail : List U8) : tableDumpRead (tableDumpEnc db tbl ++ tail) = (some (db, tbl), tail) := by

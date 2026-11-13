@@ -16,7 +16,7 @@ private theorem wrap_one (x : U8) : core.num.U8.wrapping_add x 1#u8 = byte (x.va
   simp only [core.num.U8.wrapping_add, UScalar.wrapping_add, byte]
   congr 1
 
-private theorem chunkStep_sizes (st : ChunkState) (src dst : List U8) (max : Nat) :
+theorem chunkStep_sizes (st : ChunkState) (src dst : List U8) (max : Nat) :
     (chunkStep st src dst max).2.2.2.length + (chunkStep st src dst max).2.2.1.length ≤ dst.length + src.length ∧
     (∀ s, (chunkStep st src dst max).1 = .Ok (some (.Middle s)) →
       (chunkStep st src dst max).2.2.1.length + 4 ≤ src.length) := by
@@ -129,7 +129,7 @@ private theorem decode_aux (n : Nat) : ∀ (self : proto.codec.PlainPacketCodec)
 
 
 open proto.codec.buf_model in
-private theorem plainDecodeAux_sizes (n : Nat) : ∀ (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat) (comp : Option U8),
+theorem plainDecodeAux_sizes (n : Nat) : ∀ (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat) (comp : Option U8),
     (plainDecodeAux n seq st src dst max comp).2.2.2.2.length + (plainDecodeAux n seq st src dst max comp).2.2.2.1.length ≤
       dst.length + src.length := by
   induction n with

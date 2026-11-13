@@ -1,5 +1,6 @@
 import Defs
 import Proofs.Util.ParseBuf
+import Proofs.Util.SharedBasic
 import Proofs.Util.IntAndMisc
 import Proofs.Util.ParamsAsSql
 
@@ -10,7 +11,7 @@ ComTableDump,ComBinlogDump,ComBinlogDumpGtid,GnoInterval,Sid,Tag,SemiSyncAckPack
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std mysql_common Defs mysql_common.PBUtil
+open Aeneas Aeneas.Std mysql_common Defs mysql_common.PBUtil mysql_common.Shared
 
 namespace mysql_common.Replication
 
@@ -40,10 +41,6 @@ theorem usize_max_ge : 2 ^ 32 - 1 ≤ Usize.max := by
   omega
 
 /-! ## Length-prefixed strings -/
-
-theorem checkedLenPrefixed_u8LenStr (s t : List U8) (hs : s.length ≤ 255) :
-    checkedLenPrefixed 1 (u8LenStr s ++ t) = (some s, t) := by
-  simp [checkedLenPrefixed, readLE, u8LenStr, leNat, byte_val, Nat.mod_eq_of_lt (by omega : s.length < 256)]
 
 theorem checkedLenPrefixed_leBytes (k : Nat) (s t : List U8) (hs : s.length < 2 ^ (8 * k)) :
     checkedLenPrefixed k (leBytes k s.length ++ (s ++ t)) = (some s, t) := by
@@ -123,14 +120,6 @@ theorem gnoChunks_flatMap (is : List (Nat × Nat)) (hb : ∀ i ∈ is, i.1 < 2 ^
       leNat_take_leBytes_append 8 _ _ h2,
       show 16 = 8 + 8 from rfl, ← List.drop_drop, drop_leBytes_append, drop_leBytes_append,
       ih (fun i hi => hb i (by simp [hi]))]
-
-theorem usize_max_lt : Usize.max < 2 ^ 64 := by
-  have h1 := Usize.max_def; rw [Usize.numBits_def] at h1
-  have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
-  have h3 : 2 ^ UScalarTy.Usize.numBits ≤ 2 ^ 64 := by
-    apply Nat.pow_le_pow_right (by omega)
-    rcases System.Platform.numBits_eq with h | h <;> simp [h]
-  omega
 
 /-- The intervals of a SID are read back (bounds in 64 bits, `16 * count ≤ usize::MAX`). -/
 theorem intervalsRead_intervalsEnc (is : List (Nat × Nat)) (hb : ∀ i ∈ is, i.1 < 2 ^ 64 ∧ i.2 < 2 ^ 64)

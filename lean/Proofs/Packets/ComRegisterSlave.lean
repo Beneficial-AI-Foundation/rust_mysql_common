@@ -4,6 +4,8 @@ import Proofs.Util.PacketsColStmt
 import Proofs.Misc.Raw.Bytes.U8Bytes
 import Proofs.Misc.Raw.Int.LeU32
 import Proofs.Defs.LemmasG
+import Proofs.Util.Shared
+import Proofs.Util.Replication
 
 /-! Statements for `struct ComRegisterSlave and its impls` (spec file:
 `Specs/Packets/StmtBinlog.lean`). -/
@@ -11,88 +13,11 @@ import Proofs.Defs.LemmasG
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
-open core.result.Result.Insts mysql_common.PCSUtil
+open core.result.Result.Insts mysql_common.PCSUtil mysql_common.Shared
 
 namespace mysql_common
 
-@[step] private theorem constu8_default_spec {T : Type} (N : U8) (d : core.default.Default T) :
-    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
-  have e : misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d = ok () := by
-    simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-  rw [e]; exact (WP.spec_ok _).mpr trivial
-
-@[step] private theorem rawint_u16_default_spec :
-    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU16.Insts.CoreDefaultDefault
-      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 core.default.DefaultU16 ⦃ r => r.1.val = 0 ⦄ := by
-  have e : misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU16.Insts.CoreDefaultDefault
-      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 core.default.DefaultU16 = ok (0#u16, ()) := by
-    simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-    rfl
-  rw [e]; exact (WP.spec_ok _).mpr rfl
-
-@[step] private theorem rawint_u32_default_spec :
-    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU32.Insts.CoreDefaultDefault
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 core.default.DefaultU32 ⦃ r => r.1.val = 0 ⦄ := by
-  have e : misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU32.Insts.CoreDefaultDefault
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 core.default.DefaultU32 = ok (0#u32, ()) := by
-    simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-    rfl
-  rw [e]; exact (WP.spec_ok _).mpr rfl
-
-private theorem u8bytes_as_bytes_spec (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) :
-    misc.raw.bytes.RawBytes.as_bytes misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
-      ⦃ s => s.val = (cowList rb.1).take 255 ⦄ := by
-  have ⟨m, hm, hmv⟩ := spec_eq_ok misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
-  apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec _ m hm rb)
-  intro s hs; rw [hs, hmv]
-
-private theorem u8bytes_as_str_spec (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) :
-    misc.raw.bytes.RawBytes.as_str misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
-      ⦃ c => LossyUtf8Valid ((cowList rb.1).take 255) c ⦄ := by
-  unfold misc.raw.bytes.RawBytes.as_str
-  step with u8bytes_as_bytes_spec as ⟨s, hs⟩
-  simp only [misc.trusted.from_utf8_lossy, WP.spec_ok]
-  intro hu
-  rw [← hs] at hu
-  rw [ite_eq_left_iff.mpr (fun h => absurd ((Defs.isUtf8_iff_isValidUTF8 _).1 hu) h)]
-  exact ⟨s, rfl, hs⟩
-
-private theorem u8bytes_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (u8LenStr ((cowList rb.1).take 255)).length ≤ Usize.max) :
-    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb buf
-      ⦃ b => b.val = buf.val ++ u8LenStr ((cowList rb.1).take 255) ⦄ := by
-  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
-  intro s hs
-  simp only [u8LenStr, List.length_cons, List.length_take] at h
-  apply WP.spec_mono (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
-    (by simp only [Slice.length, hs]; omega))
-  intro b hb
-  rw [hb]
-  simp [u8LenStr, Slice.length, hs, Nat.min_comm]
-
-private theorem parse_unchecked_leu32_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
-    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
-      (okPart r).map (·.1.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4 ⦄ := by
-  rw [io.ParseBuf.parse_unchecked_eq]
-  have := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 buf
-    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4)
-    (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec buf h)
-  apply WP.spec_mono this
-  rintro ⟨r, rest⟩ hr
-  simpa [Option.map_map] using hr
-
-private theorem parse_u8bytes_spec (buf : io.ParseBuf) :
-    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
-      ((okPart r).map (fun rb => cowList rb.1), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
-  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
-    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
-      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
-  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
-    (fun o rest => (o, rest.val) = checkedLenPrefixed 1 buf.val)
-    (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
+attribute [local step] constu8_default_spec rawint_u16_default_spec rawint_u32_default_spec
 
 private theorem parse_unchecked_hdr_spec (buf : io.ParseBuf) (h : 1 ≤ buf.length) :
     io.ParseBuf.parse_unchecked (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple
@@ -104,43 +29,6 @@ private theorem parse_unchecked_hdr_spec (buf : io.ParseBuf) (h : 1 ≤ buf.leng
     packets.InvalidComRegisterSlaveHeader.Insts.CoreErrorError
     packets.InvalidComRegisterSlaveHeader.Insts.CoreDefaultDefault
     ((WP.spec_ok _).mpr trivial) buf h
-
-private theorem checkedLenPrefixed_u8LenStr (s t : List U8) (hs : s.length ≤ 255) :
-    checkedLenPrefixed 1 (u8LenStr s ++ t) = (some s, t) := by
-  simp [checkedLenPrefixed, readLE, u8LenStr, leNat, byte_val, Nat.mod_eq_of_lt (by omega : s.length < 256)]
-
-private theorem drop_app (l t : List U8) (n : Nat) (h : l.length = n) : (l ++ t).drop n = t := by
-  subst h; simp
-
-private theorem regSlaveRead_enc (r : RegSlave)
-    (hr : r.serverId < 2 ^ 32 ∧ r.hostname.length ≤ 255 ∧ r.user.length ≤ 255 ∧
-      r.password.length ≤ 255 ∧ r.port < 2 ^ 16 ∧ r.rank < 2 ^ 32 ∧ r.masterId < 2 ^ 32)
-    (tail : List U8) :
-    regSlaveRead (regSlaveEnc r ++ tail) = (some r, tail) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := hr
-  obtain ⟨sid, hn, us, pw, port, rank, mid⟩ := r
-  dsimp only at *
-  have l4 := PBUtil.length_leBytes 4 sid
-  have l2 := PBUtil.length_leBytes 2 port
-  have l4r := PBUtil.length_leBytes 4 rank
-  have l4m := PBUtil.length_leBytes 4 mid
-  unfold regSlaveRead regSlaveEnc
-  dsimp only
-  rw [List.take_of_length_le h2, List.take_of_length_le h3, List.take_of_length_le h4]
-  simp only [List.cons_append, List.append_assoc]
-  rw [ite_eq_right (by simp only [List.length_cons, List.length_append]; omega), ite_eq_right (by simp [byte_val])]
-  simp only [List.drop_succ_cons, List.drop_zero]
-  rw [leNat_take_leBytes 4 sid _ (by omega), drop_app _ _ 4 l4, checkedLenPrefixed_u8LenStr _ _ h2]
-  dsimp only
-  rw [checkedLenPrefixed_u8LenStr _ _ h3]
-  dsimp only
-  rw [checkedLenPrefixed_u8LenStr _ _ h4]
-  dsimp only
-  rw [ite_eq_right (by simp [l2, l4r, l4m]; omega), leNat_take_leBytes 2 port _ (by omega),
-    drop_app _ _ 2 l2, leNat_take_leBytes 4 rank _ (by omega), show 6 = 2 + 4 from rfl, ← List.drop_drop,
-    drop_app _ _ 2 l2, drop_app _ _ 4 l4r, leNat_take_leBytes 4 mid _ (by omega),
-    show 10 = 2 + 4 + 4 from rfl, ← List.drop_drop, ← List.drop_drop, drop_app _ _ 2 l2,
-    drop_app _ _ 4 l4r, drop_app _ _ 4 l4m]
 
 /-- `ComRegisterSlave::new(server_id)`: the server id; the strings empty, the numbers 0. -/
 theorem packets.ComRegisterSlave.new_spec (server_id : U32) :
@@ -401,7 +289,7 @@ theorem packets.ComRegisterSlave.Insts.Mysql_commonProtoMyDeserializeDeTuple.rou
       (okPart r).map RegSlave.of = some (RegSlave.of p) ∧ rest.val = tail ⦄ := by
   apply WP.spec_mono (packets.ComRegisterSlave.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec buf)
   rintro ⟨r, rest⟩ hr
-  rw [h, regSlaveRead_enc _ ⟨by simp [RegSlave.of]; scalar_tac, h255.1, h255.2.1, h255.2.2,
+  rw [h, Replication.regSlaveRead_regSlaveEnc _ ⟨by simp [RegSlave.of]; scalar_tac, h255.1, h255.2.1, h255.2.2,
     by simp [RegSlave.of]; scalar_tac, by simp [RegSlave.of]; scalar_tac, by simp [RegSlave.of]; scalar_tac⟩] at hr
   simpa only [Prod.mk.injEq] using hr
 

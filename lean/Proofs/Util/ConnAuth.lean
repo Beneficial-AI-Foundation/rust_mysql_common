@@ -11,14 +11,16 @@ import Proofs.Misc.Raw.Bytes.LenEnc
 import Proofs.Util.PacketsColStmt
 import Proofs.Io.BufMutExt
 import Proofs.Defs.LemmasConn
+import Proofs.Util.Shared
 
 /-! Helper lemmas for the connection-phase auth packets (`AuthMoreData`, `AuthPlugin`,
 `AuthSwitchRequest`, `ComChangeUser`, `LocalInfilePacket`, ...). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.Shared
 open core.result.Result.Insts
+open Defs.ConnHS (attrsBody nulStrRead_nulStr)
 
 namespace mysql_common.CAUtil
 
@@ -103,12 +105,6 @@ theorem knownPlugin_none (n : List U8) (h0 : n ≠ utf8 "mysql_old_password") (h
     knownPlugin n = none := by
   simp only [knownPlugin, knownPlugins, authPluginName, List.find?]
   simp [eq_comm (b := n), *]
-
-theorem slice_u8_eq_spec (s1 s2 : Slice U8) :
-    core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s1 s2 ⦃ b => b = true ↔ s1.val = s2.val ⦄ := by
-  apply WP.spec_mono (core.slice.cmp.PartialEqSlice.eq_homo_spec _ _ _ ?_)
-  · intro b hb; rw [← Slice.eq_iff]; simpa using hb
-  · intro x y; simp
 
 theorem cow_into_vec_spec (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)) :
     misc.raw.cow_into_vec core.clone.CloneU8 c ⦃ v => v.val = cowList c ⦄ := by
@@ -203,14 +199,6 @@ theorem parse_null_bytes_spec (buf : io.ParseBuf) :
       · exact absurd ((hasNul_iff _).mp hh) hz
     simp only [this]
     simp [h.1, h.2]
-
-theorem nulStrRead_nulStr (nm tail : List U8) (hn : NoNul nm) :
-    nulStrRead (nulStr nm ++ tail) = (some nm, tail) := by
-  have hb : beforeZero nm = nm := PBUtil.beforeZero_of_all nm hn
-  have hz : beforeZero (nm ++ byte 0 :: tail) = nm := beforeZero_append_zero nm tail hn
-  have hh : hasNul (nm ++ byte 0 :: tail) = true := by
-    rw [hasNul_iff]; exact ⟨byte 0, by simp, by simp [byte]; rfl⟩
-  simp [nulStr, nulStrRead, hb, hz, hh]
 
 /-! ## Connect attributes (reading) -/
 
@@ -668,10 +656,6 @@ theorem opt_connect_attrs_step (h64 : Target64) (flags : constants.CapabilityFla
     simp [AttrsMatch]
 
 /-! ## Connect attributes (writing) -/
-
-/-- The body of the attributes on the wire (without the total length). -/
-def attrsBody (kvs : List (List U8 × List U8)) : List U8 :=
-  (kvs.map (fun kv => lenencStr kv.1 ++ lenencStr kv.2)).flatten
 
 theorem attrsEnc_eq (kvs : List (List U8 × List U8)) :
     attrsEnc kvs = lenencInt (attrsBody kvs).length ++ attrsBody kvs := rfl

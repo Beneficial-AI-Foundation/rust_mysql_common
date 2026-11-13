@@ -4,43 +4,19 @@ import Proofs.Util.PacketsColStmt
 import Proofs.Misc.Raw.Int.LeU32
 import Proofs.Misc.Raw.Const.Const
 import Proofs.Defs.LemmasG
+import Proofs.Util.Shared
 
 /-! Statements for `struct ComBinlogDump and its impls` (spec file:
 `Specs/Packets/StmtBinlog.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.Shared
 open core.result.Result.Insts mysql_common.PCSUtil
 
 namespace mysql_common
 
-@[step] private theorem constu8_default_spec {T : Type} (N : U8) (d : core.default.Default T) :
-    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
-  have e : misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d = ok () := by
-    simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-  rw [e]; exact (WP.spec_ok _).mpr trivial
-
-@[step] private theorem rawint_u32_default_spec :
-    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU32.Insts.CoreDefaultDefault
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 core.default.DefaultU32 ⦃ r => r.1.val = 0 ⦄ := by
-  have e : misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU32.Insts.CoreDefaultDefault
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 core.default.DefaultU32 = ok (0#u32, ()) := by
-    simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-    rfl
-  rw [e]; exact (WP.spec_ok _).mpr rfl
-
-private theorem parse_unchecked_leu32_spec (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
-    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
-      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
-      (okPart r).map (·.1.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4 ⦄ := by
-  rw [io.ParseBuf.parse_unchecked_eq]
-  have := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 buf
-    (fun o rest => o.map (·.val) = some (leNat (buf.val.take 4)) ∧ rest.val = buf.val.drop 4)
-    (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize_spec buf h)
-  apply WP.spec_mono this
-  rintro ⟨r, rest⟩ hr
-  simpa [Option.map_map] using hr
+attribute [local step] constu8_default_spec rawint_u32_default_spec
 
 @[step] private theorem const_flags_default_spec :
     misc.raw._const.Const.Insts.CoreDefaultDefault.default packets.BinlogDumpFlags.Insts.CoreDefaultDefault
@@ -56,17 +32,6 @@ private theorem parse_unchecked_leu32_spec (buf : io.ParseBuf) (h : 4 ≤ buf.le
     misc.raw._const.Const.new misc.raw.int.LeU16 flags ⦃ c => c.1 = flags ⦄ := by
   have e : misc.raw._const.Const.new misc.raw.int.LeU16 flags = ok (flags, ()) := rfl
   rw [e]; exact (WP.spec_ok _).mpr rfl
-
-private theorem eof_as_str_spec (rb : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) :
-    misc.raw.bytes.RawBytes.as_str misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
-      ⦃ c => LossyUtf8Valid (cowList rb.1) c ⦄ := by
-  unfold misc.raw.bytes.RawBytes.as_str
-  step with eof_as_bytes_spec as ⟨s, hs⟩
-  simp only [misc.trusted.from_utf8_lossy, WP.spec_ok]
-  intro hu
-  rw [← hs] at hu
-  rw [ite_eq_left_iff.mpr (fun h => absurd ((Defs.isUtf8_iff_isValidUTF8 _).1 hu) h)]
-  exact ⟨s, rfl, hs⟩
 
 private theorem const_flags_ser (x : misc.raw._const.Const packets.BinlogDumpFlags misc.raw.int.LeU16)
     (buf : alloc.vec.Vec U8) (h : buf.length + 2 ≤ Usize.max) :
@@ -135,13 +100,6 @@ private theorem parse_unchecked_bd_hdr_spec (buf : io.ParseBuf) (h : 1 ≤ buf.l
     packets.InvalidComBinlogDumpHeader.Insts.CoreDefaultDefault
     ((WP.spec_ok _).mpr trivial) buf h
 
-private theorem leNat_take_one (l : List U8) (h : 1 ≤ l.length) : leNat (l.take 1) = (l.getD 0 (byte 0)).val := by
-  match l, h with
-  | a :: _, _ => simp [leNat]
-
-private theorem drop_app_len (l t : List U8) (n : Nat) (h : l.length = n) : (l ++ t).drop n = t := by
-  subst h; simp
-
 private theorem binlogDumpRead_enc (d : BinlogDump) (hp : d.pos < 2 ^ 32) (hfl : d.flags < 2 ^ 16)
     (hs : d.serverId < 2 ^ 32) (hf : d.flags &&& binlogDumpFlagsAll = d.flags) :
     binlogDumpRead (binlogDumpEnc d) = (some d, []) := by
@@ -164,8 +122,8 @@ private theorem binlogDumpRead_enc (d : BinlogDump) (hp : d.pos < 2 ^ 32) (hfl :
       List.nil_append]
   rw [e1, e2]
   simp only [List.drop_succ_cons, List.drop_zero, List.getD_cons_zero, byte_val]
-  rw [leNat_take_leBytes 4 pos _ (by omega), drop_app_len _ _ 4 l4, leNat_take_leBytes 2 fl _ (by omega),
-    show 6 = 4 + 2 from rfl, ← List.drop_drop, drop_app_len _ _ 4 l4, drop_app_len _ _ 2 l2,
+  rw [leNat_take_leBytes 4 pos _ (by omega), drop_app _ _ 4 l4, leNat_take_leBytes 2 fl _ (by omega),
+    show 6 = 4 + 2 from rfl, ← List.drop_drop, drop_app _ _ 4 l4, drop_app _ _ 2 l2,
     List.take_of_length_le (by omega), PBUtil.leNat_leBytes, Nat.mod_eq_of_lt (by omega)]
   simp [hf]
   omega

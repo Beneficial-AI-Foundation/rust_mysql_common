@@ -5,13 +5,14 @@ import Proofs.Misc.Raw.Seq.Seq
 import Proofs.Misc.Raw.Seq.Unknown
 import Proofs.Packets.StmtBulkExecuteParamType
 import Proofs.Packets.StmtBulkExecuteParamValues
+import Proofs.Util.SharedBasic
 
 /-! Statements for `struct ComStmtBulkExecuteRequest and its impls` (spec file:
 `Specs/Packets/StmtBinlog.lean`). Proofs: complete. -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.Shared
 
 namespace mysql_common
 
@@ -412,13 +413,6 @@ private theorem params_eq (s : List packets.StmtBulkExecuteParamType)
     simp only [SBParam.ptOf] at h2
     simp only [hType, List.cons.injEq, Prod.mk.injEq, true_and, and_true]
     rcases h2 with h2 | h2 <;> rw [h2] <;> simp
-
-private theorem bind_fail_pair {α β γ : Type} {m : Result (α × β)} {k : α → β → Result γ}
-    {P : α → β → Prop} {e : Error} (hm : m ⦃ a b => P a b ⦄) (hk : ∀ a b, P a b → k a b = fail e) :
-    (do let (a, b) ← m; k a b) = fail e := by
-  obtain ⟨⟨a, b⟩, heq, hv⟩ := PBUtil.spec_eq_ok hm
-  rw [heq]
-  simpa using hk a b hv
 
 private theorem parse_values (h64 : Target64)
     (params : alloc.vec.Vec (constants.ColumnType × constants.ColumnFlags))
@@ -1209,14 +1203,6 @@ private theorem take_row_spec (row0 : Slice value.Value) (out0 : alloc.vec.Vec p
   unfold packets.take_bulk_param_row
   exact take_row_loop_spec row0 out0 hmax 0#usize row0 out0 (by simp) rfl rfl (by simp) (by simp)
 
-private theorem sum_take_succ' (l : List Nat) (k : Nat) (hk : k < l.length) :
-    (l.take (k + 1)).sum = (l.take k).sum + l[k] := by
-  rw [List.take_add_one, List.getElem?_eq_getElem hk, List.sum_append]; simp
-
-private theorem sum_take_le' (l : List Nat) (k : Nat) : (l.take k).sum ≤ l.sum := by
-  have := congrArg List.sum (List.take_append_drop k l)
-  rw [List.sum_append] at this; omega
-
 private theorem take_values_loop_spec (vs0 : Slice (alloc.vec.Vec value.Value))
     (hmax : (vs0.val.map (·.val.length)).sum ≤ Usize.max)
     (k : Usize) (vs : Slice (alloc.vec.Vec value.Value)) (out : alloc.vec.Vec packets.StmtBulkExecuteParamValue)
@@ -1255,8 +1241,8 @@ private theorem take_values_loop_spec (vs0 : Slice (alloc.vec.Vec value.Value))
         rw [List.getElem?_eq_getElem hrin, List.getElem?_eq_getElem hin] at this
         exact Option.some.inj this
       have hLin : it.start.val < (vs0.val.map (·.val.length)).length := by simp; omega
-      have hs1 := sum_take_succ' (vs0.val.map (·.val.length)) it.start.val hLin
-      have hs2 := sum_take_le' (vs0.val.map (·.val.length)) (it.start.val + 1)
+      have hs1 := sum_take_succ (vs0.val.map (·.val.length)) it.start.val hLin
+      have hs2 := sum_take_le (vs0.val.map (·.val.length)) (it.start.val + 1)
       step*
       have hlift : lift (alloc.vec.Vec.deref_mut v) ⦃ a b =>
           a = v.slice ∧ b = (fun s => ({ slice := s } : alloc.vec.Vec _)) ⦄ := (WP.spec_ok _).mpr ⟨rfl, rfl⟩

@@ -86,7 +86,6 @@ theorem value.Value.as_sql_double (x : F64) (nbe : Bool) :
   unfold value.Value.as_sql
   simp [sql_trusted.format_f64]
 
-set_option linter.unusedSimpArgs false in
 /-- `as_sql(Date ..)`: the quoted literal `dateSql` (date only if the time part is zero; the
     fraction only if non-zero). Never panics. -/
 theorem value.Value.as_sql_date (y : U16) (mo d h mi s : U8) (us : U32) (nbe : Bool) :
@@ -99,10 +98,9 @@ theorem value.Value.as_sql_date (y : U16) (mo d h mi s : U8) (us : U32) (nbe : B
     simp only [sql_trusted.format_date, sql_trusted.format_datetime, sql_trusted.format_datetime_micros,
       WP.spec_ok, utf8_append, utf8_padDec, dateSql]
   all_goals
-    simp_all only [UScalar.eq_equiv, imp_false, uscalar_mk_val, BitVec.toNat_ofNat, Nat.zero_mod]
+    simp_all only [UScalar.eq_equiv, imp_false, uscalar_mk_val]
     simp_all [ascii]
 
-set_option linter.unusedSimpArgs false in
 /-- `as_sql(Time ..)` when `24·days + hours` fits in a `u32`: the quoted literal `timeSql`. -/
 theorem value.Value.as_sql_time (neg : Bool) (d : U32) (h mi s : U8) (us : U32) (nbe : Bool)
     (hfit : d.val * 24 + h.val ≤ U32.max) :
@@ -122,8 +120,7 @@ theorem value.Value.as_sql_time (neg : Bool) (d : U32) (h mi s : U8) (us : U32) 
       step as ⟨i3, hi3⟩
       simp only [sql_trusted.format_time, sql_trusted.format_time_neg, sql_trusted.format_time_micros,
         sql_trusted.format_time_micros_neg, WP.spec_ok, utf8_append, utf8_padDec, timeSql]
-      simp_all only [UScalar.eq_equiv, imp_false, uscalar_mk_val, BitVec.toNat_ofNat, Nat.zero_mod,
-        UScalar.cast_val_eq, hh, hq]
+      simp_all only [UScalar.eq_equiv, imp_false, uscalar_mk_val, UScalar.cast_val_eq]
       simp_all [ascii]
 
 /-- `as_sql(Time ..)` panics (`u32` overflow of `days * 24 + hours`) exactly when the hours do

@@ -6,7 +6,7 @@ import Proofs.Packets.AuthPlugin
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil mysql_common.Shared
 open core.result.Result.Insts
 
 namespace mysql_common
@@ -88,7 +88,6 @@ private theorem plug_tail_spec (sl : Slice U8) (b5 : io.ParseBuf) :
       simpa using this
     rw [this]; rw [this] at hrb1; exact hrb1
 
-set_option maxHeartbeats 4000000 in
 /-- `MyDeserialize for HandshakePacket`: on any input where it does not panic, exactly `handshakeRead` (fields, errors, and what is left of the buffer). -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : io.ParseBuf) (h : ¬ handshakePanics buf.val) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
@@ -101,7 +100,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
     have : buf.val = [] := by simp [Slice.length] at hl; exact hl
     cases r with
     | Ok _ => simp [okPart] at h1a
-    | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, this, hb1, handshakeRead]
+    | Err e => simp only [CAUtil.branch_err, bind_ok, CAUtil.from_residual_eq]; simp [this, hb1, handshakeRead]
   obtain ⟨h1a, h1b⟩ := h1
   obtain ⟨pv, r1, hbuf⟩ : ∃ pv r1, buf.val = pv :: r1 := by
     cases hh : buf.val with
@@ -123,7 +122,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   · obtain ⟨h2a, h2b⟩ := h2
     cases r2 with
     | Ok _ => simp [okPart] at h2a
-    | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, h2b]
+    | Err e => simp only [CAUtil.branch_err, bind_ok, CAUtil.from_residual_eq]; simp [okPart, h2b]
   obtain ⟨h2a, h2b⟩ := h2
   cases r2 with
   | Err e => simp [okPart] at h2a
@@ -138,7 +137,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
     have hs : r2v.length < 31 := by simp [Slice.length, h2b] at hl3 ⊢; omega
     cases r3 with
     | Ok _ => simp [okPart] at h3a
-    | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, h2b, hs]
+    | Err e => simp only [CAUtil.branch_err, bind_ok, CAUtil.from_residual_eq]; simp [okPart, h2b, hs]
   have hr2 : 31 ≤ r2v.length := by simp [Slice.length, h2b] at hl3; omega
   have hr2' : ¬ r2v.length < 31 := by omega
   obtain ⟨h3a, h3b⟩ := h3
@@ -149,7 +148,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   have hpl : pb.val.length = 31 := by rw [hpb]; simp; omega
   step as ⟨cfx, hcfx⟩
   subst hcfx
-  step with pu_rawint_leu32 as ⟨q1, s1, k1a, k1b⟩
+  step with parse_unchecked_leu32_spec as ⟨q1, s1, k1a, k1b⟩
   cases q1 with
   | Err e => simp [okPart] at k1a
   | Ok w1 =>
@@ -190,7 +189,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   | Err e =>
     have hst : statusRead (leNat (((r2v.take 31).drop 16).take 2)) = none := by
       rw [← e5]; simpa [okPart] using k6a.symm
-    simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, h3b, hr2', hst]
+    simp only [CAUtil.branch_err, bind_ok, CAUtil.from_residual_eq]; simp [okPart, h3b, hr2', hst]
   | Ok w6 =>
   step as ⟨cfx, hcfx⟩
   subst hcfx
@@ -263,8 +262,8 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   have hstat : w6.1.val = leNat (List.take 2 (List.drop 16 (List.take 31 r2v))) := by
     have := hc16; unfold statusRead at this; split_ifs at this; simp at this; exact this.symm
   have hmc : mcv.val = leNat (List.take 4 (List.drop 27 (List.take 31 r2v))) := Option.some.inj k10a
-  have hcl : cl.val &&& capabilityFlagsAll = cl.val := and_all32 _ (by scalar_tac)
-  have hcu : cu.val &&& capabilityFlagsAll = cu.val := and_all32 _ (by scalar_tac)
+  have hcl : cl.val &&& capabilityFlagsAll = cl.val := and_all32 _ cl.hBounds
+  have hcu : cu.val &&& capabilityFlagsAll = cu.val := and_all32 _ cu.hBounds
   step*
   case hmin =>
     have hs : i2 > 0#u32 := by assumption
@@ -391,7 +390,6 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
     show some (cowList cc) = _
     rw [hpr2]
 
-set_option maxHeartbeats 4000000 in
 /-- **Bug: `MyDeserialize for HandshakePacket` panics on a server-supplied length byte in `128..135`** (with `CLIENT_SECURE_CONNECTION`): `auth_plugin_data_len as i8 - 8` overflows (`handshakePanics`). A server, or anyone in the middle before TLS, can crash a client built with overflow checks (e.g. a debug build) with the first packet. (Without overflow checks the subtraction wraps to exactly `b - 8`, the protocol's value, and the packet is read correctly.) -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : handshakePanics buf.val) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail .integerOverflow := by
@@ -447,7 +445,7 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
   rotate_left
   · rename_i hh; cases hh
   rename_i hh; cases hh
-  apply bind_fail_pair (pu_rawint_leu32 pb (by simp only [Slice.length, hpb]; simp; omega))
+  apply bind_fail_pair (parse_unchecked_leu32_spec pb (by simp only [Slice.length, hpb]; simp; omega))
   intro q1 s1 k1
   obtain ⟨k1a, k1b⟩ := k1
   cases q1 with

@@ -1,6 +1,7 @@
 import Defs
 import Proofs.Util.RawBytesSeq
 import Proofs.Packets.ComBinlogDump
+import Proofs.Packets.ComBinlogDumpGtid
 import Proofs.Util.PacketsOkErr
 import Proofs.Util.PacketsColStmt
 import Proofs.Util.Constants
@@ -97,124 +98,6 @@ theorem packets.binlog_request.BinlogRequest.with_pos_eq {T : Type} (into : core
 
 
 
-namespace BRUtil
-
-/-! Private specs of the `ComBinlogDumpGtid` builders used by `as_cmd` (the same facts as the
-public specs in `Packets/ComBinlogDumpGtid.lean`, restated here to keep this file independent). -/
-
-@[step] private theorem constu8_default_spec' {T : Type} (N : U8) (d : core.default.Default T) :
-    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
-  have e : misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d = ok () := by
-    simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-  rw [e]; exact (WP.spec_ok _).mpr trivial
-
-@[step] private theorem rawint_u64_default_spec' :
-    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU64.Insts.CoreDefaultDefault
-      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 core.default.DefaultU64 ⦃ r => r.1.val = 0 ⦄ := by
-  have e : misc.raw.int.RawInt.Insts.CoreDefaultDefault.default misc.raw.int.LeU64.Insts.CoreDefaultDefault
-      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 core.default.DefaultU64 = ok (0#u64, ()) := by
-    simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
-    rfl
-  rw [e]; exact (WP.spec_ok _).mpr rfl
-
-@[step] private theorem const_flags_default_spec' :
-    misc.raw._const.Const.Insts.CoreDefaultDefault.default packets.BinlogDumpFlags.Insts.CoreDefaultDefault
-      misc.raw.int.LeU16.Insts.CoreDefaultDefault ⦃ r => r.1.val = 0 ⦄ := by
-  have e : misc.raw._const.Const.Insts.CoreDefaultDefault.default packets.BinlogDumpFlags.Insts.CoreDefaultDefault
-      misc.raw.int.LeU16.Insts.CoreDefaultDefault = ok (0#u16, ()) := by
-    simp [misc.raw._const.Const.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default,
-      packets.BinlogDumpFlags.Insts.CoreDefaultDefault.default, packets.BinlogDumpFlags.empty]
-    rfl
-  rw [e]; exact (WP.spec_ok _).mpr rfl
-
-@[step] private theorem seq_sid_default_spec' :
-    misc.raw.seq.Seq.Insts.CoreDefaultDefault.default misc.raw.int.LeU64 packets.Sid.Insts.CoreCloneClone
-      ⦃ r => cowList r.1 = [] ⦄ := by
-  unfold misc.raw.seq.Seq.Insts.CoreDefaultDefault.default
-  rw [misc.raw.seq.Seq.new_eq _ _ _ _ _ rfl]
-  exact (WP.spec_ok _).mpr (by simp [cowList, alloc.vec.Vec.new])
-
-@[step] private theorem seq_is_empty_spec' {T U : Type} (cl : core.clone.Clone T) (s : misc.raw.seq.Seq T U) :
-    misc.raw.seq.Seq.is_empty cl s ⦃ b => b = decide (cowList s.1 = []) ⦄ := by
-  unfold misc.raw.seq.Seq.is_empty
-  obtain ⟨c, u⟩ := s
-  step with cow_deref_spec as ⟨sl, hsl⟩
-  simp [core.slice.Slice.is_empty, hsl]
-
-@[step] private theorem flags_remove_spec' (f g : packets.BinlogDumpFlags) :
-    packets.BinlogDumpFlags.remove f g ⦃ r => r.val = andNot 16 f.val g.val ⦄ := by
-  simp [packets.BinlogDumpFlags.remove, packets.BinlogDumpFlags.difference, lift, andNot,
-    ConstUtil.u16_val_not]
-
-@[step] private theorem flags_insert_spec' (f g : packets.BinlogDumpFlags) :
-    packets.BinlogDumpFlags.insert f g ⦃ r => r.val = f.val ||| g.val ⦄ := by
-  simp [packets.BinlogDumpFlags.insert, packets.BinlogDumpFlags.union, lift]
-
-private theorem through_gtid_val' :
-    (packets.BinlogDumpFlags.BINLOG_THROUGH_GTID : U16).val = BINLOG_THROUGH_GTID := by
-  simp [packets.BinlogDumpFlags.BINLOG_THROUGH_GTID, BINLOG_THROUGH_GTID]
-
-private theorem gtid_new_spec (server_id : U32) :
-    packets.ComBinlogDumpGtid.new server_id ⦃ g =>
-      GtidDump.of g = ⟨0, server_id.val, [], 0, []⟩ ⦄ := by
-  unfold packets.ComBinlogDumpGtid.new
-  step*
-  simp_all [GtidDump.of]
-
-private theorem gtid_with_pos_spec (self : packets.ComBinlogDumpGtid) (pos : U64) :
-    packets.ComBinlogDumpGtid.with_pos self pos ⦃ g =>
-      GtidDump.of g = { GtidDump.of self with pos := pos.val } ⦄ := by
-  unfold packets.ComBinlogDumpGtid.with_pos
-  obtain ⟨hd, fl, sv, fn, ⟨pv, pp⟩, sb⟩ := self
-  simp [GtidDump.of]
-
-private theorem gtid_with_flags_spec (self : packets.ComBinlogDumpGtid)
-    (flags : packets.BinlogDumpFlags) :
-    packets.ComBinlogDumpGtid.with_flags self flags ⦃ g =>
-      GtidDump.of g = { GtidDump.of self with
-        flags := if cowList self.sid_block.1 = [] then andNot 16 flags.val BINLOG_THROUGH_GTID
-                 else flags.val ||| BINLOG_THROUGH_GTID } ⦄ := by
-  unfold packets.ComBinlogDumpGtid.with_flags
-  obtain ⟨hd, ⟨fv, pf⟩, sv, fn, pv, sb⟩ := self
-  step*
-  · simp_all [GtidDump.of, through_gtid_val']
-  · simp_all [GtidDump.of, through_gtid_val']
-
-private theorem gtid_with_filename_spec {T : Type}
-    (into : core.convert.Into T (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
-    (self : packets.ComBinlogDumpGtid) (x : T) (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))
-    (h : into.into x = ok c) :
-    packets.ComBinlogDumpGtid.with_filename into self x ⦃ g =>
-      GtidDump.of g = { GtidDump.of self with filename := cowList c } ⦄ := by
-  unfold packets.ComBinlogDumpGtid.with_filename
-  step*
-  simp_all [GtidDump.of]
-
-private theorem gtid_with_sids_spec {T : Type}
-    (into : core.convert.Into T (alloc.borrow.Cow (Slice packets.Sid) (alloc.vec.Vec packets.Sid)))
-    (self : packets.ComBinlogDumpGtid) (x : T)
-    (c : alloc.borrow.Cow (Slice packets.Sid) (alloc.vec.Vec packets.Sid)) (h : into.into x = ok c) :
-    packets.ComBinlogDumpGtid.with_sids into self x ⦃ g =>
-      GtidDump.of g = { GtidDump.of self with
-        flags := if cowList c = [] then andNot 16 (GtidDump.of self).flags BINLOG_THROUGH_GTID
-                 else (GtidDump.of self).flags ||| BINLOG_THROUGH_GTID,
-        sids := (cowList c).map SidV.of } ⦄ := by
-  unfold packets.ComBinlogDumpGtid.with_sids
-  rw [misc.raw.seq.Seq.new_eq _ _ _ _ c h]
-  apply spec_bind_ok
-  obtain ⟨hd, ⟨fv, pf⟩, sv, fn, pv, sb⟩ := self
-  apply WP.spec_bind (seq_is_empty_spec' _ ((c, ()) : misc.raw.seq.Seq packets.Sid misc.raw.int.LeU64))
-  intro b hb
-  split
-  · step*
-    simp_all [GtidDump.of, through_gtid_val']
-  · step*
-    simp_all [GtidDump.of, through_gtid_val']
-
-end BRUtil
-
-open BRUtil
-
 private theorem andNot4_idem (x : Nat) : andNot 16 (andNot 16 x 4) 4 = andNot 16 x 4 := by
   simp [andNot]
 
@@ -272,17 +155,17 @@ theorem packets.binlog_request.BinlogRequest.as_cmd_spec (self : packets.binlog_
     rw [h3, h2, h1, h0]
     simp [UScalar.cast_val_eq, UScalar.val_and, cowList, hs]
   · simp only [bind_ok, ite_true]
-    apply WP.spec_bind (gtid_new_spec self.server_id)
+    apply WP.spec_bind (packets.ComBinlogDumpGtid.new_spec self.server_id)
     intro g0 h0
-    apply WP.spec_bind (gtid_with_pos_spec g0 self.pos)
+    apply WP.spec_bind (packets.ComBinlogDumpGtid.with_pos_spec g0 self.pos)
     intro g1 h1
-    apply WP.spec_bind (gtid_with_flags_spec g1 self.flags)
+    apply WP.spec_bind (packets.ComBinlogDumpGtid.with_flags_spec g1 self.flags)
     intro g2 h2
     apply WP.spec_bind (cow_deref_spec _ self.filename)
     intro s hs
-    apply WP.spec_bind (gtid_with_filename_spec _ g2 s (.Borrowed s) rfl)
+    apply WP.spec_bind (packets.ComBinlogDumpGtid.with_filename_spec _ g2 s (.Borrowed s) rfl)
     intro g3 h3
-    apply WP.spec_bind (gtid_with_sids_spec _ g3 _
+    apply WP.spec_bind (packets.ComBinlogDumpGtid.with_sids_spec _ g3 _
       (.Borrowed (alloc.vec.Vec.deref self.sids)) rfl)
     intro g4 h4
     simp only [WP.spec_ok]

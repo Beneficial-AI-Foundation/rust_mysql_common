@@ -13,20 +13,6 @@ open Aeneas Aeneas.Std Result mysql_common Defs
 
 namespace mysql_common.SBSsB
 
-/-- `as_str` of a length-encoded `RawBytes`: the bytes, lossily converted. -/
-theorem lenenc_as_str (rb : misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) :
-    misc.raw.bytes.RawBytes.as_str misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
-      ⦃ c => LossyUtf8Valid (cowList rb.1) c ⦄ := by
-  unfold misc.raw.bytes.RawBytes.as_str
-  apply WP.spec_bind (PCSUtil.lenenc_as_bytes rb)
-  intro s hs
-  unfold misc.trusted.from_utf8_lossy
-  apply (WP.spec_ok _).mpr
-  intro hu
-  rw [← hs] at hu
-  have hv := (Defs.isUtf8_iff_isValidUTF8 _).1 hu
-  exact ⟨s, by simp [hv], hs⟩
-
 /-- A length-encoded `RawBytes` read through `parse_unchecked`, re-wrapped as the same type:
     `checkedLenencStr`. -/
 theorem lenenc_parse_rewrap (h64 : Target64) (buf : io.ParseBuf) :
