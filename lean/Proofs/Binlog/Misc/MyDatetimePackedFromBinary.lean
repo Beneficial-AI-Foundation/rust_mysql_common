@@ -16,8 +16,8 @@ theorem binlog.misc.my_datetime_packed_from_binary_spec (input : io.ParseBuf) (d
       ((okPart r).map (·.val), rest.val) =
         (match datetime2Read dec.val input.val with
          | some (p, t) => (some p, t)
-         | none => (none, [])) ⦄ := by
-  sorry
+         | none => (none, [])) ⦄ := 
+  BinlogUtil.datetime_spec input dec h
 
 /-- `my_datetime_packed_from_binary` panics (`i64` overflow) when the packed value is below `-2^63`: an integer part of five zero bytes (invalid: MySQL always sets the top bit) with a negative fraction. -/
 theorem binlog.misc.my_datetime_packed_from_binary_overflow (input : io.ParseBuf) (dec : U32)
