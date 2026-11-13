@@ -1,4 +1,6 @@
 import Proofs.Util.BinlogValue
+import Proofs.Binlog.Misc.TimeFromPacked
+import Proofs.Binlog.Misc.DatetimeFromPacked
 set_option autoImplicit false
 set_option linter.unusedTactic false
 set_option linter.unusedSimpArgs false
@@ -633,5 +635,122 @@ theorem deser_MYSQL_TYPE_STRING (h64 : Target64) (md : Slice U8) (uns part : Boo
     · have hlt' : ¬ stringFieldLen m0.val m1.val < 256 := by rw [← hLv]; rw [UScalar.lt_equiv] at hlt; simpa using hlt
       rw [hrd _ rfl, if_neg hlt']
       lenpref_tac (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf) 2
+
+theorem deser_MYSQL_TYPE_TIMESTAMP2 (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hmeta : binlogMetaLen MYSQL_TYPE_TIMESTAMP2 ≤ md.val.length)
+    (hno : binlogRead MYSQL_TYPE_TIMESTAMP2 md.val uns buf.val ≠ .opaque) :
+    BVdes (MYSQL_TYPE_TIMESTAMP2, md, uns, part) buf ⦃ r rest => binRel (binlogRead MYSQL_TYPE_TIMESTAMP2 md.val uns buf.val) r rest ⦄ := by
+  have hm1 : 1 ≤ md.val.length := by simpa [binlogMetaLen] using hmeta
+  obtain ⟨m0, t, hmd⟩ : ∃ m0 t, md.val = m0 :: t := by
+    rcases h : md.val with _ | ⟨a, t⟩ <;> simp_all
+  have hg0 : (md.val.getD 0 (byte 0)) = m0 := by simp [hmd]
+  pre_tac MYSQL_TYPE_TIMESTAMP2
+  simp only [index0 md m0 _ hmd, Std.bind_ok]
+  step with timestamp_spec buf m0 as ⟨r, rb, hr⟩
+  simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 1 from by omega, ite_false, hg0] at hno ⊢
+  rcases hT : timestamp2Read m0.val buf.val with _ | ⟨⟨sv, uv⟩, rest⟩
+  · rw [hT] at hr
+    simp only [Prod.mk.injEq] at hr
+    cases r with
+    | Ok _ => simp [okPart] at hr
+    | Err e => simp [core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq, binRel, okPart, hr.2]
+  · rw [hT] at hr hno
+    simp only [Prod.mk.injEq] at hr
+    obtain ⟨h1, h2⟩ := hr
+    cases r with
+    | Err _ => simp [okPart] at h1
+    | Ok x =>
+      obtain ⟨sec, usec⟩ := x
+      simp only [okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h1
+      obtain ⟨hs, hu⟩ := h1
+      by_cases hu0 : uv = 0
+      · have : usec = 0#i32 := IScalar.eq_of_val_eq (by rw [hu, hu0]; rfl)
+        subst this
+        simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, Std.uncurry_apply_pair]
+        rw [if_pos trivial]
+        simp only [hu0, ite_true]
+        have := ConvInts.usize_max_ge
+        have hsb : -2 ^ 31 ≤ sec.val ∧ sec.val < 2 ^ 31 := by have := sec.hBounds; simpa [IScalarTy.numBits] using this
+        have hlen := ConvInts.decimalBytes_length sv (by omega)
+        step with i128_to_string_spec' as ⟨st, hst⟩
+        have hi : (IScalar.cast IScalarTy.I128 sec).val = sv := by rw [cast128_i32, hs]
+        rw [hi] at hst
+        step with string_into_bytes_spec' st (by rw [hst]; omega) as ⟨v, hv⟩
+        simp only [WP.spec_ok, WP.uncurry'_pair, binRel, okPart, Option.map, binlogValView, Val.ofValue, hv, hst, h2, and_true, hu0, ite_true]
+      · simp [hu0] at hno
+
+theorem time2Read_lower (d : Nat) (bs t : List U8) (p : Int) (h : time2Read d bs = some (p, t)) : -2 ^ 63 < p := by
+  unfold time2Read at h
+  split_ifs at h <;> simp only [Option.some.injEq, Prod.mk.injEq] at h <;> obtain ⟨rfl, -⟩ := h
+  all_goals (try unfold packedMake)
+  all_goals omega
+
+theorem deser_MYSQL_TYPE_DATETIME2 (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hmeta : binlogMetaLen MYSQL_TYPE_DATETIME2 ≤ md.val.length)
+    (hp : ∀ e, binlogRead MYSQL_TYPE_DATETIME2 md.val uns buf.val ≠ .panic e) :
+    BVdes (MYSQL_TYPE_DATETIME2, md, uns, part) buf ⦃ r rest => binRel (binlogRead MYSQL_TYPE_DATETIME2 md.val uns buf.val) r rest ⦄ := by
+  have hm1 : 1 ≤ md.val.length := by simpa [binlogMetaLen] using hmeta
+  obtain ⟨m0, t, hmd⟩ : ∃ m0 t, md.val = m0 :: t := by
+    rcases h : md.val with _ | ⟨a, t⟩ <;> simp_all
+  have hg0 : (md.val.getD 0 (byte 0)) = m0 := by simp [hmd]
+  have hc : (UScalar.cast .U32 m0).val = m0.val := by
+    rw [UScalar.cast_val_eq]; have := u8_lt m0; simp only [UScalarTy.numBits]; omega
+  pre_tac MYSQL_TYPE_DATETIME2
+  simp only [index0 md m0 _ hmd, Std.bind_ok]
+  simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 1 from by omega, ite_false, hg0] at hp ⊢
+  have hlow : ∀ p t, datetime2Read m0.val buf.val = some (p, t) → -2 ^ 63 ≤ p := by
+    intro p t ht; rw [ht] at hp; by_contra hc'; exact hp .integerOverflow (by simp only; rw [if_pos (by omega)])
+  step with datetime_spec buf (UScalar.cast .U32 m0) (by rw [hc]; exact hlow) as ⟨r, rb, hr⟩
+  rw [hc] at hr
+  rcases hT : datetime2Read m0.val buf.val with _ | ⟨p, rest⟩
+  · rw [hT] at hr
+    simp only [Prod.mk.injEq] at hr
+    cases r with
+    | Ok _ => simp [okPart] at hr
+    | Err e => simp [binRel, okPart, hr.2]
+  · rw [hT] at hr hp
+    simp only [Prod.mk.injEq] at hr
+    obtain ⟨h1, h2⟩ := hr
+    have hne : ¬ p ≤ -2 ^ 63 := by intro hc'; exact hp .integerOverflow (by simp only; rw [if_pos hc'])
+    cases r with
+    | Err _ => simp [okPart] at h1
+    | Ok pk =>
+      simp only [okPart, Option.map, Option.some.injEq] at h1
+      simp only [Std.bind_ok]
+      step with mysql_common.binlog.misc.datetime_from_packed_spec pk (by omega) as ⟨v, hv⟩
+      simp only [hne, ite_false, binRel, okPart, Option.map, binlogValView, hv, h1, h2, and_true]
+
+theorem deser_MYSQL_TYPE_TIME2 (h64 : Target64) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hmeta : binlogMetaLen MYSQL_TYPE_TIME2 ≤ md.val.length) (hb : ¬ binlogBug MYSQL_TYPE_TIME2 md.val uns buf.val) :
+    BVdes (MYSQL_TYPE_TIME2, md, uns, part) buf ⦃ r rest => binRel (binlogRead MYSQL_TYPE_TIME2 md.val uns buf.val) r rest ⦄ := by
+  have hm1 : 1 ≤ md.val.length := by simpa [binlogMetaLen] using hmeta
+  obtain ⟨m0, t, hmd⟩ : ∃ m0 t, md.val = m0 :: t := by
+    rcases h : md.val with _ | ⟨a, t⟩ <;> simp_all
+  have hg0 : (md.val.getD 0 (byte 0)) = m0 := by simp [hmd]
+  have hc : (UScalar.cast .U32 m0).val = m0.val := by
+    rw [UScalar.cast_val_eq]; have := u8_lt m0; simp only [UScalarTy.numBits]; omega
+  simp only [binlogBug, binlogEffType, hg0] at hb
+  pre_tac MYSQL_TYPE_TIME2
+  simp only [index0 md m0 _ hmd, Std.bind_ok]
+  simp only [binlogRead, binlogEffType, binlogMetaLen, show ¬ md.val.length < 1 from by omega, ite_false, hg0]
+  step with time_spec buf (UScalar.cast .U32 m0) (by rw [hc]; exact hb) as ⟨r, rb, hr⟩
+  rw [hc] at hr
+  rcases hT : time2Read m0.val buf.val with _ | ⟨p, rest⟩
+  · rw [hT] at hr
+    simp only [Prod.mk.injEq] at hr
+    cases r with
+    | Ok _ => simp [okPart] at hr
+    | Err e => simp [binRel, okPart, hr.2]
+  · rw [hT] at hr
+    simp only [Prod.mk.injEq] at hr
+    obtain ⟨h1, h2⟩ := hr
+    have hlo := time2Read_lower _ _ _ _ hT
+    cases r with
+    | Err _ => simp [okPart] at h1
+    | Ok pk =>
+      simp only [okPart, Option.map, Option.some.injEq] at h1
+      simp only [Std.bind_ok]
+      step with mysql_common.binlog.misc.time_from_packed_spec pk (by omega) as ⟨v, hv⟩
+      simp only [binRel, okPart, Option.map, binlogValView, hv, h1, h2, and_true]
 
 end mysql_common.BinlogUtil
