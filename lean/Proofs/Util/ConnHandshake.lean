@@ -140,9 +140,6 @@ theorem leNat_bytes4 (n : Nat) :
     leNat [byte n, byte (n / 256), byte (n / 256 / 256), byte (n / 256 / 256 / 256)] = n % 2 ^ 32 := by
   simp [leNat, byte_val]; omega
 
-theorem leNat_bytes2 (n : Nat) : leNat [byte n, byte (n / 256)] = n % 2 ^ 16 := by
-  simp [leNat, byte_val]; omega
-
 theorem leNat_bytes1 (n : Nat) : leNat [byte n] = n % 256 := by
   simp [leNat, byte_val]
 
@@ -322,8 +319,6 @@ theorem mariadbVersionReMatch_good (bs : List U8) (g1 g2 g3 : List U8) (h : mari
   · exact reMariadbCore_good _ _ _ _ h
 
 /-! ## Trailing `0` -/
-
-theorem dropTrailingNul_nil : dropTrailingNul [] = [] := rfl
 
 theorem dropTrailingNul_length_le (l : List U8) : (dropTrailingNul l).length ≤ l.length := by
   unfold dropTrailingNul

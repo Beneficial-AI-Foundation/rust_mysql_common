@@ -100,10 +100,6 @@ private theorem parse_unchecked_bd_hdr_spec (buf : io.ParseBuf) (h : 1 ≤ buf.l
     packets.InvalidComBinlogDumpHeader.Insts.CoreDefaultDefault
     ((WP.spec_ok _).mpr trivial) buf h
 
-private theorem leNat_take_one (l : List U8) (h : 1 ≤ l.length) : leNat (l.take 1) = (l.getD 0 (byte 0)).val := by
-  match l, h with
-  | a :: _, _ => simp [leNat]
-
 private theorem binlogDumpRead_enc (d : BinlogDump) (hp : d.pos < 2 ^ 32) (hfl : d.flags < 2 ^ 16)
     (hs : d.serverId < 2 ^ 32) (hf : d.flags &&& binlogDumpFlagsAll = d.flags) :
     binlogDumpRead (binlogDumpEnc d) = (some d, []) := by

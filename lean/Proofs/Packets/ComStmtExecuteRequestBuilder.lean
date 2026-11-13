@@ -40,11 +40,6 @@ private theorem constu32_new_ok (T : Type) (N : U32) : misc.raw.int.ConstU32.new
   rw [misc.raw.int.ConstU32.new_eq]; exact (WP.spec_ok _).mpr trivial
 
 @[local step]
-private theorem rawint_new_ok {T P : Type} (inst : misc.raw.int.IntRepr T P) (x : P) :
-    misc.raw.int.RawInt.new inst x ⦃ r => r.1 = x ⦄ := by
-  rw [misc.raw.int.RawInt.new_eq]; exact (WP.spec_ok _).mpr rfl
-
-@[local step]
 private theorem const_new_ok {T : Type} (U : Type) (t : T) :
     misc.raw._const.Const.new U t ⦃ r => r.1 = t ⦄ := by
   rw [misc.raw._const.Const.new_eq]; exact (WP.spec_ok _).mpr rfl
