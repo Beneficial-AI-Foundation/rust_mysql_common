@@ -45,8 +45,8 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_panics
     (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
     (e : Error) (hr : binlogRead ct md.val uns buf.val = .panic e) :
-    binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf = fail e := by
-  sorry
+    binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf = fail e := 
+  BinlogUtil.deser_panics ct md uns part buf e hr
 
 /-- `deserialize` of a JSON column: a 4-byte little-endian length `n`, then `n` bytes handed to the opaque binary-JSON parser (`parse_jsonb_value`; `parse_json_diffs` for a partial update, `is_partial`), whose result is wrapped as `Jsonb`/`JsonDiff`; the rest after the `n` bytes is left (whatever the parser consumes). The metadata is not read. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_json (h64 : Target64)

@@ -892,4 +892,221 @@ theorem deser_roundtrip (h64 : Target64) (ct : constants.ColumnType) (md : Slice
   rw [← h] at hr hnb
   exact deser_ok h64 ct md uns part buf v tail hr hnb
 
+theorem index_fail (md : Slice U8) (i : Usize) (h : md.val.length ≤ i.val) :
+    Slice.index_usize md i = fail .arrayOutOfBounds := by
+  unfold Slice.index_usize
+  have : md[i]? = none := by
+    simp [Slice.length] at *
+    omega
+  rw [this]
+
+theorem deser_meta_panic (t : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : t ≠ MYSQL_TYPE_TYPED_ARRAY) (hlt : md.val.length < binlogMetaLen t) :
+    BVdes (t, md, uns, part) buf = fail (binlogMetaPanic t md.val) := by
+  cases t <;> simp only [binlogMetaLen, Nat.not_lt_zero] at hlt
+  case MYSQL_TYPE_BIT =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BIT MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BIT MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BIT MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BIT MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_NEWDECIMAL =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_NEWDECIMAL MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_NEWDECIMAL MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_NEWDECIMAL MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_NEWDECIMAL MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_ENUM =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_ENUM MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_SET =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_SET MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_VARCHAR =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VARCHAR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VARCHAR MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VARCHAR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VARCHAR MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_VAR_STRING =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VAR_STRING MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VAR_STRING MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VAR_STRING MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VAR_STRING MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_TIMESTAMP2 =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_DATETIME2 =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_TIME2 =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_TINY_BLOB =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TINY_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_MEDIUM_BLOB =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_MEDIUM_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_LONG_BLOB =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_LONG_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_BLOB =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_BLOB MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_GEOMETRY =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_GEOMETRY MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_VECTOR =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 0#usize (by simp [hmd]), index_fail md 1#usize (by simp [hmd])]
+    · simp [hmd] at hlt
+      all_goals simp [Std.uncurry_apply_pair, binlogMetaPanic, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_TYPED_ARRAY = ok false from rfl, show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_VECTOR MYSQL_TYPE_STRING = ok false from rfl, lift, index_fail md 1#usize (by simp [hmd]), index0 md a _ hmd]
+    · simp [hmd] at hlt
+  case MYSQL_TYPE_STRING =>
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    rcases hmd : md.val with _ | ⟨a, _ | ⟨b, l⟩⟩
+    · simp [Std.uncurry_apply_pair, binlogMetaPanic, lift, index_fail md 0#usize (by simp [hmd]),
+        show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_STRING MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+        show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_STRING MYSQL_TYPE_STRING = ok true from rfl]
+    · simp only [Std.uncurry_apply_pair, lift, index0 md a _ hmd, Std.bind_ok,
+        show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_STRING MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+        show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_STRING MYSQL_TYPE_STRING = ok true from rfl, Bool.false_eq_true, ite_false, ite_true]
+      by_cases h0 : a ≥ 1#u8
+      · have : a.val ≠ 0 := by scalar_tac
+        simp [h0, index_fail md 1#usize (by simp [hmd]), binlogMetaPanic, this]
+      · have : a.val = 0 := by scalar_tac
+        simp only [h0, ite_false, binlogMetaPanic, this, ite_true]
+        rw [io.ParseBuf.eat_u16_le_panics md (by simp [Slice.length, hmd])]
+        simp
+    · simp [hmd] at hlt
+
+theorem deser_panics (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (e : Error) (hr : binlogRead ct md.val uns buf.val = .panic e) :
+    BVdes (ct, md, uns, part) buf = fail e := by
+  by_cases hne : ct = MYSQL_TYPE_TYPED_ARRAY ∧ md.val = []
+  · obtain ⟨rfl, hmd⟩ := hne
+    have he : e = .arrayOutOfBounds := by
+      unfold binlogRead at hr; rw [hmd] at hr; simp only [BinlogOut.panic.injEq] at hr; exact hr.symm
+    subst he
+    rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+    simp [Std.uncurry_apply_pair, ct_eq_ta_true, index_fail md 0#usize (by simp [hmd])]
+  · have hid := effType_idem ct md.val
+    rw [binlogRead_eff _ _ _ _ hne] at hr
+    rw [deser_eff ct md uns part buf hne]
+    generalize hT : binlogEffType ct md.val = t at *
+    have hne' : ¬(t = MYSQL_TYPE_TYPED_ARRAY ∧ md.val = []) := by
+      rintro ⟨h1, h2⟩; apply hne; refine ⟨?_, h2⟩; rw [h2] at hT; cases ct <;> simp_all [binlogEffType]
+    by_cases hlt : md.val.length < binlogMetaLen t
+    · have ht : t ≠ MYSQL_TYPE_TYPED_ARRAY := by intro h; subst h; simp [binlogMetaLen] at hlt
+      have he : binlogRead t md.val uns buf.val = .panic (binlogMetaPanic t md.val) := by
+        unfold binlogRead
+        split
+        · exact absurd ⟨rfl, by assumption⟩ hne'
+        · simp only [hid, hlt, ite_true]
+      rw [he] at hr
+      simp only [BinlogOut.panic.injEq] at hr
+      subst hr
+      exact deser_meta_panic t md uns part buf ht hlt
+    cases t
+    case MYSQL_TYPE_TYPED_ARRAY =>
+      exfalso
+      rcases hmd : md.val with _ | ⟨b, l⟩
+      · exact hne' ⟨rfl, hmd⟩
+      · rw [hmd] at hr hid
+        unfold binlogRead at hr
+        simp only [hid, binlogMetaLen, Nat.not_lt_zero, ite_false] at hr
+        simp at hr
+    case MYSQL_TYPE_DATETIME2 =>
+      have hm1 : 1 ≤ md.val.length := by simp only [binlogMetaLen] at hlt; omega
+      obtain ⟨m0, l, hmd⟩ : ∃ m0 l, md.val = m0 :: l := by
+        rcases h : md.val with _ | ⟨a, l⟩ <;> simp_all
+      have hg0 : (md.val.getD 0 (byte 0)) = m0 := by simp [hmd]
+      have hc : (UScalar.cast .U32 m0).val = m0.val := by
+        rw [UScalar.cast_val_eq]; have := u8_lt m0; simp only [UScalarTy.numBits]; omega
+      unfold binlogRead at hr
+      simp only [binlogEffType, hlt, ite_false, hg0] at hr
+      rcases hT2 : datetime2Read m0.val buf.val with _ | ⟨p, rest⟩
+      · rw [hT2] at hr; simp at hr
+      · rw [hT2] at hr
+        by_cases hp : p ≤ -2 ^ 63
+        · simp only [hp, ite_true, BinlogOut.panic.injEq] at hr
+          subst hr
+          rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+          simp only [Std.uncurry_apply_pair,
+            show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+            show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_DATETIME2 MYSQL_TYPE_STRING = ok false from rfl,
+            Std.bind_ok, Bool.false_eq_true, ite_false, lift, index0 md m0 _ hmd]
+          by_cases hlt2 : p < -2 ^ 63
+          · rw [datetime_overflow buf (UScalar.cast .U32 m0) ⟨p, rest, by rw [hc]; exact hT2, hlt2⟩]
+            simp
+          · have heq : p = -2 ^ 63 := by omega
+            obtain ⟨⟨r, rb⟩, he, hr2⟩ := PBUtil.spec_eq_ok (datetime_spec buf (UScalar.cast .U32 m0)
+              (by intro p' t' ht'; rw [hc, hT2] at ht'; simp at ht'; omega))
+            rw [hc, hT2] at hr2
+            simp only [Prod.mk.injEq] at hr2
+            obtain ⟨h1, -⟩ := hr2
+            cases r with
+            | Err _ => simp [okPart] at h1
+            | Ok pk =>
+              simp only [okPart, Option.map, Option.some.injEq] at h1
+              rw [he]
+              simp only [Std.bind_ok, Std.uncurry_apply_pair]
+              rw [mysql_common.binlog.misc.datetime_from_packed_min pk (by omega)]
+              simp
+        · simp only [hp, ite_false] at hr; simp at hr
+    all_goals
+      unfold binlogRead at hr
+      simp only [binlogEffType, hlt, ite_false] at hr
+      first
+        | (simp at hr; done)
+        | (revert hr; simp [BinlogOut.ofRead, binlogNum, binlogTake, binlogStr]; done)
+        | (revert hr; simp [BinlogOut.ofRead, binlogNum, binlogTake, binlogStr]; (repeat' split) <;> simp; done)
+
 end mysql_common.BinlogUtil
