@@ -1,6 +1,7 @@
 import Defs
 import Proofs.Defs.Lemmas
 import Proofs.Util.ParseBuf
+import Proofs.Util.Replication
 
 /-! Sanity lemmas about `Defs/CmdPackets.lean`, `Defs/SessionState.lean`, `Defs/BinlogCmd.lean`
 (recalled in `Specs/DefsStmtSession.lean`). Proofs: TODO. -/
@@ -257,7 +258,7 @@ theorem regSlaveRead_regSlaveEnc (r : RegSlave)
       r.password.length ≤ 255 ∧ r.port < 2 ^ 16 ∧ r.rank < 2 ^ 32 ∧ r.masterId < 2 ^ 32)
     (tail : List U8) :
     regSlaveRead (regSlaveEnc r ++ tail) = (some r, tail) := by
-  sorry
+  exact Replication.regSlaveRead_regSlaveEnc r hr tail
 
 /-- `COM_BINLOG_DUMP_GTID` round trip (untagged format): the reader reads `gtidDumpEnc` back
     (known flags, numbers in range, 16-byte UUIDs, file name and SID block shorter than `2^32`
@@ -269,14 +270,14 @@ theorem gtidDumpRead_gtidDumpEnc (g : GtidDump) (hnotag : gtidTagged g.sids = fa
     (hs : ∀ s ∈ g.sids, s.uuid.length = 16 ∧ ∀ i ∈ s.intervals, i.1 < 2 ^ 64 ∧ i.2 < 2 ^ 64)
     (tail : List U8) :
     gtidDumpRead (gtidDumpEnc g ++ tail) = .done (some g) tail := by
-  sorry
+  exact Replication.gtidDumpRead_gtidDumpEnc g hnotag hf hsid hfn hpos hblk hs tail
 
 /-- The tagged `n_sids` word the crate writes has format byte `1` and the count in bits 8–55,
     so its own reader recognises it (for fewer than `2^48` SIDs). -/
 theorem nSidsHeader_tagged (n : Nat) (hn : n < 2 ^ 48) :
     (nSidsHeader true n).length = 8 ∧ leNat (nSidsHeader true n) / 2 ^ 56 = 1 ∧
     (leNat (nSidsHeader true n) / 2 ^ 8) % 2 ^ 48 = n := by
-  sorry
+  exact Replication.nSidsHeader_tagged n hn
 
 /-- Totality of the bulk value reader: it returns or panics, never `unknown`. -/
 theorem bulkValueRead_ne_unknown (ct : constants.ColumnType) (u : Bool) (bs : List U8) :
@@ -385,14 +386,70 @@ theorem sidTaggedRead_unknown_iff (bs : List U8) :
 theorem sidsRead_unknown (tagged : Bool) (n : Nat) (bs : List U8)
     (h : sidsRead tagged n bs = .unknown) :
     tagged = true ∧ ∃ bs', bs' <:+ bs ∧ sidTaggedRead bs' = .unknown := by
-  sorry
+  cases tagged with
+  | false => exact absurd h (sidsRead_untagged_ne_unknown n bs)
+  | true =>
+    refine ⟨rfl, ?_⟩
+    induction n generalizing bs with
+    | zero => simp [sidsRead] at h
+    | succ n ih =>
+      simp only [sidsRead, ↓reduceIte] at h
+      split at h
+      · rename_i s rest hs
+        split at h
+        · simp at h
+        · simp at h
+        · simp at h
+        · rename_i hu
+          obtain ⟨bs', h1, h2⟩ := ih rest hu
+          exact ⟨bs', h1.trans (Replication.sidTaggedRead_suffix hs), h2⟩
+      · simp at h
+      · simp at h
+      · rename_i hu
+        exact ⟨bs, List.suffix_refl _, hu⟩
 
 /-- `gtidDumpRead` is `unknown` only through a tagged SID, inside the input, whose tag has 1 to
     32 bytes and is valid UTF-8 (`sidTaggedRead_unknown_iff`); every other input is returned or
     panics. -/
 theorem gtidDumpRead_unknown (bs : List U8) (h : gtidDumpRead bs = .unknown) :
     ∃ bs', bs' <:+: bs ∧ sidTaggedRead bs' = .unknown := by
-  sorry
+  unfold gtidDumpRead at h
+  split at h
+  · simp at h
+  · dsimp only at h
+    split at h
+    · simp at h
+    · split at h
+      · simp at h
+      · rename_i fname r1 hc
+        have hr1 : r1 <:+ bs := by
+          have := Replication.checkedLenPrefixed_suffix 4 (bs.drop 7)
+          rw [hc] at this
+          exact this.trans (List.drop_suffix _ _)
+        split at h
+        · simp at h
+        · rename_i pos r2 hr2
+          split at h
+          · simp at h
+          · rename_i len r3 hr3
+            split at h
+            · simp at h
+            · split at h
+              · simp at h
+              · rename_i raw blk hblk
+                have hr3' : r3 <:+ bs :=
+                  (by rw [Replication.readLE_rest hr3]; exact List.drop_suffix _ _ : r3 <:+ r2).trans
+                    ((by rw [Replication.readLE_rest hr2]; exact List.drop_suffix _ _ : r2 <:+ r1).trans hr1)
+                have hblk' : blk <:+: bs := by
+                  rw [Replication.readLE_rest hblk]
+                  exact ((List.drop_suffix _ _).isInfix.trans (List.take_prefix _ _).isInfix).trans hr3'.isInfix
+                split at h
+                · simp at h
+                · simp at h
+                · simp at h
+                · rename_i hu
+                  obtain ⟨_, bs', h1, h2⟩ := sidsRead_unknown _ _ _ hu
+                  exact ⟨bs', h1.isInfix.trans hblk', h2⟩
 
 /-- The values of a request made by `ComStmtBulkExecuteRequest::new` carry the indicators the
     protocol defines: `NULL` (1) exactly for `NULL`, else `NONE` (0). -/
