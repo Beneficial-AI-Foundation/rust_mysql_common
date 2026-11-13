@@ -103,7 +103,15 @@ theorem binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : bi
       intro r hr
       rw [hcode] at hr
       simp only
-      sorry
+      split_ifs at hr ⊢
+      · subst hr; simp
+      · rcases hm : tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val with _ | m
+        · simp only [hm] at hr ⊢; subst hr; simp
+        · simp only [hm] at hr ⊢
+          rcases hs : tmStringRealType (m.headD (byte 0)).val with _ | t'
+          · simp only [hs] at hr ⊢; subst hr; simp
+          · simp only [hs] at hr ⊢; subst hr; simp
+      · subst hr; simp
 
 /-- `into_owned`: the same fields (now owned). -/
 theorem binlog.events.table_map_event.TableMapEvent.into_owned_spec (e : binlog.events.table_map_event.TableMapEvent) :
