@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Util.BinlogEvHdr
 
 /-! Facts about the binlog-event definitions (`lean/Defs/BinlogEvents.lean`) (spec file:
 `Specs/DefsBinlogEvents.lean`). -/
@@ -11,15 +12,15 @@ namespace Defs
 
 /-- The common header is 19 bytes. -/
 theorem evHeaderEnc_length (h : binlog.events.BinlogEventHeader) : (evHeaderEnc h).length = 19 := by
-  sorry
+  exact mysql_common.EvHdrUtil.evHeaderEnc_len h
 
 /-- A fixed-length text has exactly its length. -/
 theorem fixedText_length (L : Nat) (s : List U8) : (fixedText L s).length = L := by
-  sorry
+  simp only [fixedText, List.length_append, List.length_take, List.length_replicate]; omega
 
 /-- Without a post-header array, a query event's post-header is 13 bytes and a rows v2 event's 10. -/
 theorem postHeaderLen_query_default : postHeaderLen [] .QUERY_EVENT = 13 ∧ postHeaderLen [] .WRITE_ROWS_EVENT = 10 := by
-  sorry
+  exact ⟨rfl, rfl⟩
 
 /-- The FDE reader inverts the encoder (the server version padded to 50 bytes). -/
 theorem fdeRead_fdeEnc (e : binlog.events.format_description_event.FormatDescriptionEvent) :
@@ -36,12 +37,12 @@ theorem queryRead_queryEnc (e : binlog.events.query_event.QueryEvent) (p : Nat) 
 /-- An example walk: `Q_FLAGS2_CODE` (4 bytes), then `Q_CATALOG_NZ_CODE` with a 2-byte name, then an unknown key 99 stops the walk. -/
 theorem statusVarsOf_example : statusVarsOf [byte 0, byte 1, byte 2, byte 3, byte 4, byte 6, byte 2, byte 97, byte 98, byte 99, byte 7] =
       [(0, [byte 1, byte 2, byte 3, byte 4]), (6, [byte 2, byte 97, byte 98])] := by
-  sorry
+  decide
 
 /-- The `Q_UPDATED_DB_NAMES` bug on an example: two names `a`, `b`; the format gives both, the crate `a` and an empty name. -/
 theorem dbNamesCrate_ne_dbNames : dbNames 2 [byte 97, byte 0, byte 98, byte 0] = some [[byte 97], [byte 98]] ∧
       dbNamesCrate 2 [byte 97, byte 0, byte 98, byte 0] = some [[byte 97], []] := by
-  sorry
+  decide
 
 /-- The GTID reader inverts the encoder (untagged, with the logical-clock part, timestamps below `2^55` / `2^56`, immediate server version below `2^31`). -/
 theorem gtidRead_gtidEnc (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode.isSome)
@@ -62,11 +63,11 @@ theorem gtidLenCrate_ne (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typ
 
 /-- A `Q_UPDATED_DB_NAMES` count of 254 (`OVER_MAX_DBS_IN_EVENT_MTS`, no names follow) stops the walk: the `Q_FLAGS2_CODE` variable after it is lost. -/
 theorem statusVarsOf_over_max_dbs : statusVarsOf [byte 12, byte 254, byte 0, byte 1, byte 2, byte 3, byte 4] = [] := by
-  sorry
+  decide
 
 /-- The walk from inside a failed variable: on `[11, 16, 1]` the walk from 0 is empty (`Q_INVOKER` truncated) but from 1 it yields `Q_EXPLICIT_DEFAULTS_FOR_TIMESTAMP`. -/
 theorem statusVarsIter_not_fused : svStep [byte 11, byte 16, byte 1] 0 = none ∧ svStep [byte 11, byte 16, byte 1] 1 = some ((16, [byte 1]), 3) := by
-  sorry
+  decide
 
 /-- The untagged previous-GTIDs reader inverts the encoder (fewer than `2^56` SIDs). -/
 theorem pgRead_pgEnc (e : binlog.events.previous_gtids_event.PreviousGtidsEvent) (hl : e.sids.length < 2 ^ 56) (tail : List U8) :
@@ -86,7 +87,13 @@ theorem tmLenCrate_zero (e : binlog.events.table_map_event.TableMapEvent) (hc : 
 /-- Metadata walk on an example: columns `LONG` (none), `VARCHAR` (2 bytes), `BLOB` (1 byte). -/
 theorem tmMetaAt_example : tmMetaAt [byte 3, byte 15, byte 252] [byte 10, byte 0, byte 4] 1 = some [byte 10, byte 0] ∧
       tmMetaAt [byte 3, byte 15, byte 252] [byte 10, byte 0, byte 4] 2 = some [byte 4] := by
-  sorry
+  have c3 : columnTypeOfCode 3 = some .MYSQL_TYPE_LONG := rfl
+  have c15 : columnTypeOfCode 15 = some .MYSQL_TYPE_VARCHAR := rfl
+  have c252 : columnTypeOfCode 252 = some .MYSQL_TYPE_BLOB := rfl
+  have b3 : (byte 3).val = 3 := rfl
+  have b15 : (byte 15).val = 15 := rfl
+  have b252 : (byte 252).val = 252 := rfl
+  constructor <;> simp [tmMetaAt, tmColumnMeta, c3, c15, c252, b3, b15, b252, getMetadataLen, takeExact]
 
 /-- The rows reader inverts the encoder for a consistent event, with post-header lengths that agree with its type. -/
 theorem rowsRead_rowsEnc (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
