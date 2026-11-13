@@ -235,12 +235,6 @@ private theorem lift_cast_u64_usize_small (x : U64) (h : x.val < 2 ^ 32) :
     simp only [UScalarTy.numBits]; cases System.Platform.numBits_eq <;> simp [*]
   exact Nat.lt_of_lt_of_le h this
 
-/-- `MyDeserialize` for `GTID_EVENT` (33) and `ANONYMOUS_GTID_EVENT` (34): total; `gtidRead`; untagged, serialization version 0, no commit group ticket. -/
-theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 33 ∨ ctx.event_type_raw.val = 34) (buf : io.ParseBuf) :
-    binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs gtidView (gtidRead buf.val) r rest ∧
-      ∀ e, okPart r = some e → e.tag = none ∧ e.serialization_version.val = 0 ∧ e.commit_group_ticket.val = 0 ⦄ := by
-  sorry
-
 /-- `MyDeserialize` for `GTID_TAGGED_LOG_EVENT` (42): the (opaque) tagged reader. -/
 theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_tagged (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 42) (buf : io.ParseBuf) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf = binlog.events.gtid_event.GtidEvent.deserialize_tagged buf := by
@@ -915,6 +909,770 @@ private theorem deserialize_eq_untagged (ctx : binlog.BinlogCtx) (hc : ctx.event
   · have h34 : eventTypeOfCode 34 = some .ANONYMOUS_GTID_EVENT := by rfl
     rw [hc, h34]
     exact bind_tc_ok _ _
+
+private def tsF (r2 : List U8) : Option (Nat × Nat × List U8) :=
+  if 7 ≤ r2.length then
+    let raw := leNat (r2.take 7)
+    if raw.testBit 55 then
+      (if 7 ≤ (r2.drop 7).length then some (raw - 2 ^ 55, leNat ((r2.drop 7).take 7), r2.drop 14)
+       else none)
+    else some (raw, raw, r2.drop 7)
+  else some (0, 0, r2)
+
+private def txF (r3 : List U8) : Option (Nat × List U8) :=
+  match r3 with
+  | [] => some (0, [])
+  | _ => optFst (checkedLenencInt r3)
+
+private def svF (r4 : List U8) : Option (Nat × Nat × List U8) :=
+  if 4 ≤ r4.length then
+    let raw := leNat (r4.take 4)
+    if raw.testBit 31 then
+      (if 4 ≤ (r4.drop 4).length then some (raw - 2 ^ 31, leNat ((r4.drop 4).take 4), r4.drop 8)
+       else none)
+    else some (raw, raw, r4.drop 4)
+  else some (undefinedServerVersion, undefinedServerVersion, r4)
+
+private def noLcV (bs : List U8) : GtidView :=
+  { flags := (bs.headD (byte 0)).val, sid := (bs.drop 1).take 16, gno := leNat ((bs.drop 17).take 8),
+    lc := false, lastCommitted := 0,
+    sequenceNumber := 0, immediateCommitTs := 0, originalCommitTs := 0, txLength := 0,
+    immediateServerVersion := undefinedServerVersion,
+    originalServerVersion := undefinedServerVersion }
+
+private theorem gtidRead_short (bs : List U8) (h : bs.length < 25) : gtidRead bs = none := by
+  simp [gtidRead, h]
+
+private theorem gtidRead_empty (bs : List U8) (h : 25 ≤ bs.length) (h0 : bs.drop 25 = []) :
+    gtidRead bs = some (noLcV bs, []) := by
+  simp [gtidRead, h0, noLcV, show ¬ bs.length < 25 by omega]
+
+private theorem gtidRead_not2 (bs : List U8) (h : 25 ≤ bs.length) (b : U8) (r1 : List U8)
+    (h0 : bs.drop 25 = b :: r1) (hb : b.val ≠ 2) :
+    gtidRead bs = some (noLcV bs, b :: r1) := by
+  simp [gtidRead, h0, noLcV, hb, show ¬ bs.length < 25 by omega]
+
+private theorem gtidRead_lc (bs : List U8) (h : 25 ≤ bs.length) (b : U8) (r1 : List U8)
+    (h0 : bs.drop 25 = b :: r1) (hb : b.val = 2) :
+    gtidRead bs = if r1.length < 16 then none else
+      match tsF (r1.drop 16) with
+      | none => none
+      | some (ict, oct, r3) =>
+        match txF r3 with
+        | none => none
+        | some (txl, r4) =>
+          (svF r4).map (fun (isv, osv, r5) =>
+            ({ flags := (bs.headD (byte 0)).val, sid := (bs.drop 1).take 16, gno := leNat ((bs.drop 17).take 8),
+               lc := true, lastCommitted := leNat (r1.take 8),
+               sequenceNumber := leNat ((r1.drop 8).take 8), immediateCommitTs := ict,
+               originalCommitTs := oct, txLength := txl, immediateServerVersion := isv,
+               originalServerVersion := osv }, r5)) := by
+  simp only [gtidRead, h0, hb, show ¬ bs.length < 25 by omega, ite_false, ne_eq, not_true_eq_false]
+  by_cases h16 : r1.length < 16
+  · simp only [h16, ite_true]
+  · simp only [h16, ite_false]
+    rfl
+
+private theorem parse_usize_short (buf : io.ParseBuf) (n : Usize) (h : buf.length < n.val) :
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize buf n ⦃ r _ =>
+      ∃ e, r = .Err e ⦄ := by
+  apply WP.spec_mono (PKUtil.parse_usize_spec buf n)
+  rintro ⟨r, rest⟩ hr
+  simp only [show ¬ n.val ≤ buf.length by omega, ite_false] at hr
+  exact (BinlogEvGtid.okPart_none_iff _).1 hr.1
+
+private theorem branch_err_bind {T C : Type} (e : core.io.error.Error)
+    (k : core.ops.control_flow.ControlFlow (core.result.Result Never core.io.error.Error) T → Result C) :
+    (do let cf ← core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err (T := T) e); k cf) =
+      k (.Break (.Err e)) := bind_tc_ok _ _
+
+private theorem p_leu56_ok (buf : io.ParseBuf) (h : 7 ≤ buf.length) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r rest =>
+      ∃ y : misc.raw.int.RawInt misc.raw.int.LeU56 U64, r = .Ok y ∧ y.1.val = leNat (buf.val.take 7) ∧
+        rest.val = buf.val.drop 7 ⦄ := by
+  apply ok_of_map (f := fun (y : misc.raw.int.RawInt misc.raw.int.LeU56 U64) => y.1.val)
+  apply WP.spec_mono (misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf)
+  intro r hr; simpa [h] using hr
+
+private theorem p_leu56_short (buf : io.ParseBuf) (h : buf.length < 7) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r _ => ∃ e, r = .Err e ⦄ := by
+  apply WP.spec_mono (misc.raw.int.LeU56.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf)
+  rintro ⟨r, rest⟩ hr
+  simp only [show ¬ 7 ≤ buf.length by omega, ite_false] at hr
+  exact (BinlogEvGtid.okPart_none_iff _).1 hr.1
+
+private theorem p_leu32_ok (buf : io.ParseBuf) (h : 4 ≤ buf.length) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
+      ∃ y : misc.raw.int.RawInt misc.raw.int.LeU32 U32, r = .Ok y ∧ y.1.val = leNat (buf.val.take 4) ∧
+        rest.val = buf.val.drop 4 ⦄ := by
+  apply ok_of_map (f := fun (y : misc.raw.int.RawInt misc.raw.int.LeU32 U32) => y.1.val)
+  apply WP.spec_mono (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf)
+  intro r hr; simpa [h] using hr
+
+private theorem p_leu32_short (buf : io.ParseBuf) (h : buf.length < 4) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r _ => ∃ e, r = .Err e ⦄ := by
+  apply WP.spec_mono (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf)
+  rintro ⟨r, rest⟩ hr
+  simp only [show ¬ 4 ≤ buf.length by omega, ite_false] at hr
+  exact (BinlogEvGtid.okPart_none_iff _).1 hr.1
+
+private theorem pu_lenenc_ok (buf : io.ParseBuf) (n : Nat) (t : List U8) (h : checkedLenencInt buf.val = (some n, t)) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r rest =>
+      ∃ y : misc.raw.int.RawInt misc.raw.int.LenEnc U64, r = .Ok y ∧ y.1.val = n ∧ rest.val = t ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  apply ok_of_map (f := fun (y : misc.raw.int.RawInt misc.raw.int.LenEnc U64) => y.1.val)
+  have := IntAndMisc.rawint_deserialize_spec misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64 buf
+    (fun o rest => (o.map (·.val), rest.val) = checkedLenencInt buf.val)
+    (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec buf)
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ hr
+  rw [h] at hr
+  simp only [Prod.mk.injEq] at hr
+  exact ⟨by simpa [Option.map_map] using hr.1, hr.2⟩
+
+private theorem pu_lenenc_err (buf : io.ParseBuf) (h : (checkedLenencInt buf.val).1 = none) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r _ => ∃ e, r = .Err e ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have := IntAndMisc.rawint_deserialize_spec misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64 buf
+    (fun o rest => (o.map (·.val), rest.val) = checkedLenencInt buf.val)
+    (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec buf)
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ hr
+  have h1 := congrArg Prod.fst hr
+  rw [h] at h1
+  simp only [Option.map_eq_none_iff] at h1
+  exact (BinlogEvGtid.okPart_none_iff _).1 h1
+
+private theorem and_two_pow_ne_zero (x k : Nat) : x &&& 2 ^ k ≠ 0 ↔ x.testBit k := by
+  constructor
+  · intro h; by_contra hb
+    exact h (Nat.eq_of_testBit_eq fun j => by
+      rw [Nat.testBit_and, Nat.testBit_two_pow]; by_cases hj : k = j
+      · subst hj; simp_all
+      · simp [hj])
+  · intro hb h0
+    have := congrArg (fun y => y.testBit k) h0
+    simp [Nat.testBit_and, hb] at this
+
+private theorem mod_of_testBit (x k : Nat) (h : x < 2 ^ (k + 1)) (hb : x.testBit k) : x % 2 ^ k = x - 2 ^ k := by
+  rw [Nat.testBit_eq_decide_div_mod_eq] at hb
+  have h1 := Nat.div_add_mod x (2 ^ k)
+  have h2 : x / 2 ^ k < 2 := by
+    rw [Nat.div_lt_iff_lt_mul (by positivity)]; rw [pow_succ] at h; omega
+  simp only [decide_eq_true_eq] at hb
+  generalize x / 2 ^ k = q at *
+  have h3 : q = 1 := by omega
+  subst h3
+  generalize 2 ^ k = p at *
+  omega
+
+
+private theorem leNat_take_lt' (l : List U8) (k : Nat) : leNat (l.take k) < 2 ^ (8 * k) := by
+  have := leNat_lt (l.take k)
+  have h2 : 2 ^ (8 * (l.take k).length) ≤ 2 ^ (8 * k) := Nat.pow_le_pow_right (by norm_num) (by simp)
+  omega
+
+private theorem untagged_spec (buf : io.ParseBuf) :
+    binlog.events.gtid_event.GtidEvent.deserialize_untagged buf ⦃ r rest => ReadsAs gtidView (gtidRead buf.val) r rest ∧
+      ∀ e, okPart r = some e → e.tag = none ∧ e.serialization_version.val = 0 ∧ e.commit_group_ticket.val = 0 ⦄ := by
+  have hS : binlog.events.gtid_event.GtidEvent.ENCODED_SID_LENGTH.val = 16 := by
+    unfold binlog.events.gtid_event.GtidEvent.ENCODED_SID_LENGTH; rfl
+  have hU := BinlogEvGtid.u32_max_le_usize
+  have hcgt : binlog.events.gtid_event.GtidEvent.COMMIT_GROUP_TICKET_UNSET.val = 0 := by
+    unfold binlog.events.gtid_event.GtidEvent.COMMIT_GROUP_TICKET_UNSET; rfl
+  have hund : binlog.events.gtid_event.GtidEvent.UNDEFINED_SERVER_VERSION.val = undefinedServerVersion := by
+    unfold binlog.events.gtid_event.GtidEvent.UNDEFINED_SERVER_VERSION; rfl
+  unfold binlog.events.gtid_event.GtidEvent.deserialize_untagged
+  step*
+  have hi1 : i1.val = 25 := by omega
+  by_cases h25 : 25 ≤ buf.length
+  swap
+  · step with parse_usize_short buf i1 (by omega) as ⟨r, buf1, e, hr⟩
+    subst hr
+    rw [branch_err_bind]
+    step*
+    all_goals try rfl
+    subst_vars
+    rw [gtidRead_short _ (by simpa [Slice.length] using h25)]
+    simp [ReadsAs, okPart]
+  step with parse_usize_ok buf i1 (by omega) as ⟨r, buf1, pb, hr, hpb, hb1⟩
+  subst hr
+  rw [branch_ok_bind]
+  rw [hi1] at hpb hb1
+  have hL : buf.val.length ≥ 25 := h25
+  step with parse_flags pb (by simp [Slice.length, hpb]; omega) as ⟨r, sbuf, fl, hr, hfl, hsb⟩
+  subst hr
+  rw [branch_ok_bind]
+  step with parse_sid sbuf (by simp [Slice.length, hsb, hpb]; omega) as ⟨r, sbuf1, sid, hr, hsid, hsb1⟩
+  subst hr
+  rw [branch_ok_bind]
+  step with parse_gno sbuf1 (by simp [Slice.length, hsb1, hsb, hpb]; omega) as ⟨r, sbuf2, gno, hr, hgno, hsb2⟩
+  subst hr
+  rw [branch_ok_bind]
+  obtain ⟨a, L', hL'⟩ := BinlogEvGtid.list_cons_of_length_pos buf.val (by omega)
+  have hfv : fl.1.val = (buf.val.headD (byte 0)).val := by
+    rw [hfl, hpb, hL']; simp [leNat]
+  have hsidv : sid.val = (buf.val.drop 1).take 16 := by
+    rw [hsid, hsb, hpb]; simp [List.drop_take, List.take_take]
+  have hgv : gno.1.val = leNat ((buf.val.drop 17).take 8) := by
+    rw [hgno, hsb1, hsb, hpb]; simp [List.drop_take, List.take_take]
+  clear hfl hsid hgno
+  step as ⟨lc0, hlc0⟩
+  step as ⟨ict0, hict0⟩
+  step as ⟨tx0, htx0⟩
+  have htx0v : tx0.1.val = 0 := by rw [htx0]; rfl
+  step as ⟨sv0, hsv0⟩
+  apply WP.spec_bind (io.ParseBuf.is_empty_spec buf1)
+  intro b hb
+  by_cases h0 : buf.val.drop 25 = []
+  · have hbt : b = true := hb.mpr (by rw [hb1, h0])
+    subst hbt
+    rw [ite_eq_left_of_eq_true _ _ (by decide)]
+    apply (WP.spec_ok _).mpr
+    rw [gtidRead_empty _ h25 h0]
+    simp only [WP.uncurry', ReadsAs]
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · simp only [okPart, Option.map_some, gtidView, noLcV, Option.some.injEq, hfv, hsidv, hgv, hlc0, hict0, htx0,
+        hsv0, Option.isSome_none, binlog.events.gtid_event.GtidEvent.UNDEFINED_SERVER_VERSION, undefinedServerVersion]
+      rfl
+    · rw [hb1, h0]
+    · intro e he
+      simp only [okPart, Option.some.injEq] at he
+      subst he
+      exact ⟨rfl, rfl, hcgt⟩
+  have hbf : b = false := by
+    cases b
+    · rfl
+    · exact absurd (hb.mp rfl) (by rw [hb1]; exact h0)
+  subst hbf
+  rw [ite_eq_right_of_eq_false _ _ (by decide)]
+  obtain ⟨c, r1, hcr⟩ := BinlogEvGtid.list_cons_of_length_pos (buf.val.drop 25) (by
+    rw [Nat.one_le_iff_ne_zero, ne_eq, List.length_eq_zero_iff]; exact h0)
+  step
+  have hi2c : i2 = c := by rw [i2_post]; simp [hb1, hcr]
+  by_cases hc2 : c.val = 2
+  swap
+  · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+      rw [hi2c]; unfold binlog.events.gtid_event.GtidEvent.LOGICAL_TIMESTAMP_TYPECODE
+      intro h; exact hc2 (by rw [h]; rfl)))]
+    apply (WP.spec_ok _).mpr
+    rw [gtidRead_not2 _ h25 c r1 hcr hc2]
+    simp only [WP.uncurry', ReadsAs]
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · simp only [okPart, Option.map_some, gtidView, noLcV, Option.some.injEq, hfv, hsidv, hgv, hlc0, hict0, htx0,
+        hsv0, Option.isSome_none, binlog.events.gtid_event.GtidEvent.UNDEFINED_SERVER_VERSION, undefinedServerVersion]
+      rfl
+    · rw [hb1, hcr]
+    · intro e he
+      simp only [okPart, Option.some.injEq] at he
+      subst he
+      exact ⟨rfl, rfl, hcgt⟩
+  rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+    rw [hi2c]; unfold binlog.events.gtid_event.GtidEvent.LOGICAL_TIMESTAMP_TYPECODE
+    exact UScalar.eq_of_val_eq (by rw [hc2]; rfl)))]
+  step with pu_constu8 buf1 (by simp [Slice.length, hb1, hcr]) (by rw [hb1, hcr]; simp [leNat, hc2]) as
+    ⟨r, buf2, lct, hr, hb2⟩
+  subst hr
+  rw [branch_ok_bind]
+  rw [hb1, hcr, List.drop_one, List.tail_cons] at hb2
+  have hG := gtidRead_lc _ h25 c r1 hcr hc2
+  by_cases h16 : r1.length < 16
+  · step with parse_usize_short buf2 16#usize (by simp [Slice.length, hb2]; omega) as ⟨r, buf3, e, hr⟩
+    subst hr
+    rw [branch_err_bind]
+    step*
+    all_goals try rfl
+    subst_vars
+    rw [hG]
+    simp [h16, ReadsAs, okPart]
+  simp only [h16, ite_false] at hG
+  step with parse_usize_ok buf2 16#usize (by simp [Slice.length, hb2]; omega) as ⟨r, buf3, pb1, hr, hpb1, hb3⟩
+  subst hr
+  rw [branch_ok_bind]
+  simp only [hb2] at hpb1 hb3
+  step with pu_leu64 pb1 (by simp [Slice.length, hpb1]; omega) as ⟨r, sb2, lcv, hr, hlcv, hsb2'⟩
+  subst hr
+  rw [branch_ok_bind]
+  step with pu_leu64 sb2 (by simp [Slice.length, hsb2', hpb1]; omega) as ⟨r, sb3, snv, hr, hsnv, hsb3'⟩
+  subst hr
+  rw [branch_ok_bind]
+  have hlcv' : lcv.1.val = leNat (r1.take 8) := by rw [hlcv, hpb1]; simp [List.take_take]
+  have hsnv' : snv.1.val = leNat ((r1.drop 8).take 8) := by
+    rw [hsnv, hsb2', hpb1]; simp [List.drop_take, List.take_take]
+  clear hlcv hsnv
+  generalize hr2 : r1.drop 16 = r2 at hG hb3
+  step as ⟨i3, hi3⟩
+  by_cases h7 : 7 ≤ r2.length
+  swap
+  · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+      unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_COMMIT_TIMESTAMP_LENGTH
+      show ¬ 7 ≤ i3.val
+      rw [hi3, Slice.length, hb3]; exact h7))]
+    have hts : tsF r2 = some (0, 0, r2) := by simp [tsF, h7]
+    rw [hts] at hG
+    simp only at hG
+    obtain ⟨bT, hbT0⟩ : ∃ b, b = buf3 := ⟨_, rfl⟩
+    subst hbT0
+    obtain ⟨r3, hr30⟩ : ∃ x, x = r2 := ⟨_, rfl⟩
+    subst hr30
+    have hbT := hb3
+    have hI : ict0.1.val = 0 := by rw [hict0]; rfl
+    apply WP.spec_bind (io.ParseBuf.is_empty_spec bT)
+    intro b hb
+    by_cases hr3e : r3 = []
+    · have hbt : b = true := hb.mpr (by rw [hbT, hr3e])
+      subst hbt
+      rw [ite_eq_left_of_eq_true _ _ (by decide)]
+      rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+        show ¬ 4 ≤ i3.val
+        rw [hi3, Slice.length, hbT, hr3e]; simp))]
+      apply (WP.spec_ok _).mpr
+      rw [hG, hr3e]
+      simp only [txF, svF, show ¬ 4 ≤ ([] : List U8).length by simp, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htx0v, hsv0, hund]
+      · rw [hbT, hr3e]
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    have hbf : b = false := by
+      cases b
+      · rfl
+      · exact absurd (hb.mp rfl) (by rw [hbT]; exact hr3e)
+    subst hbf
+    rw [ite_eq_right_of_eq_false _ _ (by decide)]
+    have htxF0 : txF r3 = optFst (checkedLenencInt r3) := by
+      cases r3 with
+      | nil => exact absurd rfl hr3e
+      | cons _ _ => rfl
+    rcases hck : checkedLenencInt r3 with ⟨_ | txl, r4⟩
+    · step with pu_lenenc_err bT (by rw [hbT, hck]) as ⟨r, bX, e, hr⟩
+      subst hr
+      rw [branch_err_bind]
+      step*
+      all_goals try rfl
+      subst ‹_ = core.result.Result.Err _›
+      rw [hG, htxF0, hck]
+      simp [optFst, ReadsAs, okPart]
+    rw [hck] at htxF0
+    step with pu_lenenc_ok bT txl r4 (by rw [hbT, hck]) as ⟨r, b6, txv, hr, htxv, hb6⟩
+    subst hr
+    rw [branch_ok_bind]
+    rw [htxF0] at hG
+    simp only [optFst] at hG
+    step as ⟨i9, hi9⟩
+    by_cases h4 : 4 ≤ r4.length
+    swap
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+        show ¬ 4 ≤ i9.val
+        rw [hi9, Slice.length, hb6]; exact h4))]
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htxv, hsv0, hund]
+      · exact hb6
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+      unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+      show 4 ≤ i9.val
+      rw [hi9, Slice.length, hb6]; exact h4))]
+    step with pu_leu32 b6 (by rw [Slice.length, hb6]; exact h4) as ⟨r, b7, svx, hr, hsvx, hb7⟩
+    subst hr
+    rw [branch_ok_bind]
+    obtain ⟨i10, pd1⟩ := svx
+    step as ⟨i11, hi11, _⟩
+    have h31 : i11.val = 2 ^ 31 := by rw [hi11]; simp [U32.size, U32.numBits, Nat.shiftLeft_eq]
+    step as ⟨i12, hi12, _⟩
+    have hraw32 : i10.val = leNat (r4.take 4) := by
+      rw [show (i10, pd1).1 = i10 from rfl, hb6] at hsvx; exact hsvx
+    rw [hb6] at hb7
+    by_cases hbit31 : (leNat (r4.take 4)).testBit 31
+    · rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+        rw [bne_u32, hi12, UScalar.val_and, h31, hraw32]; exact (and_two_pow_ne_zero _ _).2 hbit31))]
+      step as ⟨i13, hi13⟩
+      step as ⟨i14, hi14, _⟩
+      have hi14v : i14.val = leNat (r4.take 4) - 2 ^ 31 := by
+        rw [hi14, hi13, u32_clear_val _ _ h31, hraw32]
+        exact mod_of_testBit _ _ (by have := leNat_take_lt' r4 4; simpa using this) hbit31
+      by_cases h44 : 4 ≤ (r4.drop 4).length
+      swap
+      · step with p_leu32_short b7 (by rw [Slice.length, hb7]; omega) as ⟨r, b8, e, hr⟩
+        subst hr
+        rw [branch_err_bind]
+        step*
+        all_goals try rfl
+        subst ‹_ = core.result.Result.Err _›
+        rw [hG]
+        have h44' : ¬ 4 ≤ r4.length - 4 := by simpa using h44
+        simp [svF, h4, hbit31, h44', ReadsAs, okPart]
+      step with p_leu32_ok b7 (by rw [Slice.length, hb7]; exact h44) as ⟨r, b8, osvx, hr, hosvx, hb8⟩
+      subst hr
+      rw [branch_ok_bind]
+      rw [hb7] at hosvx hb8
+      have h44' : 4 ≤ r4.length - 4 := by simpa using h44
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, hbit31, h44, ite_true, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htxv, hi14v, hosvx]
+      · rw [hb8, List.drop_drop]
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        rw [Bool.not_eq_true, ← Bool.not_eq_true, bne_u32, not_not, hi12, UScalar.val_and, h31, hraw32]
+        by_contra hne; exact hbit31 ((and_two_pow_ne_zero _ _).1 hne)))]
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, hbit31, ite_true, Bool.false_eq_true, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htxv, hraw32]
+      · exact hb7
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+
+  rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+    unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_COMMIT_TIMESTAMP_LENGTH
+    show 7 ≤ i3.val
+    rw [hi3, Slice.length, hb3]; exact h7))]
+  step with pu_leu56 buf3 (by rw [Slice.length, hb3]; exact h7) as ⟨r, buf4, tsx, hr, htsx, hb4⟩
+  subst hr
+  rw [branch_ok_bind]
+  rw [hb3] at htsx hb4
+  obtain ⟨i4, pd⟩ := tsx
+  step as ⟨i5, hi5, _⟩
+  have h55 : i5.val = 2 ^ 55 := by rw [hi5]; simp [U64.size, U64.numBits, Nat.shiftLeft_eq]
+  step as ⟨i6, hi6, _⟩
+  have hraw : i4.val = leNat (r2.take 7) := htsx
+  have hrawlt : leNat (r2.take 7) < 2 ^ 56 := by have := leNat_take_lt' r2 7; simpa using this
+  by_cases hbit : (leNat (r2.take 7)).testBit 55
+  · rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+      rw [bne_u64, hi6, UScalar.val_and, h55, hraw]; exact (and_two_pow_ne_zero _ _).2 hbit))]
+    step as ⟨i7, hi7⟩
+    step as ⟨i8, hi8, _⟩
+    have hi8v : i8.val = leNat (r2.take 7) - 2 ^ 55 := by
+      rw [hi8, hi7, u64_clear_val _ _ h55 (by rw [hraw]; exact hrawlt), hraw]
+      exact mod_of_testBit _ _ hrawlt hbit
+    by_cases h77 : 7 ≤ (r2.drop 7).length
+    swap
+    · step with p_leu56_short buf4 (by rw [Slice.length, hb4]; omega) as ⟨r, b5, e, hr⟩
+      subst hr
+      rw [branch_err_bind]
+      step*
+      all_goals try rfl
+      subst ‹_ = core.result.Result.Err _›
+      rw [hG]
+      have h77' : ¬ 7 ≤ r2.length - 7 := by simpa using h77
+      simp [tsF, h7, hbit, h77', ReadsAs, okPart]
+    step with p_leu56_ok buf4 (by rw [Slice.length, hb4]; exact h77) as ⟨r, bT, ov, hr, hov, hbT⟩
+    subst hr
+    rw [branch_ok_bind]
+    rw [hb4] at hov hbT
+    have hts : tsF r2 = some (leNat (r2.take 7) - 2 ^ 55, leNat ((r2.drop 7).take 7), r2.drop 14) := by
+      have h77' : 7 ≤ r2.length - 7 := by simpa using h77
+      simp [tsF, h7, hbit, h77']
+    rw [hts] at hG
+    simp only at hG
+    simp only [List.drop_drop, Nat.reduceAdd] at hbT
+    generalize r2.drop 14 = r3 at hG hbT
+    have hI : (i8, pd).1.val = leNat (r2.take 7) - 2 ^ 55 := hi8v
+    have hO : ov.1.val = leNat ((r2.drop 7).take 7) := hov
+    apply WP.spec_bind (io.ParseBuf.is_empty_spec bT)
+    intro b hb
+    by_cases hr3e : r3 = []
+    · have hbt : b = true := hb.mpr (by rw [hbT, hr3e])
+      subst hbt
+      rw [ite_eq_left_of_eq_true _ _ (by decide)]
+      step as ⟨i7, hi7⟩
+      rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+        show ¬ 4 ≤ i7.val
+        rw [hi7, Slice.length, hbT, hr3e]; simp))]
+      apply (WP.spec_ok _).mpr
+      rw [hG, hr3e]
+      simp only [txF, svF, show ¬ 4 ≤ ([] : List U8).length by simp, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI, hO,
+          htx0v, hsv0, hund]
+      · rw [hbT, hr3e]
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    have hbf : b = false := by
+      cases b
+      · rfl
+      · exact absurd (hb.mp rfl) (by rw [hbT]; exact hr3e)
+    subst hbf
+    rw [ite_eq_right_of_eq_false _ _ (by decide)]
+    have htxF0 : txF r3 = optFst (checkedLenencInt r3) := by
+      cases r3 with
+      | nil => exact absurd rfl hr3e
+      | cons _ _ => rfl
+    rcases hck : checkedLenencInt r3 with ⟨_ | txl, r4⟩
+    · step with pu_lenenc_err bT (by rw [hbT, hck]) as ⟨r, bX, e, hr⟩
+      subst hr
+      rw [branch_err_bind]
+      step*
+      all_goals try rfl
+      subst ‹_ = core.result.Result.Err _›
+      rw [hG, htxF0, hck]
+      simp [optFst, ReadsAs, okPart]
+    rw [hck] at htxF0
+    step with pu_lenenc_ok bT txl r4 (by rw [hbT, hck]) as ⟨r, b6, txv, hr, htxv, hb6⟩
+    subst hr
+    rw [branch_ok_bind]
+    rw [htxF0] at hG
+    simp only [optFst] at hG
+    step as ⟨i9, hi9⟩
+    by_cases h4 : 4 ≤ r4.length
+    swap
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+        show ¬ 4 ≤ i9.val
+        rw [hi9, Slice.length, hb6]; exact h4))]
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI, hO,
+          htxv, hsv0, hund]
+      · exact hb6
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+      unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+      show 4 ≤ i9.val
+      rw [hi9, Slice.length, hb6]; exact h4))]
+    step with pu_leu32 b6 (by rw [Slice.length, hb6]; exact h4) as ⟨r, b7, svx, hr, hsvx, hb7⟩
+    subst hr
+    rw [branch_ok_bind]
+    obtain ⟨i10, pd1⟩ := svx
+    step as ⟨i11, hi11, _⟩
+    have h31 : i11.val = 2 ^ 31 := by rw [hi11]; simp [U32.size, U32.numBits, Nat.shiftLeft_eq]
+    step as ⟨i12, hi12, _⟩
+    have hraw32 : i10.val = leNat (r4.take 4) := by
+      rw [show (i10, pd1).1 = i10 from rfl, hb6] at hsvx; exact hsvx
+    rw [hb6] at hb7
+    by_cases hbit31 : (leNat (r4.take 4)).testBit 31
+    · rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+        rw [bne_u32, hi12, UScalar.val_and, h31, hraw32]; exact (and_two_pow_ne_zero _ _).2 hbit31))]
+      step as ⟨i13, hi13⟩
+      step as ⟨i14, hi14, _⟩
+      have hi14v : i14.val = leNat (r4.take 4) - 2 ^ 31 := by
+        rw [hi14, hi13, u32_clear_val _ _ h31, hraw32]
+        exact mod_of_testBit _ _ (by have := leNat_take_lt' r4 4; simpa using this) hbit31
+      by_cases h44 : 4 ≤ (r4.drop 4).length
+      swap
+      · step with p_leu32_short b7 (by rw [Slice.length, hb7]; omega) as ⟨r, b8, e, hr⟩
+        subst hr
+        rw [branch_err_bind]
+        step*
+        all_goals try rfl
+        subst ‹_ = core.result.Result.Err _›
+        rw [hG]
+        have h44' : ¬ 4 ≤ r4.length - 4 := by simpa using h44
+        simp [svF, h4, hbit31, h44', ReadsAs, okPart]
+      step with p_leu32_ok b7 (by rw [Slice.length, hb7]; exact h44) as ⟨r, b8, osvx, hr, hosvx, hb8⟩
+      subst hr
+      rw [branch_ok_bind]
+      rw [hb7] at hosvx hb8
+      have h44' : 4 ≤ r4.length - 4 := by simpa using h44
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, hbit31, h44, ite_true, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI, hO,
+          htxv, hi14v, hosvx]
+      · rw [hb8, List.drop_drop]
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        rw [Bool.not_eq_true, ← Bool.not_eq_true, bne_u32, not_not, hi12, UScalar.val_and, h31, hraw32]
+        by_contra hne; exact hbit31 ((and_two_pow_ne_zero _ _).1 hne)))]
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, hbit31, ite_true, Bool.false_eq_true, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI, hO,
+          htxv, hraw32]
+      · exact hb7
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+
+  · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+      rw [Bool.not_eq_true, ← Bool.not_eq_true, bne_u64, not_not, hi6, UScalar.val_and, h55, hraw]
+      by_contra hne; exact hbit ((and_two_pow_ne_zero _ _).1 hne)))]
+    have hts : tsF r2 = some (leNat (r2.take 7), leNat (r2.take 7), r2.drop 7) := by simp [tsF, h7, hbit]
+    rw [hts] at hG
+    simp only at hG
+    obtain ⟨bT, hbT0⟩ : ∃ b, b = buf4 := ⟨_, rfl⟩
+    subst hbT0
+    have hbT := hb4
+    generalize r2.drop 7 = r3 at hG hbT
+    have hI : (i4, pd).1.val = leNat (r2.take 7) := hraw
+    apply WP.spec_bind (io.ParseBuf.is_empty_spec bT)
+    intro b hb
+    by_cases hr3e : r3 = []
+    · have hbt : b = true := hb.mpr (by rw [hbT, hr3e])
+      subst hbt
+      rw [ite_eq_left_of_eq_true _ _ (by decide)]
+      step as ⟨i7, hi7⟩
+      rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+        show ¬ 4 ≤ i7.val
+        rw [hi7, Slice.length, hbT, hr3e]; simp))]
+      apply (WP.spec_ok _).mpr
+      rw [hG, hr3e]
+      simp only [txF, svF, show ¬ 4 ≤ ([] : List U8).length by simp, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htx0v, hsv0, hund]
+      · rw [hbT, hr3e]
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    have hbf : b = false := by
+      cases b
+      · rfl
+      · exact absurd (hb.mp rfl) (by rw [hbT]; exact hr3e)
+    subst hbf
+    rw [ite_eq_right_of_eq_false _ _ (by decide)]
+    have htxF0 : txF r3 = optFst (checkedLenencInt r3) := by
+      cases r3 with
+      | nil => exact absurd rfl hr3e
+      | cons _ _ => rfl
+    rcases hck : checkedLenencInt r3 with ⟨_ | txl, r4⟩
+    · step with pu_lenenc_err bT (by rw [hbT, hck]) as ⟨r, bX, e, hr⟩
+      subst hr
+      rw [branch_err_bind]
+      step*
+      all_goals try rfl
+      subst ‹_ = core.result.Result.Err _›
+      rw [hG, htxF0, hck]
+      simp [optFst, ReadsAs, okPart]
+    rw [hck] at htxF0
+    step with pu_lenenc_ok bT txl r4 (by rw [hbT, hck]) as ⟨r, b6, txv, hr, htxv, hb6⟩
+    subst hr
+    rw [branch_ok_bind]
+    rw [htxF0] at hG
+    simp only [optFst] at hG
+    step as ⟨i9, hi9⟩
+    by_cases h4 : 4 ≤ r4.length
+    swap
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+        show ¬ 4 ≤ i9.val
+        rw [hi9, Slice.length, hb6]; exact h4))]
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htxv, hsv0, hund]
+      · exact hb6
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+      unfold binlog.events.gtid_event.GtidEvent.IMMEDIATE_SERVER_VERSION_LENGTH
+      show 4 ≤ i9.val
+      rw [hi9, Slice.length, hb6]; exact h4))]
+    step with pu_leu32 b6 (by rw [Slice.length, hb6]; exact h4) as ⟨r, b7, svx, hr, hsvx, hb7⟩
+    subst hr
+    rw [branch_ok_bind]
+    obtain ⟨i10, pd1⟩ := svx
+    step as ⟨i11, hi11, _⟩
+    have h31 : i11.val = 2 ^ 31 := by rw [hi11]; simp [U32.size, U32.numBits, Nat.shiftLeft_eq]
+    step as ⟨i12, hi12, _⟩
+    have hraw32 : i10.val = leNat (r4.take 4) := by
+      rw [show (i10, pd1).1 = i10 from rfl, hb6] at hsvx; exact hsvx
+    rw [hb6] at hb7
+    by_cases hbit31 : (leNat (r4.take 4)).testBit 31
+    · rw [ite_eq_left_of_eq_true _ _ (eq_true (by
+        rw [bne_u32, hi12, UScalar.val_and, h31, hraw32]; exact (and_two_pow_ne_zero _ _).2 hbit31))]
+      step as ⟨i13, hi13⟩
+      step as ⟨i14, hi14, _⟩
+      have hi14v : i14.val = leNat (r4.take 4) - 2 ^ 31 := by
+        rw [hi14, hi13, u32_clear_val _ _ h31, hraw32]
+        exact mod_of_testBit _ _ (by have := leNat_take_lt' r4 4; simpa using this) hbit31
+      by_cases h44 : 4 ≤ (r4.drop 4).length
+      swap
+      · step with p_leu32_short b7 (by rw [Slice.length, hb7]; omega) as ⟨r, b8, e, hr⟩
+        subst hr
+        rw [branch_err_bind]
+        step*
+        all_goals try rfl
+        subst ‹_ = core.result.Result.Err _›
+        rw [hG]
+        have h44' : ¬ 4 ≤ r4.length - 4 := by simpa using h44
+        simp [svF, h4, hbit31, h44', ReadsAs, okPart]
+      step with p_leu32_ok b7 (by rw [Slice.length, hb7]; exact h44) as ⟨r, b8, osvx, hr, hosvx, hb8⟩
+      subst hr
+      rw [branch_ok_bind]
+      rw [hb7] at hosvx hb8
+      have h44' : 4 ≤ r4.length - 4 := by simpa using h44
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, hbit31, h44, ite_true, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htxv, hi14v, hosvx]
+      · rw [hb8, List.drop_drop]
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false (by
+        rw [Bool.not_eq_true, ← Bool.not_eq_true, bne_u32, not_not, hi12, UScalar.val_and, h31, hraw32]
+        by_contra hne; exact hbit31 ((and_two_pow_ne_zero _ _).1 hne)))]
+      apply (WP.spec_ok _).mpr
+      rw [hG]
+      simp only [svF, h4, hbit31, ite_true, Bool.false_eq_true, ite_false, Option.map_some, WP.uncurry', ReadsAs]
+      refine ⟨⟨?_, ?_⟩, ?_⟩
+      · simp only [okPart, Option.map_some, gtidView, Option.isSome_some, hfv, hsidv, hgv, hlcv', hsnv', hI,
+          htxv, hraw32]
+      · exact hb7
+      · intro e he
+        simp only [okPart, Option.some.injEq] at he
+        subst he
+        exact ⟨rfl, rfl, hcgt⟩
+
+
+/-- `MyDeserialize` for `GTID_EVENT` (33) and `ANONYMOUS_GTID_EVENT` (34): total; `gtidRead`; untagged, serialization version 0, no commit group ticket. -/
+theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 33 ∨ ctx.event_type_raw.val = 34) (buf : io.ParseBuf) :
+    binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs gtidView (gtidRead buf.val) r rest ∧
+      ∀ e, okPart r = some e → e.tag = none ∧ e.serialization_version.val = 0 ∧ e.commit_group_ticket.val = 0 ⦄ := by
+  rw [deserialize_eq_untagged ctx hc]
+  exact untagged_spec buf
 
 /-- Round trip (untagged, with the logical-clock part): the event reads back, for timestamps below `2^55` (immediate) and `2^56` (original) and an immediate server version below `2^31`; bytes after it are left. -/
 theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (hlc : e.lc_typecode.isSome)
