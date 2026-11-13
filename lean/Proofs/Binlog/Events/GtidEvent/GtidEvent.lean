@@ -1,10 +1,11 @@
 import Defs
+import Proofs.Util.BinlogEvGtid
 
 /-! Statements for `struct GtidEvent and its impls` (spec file: `Specs/Binlog/Events/GtidEvent.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil
 
 namespace mysql_common
 
@@ -15,7 +16,9 @@ theorem binlog.events.gtid_event.GtidEvent.new_spec (sid : Array U8 16#usize) (g
         sequenceNumber := 0, immediateCommitTs := 0, originalCommitTs := 0, txLength := 0,
         immediateServerVersion := 0, originalServerVersion := 0 } ∧
       e.tag = none ∧ e.serialization_version.val = 0 ∧ e.commit_group_ticket.val = 0 ⦄ := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.new
+  step*
+  simp_all [gtidView, binlog.events.gtid_event.GtidEvent.COMMIT_GROUP_TICKET_UNSET]
 
 /-- `new_tagged(sid, tag, gno)`: tagged (serialization version 2), no logical-clock part, server versions `UNDEFINED_SERVER_VERSION`. -/
 theorem binlog.events.gtid_event.GtidEvent.new_tagged_spec (sid : Array U8 16#usize) (tag : packets.Tag) (gno : U64) :
@@ -24,157 +27,172 @@ theorem binlog.events.gtid_event.GtidEvent.new_tagged_spec (sid : Array U8 16#us
         sequenceNumber := 0, immediateCommitTs := 0, originalCommitTs := 0, txLength := 0,
         immediateServerVersion := undefinedServerVersion, originalServerVersion := undefinedServerVersion } ∧
       e.tag = some tag ∧ e.serialization_version.val = 2 ∧ e.commit_group_ticket.val = 0 ⦄ := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.new_tagged
+  step*
+  simp_all [gtidView, binlog.events.gtid_event.GtidEvent.COMMIT_GROUP_TICKET_UNSET, binlog.events.gtid_event.GtidEvent.UNDEFINED_SERVER_VERSION,
+    binlog.events.gtid_event.GtidEvent.TAGGED_SERIALIZATION_VERSION_V2, undefinedServerVersion]
 
 /-- `is_tagged`: whether there is a tag. -/
 theorem binlog.events.gtid_event.GtidEvent.is_tagged_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.is_tagged e = ok e.tag.isSome := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.is_tagged; rfl
 
 /-- `event_type`: `GTID_TAGGED_LOG_EVENT` if tagged, else `GTID_EVENT`. -/
 theorem binlog.events.gtid_event.GtidEvent.event_type_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.event_type e = ok (if e.tag.isSome then .GTID_TAGGED_LOG_EVENT else .GTID_EVENT) := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.event_type
+  cases e.tag <;> rfl
 
 /-- `with_flags`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_flags_spec (e : binlog.events.gtid_event.GtidEvent) (f : binlog.consts.GtidFlags) :
     binlog.events.gtid_event.GtidEvent.with_flags e f = ok { e with flags := (f, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_flags
+  simp only [binlog.consts.GtidFlags.bits, misc.raw.flags.RawFlags.new]
+  exact (bind_tc_ok _ _).trans (bind_tc_ok _ _)
 
 /-- `flags_raw`: all the flag bits. -/
 theorem binlog.events.gtid_event.GtidEvent.flags_raw_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.flags_raw e = ok e.flags.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.flags_raw; rfl
 
 /-- `flags`: the known flag bits. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.flags_spec (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.flags e ⦃ f => f.val = e.flags.1.val &&& gtidFlagsAll ⦄ := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.flags
+  rw [misc.raw.flags.RawFlags.get_eq]
+  simp [binlog.consts.GtidFlags.Insts.BitflagsTraitsFlagsU8.FLAGS,
+    bitflags.traits.Flag.new, binlog.consts.GtidFlags.MAY_HAVE_SBR, binlog.consts.GtidFlags.Insts.BitflagsTraitsFlagsU8.bits,
+    binlog.consts.GtidFlags.bits, binlog.consts.GtidFlags.Insts.BitflagsTraitsFlagsU8.from_bits_retain,
+    binlog.consts.GtidFlags.from_bits_retain, U8.Insts.BitflagsTraitsBits.EMPTY, gtidFlagsAll,
+    U8.Insts.CoreOpsBitBitOrU8U8.bitor, U8.Insts.CoreOpsBitBitAndU8U8.bitand]
 
 /-- `with_sid`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_sid_eq (e : binlog.events.gtid_event.GtidEvent) (s : Array U8 16#usize) :
     binlog.events.gtid_event.GtidEvent.with_sid e s = ok { e with sid := s } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_sid; rfl
 
 /-- `sid`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.sid_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.sid e = ok e.sid := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.sid; rfl
 
 /-- `with_gno`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_gno_eq (e : binlog.events.gtid_event.GtidEvent) (g : U64) :
     binlog.events.gtid_event.GtidEvent.with_gno e g = ok { e with gno := (g, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_gno; rw [misc.raw._const.RawConst.new_eq]; exact bind_tc_ok _ _
 
 /-- `gno`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.gno_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.gno e = ok e.gno.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.gno; rfl
 
 /-- `tag`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.tag_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.tag e = ok e.tag := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.tag; rfl
 
 /-- `with_tag`: the tag, and serialization version 2. -/
 theorem binlog.events.gtid_event.GtidEvent.with_tag_eq (e : binlog.events.gtid_event.GtidEvent) (t : packets.Tag) :
     binlog.events.gtid_event.GtidEvent.with_tag e t = ok { e with tag := some t, serialization_version := 2#u8 } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_tag; simp [binlog.events.gtid_event.GtidEvent.TAGGED_SERIALIZATION_VERSION_V2]
 
 /-- `lc_typecode`: 2 iff the logical-clock part is present. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.lc_typecode_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.lc_typecode e = ok (if e.lc_typecode.isSome then some 2#u8 else none) := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.lc_typecode
+  cases e.lc_typecode <;> simp [core.option.Option.as_ref, misc.raw.int.ConstU8.value]
 
 /-- `with_lc_typecode`: adds the logical-clock part. -/
 theorem binlog.events.gtid_event.GtidEvent.with_lc_typecode_spec (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.with_lc_typecode e ⦃ e' => gtidView e' = { gtidView e with lc := true } ∧ e'.tag = e.tag ⦄ := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_lc_typecode
+  step*
+  simp [gtidView]
 
 /-- `with_last_committed`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_last_committed_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_last_committed e x = ok { e with last_committed := (x, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_last_committed; rw [misc.raw.int.RawInt.new_eq]; exact bind_tc_ok _ _
 
 /-- `last_committed`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.last_committed_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.last_committed e = ok e.last_committed.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.last_committed; rfl
 
 /-- `with_sequence_number`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_sequence_number_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_sequence_number e x = ok { e with sequence_number := (x, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_sequence_number; rw [misc.raw.int.RawInt.new_eq]; exact bind_tc_ok _ _
 
 /-- `sequence_number`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.sequence_number_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.sequence_number e = ok e.sequence_number.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.sequence_number; rfl
 
 /-- `with_immediate_commit_timestamp` (stored as given; 56 bits are written). -/
 theorem binlog.events.gtid_event.GtidEvent.with_immediate_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_immediate_commit_timestamp e x = ok { e with immediate_commit_timestamp := (x, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_immediate_commit_timestamp; rw [misc.raw.int.RawInt.new_eq]; exact bind_tc_ok _ _
 
 /-- `immediate_commit_timestamp`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.immediate_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.immediate_commit_timestamp e = ok e.immediate_commit_timestamp.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.immediate_commit_timestamp; rfl
 
 /-- `with_original_commit_timestamp`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_original_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_original_commit_timestamp e x = ok { e with original_commit_timestamp := (x, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_original_commit_timestamp; rw [misc.raw.int.RawInt.new_eq]; exact bind_tc_ok _ _
 
 /-- `original_commit_timestamp`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.original_commit_timestamp_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.original_commit_timestamp e = ok e.original_commit_timestamp.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.original_commit_timestamp; rfl
 
 /-- `with_tx_length`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_tx_length_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_tx_length e x = ok { e with tx_length := (x, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_tx_length; rw [misc.raw.int.RawInt.new_eq]; exact bind_tc_ok _ _
 
 /-- `tx_length`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.tx_length_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.tx_length e = ok e.tx_length.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.tx_length; rfl
 
 /-- `with_original_server_version`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_original_server_version_eq (e : binlog.events.gtid_event.GtidEvent) (x : U32) :
     binlog.events.gtid_event.GtidEvent.with_original_server_version e x = ok { e with original_server_version := (x, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_original_server_version; rw [misc.raw.int.RawInt.new_eq]; exact bind_tc_ok _ _
 
 /-- `original_server_version`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.original_server_version_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.original_server_version e = ok e.original_server_version.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.original_server_version; rfl
 
 /-- `with_immediate_server_version`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_immediate_server_version_eq (e : binlog.events.gtid_event.GtidEvent) (x : U32) :
     binlog.events.gtid_event.GtidEvent.with_immediate_server_version e x = ok { e with immediate_server_version := (x, ()) } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_immediate_server_version; rw [misc.raw.int.RawInt.new_eq]; exact bind_tc_ok _ _
 
 /-- `immediate_server_version`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.immediate_server_version_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.immediate_server_version e = ok e.immediate_server_version.1 := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.immediate_server_version; rfl
 
 /-- `commit_group_ticket`. -/
 theorem binlog.events.gtid_event.GtidEvent.impl.commit_group_ticket_eq (e : binlog.events.gtid_event.GtidEvent) :
     binlog.events.gtid_event.GtidEvent.impl.commit_group_ticket e = ok e.commit_group_ticket := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.impl.commit_group_ticket; rfl
 
 /-- `with_commit_group_ticket`. -/
 theorem binlog.events.gtid_event.GtidEvent.with_commit_group_ticket_eq (e : binlog.events.gtid_event.GtidEvent) (x : U64) :
     binlog.events.gtid_event.GtidEvent.with_commit_group_ticket e x = ok { e with commit_group_ticket := x } := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.with_commit_group_ticket; rfl
 
 /-- `MyDeserialize::SIZE` is `None`. -/
 theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE; rfl
 
 /-- `MyDeserialize` for `GTID_EVENT` (33) and `ANONYMOUS_GTID_EVENT` (34): total; `gtidRead`; untagged, serialization version 0, no commit group ticket. -/
 theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_untagged (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 33 ∨ ctx.event_type_raw.val = 34) (buf : io.ParseBuf) :
@@ -236,6 +254,6 @@ theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.
 /-- `BinlogEvent::EVENT_TYPE`: `GTID_EVENT` (33). -/
 theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .GTID_EVENT := by
-  sorry
+  unfold binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
 
 end mysql_common

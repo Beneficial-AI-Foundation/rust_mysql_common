@@ -16,6 +16,9 @@ import Proofs.Misc.Raw.Const.RawConst
 import Proofs.Misc.Raw.Int.LeU16
 import Proofs.Misc.Raw.Bytes.U8Bytes
 import Proofs.Misc.Raw.Skip
+import Proofs.Misc.Raw.Flags.RawFlags
+import Proofs.Misc.Raw.Int.ConstU8
+import Proofs.Binlog.Consts.GtidFlags
 
 /-! Helper lemmas for the binlog-event proofs of group `BinlogEvGtid` (GTID, previous-GTIDs,
 rotate, intvar, rand, XID, incident, rows-query and transaction-payload events). -/
@@ -447,5 +450,30 @@ theorem min_usize_cap (a : Nat) : min (min a Usize.max) (2 ^ 32 - 1 - 19) = min 
 theorem min_one_usize : min (0 + 1) Usize.max = 1 := by
   have hM := u32_max_le_usize
   exact min_eq_left (Nat.le_trans (by norm_num) hM)
+
+/-! ## Defaults -/
+
+@[step]
+theorem rawint_default_u64 {T : Type} (d : core.default.Default T) (inst : misc.raw.int.IntRepr T U64) :
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default d inst core.default.DefaultU64 ⦃ r => r.1.val = 0 ⦄ := by
+  simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
+  exact (WP.spec_ok _).mpr rfl
+
+@[step]
+theorem rawint_default_u32 {T : Type} (d : core.default.Default T) (inst : misc.raw.int.IntRepr T U32) :
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default d inst core.default.DefaultU32 ⦃ r => r.1.val = 0 ⦄ := by
+  simp [misc.raw.int.RawInt.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
+  exact (WP.spec_ok _).mpr rfl
+
+@[step]
+theorem rawflags_default_u8 {T U : Type} (d : core.default.Default T) (fl : bitflags.traits.Flags T U8) (du : core.default.Default U) :
+    misc.raw.flags.RawFlags.Insts.CoreDefaultDefault.default d fl du core.default.DefaultU8 ⦃ r => r.1.val = 0 ⦄ := by
+  simp [misc.raw.flags.RawFlags.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
+  exact (WP.spec_ok _).mpr rfl
+
+@[step]
+theorem constu8_default {T : Type} (N : U8) (d : core.default.Default T) :
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
+  simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
 
 end mysql_common.BinlogEvGtid
