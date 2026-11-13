@@ -88,11 +88,12 @@ recall misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.SIZE_eq :
 
 /-- does not depend on any axioms -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.SIZE_eq
-/-- `Unknown::serialize`: appends the items' serializations, nothing else (the count is stored elsewhere). Stated given what the item serializer appends (`enc`). -/
+/-- `Unknown::serialize`: appends the items' serializations, nothing else (the count is stored elsewhere). Stated given what the item serializer appends (`enc`) for the items of the sequence. -/
 recall misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize_spec {T : Type} (ser : proto.MySerialize T) (enc : T → List U8)
-    (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
+    (seq : Slice T)
+    (hser : ∀ x ∈ seq.val, ∀ (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
-    (seq : Slice T) (buf : alloc.vec.Vec U8)
+    (buf : alloc.vec.Vec U8)
     (h : buf.length + (seq.val.flatMap enc).length ≤ Usize.max) :
     misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize.serialize ser seq buf ⦃ buf' => buf'.val = buf.val ++ seq.val.flatMap enc ⦄
 
@@ -140,11 +141,12 @@ recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE_eq :
 
 /-- does not depend on any axioms -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE_eq
-/-- `LeU64::serialize`: appends the item count (at most `MAX_LEN`) as a 8-byte little-endian integer, then the serializations of the first that many items: a longer sequence is silently truncated. -/
+/-- `LeU64::serialize`: appends the item count (at most `MAX_LEN`) as a 8-byte little-endian integer, then the serializations of the first that many items: a longer sequence is silently truncated. Stated given what the item serializer appends (`enc`) for the items written. -/
 recall misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_spec {T : Type} (ser : proto.MySerialize T) (enc : T → List U8)
-    (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
+    (seq : Slice T)
+    (hser : ∀ x ∈ seq.val.take (2 ^ 64 - 1), ∀ (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
-    (seq : Slice T) (buf : alloc.vec.Vec U8)
+    (buf : alloc.vec.Vec U8)
     (h : buf.length + 8 + ((seq.val.take (2 ^ 64 - 1)).flatMap enc).length ≤ Usize.max) :
     misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize ser seq buf ⦃ buf' =>
       buf'.val = buf.val ++ leBytes 8 (min seq.length (2 ^ 64 - 1)) ++ (seq.val.take (2 ^ 64 - 1)).flatMap enc ⦄
@@ -195,11 +197,12 @@ recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE_eq :
 
 /-- does not depend on any axioms -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.SIZE_eq
-/-- `LeU32::serialize`: appends the item count (at most `MAX_LEN`) as a 4-byte little-endian integer, then the serializations of the first that many items: a longer sequence is silently truncated. -/
+/-- `LeU32::serialize`: appends the item count (at most `MAX_LEN`) as a 4-byte little-endian integer, then the serializations of the first that many items: a longer sequence is silently truncated. Stated given what the item serializer appends (`enc`) for the items written. -/
 recall misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize_spec {T : Type} (ser : proto.MySerialize T) (enc : T → List U8)
-    (hser : ∀ (x : T) (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
+    (seq : Slice T)
+    (hser : ∀ x ∈ seq.val.take (2 ^ 32 - 1), ∀ (b : alloc.vec.Vec U8), b.length + (enc x).length ≤ Usize.max →
       ser.serialize x b ⦃ b' => b'.val = b.val ++ enc x ⦄)
-    (seq : Slice T) (buf : alloc.vec.Vec U8)
+    (buf : alloc.vec.Vec U8)
     (h : buf.length + 4 + ((seq.val.take (2 ^ 32 - 1)).flatMap enc).length ≤ Usize.max) :
     misc.raw.int.LeU32.Insts.Mysql_commonMiscRawSeqSeqReprTuple.serialize ser seq buf ⦃ buf' =>
       buf'.val = buf.val ++ leBytes 4 (min seq.length (2 ^ 32 - 1)) ++ (seq.val.take (2 ^ 32 - 1)).flatMap enc ⦄
