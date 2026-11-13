@@ -152,12 +152,155 @@ theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SI
     packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
   unfold packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE; rfl
 
+set_option maxHeartbeats 4000000 in
 /-- `MyDeserialize for HandshakeResponse`: total; `hsRespRead` (the fields, the plugin in normal form, the map built from the wire entries; errors; what is left). -/
 theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (h64 : Target64) (buf : io.ParseBuf) :
     packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       optMatch (fun p vk => HsResp.Matches p vk.1 vk.2) (okPart r) (hsRespRead buf.val).1 ∧
         rest.val = (hsRespRead buf.val).2 ⦄ := by
-  sorry
+  unfold packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  step*
+  have hi2 : i2 = 32#usize := UScalar.eq_of_val_eq (by simp_all)
+  subst hi2
+  step with parse_usize_spec as ⟨r, buf1, h1⟩
+  split_ifs at h1 with hl
+  swap
+  · obtain ⟨h1a, hb1⟩ := h1
+    have hs : buf.val.length < 32 := by simp [Slice.length] at hl; omega
+    cases r with
+    | Ok _ => simp [okPart] at h1a
+    | Err e => simp [hsRespRead_eq, CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, hs, hb1, optMatch, okPart]
+  obtain ⟨h1a, h1b⟩ := h1
+  have hl' : ¬ buf.val.length < 32 := by simp [Slice.length] at hl; omega
+  cases r with
+  | Err e => simp [okPart] at h1a
+  | Ok pb =>
+  have hpb : pb.val = buf.val.take 32 := Option.some.inj h1a
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_rawconst_leu32 _ pb (by simp [Slice.length, hpb]; omega) as ⟨q1, s1, k1a, k1b⟩
+  cases q1 with
+  | Err e => simp [okPart] at k1a
+  | Ok w1 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_rawint_leu32 s1 (by simp [Slice.length, k1b, hpb]; omega) as ⟨q2, s2, k2a, k2b⟩
+  cases q2 with
+  | Err e => simp [okPart] at k2a
+  | Ok w2 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with parse_unchecked_u8_spec s2 (by simp [Slice.length, k2b, k1b, hpb]; omega) as ⟨q3, s3, k3a, k3b⟩
+  cases q3 with
+  | Err e => simp [okPart] at k3a
+  | Ok w3 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_skip 19#usize s3 (by simp [Slice.length, k3b, k2b, k1b, hpb]; omega) as ⟨q4, s4, k4a, k4b⟩
+  cases q4 with
+  | Err e => simp [okPart] at k4a
+  | Ok w4 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_rawconst_leu32 _ s4 (by simp [Slice.length, k4b, k3b, k2b, k1b, hpb]; omega) as ⟨q5, s5, k5a, k5b⟩
+  cases q5 with
+  | Err e => simp [okPart] at k5a
+  | Ok w5 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  obtain ⟨i3, ph3⟩ := w1
+  obtain ⟨i4, ph4⟩ := w5
+  have e1 : s1.val = (buf.val.take 32).drop 4 := by rw [k1b, hpb]
+  have e2 : s2.val = (buf.val.take 32).drop 8 := by rw [k2b, e1, List.drop_drop]
+  have e3 : s3.val = (buf.val.take 32).drop 9 := by rw [k3b, e2, List.drop_drop]
+  have e4 : s4.val = (buf.val.take 32).drop 28 := by rw [k4b, e3, List.drop_drop]
+  have vc : i3.val = leNat (List.take 4 (List.drop 0 (List.take 32 buf.val))) := by
+    rw [List.drop_zero, ← hpb]; exact Option.some.inj k1a
+  have vmp : w2.1.val = leNat (List.take 4 (List.drop 4 (List.take 32 buf.val))) := by
+    rw [← e1]; exact Option.some.inj k2a
+  have vco : w3.1.val = leNat (List.take 1 (List.drop 8 (List.take 32 buf.val))) := by
+    rw [← e2]; exact Option.some.inj k3a
+  have vmc : i4.val = leNat (List.take 4 (List.drop 28 (List.take 32 buf.val))) := by
+    rw [← e4]; exact Option.some.inj k5a
+  have hvc : leNat (List.take 4 (List.take 32 buf.val)) = i3.val := by rw [vc, List.drop_zero]
+  step with CAUtil.parse_null_bytes_spec as ⟨r6, buf2, h6⟩
+  rw [h1b] at h6
+  rcases hn : nulStrRead (buf.val.drop 32) with ⟨_ | user, r1v⟩ <;> rw [hn] at h6 <;> simp only [Prod.mk.injEq] at h6
+  · obtain ⟨h6a, h6b⟩ := h6
+    cases r6 with
+    | Ok _ => simp [okPart] at h6a
+    | Err e => simp [hsRespRead_eq, CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, optMatch, h6b, hl', hn]
+  obtain ⟨h6a, h6b⟩ := h6
+  cases r6 with
+  | Err e => simp [okPart] at h6a
+  | Ok rbu =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with scramble_step h64 as ⟨r7, buf3, h7⟩
+  rw [h6b] at h7
+  rcases hsc : scrambleRead i3.val r1v with ⟨_ | ⟨k, sc⟩, r2v⟩ <;> rw [hsc] at h7 <;> simp only [Prod.mk.injEq] at h7
+  · obtain ⟨h7a, h7b⟩ := h7
+    cases r7 with
+    | Ok _ => simp [okPart] at h7a
+    | Err e =>
+      simp [hsRespRead_eq, CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, optMatch, h7b, hl', hn, hsc, hvc]
+  obtain ⟨h7a, h7b⟩ := h7
+  cases r7 with
+  | Err e => simp [okPart] at h7a
+  | Ok sb =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with db_step as ⟨r8, buf4, h8⟩
+  rw [h7b] at h8
+  rcases hdbr : dbRead i3.val r2v with ⟨_ | dbo, r3v⟩ <;> rw [hdbr] at h8 <;> simp only [Prod.mk.injEq] at h8
+  · obtain ⟨h8a, h8b⟩ := h8
+    cases r8 with
+    | Ok _ => simp [okPart] at h8a
+    | Err e =>
+      simp [hsRespRead_eq, CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, optMatch, h8b, hl', hn, hsc, hvc, hdbr]
+  obtain ⟨h8a, h8b⟩ := h8
+  cases r8 with
+  | Err e => simp [okPart] at h8a
+  | Ok dbv =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with hr_plugin_step as ⟨ap, buf5, h9a, h9b⟩
+  rw [h8b] at h9a
+  simp only [constants.CapabilityFlags.from_bits_retain_eq]
+  step with CAUtil.opt_connect_attrs_step h64 as ⟨r9, buf6, h10a, h10b⟩
+  have hus : cowList rbu.1 = user := Option.some.inj h6a
+  have hsbv : scrambleView sb = (k, sc) := Option.some.inj h7a
+  have hdbv : dbv.map (fun rb => cowList rb.1) = dbo := Option.some.inj h8a
+  have hcl : i3.val &&& capabilityFlagsAll = i3.val := and_all32 _ (by scalar_tac)
+  rcases hat : CAUtil.attRead i3.val buf5.val with ⟨_ | kvo, r5v⟩ <;> rw [hat] at h10a h10b <;> simp only at h10a h10b
+  · cases r9 with
+    | Ok _ => simp [okPart] at h10b
+    | Err e =>
+      have hb5 : buf5.val = (hrPnRead i3.val r3v).2 := by rw [← h9a]
+      rw [hb5] at hat
+      simp [hsRespRead_eq, CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, optMatch,
+        h10a, hl', hn, hsc, hvc, hdbr, hat]
+  · obtain ⟨o, ho, hom⟩ := h10b
+    cases r9 with
+    | Err e => simp [okPart] at ho
+    | Ok o' =>
+    simp only [okPart, Option.some.injEq] at ho
+    subst ho
+    step as ⟨cfx, hcfx⟩
+    subst hcfx
+    step with constants.CapabilityFlags.from_bits_truncate_spec as ⟨f1, hf1⟩
+    step as ⟨c1, hc1⟩
+    step with mariadb_from_bits_truncate_spec as ⟨f2, hf2⟩
+    step as ⟨c2, hc2⟩
+    have hb5 : buf5.val = (hrPnRead i3.val r3v).2 := by rw [← h9a]
+    have hpn1 : ap.map authPluginName = (hrPnRead i3.val r3v).1 := by rw [← h9a]
+    rw [hb5] at hat
+    rw [hsRespRead_eq]
+    simp only [hl', ↓reduceIte, hn, List.drop_zero, hvc, hsc, hdbr, hat]
+    refine ⟨?_, h10a⟩
+    simp only [okPart, optMatch, HsResp.Matches]
+    refine ⟨?_, h9b, hom⟩
+    simp [HsResp.of, hc1, hc2, hf1, hf2, hcl, hus, hsbv, hdbv, hpn1, vmp, vco, vmc]
 
 private theorem scramble_ser (sb : misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit)
       (misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit)
@@ -238,6 +381,14 @@ theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.ro
     (tail : List U8) (buf : io.ParseBuf) (h : buf.val = hsRespEnc v kvs ++ tail) :
     packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (∃ p, okPart r = some p ∧ HsResp.Matches p v kvs) ∧ rest.val = tail ⦄ := by
-  sorry
+  have hlen := PKUtil.slice_len_lt buf
+  rw [h] at hlen
+  apply WP.spec_mono (packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec h64 buf)
+  rintro ⟨r, rest⟩ ⟨hm, hr⟩
+  rw [h, hsRespRead_enc v kvs hc tail hlen] at hm hr
+  refine ⟨?_, hr⟩
+  cases hp : okPart r with
+  | none => rw [hp] at hm; simp [optMatch] at hm
+  | some p => rw [hp] at hm; exact ⟨p, rfl, hm⟩
 
 end mysql_common

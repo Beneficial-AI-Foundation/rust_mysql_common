@@ -768,4 +768,29 @@ theorem hr_plugin_step (flags : U32) (buf : io.ParseBuf) :
     simp only [CLIENT_PLUGIN_AUTH]
     simp [hf']
 
+theorem hsRespRead_eq (bs : List U8) : hsRespRead bs =
+    if bs.length < 32 then (none, bs)
+    else
+      let f := bs.take 32
+      let field (i k : Nat) : Nat := leNat ((f.drop i).take k)
+      let caps := field 0 4
+      match nulStrRead (bs.drop 32) with
+      | (none, r) => (none, r)
+      | (some user, r1) =>
+        match scrambleRead caps r1 with
+        | (none, r) => (none, r)
+        | (some (k, s), r2) =>
+          match dbRead caps r2 with
+          | (none, r) => (none, r)
+          | (some db, r3) =>
+            match CAUtil.attRead caps (hrPnRead caps r3).2 with
+            | (none, r) => (none, r)
+            | (some kvs, r5) =>
+              (some ({ caps := caps, maxPacket := field 4 4, collation := field 8 1,
+                       mariadbCaps := field 28 4 &&& mariadbCapabilitiesAll, user := user,
+                       scrambleKind := k, scramble := s, db := db,
+                       pluginName := (hrPnRead caps r3).1 }, kvs), r5) := by
+  unfold hsRespRead
+  rfl
+
 end mysql_common.ConnHSUtil
