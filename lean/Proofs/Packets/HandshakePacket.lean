@@ -11,6 +11,8 @@ open core.result.Result.Insts
 
 namespace mysql_common
 
+local macro "lenTac" : tactic => `(tactic| (simp only [alloc.vec.Vec.length] at *; simp [*, PBUtil.length_leBytes] at *; omega))
+
 /-- `MyDeserialize for HandshakePacket`: `SIZE` is `None`. -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
@@ -27,18 +29,6 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.dese
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail .integerOverflow := by
   sorry
 
-/-- `MySerialize for HandshakePacket`: appends `handshakeEnc` of the fields. -/
-theorem packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.HandshakePacket) (buf : alloc.vec.Vec U8)
-    (h : buf.length + (handshakeEnc (Handshake.of self)).length ≤ Usize.max) :
-    packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ handshakeEnc (Handshake.of self) ⦄ := by
-  unfold packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize
-  have hl : buf.val.length + (handshakeEnc (Handshake.of self)).length ≤ Usize.max := h
-  simp only [handshakeEnc, Handshake.of, List.length_cons, List.length_append, PBUtil.length_leBytes,
-    List.length_replicate, List.length_singleton] at hl
-  step*
-  all_goals trace_state
-  all_goals sorry
-
 private theorem serialize_tail_spec
     (s2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 247#usize) Usize))
     (pn : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit)) (buf : alloc.vec.Vec U8)
@@ -53,8 +43,59 @@ private theorem serialize_tail_spec
   · step*
   · step*
   · step*
-    · simp_all [alloc.vec.Vec.length]; omega
-    · simp_all
+
+/-- `MySerialize for HandshakePacket`: appends `handshakeEnc` of the fields. -/
+theorem packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize_spec (self : packets.HandshakePacket) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (handshakeEnc (Handshake.of self)).length ≤ Usize.max) :
+    packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize self buf ⦃ buf' => buf'.val = buf.val ++ handshakeEnc (Handshake.of self) ⦄ := by
+  unfold packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize
+  have hl : buf.val.length + (handshakeEnc (Handshake.of self)).length ≤ Usize.max := h
+  simp only [handshakeEnc, Handshake.of, List.length_cons, List.length_append, PBUtil.length_leBytes,
+    List.length_replicate] at hl
+  step with PCSUtil.rawint_u8_serialize as ⟨b1, h1⟩
+  step with nullbytes_raw_ser as ⟨b2, h2⟩
+  all_goals try lenTac
+  step with PCSUtil.rawint_u32_serialize as ⟨b3, h3⟩
+  all_goals try lenTac
+  step with ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨b4, h4⟩
+  all_goals try lenTac
+  step with PKUtil.put_u8_spec as ⟨b5, h5⟩
+  all_goals try lenTac
+  step with const_caps_lower_ser as ⟨b6, h6⟩
+  all_goals try lenTac
+  step with PCSUtil.rawint_u8_serialize as ⟨b7, h7⟩
+  all_goals try lenTac
+  step with const_status_ser as ⟨b8, h8⟩
+  all_goals try lenTac
+  step with const_caps_upper_ser as ⟨b9, h9⟩
+  all_goals try lenTac
+  step
+  step with PKUtil.caps_contains_spec as ⟨bb, hbb⟩
+  step with handshake_auth_plugin_data_len_spec as ⟨li, hli⟩
+  step with PKUtil.put_u8_spec as ⟨b10, h10⟩
+  all_goals try lenTac
+  step with PCSUtil.skip_serialize as ⟨b11, h11⟩
+  all_goals try lenTac
+  step with const_mariadb_u32_ser as ⟨b12, h12⟩
+  all_goals try lenTac
+  have hpa : (constants.CapabilityFlags.CLIENT_PLUGIN_AUTH).val = CLIENT_PLUGIN_AUTH := by
+    simp [constants.CapabilityFlags.CLIENT_PLUGIN_AUTH, CLIENT_PLUGIN_AUTH]
+  have hli' : li = byte (handshakeLenByte (Handshake.of self)) := by
+    apply UScalar.eq_of_val_eq
+    rw [hli, PBUtil.byte_val, hbb, cf_post, hpa]
+    simp only [handshakeLenByte, Handshake.of]
+    by_cases hf : hasFlag self.capabilities_2.1.val CLIENT_PLUGIN_AUTH = true <;>
+      rcases self.scramble_2 with _ | rb <;> simp [hf]
+    omega
+  have hz : (0#u8 : U8) = byte 0 := rfl
+  rcases hs2 : self.scramble_2 with _ | rb <;> rcases hpn : self.auth_plugin_name with _ | pn <;>
+    simp only [hs2, hpn, Option.map_none, Option.map_some] at hl ⊢
+  all_goals
+    step with serialize_tail_spec as ⟨b13, h13⟩
+    · simp only [alloc.vec.Vec.length] at *
+      simp [h12, h11, h10, h9, h8, h7, h6, h5, h4, h3, h2, h1, PBUtil.length_leBytes] at *
+      omega
+    simp [h13, h12, h11, h10, h9, h8, h7, h6, h5, h4, h3, h2, h1, hli', hz, handshakeEnc, Handshake.of, hs2, hpn]
 
 /-- Round trip: a `Handshake.Compatible` handshake written by `handshakeEnc` reads back with the same fields (the stored length byte is the one written). With `CLIENT_PLUGIN_AUTH` the plugin name is the rest of the packet, so nothing may follow. (With `CLIENT_PLUGIN_AUTH`, a scramble of 120–127 bytes makes the reader panic instead: `Defs.handshakePanics_handshakeEnc`.) -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip (hs : Handshake) (hc : hs.Compatible) (tail : List U8)
