@@ -98,6 +98,77 @@ theorem u32bytes_as_str_spec (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U32Byt
   rw [ite_eq_left_iff.mpr (fun h => absurd ((Defs.isUtf8_iff_isValidUTF8 _).1 hu) h)]
   exact ⟨s, rfl, hs⟩
 
+theorem eq_ok_of_spec {α : Type} {m : Result α} {x : α} (h : m ⦃ y => y = x ⦄) : m = ok x := by
+  obtain ⟨y, hy, rfl⟩ := spec_eq_ok h; exact hy
+
+theorem tag_clone_eq (t : packets.Tag) (ht : (strCowBytes t).length ≤ Usize.max) :
+    packets.Tag.Insts.CoreCloneClone.clone t = ok t := by
+  apply eq_ok_of_spec
+  unfold packets.Tag.Insts.CoreCloneClone.clone
+  apply WP.spec_bind (Pₘ := fun c => c = t)
+  · cases t with
+    | Borrowed b => exact (WP.spec_ok _).mpr rfl
+    | Owned o =>
+      have hu := CBTUtil.u8sOf_toUTF8 o
+      simp only [String.toUTF8_eq_toByteArray] at hu
+      simp only [strCowBytes] at ht
+      simp only [alloc.borrow.Cow.Insts.CoreCloneClone.clone]
+      apply WP.spec_bind (Pₘ := fun b : Str => b.val = utf8 o)
+      · simp only [alloc.string.String.Insts.CoreBorrowBorrowStr.borrow, hu,
+          String.toUTF8_eq_toByteArray]
+        rw [dite_eq_left_of_eq_true (eq_true ht)]
+        exact (WP.spec_ok _).mpr (Slice.from_val _ _)
+      · intro b hb
+        apply WP.spec_bind (Pₘ := fun o' => o' = o)
+        · simp only [Str.Insts.AllocBorrowToOwnedString.to_owned, hb,
+            CBTUtil.fromUTF8?_utf8]
+          exact (WP.spec_ok _).mpr rfl
+        · intro o' ho'; exact (WP.spec_ok _).mpr (by rw [ho'])
+  · intro c hc; exact (WP.spec_ok _).mpr hc
+
+theorem sid_clone_eq (x : packets.Sid) (ht : ∀ t, x.tag = some t → (strCowBytes t).length ≤ Usize.max) :
+    packets.Sid.Insts.CoreCloneClone.clone x = ok x := by
+  obtain ⟨u, tag, ⟨c, pd⟩⟩ := x
+  apply eq_ok_of_spec
+  unfold packets.Sid.Insts.CoreCloneClone.clone
+  apply WP.spec_bind (Pₘ := fun a => a = u)
+  · exact WP.spec_mono (core.array.CloneArray.clone_spec core.clone.CloneU8 u (by intros; rfl)) (fun _ h => h.symm)
+  intro a ha
+  apply WP.spec_bind (Pₘ := fun o => o = tag)
+  · cases tag with
+    | none => exact (WP.spec_ok _).mpr rfl
+    | some t =>
+      simp only [core.option.Option.Insts.CoreCloneClone.clone]
+      rw [tag_clone_eq t (ht t rfl)]
+      simp
+  intro o ho
+  apply WP.spec_bind (Pₘ := fun s => s = ((c, pd) : misc.raw.seq.Seq packets.GnoInterval misc.raw.int.LeU64))
+  · unfold misc.raw.seq.Seq.Insts.CoreCloneClone.clone
+    apply WP.spec_bind (Pₘ := fun c1 => c1 = c)
+    · cases c with
+      | Borrowed b => exact (WP.spec_ok _).mpr rfl
+      | Owned v =>
+        simp only [alloc.borrow.Cow.Insts.CoreCloneClone.clone, Slice.Insts.AllocBorrowToOwnedVec.to_owned]
+        apply WP.spec_bind (Pₘ := fun b => b = v.deref) ((WP.spec_ok _).mpr rfl)
+        intro b hb
+        subst hb
+        apply WP.spec_bind (alloc.slice.Slice.to_vec_spec packets.GnoInterval.Insts.CoreCloneClone
+          (alloc.vec.Vec.deref v) (fun y _ => rfl))
+        intro v' hv'
+        have : v' = v := by
+          apply alloc.vec.Vec.ext
+          have := congrArg (fun x : Slice packets.GnoInterval => x.val) hv'
+          simpa [alloc.vec.Vec.deref, alloc.vec.Vec.val] using this.symm
+        subst this
+        exact (WP.spec_ok _).mpr rfl
+    · intro c1 hc1
+      simp only [core.marker.PhantomData.Insts.CoreCloneClone.clone, hc1]
+      apply WP.spec_bind (Pₘ := fun p => p = pd) ((WP.spec_ok _).mpr rfl)
+      intro p hp; subst hp
+      exact (WP.spec_ok _).mpr rfl
+  intro s hs
+  exact (WP.spec_ok _).mpr (by rw [ha, ho, hs])
+
 end GtidUtil
 
 open GtidUtil
@@ -200,7 +271,28 @@ theorem packets.ComBinlogDumpGtid.with_sid_spec (self : packets.ComBinlogDumpGti
       GtidDump.of g = { GtidDump.of self with
         flags := (GtidDump.of self).flags ||| BINLOG_THROUGH_GTID,
         sids := (GtidDump.of self).sids ++ [SidV.of sid] } ⦄ := by
-  sorry
+  unfold packets.ComBinlogDumpGtid.with_sid misc.raw.seq.Seq.push
+  obtain ⟨hd, ⟨fv, pf⟩, sv, fn, pv, ⟨c, pd⟩⟩ := self
+  simp only [GtidDump.of, List.mem_map] at htags h
+  step with flags_insert_spec as ⟨f1, hf1⟩
+  cases c with
+  | Borrowed sl =>
+    have hcl : ∀ x ∈ sl.val, packets.Sid.Insts.CoreCloneClone.clone x = ok x := by
+      intro x hx
+      apply sid_clone_eq
+      intro t ht
+      exact htags (SidV.of x) ⟨x, by simpa [cowList] using hx, rfl⟩ (strCowBytes t) (by simp [SidV.of, ht])
+    step with alloc.slice.Slice.to_vec_spec packets.Sid.Insts.CoreCloneClone sl hcl as ⟨v, hv⟩
+    have hvl : v.val = sl.val := by rw [hv]; rfl
+    step with alloc.vec.Vec.push_spec v sid (by simp [cowList] at h; rw [hvl]; exact h) as ⟨v1, hv1⟩
+    apply spec_bind_ok
+    apply (WP.spec_ok _).mpr
+    simp_all [GtidDump.of, through_gtid_val, cowList]
+  | Owned v =>
+    step with alloc.vec.Vec.push_spec v sid (by simp [cowList] at h; exact h) as ⟨v1, hv1⟩
+    apply spec_bind_ok
+    apply (WP.spec_ok _).mpr
+    simp_all [GtidDump.of, through_gtid_val, cowList]
 
 /-- `with_sids(sids)`: replaces the SIDs (`sids.into()`), with `BINLOG_THROUGH_GTID` set exactly
     when there are SIDs; nothing else changes. -/
