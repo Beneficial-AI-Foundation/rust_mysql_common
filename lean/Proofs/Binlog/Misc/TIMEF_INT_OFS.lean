@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `const TIMEF_INT_OFS` (spec file: `Specs/Binlog/Misc.lean`). Proofs: TODO. -/
+/-! Statements for `const TIMEF_INT_OFS` (spec file: `Specs/Binlog/Misc.lean`). -/
 
 set_option autoImplicit false
 
@@ -11,6 +11,6 @@ namespace mysql_common
 /-- `TIMEF_INT_OFS` = `0x800000` (MySQL's). -/
 theorem binlog.misc.TIMEF_INT_OFS_val :
     binlog.misc.TIMEF_INT_OFS.val = 0x800000 := by
-  sorry
+  simp [binlog.misc.TIMEF_INT_OFS]
 
 end mysql_common

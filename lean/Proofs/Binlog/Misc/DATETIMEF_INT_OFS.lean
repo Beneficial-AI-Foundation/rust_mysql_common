@@ -1,6 +1,6 @@
 import Defs
 
-/-! Statements for `const DATETIMEF_INT_OFS` (spec file: `Specs/Binlog/Misc.lean`). Proofs: TODO. -/
+/-! Statements for `const DATETIMEF_INT_OFS` (spec file: `Specs/Binlog/Misc.lean`). -/
 
 set_option autoImplicit false
 
@@ -11,6 +11,6 @@ namespace mysql_common
 /-- `DATETIMEF_INT_OFS` = `0x8000000000` (MySQL's). -/
 theorem binlog.misc.DATETIMEF_INT_OFS_val :
     binlog.misc.DATETIMEF_INT_OFS.val = 0x8000000000 := by
-  sorry
+  simp [binlog.misc.DATETIMEF_INT_OFS]
 
 end mysql_common
