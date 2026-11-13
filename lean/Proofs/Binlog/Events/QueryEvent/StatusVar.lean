@@ -30,8 +30,6 @@ private theorem rawbytes_new_borrowed {T : Type} (inst : misc.raw.bytes.BytesRep
   rw [misc.raw.bytes.RawBytes.new_eq inst _ t (.Borrowed t) rfl]
   exact (WP.spec_ok _).mpr rfl
 
-set_option linter.unusedSimpArgs false in
-set_option linter.unusedTactic false in
 /-- `get_value`: the value decoded per its key (`svValRead`); the raw value as the error if it is too short. (`Q_UPDATED_DB_NAMES` and `Q_MICROSECONDS`: see below.) -/
 theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key ≠ 12 ∧ statusVarKeyCode v.key ≠ 13) :
     binlog.events.query_event.StatusVar.get_value v ⦃ r => match r with
@@ -184,18 +182,18 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         · obtain ⟨tx, rfl, htx⟩ := h2
           simp only []
           step with rawbytes_new_borrowed as ⟨rb, hrb⟩
-          simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+          simp only [statusVarKeyCode, svValRead, svValView]
           rw [hbt]
           simp [lp1, takeExact, h1, hr1] at hl2 ⊢
           simp [hl2, hrb, htx, hr1]
           try omega
         · subst h2
-          simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+          simp only [statusVarKeyCode, svValRead, svValView]
           rw [hbt]
           simp [lp1, takeExact, h1, hr1] at hl2 ⊢
           omega
     · obtain ⟨rfl, -⟩ := ho
-      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [statusVarKeyCode, svValRead, svValView]
       simp only [Slice.length] at hl
       have : val.val = [] := by cases hx : val.val <;> simp_all
       simp [this, lp1]
@@ -223,18 +221,18 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         · obtain ⟨tx, rfl, htx⟩ := h2
           simp only []
           step with rawbytes_new_borrowed as ⟨rb, hrb⟩
-          simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+          simp only [statusVarKeyCode, svValRead, svValView]
           rw [hbt]
           simp [lp1, takeExact, h1, hr1] at hl2 ⊢
           simp [hl2, hrb, htx, hr1]
           try omega
         · subst h2
-          simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+          simp only [statusVarKeyCode, svValRead, svValView]
           rw [hbt]
           simp [lp1, takeExact, h1, hr1] at hl2 ⊢
           omega
     · obtain ⟨rfl, -⟩ := ho
-      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [statusVarKeyCode, svValRead, svValView]
       simp only [Slice.length] at hl
       have : val.val = [] := by cases hx : val.val <;> simp_all
       simp [this, lp1]
@@ -249,12 +247,11 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
       | some x =>
         simp only [Option.map_some, Option.some.injEq] at h1
         step*
-        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [statusVarKeyCode, svValRead, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
-      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [statusVarKeyCode, svValRead, svValView]
       simp only [Slice.length] at hl
       simp [hl]
   case CharsetDatabase =>
@@ -268,12 +265,11 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
       | some x =>
         simp only [Option.map_some, Option.some.injEq] at h1
         step*
-        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [statusVarKeyCode, svValRead, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
-      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [statusVarKeyCode, svValRead, svValView]
       simp only [Slice.length] at hl
       simp [hl]
   case TableMapForUpdate =>
@@ -289,7 +285,6 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         step*
         simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
       simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
@@ -344,7 +339,7 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         · obtain ⟨un, rfl, hun⟩ := h2
           simp only []
           have hs : (UScalar.cast .Usize x).val ≤ r1.length := by rw [hc]; exact hl2
-          simp only [core.slice.index.Slice.index, core.slice.index.SliceIndexRangeFromUsizeSlice.index, hs, ite_true,
+          simp only [core.slice.index.SliceIndexRangeFromUsizeSlice.index, hs, ite_true,
             bind_ok]
           step with io.ParseBuf.checked_eat_u8_spec as ⟨o2, r2, ho2⟩
           simp only [Slice.drop, Slice.from_val, Slice.length, hc] at ho2
@@ -354,7 +349,7 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
             | none => simp at h3
             | some y =>
               simp only [Option.map_some, Option.some.injEq] at h3
-              simp only [lift, bind_ok]
+              simp only []
               have hcy : (UScalar.cast .Usize y).val = y.val := IntAndMisc.cast_usize_small _ (by scalar_tac)
               obtain ⟨b2, t2, hbt2⟩ : ∃ b2 t2, r1.val.drop x.val = b2 :: t2 := by
                 cases hx : r1.val.drop x.val with
@@ -425,7 +420,6 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         step*
         simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
       simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
@@ -444,7 +438,6 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         step*
         simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
       simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
@@ -463,7 +456,6 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         step*
         simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
       simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
@@ -482,7 +474,6 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
         step*
         simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
       simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
@@ -499,12 +490,11 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
       | some x =>
         simp only [Option.map_some, Option.some.injEq] at h1
         step*
-        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [statusVarKeyCode, svValRead, svValView]
         simp only [Slice.length] at hl
-        subst_vars
         simp [hl, h1]
     · obtain ⟨rfl, -⟩ := ho
-      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [statusVarKeyCode, svValRead, svValView]
       simp only [Slice.length] at hl
       simp [hl]
 

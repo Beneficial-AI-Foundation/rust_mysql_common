@@ -5,6 +5,7 @@ import Proofs.Util.BinlogDeser
 /-! Statements for `enum BinlogValue and its impls` (spec file: `Specs/Binlog/Value.lean`). -/
 
 set_option autoImplicit false
+-- Some statements keep a `h64` hypothesis that their proofs do not use.
 set_option linter.unusedVariables false
 
 open Aeneas Aeneas.Std Result mysql_common Defs

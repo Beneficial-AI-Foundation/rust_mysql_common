@@ -136,7 +136,6 @@ theorem var_len_spec (it : binlog.events.query_event.StatusVarsIterator) (suffix
     step*
     simp_all
 
-set_option linter.unusedSimpArgs false in
 theorem value_len_spec (it : binlog.events.query_event.StatusVarsIterator) (key : binlog.consts.StatusVarKey)
     (hp : it.pos.val ≤ it.status_vars.length) (hmax : it.status_vars.length + 2 ^ 16 ≤ Usize.max) :
     binlog.events.query_event.StatusVarsIterator.value_len it key ⦃ o => o.map (·.val) =
@@ -166,18 +165,18 @@ theorem value_len_spec (it : binlog.events.query_event.StatusVarsIterator) (key 
   case TimeZone =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
     apply WP.spec_mono (var_len_spec it 0#usize (by decide))
-    intro o ho; rw [ho]; simp only [statusVarKeyCode, svValueLen, ↓reduceIte]; simp
+    intro o ho; rw [ho]; simp only [statusVarKeyCode, svValueLen]; simp
   case CatalogNz =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
     apply WP.spec_mono (var_len_spec it 0#usize (by decide))
-    intro o ho; rw [ho]; simp only [statusVarKeyCode, svValueLen, ↓reduceIte]; simp
+    intro o ho; rw [ho]; simp only [statusVarKeyCode, svValueLen]; simp
   case LcTimeNames =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
-    simp only [statusVarKeyCode, svValueLen, ↓reduceIte]
+    simp only [statusVarKeyCode, svValueLen]
     simp
   case CharsetDatabase =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
-    simp only [statusVarKeyCode, svValueLen, ↓reduceIte]
+    simp only [statusVarKeyCode, svValueLen]
     simp
   case TableMapForUpdate =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
@@ -202,7 +201,7 @@ theorem value_len_spec (it : binlog.events.query_event.StatusVarsIterator) (key 
         by_contra h; rw [List.getElem?_eq_none (by omega)] at hx; simp at hx
       have hd : it.status_vars.val.drop it.pos.val = x :: it.status_vars.val.drop (it.pos.val + 1) := by
         rw [List.drop_eq_getElem_cons hlt]; rw [List.getElem?_eq_getElem hlt] at hx; simp only [Option.some.injEq] at hx; rw [hx]
-      simp only [lift, bind_ok, hd, List.head?_cons, Option.some.injEq]
+      simp only [lift, bind_ok, hd, List.head?_cons]
       have hc : (UScalar.cast .Usize x).val = x.val := IntAndMisc.cast_usize_small _ (by scalar_tac)
       step as ⟨i, hi⟩
       step as ⟨i1, hi1⟩
@@ -215,7 +214,7 @@ theorem value_len_spec (it : binlog.events.query_event.StatusVarsIterator) (key 
       cases hy : it.status_vars.val[i1.val]? with
       | none => simp
       | some y =>
-        simp only [lift, bind_ok]
+        simp only []
         have hcy : (UScalar.cast .Usize y).val = y.val := IntAndMisc.cast_usize_small _ (by scalar_tac)
         step*
         simp_all
@@ -244,11 +243,11 @@ theorem value_len_spec (it : binlog.events.query_event.StatusVarsIterator) (key 
     simp
   case CommitTs =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
-    simp only [statusVarKeyCode, svValueLen, ↓reduceIte]
+    simp only [statusVarKeyCode, svValueLen]
     simp
   case CommitTs2 =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
-    simp only [statusVarKeyCode, svValueLen, ↓reduceIte]
+    simp only [statusVarKeyCode, svValueLen]
     simp
   case ExplicitDefaultsForTimestamp =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
@@ -264,11 +263,11 @@ theorem value_len_spec (it : binlog.events.query_event.StatusVarsIterator) (key 
     simp
   case SqlRequirePrimaryKey =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
-    simp only [statusVarKeyCode, svValueLen, ↓reduceIte]
+    simp only [statusVarKeyCode, svValueLen]
     simp
   case DefaultTableEncryption =>
     unfold binlog.events.query_event.StatusVarsIterator.value_len
-    simp only [statusVarKeyCode, svValueLen, ↓reduceIte]
+    simp only [statusVarKeyCode, svValueLen]
     simp
 
 theorem dbNamesLen_le : ∀ (c : Nat) (l : List U8) (n : Nat), dbNamesLen c l = some n → n ≤ l.length := by
