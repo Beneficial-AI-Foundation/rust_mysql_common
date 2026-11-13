@@ -13,13 +13,15 @@ namespace mysql_common
 theorem frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt_eq (r : row.Row) :
     frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt r =
       ok (if r.values.val = [] then .Ok () else .Err r) := by
-  sorry
+  simp only [frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt,
+    row.Row.is_empty, alloc.vec.Vec.is_empty, bind_ok]
+  by_cases h : r.values.val = [] <;> simp [h]
 
 /-- `FromRow for HNil`: `from_row` is the trait's default (it panics exactly when
     `from_row_opt` is an `Err`, i.e. on a non-empty row). -/
 theorem frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_eq :
     frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row =
       row.convert.FromRow.from_row.default frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow := by
-  sorry
+  rfl
 
 end mysql_common
