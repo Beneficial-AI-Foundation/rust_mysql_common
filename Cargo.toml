@@ -218,8 +218,8 @@ start_from = [
   # COM_STMT_EXECUTE.
   "{impl mysql_common::value::SerializationSide for mysql_common::value::ServerSide}",
   "{impl mysql_common::value::SerializationSide for mysql_common::value::ClientSide}",
-  # src/row/mod.rs: Row and its wire-format deserializers. (`new_row` (`map(Some).collect()`) and
-  # the `FromValue` getters are out of scope.)
+  # src/row/mod.rs: Row and its wire-format deserializers. (`new_row`, the `FromValue` getters
+  # and the rest of the `Row` API are listed with src/row/convert below.)
   "mysql_common::row::Row",
   "mysql_common::row::new_row_raw",
   "mysql_common::row::Row::len",
@@ -388,6 +388,29 @@ start_from = [
   # src/value/mod.rs: SQL literals (`escaped` is reached from it). Formatting goes through the
   # opaque `mysql_common::sql_trusted` (translation-patches/80), see below.
   "mysql_common::value::Value::as_sql",
+  # src/row/mod.rs: the rest of the public `Row` API. (The `Index` and `ColumnIndex` impls, and
+  # `From<RowDeserializer> for Row`, are marked `#[verify::start_from]` by
+  # translation-patches/106: `start_from` patterns cannot name them.)
+  "mysql_common::row::new_row",
+  "mysql_common::row::Row::as_ref",
+  "mysql_common::row::Row::get",
+  "mysql_common::row::Row::get_opt",
+  "mysql_common::row::Row::take",
+  "mysql_common::row::Row::take_opt",
+  "mysql_common::row::Row::unwrap",
+  "mysql_common::row::Row::place",
+  # src/row/convert/ (mod.rs, frunk.rs): `FromRow`, `from_row(_opt)`, `FromRowError`, and every
+  # `FromRow` impl (`Row`, the tuples of arity 1..=12, `HNil`; the blanket impl for
+  # `T: FromValue`, which no pattern can name, is marked `#[verify::start_from]` by
+  # translation-patches/106) except `HCons` (excluded below). The items are listed rather than
+  # the whole module: listing the module makes Charon add `Error::description` (overridden by
+  # the out-of-scope `Error for FromRowError`) to the `core::error::Error` trait, whose Lean model
+  # has no such field.
+  "mysql_common::row::convert::FromRow",
+  "mysql_common::row::convert::from_row",
+  "mysql_common::row::convert::from_row_opt",
+  "mysql_common::row::convert::FromRowError",
+  "{impl mysql_common::row::convert::FromRow for _}",
 ]
 # uuid: `Uuid` (a `[u8; 16]` tuple struct with a private field) and `Uuid::as_bytes`/`from_bytes`
 # are translated from uuid's own MIR rather than being opaque (`from_bytes` has no MIR body and is
@@ -428,6 +451,17 @@ exclude = [
   "mysql_common::value::json::serde_integration::{core::convert::From<mysql_common::value::Value, mysql_common::value::convert::ParseIr<mysql_common::value::json::Deserialized<_>>>}",
   "mysql_common::value::json::serde_integration::{mysql_common::value::convert::FromValue<mysql_common::value::json::Deserialized<_>>}",
   "mysql_common::value::json::serde_integration::{core::convert::From<mysql_common::value::Value, mysql_common::value::json::Serialized<_>>}",
+  # src/row/convert: formatting (`Display for FromRowError` prints the row with `Debug`), the
+  # `Error` impl, and the derived `Debug`/`Clone`/`PartialEq` of `FromRowError` are out of scope.
+  "{impl core::fmt::Debug for mysql_common::row::convert::_}",
+  "{impl core::fmt::Display for mysql_common::row::convert::_}",
+  "{impl core::error::Error for mysql_common::row::convert::_}",
+  "mysql_common::row::convert::{core::clone::Clone<_>}",
+  "mysql_common::row::convert::{core::cmp::PartialEq<_, _>}",
+  # src/row/convert/frunk.rs: `FromRow for HCons<H, T>` is out of scope: it uses frunk's
+  # `HList::LEN` and `h_cons`, collects an `Arc<[Column]>` from an iterator, and
+  # `Vec::remove`/`insert`. (`FromRow for HNil` is translated.)
+  "{impl mysql_common::row::convert::FromRow for frunk_core::hlist::HCons<_, _>}",
 ]
 opaque = [
   # `Display` of the errors of `TryFrom<uN>` for the flags types: formats with `{:b}`, whose std

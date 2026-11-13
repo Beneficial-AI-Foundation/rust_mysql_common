@@ -1,0 +1,39 @@
+Translation patch: `ColumnIndex for &str`
+
+Change: The loop `for (i, c) in columns.iter().enumerate() { if c.name_ref() == self.as_bytes() { return Some(i) } } None` becomes `column_idx_by_name(str_as_bytes(self), columns, 0)`, a new recursive helper: at `i < columns.len()` it returns `Some(i)` if `columns[i].name_ref() == name` and otherwise recurses on `i + 1`; at `i == columns.len()` it returns `None`. `self.as_bytes()` goes through the existing opaque helper `value::convert::trusted::str_as_bytes` (patch 40, modelled exactly in FunsExternal.lean).
+Why: Aeneas reports "Found a case of unsupported nested borrows" for the loop (`self` is a `&&str`, and each `Column` holds an `Arc<ColumnMeta<'static>>`, as in patch 30); it models neither `enumerate` (patches 04/05) nor `str::as_bytes`.
+Behaviour: Identical: the first index whose column name equals the bytes of `self`, or `None`. Stack: the recursion goes once per column, so the patched copy uses O(columns) stack where the loop uses constant stack (as in patch 30); stack exhaustion is not modelled. This difference exists only in the translated copy.
+
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index 5b69311..fb6ad1c 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -251,11 +251,24 @@ impl ColumnIndex for usize {
+ 
+ impl ColumnIndex for &'_ str {
+     fn idx(&self, columns: &[Column]) -> Option<usize> {
+-        for (i, c) in columns.iter().enumerate() {
+-            if c.name_ref() == self.as_bytes() {
+-                return Some(i);
+-            }
++        column_idx_by_name(
++            crate::value::convert::trusted::str_as_bytes(self),
++            columns,
++            0,
++        )
++    }
++}
++
++/// The loop `for (i, c) in columns.iter().enumerate() { .. }` of `ColumnIndex for &str`, written
++/// as a recursion on `i`: the index of the first column among `i..` named `name`.
++fn column_idx_by_name(name: &[u8], columns: &[Column], i: usize) -> Option<usize> {
++    if i < columns.len() {
++        if columns[i].name_ref() == name {
++            Some(i)
++        } else {
++            column_idx_by_name(name, columns, i + 1)
+         }
++    } else {
+         None
+     }
+ }

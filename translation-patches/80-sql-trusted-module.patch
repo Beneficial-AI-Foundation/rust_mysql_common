@@ -21,13 +21,17 @@ new file mode 100644
 index 0000000..a03df5d
 --- /dev/null
 +++ b/src/sql_trusted.rs
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,154 @@
 +//! Translation helpers: the trust boundary of the SQL-text code (`Value::as_sql`, `Params`).
 +//!
 +//! Every operation of `std` that has no Aeneas model and that `Value::as_sql` (formatting) or
 +//! `Params` (`HashMap`) uses goes through exactly one function of this module, whose body is
 +//! that one call. The module is `opaque` in Cargo.toml: these functions are not translated, and
 +//! each has a Lean model or axiom in `lean/MysqlCommon/FunsExternal.lean`.
++//!
++//! `HashMap` iteration order: Rust seeds every map randomly (std `hash/random.rs`), while the
++//! Lean model makes the order a function of how the map was built, so specs must not relate the
++//! orders of separately built maps. The crate's results do not depend on the order.
 +
 +#![allow(dead_code)]
 +

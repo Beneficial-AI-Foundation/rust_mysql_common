@@ -38,11 +38,11 @@ def core.f64.F64.from_le_bytes (a : Array Std.U8 8#usize) : Result F64 :=
 def core.f64.F64.from_be_bytes (a : Array Std.U8 8#usize) : Result F64 :=
   ok ⟨core.num.U64.from_be_bytes a⟩
 
-/-- `Clone for f32`: a copy (reached from the derived `Clone for Value`). -/
+/-- `impl Clone for f32`: `*self` (a bitwise copy). Used by the derived `Clone for Value`. -/
 @[rust_fun "core::clone::impls::{core::clone::Clone<f32>}::clone"]
 def F32.Insts.CoreCloneClone.clone (x : F32) : Result F32 := ok x
 
-/-- `Clone for f64`: a copy (reached from the derived `Clone for Value`). -/
+/-- `impl Clone for f64`: `*self` (a bitwise copy). Used by the derived `Clone for Value`. -/
 @[rust_fun "core::clone::impls::{core::clone::Clone<f64>}::clone"]
 def F64.Insts.CoreCloneClone.clone (x : F64) : Result F64 := ok x
 
@@ -101,6 +101,11 @@ def Shared0T.Insts.CoreFmtDisplay.fmt
   {T : Type _} (DisplayInst : core.fmt.Display T) (x : T) (f : core.fmt.Formatter) :
   Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter) :=
   DisplayInst.fmt x f
+
+/-- `Option::as_ref` (`&Option<T>` to `Option<&T>`): the identity, since Aeneas translates a
+    shared borrow as the value it points to. -/
+@[rust_fun "core::option::{core::option::Option<@T>}::as_ref"]
+def core.option.Option.as_ref {T : Type _} (x : Option T) : Result (Option T) := ok x
 
 /-! ## `Arc<T>`, modelled by its value (see `alloc.sync.Arc` in TypesExternal.lean). -/
 
@@ -971,7 +976,12 @@ function is one call into std. Each gets one of:
   distinct keys, and axioms giving the entries after `default`, `insert` and `remove` **up to
   permutation** (`List.Perm`). `contains_key`/`get`/`insert`/`remove`/`into_iter` are then
   definitions in terms of these. A model satisfying all the axioms: a duplicate-free
-  association list, with `insert` consing after removing the key.
+  association list, with `insert` consing a new key. **Caveat:** in this model a map's
+  iteration order is a deterministic function of the operations that built it, while Rust
+  seeds every `HashMap` randomly (std `hash/random.rs`), so two maps built the same way may
+  iterate differently. Specs must not state facts relating the order (or the Lean equality)
+  of separately built maps, or of the same construction in separate calls. The crate's
+  results (`into_values`, `into_positional`) do not depend on the order.
 
 Unless a declaration says otherwise, a helper is assumed not to panic (it returns `ok`). -/
 
@@ -1002,12 +1012,17 @@ abbrev ParamsMap :=
   std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value std.hash.random.RandomState
     alloc.alloc.Global
 
-/-- The entries of a map, in its (unspecified) iteration order. -/
+/-- The entries of a map, in its iteration order. Rust's order is unspecified and depends on the
+    map's random seed: the model is only sound if no spec relates the orders (or the Lean
+    equality) of separately built maps (see the section docstring). -/
 axiom paramsMapEntries : ParamsMap → List (alloc.vec.Vec Std.U8 × value.Value)
 
 /-- A `HashMap` holds each key at most once. -/
 axiom paramsMapEntries_keys_nodup (m : ParamsMap) :
   ((paramsMapEntries m).map fun e => e.1.val).Nodup
+
+/-- A `HashMap` has at most `usize::MAX` entries (`HashMap::len` is a `usize`). -/
+axiom paramsMapEntries_length (m : ParamsMap) : (paramsMapEntries m).length ≤ Usize.max
 
 /-- `HashMap::default()`. -/
 axiom paramsMapEmpty : ParamsMap
@@ -1015,15 +1030,19 @@ axiom paramsMapEmpty : ParamsMap
 /-- `HashMap::default()` has no entries. -/
 axiom paramsMapEntries_empty : paramsMapEntries paramsMapEmpty = []
 
+/-- The value of key `k`, if any. -/
+noncomputable def paramsMapLookup (m : ParamsMap) (k : List Std.U8) : Option value.Value :=
+  ((paramsMapEntries m).find? fun e => e.1.val = k).map (·.2)
+
 /-- The map after `insert(k, v)`. -/
 axiom paramsMapInsert : ParamsMap → alloc.vec.Vec Std.U8 → value.Value → ParamsMap
 
-/-- `insert(k, v)` replaces the entry of `k` (if any) by `(k, v)`; the order is unspecified.
-    (Keys are compared by their bytes: for an existing key std keeps the old, equal, key.) -/
-axiom paramsMapEntries_insert (m : ParamsMap) (k : alloc.vec.Vec Std.U8) (v : value.Value) :
-  ((paramsMapEntries (paramsMapInsert m k v)).map fun e => (e.1.val, e.2)).Perm
-    ((k.val, v) :: ((paramsMapEntries m).filter fun e => e.1.val ≠ k.val).map
-      fun e => (e.1.val, e.2))
+/-- `insert(k, v)` of a key **not already present** adds the entry `(k, v)`; the order is
+    unspecified. (Nothing is assumed when `k` is present: the crate only inserts after a
+    `contains_key` check, in `From<Vec<(N, V)>> for Params`.) -/
+axiom paramsMapEntries_insert (m : ParamsMap) (k : alloc.vec.Vec Std.U8) (v : value.Value)
+    (h : paramsMapLookup m k.val = none) :
+  (paramsMapEntries (paramsMapInsert m k v)).Perm ((k, v) :: paramsMapEntries m)
 
 /-- The map after `remove(k)`. -/
 axiom paramsMapRemove : ParamsMap → List Std.U8 → ParamsMap
@@ -1032,10 +1051,6 @@ axiom paramsMapRemove : ParamsMap → List Std.U8 → ParamsMap
 axiom paramsMapEntries_remove (m : ParamsMap) (k : List Std.U8) :
   (paramsMapEntries (paramsMapRemove m k)).Perm
     ((paramsMapEntries m).filter fun e => e.1.val ≠ k)
-
-/-- The value of key `k`, if any. -/
-noncomputable def paramsMapLookup (m : ParamsMap) (k : List Std.U8) : Option value.Value :=
-  ((paramsMapEntries m).find? fun e => e.1.val = k).map (·.2)
 
 end Trusted
 
@@ -1136,9 +1151,7 @@ noncomputable def sql_trusted.params_map_remove (m : Trusted.ParamsMap) (k : Sli
     Result (Option value.Value × Trusted.ParamsMap) :=
   ok (Trusted.paramsMapLookup m k.val, Trusted.paramsMapRemove m k.val)
 
-/-- `map.into_iter().collect()`: the entries, in the map's iteration order (the `fail` branch
-    is for more than `usize::MAX` entries, which no Rust map has). -/
+/-- `map.into_iter().collect()`: the entries, in the map's iteration order. -/
 noncomputable def sql_trusted.params_map_into_entries (m : Trusted.ParamsMap) :
     Result (alloc.vec.Vec (alloc.vec.Vec Std.U8 × value.Value)) :=
-  let l := Trusted.paramsMapEntries m
-  if h : l.length ≤ Usize.max then ok (alloc.vec.Vec.from l h) else fail .panic
+  ok (alloc.vec.Vec.from (Trusted.paramsMapEntries m) (Trusted.paramsMapEntries_length m))

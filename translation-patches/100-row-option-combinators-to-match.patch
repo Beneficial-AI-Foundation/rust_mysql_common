@@ -1,0 +1,108 @@
+Translation patch: `Row::as_ref`, `Row::get`, `Row::get_opt`, `Row::take`, `Row::take_opt`
+
+Change: The `Option` combinator chains (`and_then` with closures, `map(|x| from_value::<T>(x.clone()))`, `map(from_value::<T>)`, and the `from_value_opt` variants) become nested `match`es on the same `Option`s, calling the same functions in the same order.
+Why: Aeneas does not model `Option::and_then`, nor closures / fn items passed as values (see patches 22, 53).
+Behaviour: Identical. Each `match` returns `None` exactly where the chain short-circuits (`idx` gives `None`; `get`/`get_mut` gives `None`; the cell is `None`), and otherwise applies the same conversion to the same value (`x.clone()` for `get`/`get_opt`; for `take`/`take_opt`, the value moved out by `Option::take`, which leaves `None` in the cell exactly as before).
+
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index 497f437..137672d 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -90,7 +90,10 @@ impl Row {
+     ///
+     /// Non panicking version of `row[usize]`.
+     pub fn as_ref(&self, index: usize) -> Option<&Value> {
+-        self.values.get(index).and_then(|x| x.as_ref())
++        match self.values.get(index) {
++            Some(x) => x.as_ref(),
++            None => None,
++        }
+     }
+ 
+     /// Will copy value at index `index` if it was not taken by `Row::take` earlier,
+@@ -100,12 +103,14 @@ impl Row {
+         T: FromValue,
+         I: ColumnIndex,
+     {
+-        index.idx(&self.columns).and_then(|idx| {
+-            self.values
+-                .get(idx)
+-                .and_then(|x| x.as_ref())
+-                .map(|x| from_value::<T>(x.clone()))
+-        })
++        match index.idx(&self.columns) {
++            Some(idx) => match self.values.get(idx) {
++                Some(Some(x)) => Some(from_value::<T>(x.clone())),
++                Some(None) => None,
++                None => None,
++            },
++            None => None,
++        }
+     }
+ 
+     /// Will copy value at index `index` if it was not taken by `Row::take` or `Row::take_opt`
+@@ -116,11 +121,14 @@ impl Row {
+         T: FromValue,
+         I: ColumnIndex,
+     {
+-        index
+-            .idx(&self.columns)
+-            .and_then(|idx| self.values.get(idx))
+-            .and_then(|x| x.as_ref())
+-            .map(|x| from_value_opt::<T>(x.clone()))
++        match index.idx(&self.columns) {
++            Some(idx) => match self.values.get(idx) {
++                Some(Some(x)) => Some(from_value_opt::<T>(x.clone())),
++                Some(None) => None,
++                None => None,
++            },
++            None => None,
++        }
+     }
+ 
+     /// Will take value of a column with index `index` if it exists and wasn't taken earlier then
+@@ -130,12 +138,16 @@ impl Row {
+         T: FromValue,
+         I: ColumnIndex,
+     {
+-        index.idx(&self.columns).and_then(|idx| {
+-            self.values
+-                .get_mut(idx)
+-                .and_then(|x| x.take())
+-                .map(from_value::<T>)
+-        })
++        match index.idx(&self.columns) {
++            Some(idx) => match self.values.get_mut(idx) {
++                Some(x) => match x.take() {
++                    Some(v) => Some(from_value::<T>(v)),
++                    None => None,
++                },
++                None => None,
++            },
++            None => None,
++        }
+     }
+ 
+     /// Will take value of a column with index `index` if it exists and wasn't taken earlier then
+@@ -146,11 +158,16 @@ impl Row {
+         T: FromValue,
+         I: ColumnIndex,
+     {
+-        index
+-            .idx(&self.columns)
+-            .and_then(|idx| self.values.get_mut(idx))
+-            .and_then(|x| x.take())
+-            .map(from_value_opt::<T>)
++        match index.idx(&self.columns) {
++            Some(idx) => match self.values.get_mut(idx) {
++                Some(x) => match x.take() {
++                    Some(v) => Some(from_value_opt::<T>(v)),
++                    None => None,
++                },
++                None => None,
++            },
++            None => None,
++        }
+     }
+ 
+     /// Unwraps values of a row.

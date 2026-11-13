@@ -1,0 +1,19 @@
+Translation patch: `Index<&str> for Row` (panic message)
+
+Change: `panic!("No such column: `{}` in row {:?}", index, self)` becomes `panic!("No such column")`.
+Why: Formatting the row uses `Debug for Row`, hence `Debug for Value` (`str::pattern`, which Aeneas cannot translate, see patch 47) and lossy UTF-8 column names; formatting is out of scope.
+Behaviour: Identical except for the text of the panic message: it panics in exactly the same cases. (Upstream, `Debug for Value` can itself overflow for `Value::Time` with huge day counts, see patch 47's note, turning this panic into a double panic in debug builds; the patched copy panics normally there. Both are failures in the model.)
+
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index fb6ad1c..68caedc 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -230,7 +230,7 @@ impl<'a> Index<&'a str> for Row {
+                 return self.values[i].as_ref().unwrap();
+             }
+         }
+-        panic!("No such column: `{}` in row {:?}", index, self);
++        panic!("No such column");
+     }
+ }
+ 

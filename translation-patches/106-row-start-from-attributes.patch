@@ -1,0 +1,62 @@
+Translation patch: impls `Index<usize>`/`Index<&str> for Row`, `ColumnIndex for usize`/`&str`, `From<RowDeserializer<S, P>> for Row`, `FromRow for T` (`T: FromValue`)
+
+Change: Adds `#[verify::start_from]` to these six impls (Cargo.toml: `start_from_attribute`).
+Why: Charon `start_from` patterns cannot name impls on builtin types (`usize`, `&str`), of traits with generic arguments (`Index<usize>`, `From<RowDeserializer<S, P>>`), or blanket impls (`impl<T> FromRow for T`), as for patch 08.
+Behaviour: No code change: attributes only.
+
+diff --git a/src/row/convert/mod.rs b/src/row/convert/mod.rs
+index 0428efd..8764e43 100644
+--- a/src/row/convert/mod.rs
++++ b/src/row/convert/mod.rs
+@@ -137,6 +137,7 @@ impl FromRow for Row {
+     }
+ }
+ 
++#[verify::start_from]
+ impl<T> FromRow for T
+ where
+     T: FromValue,
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index 05f0bdb..b36c483 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -213,6 +213,7 @@ impl Row {
+     }
+ }
+ 
++#[verify::start_from]
+ impl Index<usize> for Row {
+     type Output = Value;
+ 
+@@ -221,6 +222,7 @@ impl Index<usize> for Row {
+     }
+ }
+ 
++#[verify::start_from]
+ impl<'a> Index<&'a str> for Row {
+     type Output = Value;
+ 
+@@ -237,6 +239,7 @@ pub trait ColumnIndex {
+     fn idx(&self, columns: &[Column]) -> Option<usize>;
+ }
+ 
++#[verify::start_from]
+ impl ColumnIndex for usize {
+     fn idx(&self, columns: &[Column]) -> Option<usize> {
+         if *self >= columns.len() {
+@@ -247,6 +250,7 @@ impl ColumnIndex for usize {
+     }
+ }
+ 
++#[verify::start_from]
+ impl ColumnIndex for &'_ str {
+     fn idx(&self, columns: &[Column]) -> Option<usize> {
+         column_idx_by_name(
+@@ -284,6 +288,7 @@ impl<S, P> RowDeserializer<S, P> {
+     }
+ }
+ 
++#[verify::start_from]
+ impl<S, P> From<RowDeserializer<S, P>> for Row {
+     fn from(x: RowDeserializer<S, P>) -> Self {
+         x.0
