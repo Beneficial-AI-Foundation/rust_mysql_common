@@ -3,6 +3,13 @@ import Proofs.Util.IntAndMisc
 import Proofs.Constants.ColumnType
 import Proofs.Constants.ColumnFlags
 import Proofs.Value.Value
+import Proofs.Misc.Raw.Int.U8
+import Proofs.Misc.Raw.Int.LeU16
+import Proofs.Misc.Raw.Int.LeU24
+import Proofs.Misc.Raw.Int.LeI24
+import Proofs.Misc.Raw.Int.LeU32
+import Proofs.Misc.Raw.Int.LeU64
+import Proofs.Misc.Raw.SliceRef
 set_option autoImplicit false
 set_option linter.unusedTactic false
 set_option linter.unusedSimpArgs false
@@ -1992,5 +1999,140 @@ theorem deser_decimal (ct : constants.ColumnType) (md : Slice U8) (uns part : Bo
   refine congrArg (Std.bind (binlog.decimal.read_bin_to_string_bytes buf p s)) (funext fun x => ?_)
   obtain ⟨r, b⟩ := x
   cases r <;> simp [resMap, core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq]
+
+end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+open constants.ColumnType
+
+local notation "BVdes" => binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize
+
+theorem deser_time2_neg_frac (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_TIME2) (d : U8) (t : List U8)
+    (hm : md.val = d :: t) (hb : time2NegFracBug d.val buf.val) :
+    BVdes (ct, md, uns, part) buf = fail .integerOverflow := by
+  rw [deser_eff ct md uns part buf (by simp [hm]), ht]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  have hc : (UScalar.cast .U32 d).val = d.val := by
+    rw [UScalar.cast_val_eq]; have := u8_lt d; simp only [UScalarTy.numBits]; omega
+  have hf := time_neg_frac buf (UScalar.cast .U32 d) (by rw [hc]; exact hb)
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME2 MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, index0 md d t hm, lift, hf, Std.bind_fail]
+
+theorem deser_time2_neg_half (md : Slice U8) (uns part : Bool)
+    (hm : md.val.head? = some (byte 1)) (tail : List U8) (buf : io.ParseBuf)
+    (h : buf.val = [byte 0x7F, byte 0xFF, byte 0xFF, byte 0xCE] ++ tail) :
+    BVdes (.MYSQL_TYPE_TIME2, md, uns, part) buf = fail .integerOverflow := by
+  obtain ⟨t, ht⟩ : ∃ t, md.val = byte 1 :: t := by
+    rcases hmd : md.val with _ | ⟨b, t⟩
+    · simp [hmd] at hm
+    · simp [hmd] at hm; exact ⟨t, by rw [hm]⟩
+  apply deser_time2_neg_frac _ md uns part buf rfl (byte 1) t ht
+  rw [h]
+  refine ⟨by left; rfl, by simp, ?_, ?_⟩
+  · rw [show List.take 3 ([byte 127, byte 255, byte 255, byte 206] ++ tail) = [byte 127, byte 255, byte 255] by simp]; decide
+  · rw [show List.take 1 (List.drop 3 ([byte 127, byte 255, byte 255, byte 206] ++ tail)) = [byte 206] by simp]; decide
+
+theorem timestamp_eq (buf : io.ParseBuf) (d : U8) (sec usec : I32) (rest' : List U8)
+    (hr : timestamp2Read d.val buf.val = some ((sec.val, usec.val), rest')) :
+    ∃ rb : io.ParseBuf, rb.val = rest' ∧ binlog.misc.my_timestamp_from_binary buf d = ok (.Ok (sec, usec), rb) := by
+  have hl : 4 + fracBytes d.val ≤ buf.length := by
+    unfold timestamp2Read at hr; split_ifs at hr with h; simp only [Slice.length]; omega
+  obtain ⟨⟨r, rb⟩, he, s', u', rfl, h2⟩ := PBUtil.spec_eq_ok (timestamp_ok buf d hl)
+  rw [hr] at h2
+  simp only [Option.some.injEq, Prod.mk.injEq] at h2
+  obtain ⟨⟨h3, h4⟩, h5⟩ := h2
+  have e1 : s' = sec := IScalar.eq_of_val_eq h3.symm
+  have e2 : u' = usec := IScalar.eq_of_val_eq h4.symm
+  rw [e1, e2] at he
+  exact ⟨rb, by first | exact h5 | exact h5.symm, he⟩
+
+theorem deser_timestamp2_frac (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_TIMESTAMP2) (d : U8) (t : List U8)
+    (hm : md.val = d :: t) (sec usec : I32) (rest' : List U8)
+    (hr : timestamp2Read d.val buf.val = some ((sec.val, usec.val), rest')) (hu : usec.val ≠ 0) :
+    ∃ rb : io.ParseBuf, rb.val = rest' ∧
+      BVdes (ct, md, uns, part) buf =
+        (binlog.trusted.timestamp2_frac_bytes sec usec >>= fun b =>
+          ok (.Ok (binlog.value.BinlogValue.Value (.Bytes b)), rb)) := by
+  obtain ⟨rb, hrb, he⟩ := timestamp_eq buf d sec usec rest' hr
+  refine ⟨rb, hrb, ?_⟩
+  rw [deser_eff ct md uns part buf (by simp [hm]), ht]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  have hu' : ¬ usec = 0#i32 := by intro h; apply hu; rw [h]; rfl
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIMESTAMP2 MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, index0 md d t hm, lift, he,
+    core.result.Result.Insts.CoreOpsTry.branch, hu']
+  rfl
+
+theorem deser_timestamp2_frac_roundtrip (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_TIMESTAMP2) (d : U8) (t : List U8)
+    (hm : md.val = d :: t) (sec usec : I32) (hs : 0 ≤ sec.val)
+    (hu : 0 < usec.val ∧ usec.val < 10 ^ 6 ∧ usec.val % (fracUnit d.val : Int) = 0)
+    (tail : List U8) (h : buf.val = timestamp2Bin d.val sec.val.toNat usec.val.toNat ++ tail) :
+    ∃ rb : io.ParseBuf, rb.val = tail ∧
+      BVdes (ct, md, uns, part) buf =
+        (binlog.trusted.timestamp2_frac_bytes sec usec >>= fun b =>
+          ok (.Ok (binlog.value.BinlogValue.Value (.Bytes b)), rb)) := by
+  have hsb : sec.val < 2 ^ 31 := by scalar_tac
+  have hr := timestamp2Read_timestamp2Bin' d.val sec.val.toNat usec.val.toNat tail (by omega)
+    ⟨by omega, by have h3 := hu.2.2; rw [← Int.toNat_of_nonneg (by omega : (0:Int) ≤ usec.val)] at h3; exact_mod_cast h3⟩
+  rw [← h, Int.toNat_of_nonneg hs, Int.toNat_of_nonneg (by omega)] at hr
+  exact deser_timestamp2_frac ct md uns part buf ht d t hm sec usec tail hr (by omega)
+
+theorem okEq {α β : Type} {m : Result (core.result.Result α core.io.error.Error × io.ParseBuf)}
+    {f : α → β} {v : β} {t : List U8} {c : Prop} [Decidable c] {Q : core.result.Result α core.io.error.Error → io.ParseBuf → Prop}
+    (h : m ⦃ r rest => if c then (okPart r).map f = some v ∧ rest.val = t else Q r rest ⦄) (hc : c) :
+    ∃ y rest, m = ok (.Ok y, rest) ∧ f y = v ∧ rest.val = t := by
+  obtain ⟨⟨r, rest⟩, hm, hh⟩ := PBUtil.spec_eq_ok h
+  simp only [hc, ite_true] at hh
+  obtain ⟨h1, h2⟩ := hh
+  cases r with
+  | Ok y => exact ⟨y, rest, hm, by simpa [okPart] using h1, h2⟩
+  | Err e => simp [okPart] at h1
+
+theorem deser_json (h64 : Target64) (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (hj : binlogEffType ct md.val = .MYSQL_TYPE_JSON) (n : Nat) (r : List U8)
+    (hl : readLE 4 buf.val = some (n, r)) (hn : n ≤ r.length) :
+    ∃ pb rb : io.ParseBuf, pb.val = r.take n ∧ rb.val = r.drop n ∧
+      BVdes (ct, md, uns, part) buf =
+        (if part then
+          binlog.jsondiff.parse_json_diffs pb >>= fun x => ok (resMap .JsonDiff x, rb)
+        else
+          binlog.jsonb.parse_jsonb_value pb >>= fun x => ok (resMap .Jsonb x.1, rb)) := by
+  have hne : ¬(ct = MYSQL_TYPE_TYPED_ARRAY ∧ md.val = []) := by
+    rintro ⟨rfl, h⟩; rw [h] at hj; simp [binlogEffType] at hj
+  unfold readLE at hl
+  split_ifs at hl with h4
+  simp only [Option.some.injEq, Prod.mk.injEq] at hl
+  obtain ⟨rfl, rfl⟩ := hl
+  obtain ⟨x, buf1, e1, hx, hb1⟩ := okEq (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf) (by simpa [Slice.length] using h4)
+  have hlen : (UScalar.cast .Usize x.1).val = leNat (buf.val.take 4) := by
+    rw [IntAndMisc.cast_usize_small _ (by have := x.1.hBounds; simp at this; omega)]; exact hx
+  have hps : io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize buf1 (UScalar.cast .Usize x.1) =
+      io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize (UScalar.cast .Usize x.1) buf1 :=
+    io.ParseBuf.parse_of_size_none _ _ _ (by simp [io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize, io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE])
+  obtain ⟨pb, buf2, e2, hpb, hb2⟩ := okEq (PBUtil.deserialize_usize_ok (UScalar.cast .Usize x.1) buf1) (by rw [show buf1.length = (buf.val.drop 4).length from by simp [Slice.length, hb1], hlen]; exact hn)
+  refine ⟨pb, buf2, by rw [hpb, hb1, hlen], by rw [hb2, hb1, hlen], ?_⟩
+  obtain ⟨xv, xu⟩ := x
+  rw [deser_eff ct md uns part buf hne, hj]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_JSON MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_JSON MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, lift, e1, hps, e2,
+    core.result.Result.Insts.CoreOpsTry.branch, IntAndMisc.rawint_deref_spec, misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref]
+  cases part
+  · simp only [Bool.false_eq_true, ite_false]
+    refine congrArg (Std.bind (binlog.jsonb.parse_jsonb_value pb)) (funext fun y => ?_)
+    obtain ⟨r, b⟩ := y
+    cases r <;> simp [resMap, core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq]
+  · simp only [ite_true]
+    refine congrArg (Std.bind (binlog.jsondiff.parse_json_diffs pb)) (funext fun y => ?_)
+    cases y <;> simp [resMap, core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq]
 
 end mysql_common.BinlogUtil
