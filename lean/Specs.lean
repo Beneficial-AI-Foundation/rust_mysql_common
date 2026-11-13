@@ -25,5 +25,7 @@ import Specs.Row.Convert
 import Specs.Row.Convert.Frunk
 import Specs.Packets
 import Specs.Proto.Codec
+import Specs.Proto.Codec.Error
+import Specs.DefsComp
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/
