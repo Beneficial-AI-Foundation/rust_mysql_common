@@ -4,6 +4,9 @@ import Proofs.Util.PacketsOkErr
 import Proofs.Misc.Raw.Bytes.EofBytes
 import Proofs.Misc.Raw.Bytes.BareBytes
 import Proofs.Defs.LemmasBinlogEvents
+import Proofs.Binlog.Events.QueryEvent.StatusVars
+import Proofs.Misc.Raw.Skip
+import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
 
 /-! Statements for `struct QueryEvent and its impls` (spec file: `Specs/Binlog/Events/QueryEvent.lean`). -/
 
@@ -142,7 +145,39 @@ theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializ
 theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.query_event.QueryEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (queryEnc e).length ≤ Usize.max) :
     binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ queryEnc e ⦄ := by
-  sorry
+  unfold binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMySerialize.serialize
+  have hbl : buf.length = buf.val.length := rfl
+  simp only [queryEnc, List.length_append, PBUtil.length_leBytes, List.length_take, List.length_cons,
+    List.length_nil] at h
+  simp only [misc.raw.int.RawInt.serialize_eq]
+  step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b1, hb1⟩
+  step with misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.serialize_spec as ⟨b2, hb2⟩
+  · simp only [alloc.vec.Vec.length, hb1, List.length_append, PBUtil.length_leBytes]; omega
+  step with U8.Insts.Mysql_commonMiscRawIntIntReprU8.serialize_spec as ⟨b3, hb3⟩
+  · simp only [alloc.vec.Vec.length, hb2, hb1, List.length_append, PBUtil.length_leBytes]; omega
+  step with misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec as ⟨b4, hb4⟩
+  · simp only [alloc.vec.Vec.length, hb3, hb2, hb1, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil]; omega
+  step with misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec as ⟨b5, hb5⟩
+  · simp only [alloc.vec.Vec.length, hb4, hb3, hb2, hb1, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil]; omega
+  step with binlog.events.query_event.StatusVars.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨b6, hb6⟩
+  · simp only [alloc.vec.Vec.length, hb5, hb4, hb3, hb2, hb1, List.length_append, PBUtil.length_leBytes, List.length_cons, List.length_nil]; omega
+  apply WP.spec_bind (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec _ e.schema b6
+    (fun b => b.val = b6.val ++ (cowList e.schema.1).take 255) (fun sl hsl => by
+      apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize_spec 255#usize sl b6 (by
+        simp only [Slice.length, hsl, alloc.vec.Vec.length, hb6, hb5, hb4, hb3, hb2, hb1, List.length_append,
+          PBUtil.length_leBytes, List.length_cons, List.length_nil, List.length_take]
+        have : (255#usize : Usize).val = 255 := rfl
+        omega))
+      intro b hb; simp [hb, hsl]))
+  intro b7 hb7
+  step with misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨b8, hb8⟩
+  · simp only [alloc.vec.Vec.length, hb7, hb6, hb5, hb4, hb3, hb2, hb1, List.length_append, PBUtil.length_leBytes,
+      List.length_cons, List.length_nil, List.length_take]; simp; omega
+  apply WP.spec_mono (PKUtil.eof_ser _ b8 (by
+    simp only [alloc.vec.Vec.length, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1, List.length_append, PBUtil.length_leBytes,
+      List.length_cons, List.length_nil, List.length_take, List.length_replicate]; simp; omega))
+  intro b hb
+  simp [hb, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1, queryEnc]
 
 /-- Round trip, for an event whose stored lengths are those of its status variables (at most 65535 bytes) and schema (at most 255), read with a query post-header of at most 13 bytes (`serialize` writes 13). -/
 theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip (e : binlog.events.query_event.QueryEvent) (hsv : e.status_vars_len.1.val = (cowList e.status_vars.1).length)
@@ -157,9 +192,36 @@ theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogEvent
     binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .QUERY_EVENT := by
   unfold binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
 
+private theorem qlen_arith (A B C M : Nat) (hM : 2 ^ 32 - 1 ≤ M) :
+    min (min M (min M (min M (min M (min M (min M (min M (min M (min M (0 + 4) + 4) + 1) + 2) + 2) +
+      min (min A 65535) 65535) + min B 255) + 1) + C)) (2 ^ 32 - 1 - 19) =
+    min (4 + 4 + (0 + 1) + 2 + 2 + min 65535 A + min 255 B + (0 + 1) + C) (2 ^ 32 - 1 - 19) := by
+  omega
+
 /-- `BinlogStruct::len`: the length of what `serialize` writes (`queryEnc`), capped at `u32::MAX - 19`. -/
 theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.query_event.QueryEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (queryEnc e).length evLenCap ⦄ := by
-  sorry
+  unfold binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  have hL : binlog.events.BinlogEventHeader.LEN = 19#usize := by unfold binlog.events.BinlogEventHeader.LEN; rfl
+  have hM : (UScalar.cast .Usize core.num.U32.MAX).val = 2 ^ 32 - 1 := by
+    rw [IntAndMisc.cast_usize_small _ (by decide)]; rfl
+  have hM16 : (UScalar.cast .Usize core.num.U16.MAX).val = 65535 := by
+    rw [IntAndMisc.cast_usize_small _ (by decide)]; rfl
+  have hM8 : (UScalar.cast .Usize core.num.U8.MAX).val = 255 := by
+    rw [IntAndMisc.cast_usize_small _ (by decide)]; rfl
+  have hUM : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  obtain ⟨a1, a2, a3, a4, a5, sv, ⟨c, u⟩, sk, ⟨c1, u1⟩⟩ := e
+  simp only [lift, bind_ok, hL]
+  step*
+  have l1 := PKUtil.cowList_length_le sv.1
+  have l2 := PKUtil.cowList_length_le c
+  have l3 := PKUtil.cowList_length_le c1
+  rw [n_post]
+  simp only [sat_add_usize, hM, hM16, hM8, i2_post, i5_post, i8_post, i_post, Slice.len_val,
+    queryEnc, evLenCap, List.length_append, PBUtil.length_leBytes, List.length_take, List.length_cons, List.length_nil]
+  simp only [show (0#usize : Usize).val = 0 from rfl, show (4#usize : Usize).val = 4 from rfl,
+    show (1#usize : Usize).val = 1 from rfl, show (2#usize : Usize).val = 2 from rfl, Slice.length]
+  rw [s_post, s1_post]
+  exact qlen_arith _ _ _ _ hUM
 
 end mysql_common
