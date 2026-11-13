@@ -4,11 +4,12 @@ import Proofs.Defs.LemmasRowConvert
 # Facts about the row access and row conversion definitions (`lean/Defs/RowConvert.lean`)
 
 Pure-Lean properties of the definitions used by `Specs/Row.lean` (the accessors) and
-`Specs/Row/Convert*.lean`: `colIndexByName` is the first match by name; `fromRowErrCells` in the
-three cases (no failure, a rejected cell, a taken cell), including the data loss on a taken cell
-and when a rejected conversion gives the original row back; `allCells`; and that the crate's
-`FromValue` impls satisfy `DefaultFromValue` (two examples). Proofs:
-`Proofs/Defs/LemmasRowConvert.lean`.
+`Specs/Row/Convert*.lean`: `colIndexByName` is the first match by name; `fromRowErrCells` in its
+cases (no failure, a rejected cell, a taken cell, after `passed` cells), including the data loss
+on a taken cell and when a rejected conversion gives the original row back; `allCells`; and
+`DefaultFromValue`. Every `FromValue` impl of the crate satisfies `DefaultFromValue` by
+`⟨rfl, rfl⟩` (each takes `from_value_opt` and `get_intermediate` from the trait's defaults);
+stated here for `i8`, `i64`, `String` and `Value`. Proofs: `Proofs/Defs/LemmasRowConvert.lean`.
 -/
 
 set_option autoImplicit false
@@ -74,14 +75,40 @@ recall allCells_eq_some_iff {α : Type} (cells : List (Option α)) (vs : List α
     allCells cells = some vs ↔ cells = vs.map some
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.allCells_eq_some_iff`
-/-- The crate's `FromValue` impls use the default methods; e.g. `i64` and `String`. -/
+/-- A taken cell after cells that only `passed` (no rollback known): the same row as after
+    `converted` cells, since no rollback happens. -/
+recall fromRowErrCells_taken_passed (vs : List value.Value) (rest : List (Option value.Value))
+    (os : List (Option CellOutcome)) :
+    fromRowErrCells (vs.map some ++ none :: rest)
+        (List.replicate vs.length (some .passed) ++ some .taken :: os) =
+      some (List.replicate (vs.length + 1) none ++ rest)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.fromRowErrCells_taken_passed`
+/-- A rejected cell after a cell that only `passed`: nothing is described (the rollback of the
+    earlier cell is needed). -/
+recall fromRowErrCells_rejected_passed (c : Option value.Value) (cells : List (Option value.Value))
+    (e : value.Value) (os : List (Option CellOutcome)) :
+    fromRowErrCells (c :: cells) (some .passed :: some (.rejected e) :: os) = none
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.fromRowErrCells_rejected_passed`
+/-- `DefaultFromValue` for `i8` (by `⟨rfl, rfl⟩`, as for every impl of the crate). -/
+recall defaultFromValue_i8 :
+    DefaultFromValue I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.defaultFromValue_i8`
+/-- `DefaultFromValue` for `i64`. -/
 recall defaultFromValue_i64 :
     DefaultFromValue I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.defaultFromValue_i64`
-/-- The crate's `FromValue` impls use the default methods; e.g. `i64` and `String`. -/
+/-- `DefaultFromValue` for `String`. -/
 recall defaultFromValue_string :
     DefaultFromValue alloc.string.String.Insts.Mysql_commonValueConvertFromValueString
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.defaultFromValue_string`
+/-- `DefaultFromValue` for `Value` itself. -/
+recall defaultFromValue_value :
+    DefaultFromValue value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.defaultFromValue_value`
 end Defs

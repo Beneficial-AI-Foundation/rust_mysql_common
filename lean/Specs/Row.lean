@@ -48,10 +48,11 @@ import Proofs.Row.RowDeserializer
     (`colIndexByName` is the first match). Trusted axioms: none of the `Trusted.*` axioms
     (`str::as_bytes` is an exact model; `Column::name_ref` is stated in `Specs/Packets.lean`).
 
-    **Not covered.** `Debug for Row` (formatting); `new_row_raw`'s and the deserializers' row
-    invariant (one cell per column) is not stated as a type invariant: the access statements hold
-    for any `Row` value, and the out-of-bounds cases they list cannot happen for rows the crate
-    builds.
+    **Not covered.** `Debug for Row` (formatting). The crate keeps one cell per column (`RowWF`:
+    `new_row`/`new_row_raw` assert it, the deserializers build rows that way, `Row`'s fields are
+    private), but this is not a type invariant of the Lean `row.Row`: the access statements here
+    hold for any `Row` value (the out-of-bounds cases they list cannot happen for rows the crate
+    builds), and the conversion statements of `Specs/Row/Convert.lean` assume enough columns.
 
     **Behaviour to note.**
     * The binary row's header byte is not checked (the protocol says `0x00`).
@@ -138,78 +139,56 @@ recall row.Row.as_ref_eq (self : row.Row) (index : Usize) :
     its value was taken; otherwise converts a copy of the value with `from_value` (which panics
     when the value does not convert). The row is not changed (`&self`). -/
 recall row.Row.get_eq {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o) :
+    (self : row.Row) (index : Ix) :
     row.Row.get inst ci self index =
-      match cellAtIdx self.values.val o with
-      | none => ok none
-      | some v => inst.from_value v >>= fun x => ok (some x)
+      (ci.idx index self.columns >>= fun o =>
+        match cellAtIdx self.values.val o with
+        | none => ok none
+        | some v => inst.from_value v >>= fun x => ok (some x))
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.get_eq`
 /-- `get_opt`: as `get`, converting with `from_value_opt` (so a value that does not convert
     gives `Some(Err(..))` instead of a panic). -/
 recall row.Row.get_opt_eq {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o) :
+    (self : row.Row) (index : Ix) :
     row.Row.get_opt inst ci self index =
-      match cellAtIdx self.values.val o with
-      | none => ok none
-      | some v => inst.from_value_opt v >>= fun x => ok (some x)
+      (ci.idx index self.columns >>= fun o =>
+        match cellAtIdx self.values.val o with
+        | none => ok none
+        | some v => inst.from_value_opt v >>= fun x => ok (some x))
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.get_opt_eq`
 /-- `take`: `None`, and the row unchanged, when there is no such column or its value was already
-    taken. -/
-recall row.Row.take_none {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o)
-    (hc : cellAtIdx self.values.val o = none) :
-    row.Row.take inst ci self index = ok (none, self)
+    taken; otherwise moves the value out of cell `i` (leaving it empty, the columns unchanged)
+    and returns it converted by `from_value` (which panics when the value does not convert). -/
+recall row.Row.take_eq {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) :
+    row.Row.take inst ci self index =
+      (ci.idx index self.columns >>= fun o =>
+        match o with
+        | none => ok (none, self)
+        | some i =>
+          match cellAt self.values.val i.val with
+          | none => ok (none, self)
+          | some v => inst.from_value v >>= fun x =>
+              ok (some x, { self with values := self.values.set i none }))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_none`
-/-- `take`: moves the value out of cell `i` (leaving it empty, the columns unchanged) and
-    returns it converted by `from_value`. -/
-recall row.Row.take_some {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
-    (v : value.Value) (hc : cellAt self.values.val i.val = some v) (x : T)
-    (hx : inst.from_value v = ok x) :
-    row.Row.take inst ci self index ⦃ y r =>
-      y = some x ∧ r.values.val = self.values.val.set i.val none ∧ r.columns = self.columns ⦄
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_eq`
+/-- `take_opt`: as `take`, converting with `from_value_opt`. The cell is left empty even when
+    the value does not convert (the value is then only in the `FromValueError`). -/
+recall row.Row.take_opt_eq {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
+    (self : row.Row) (index : Ix) :
+    row.Row.take_opt inst ci self index =
+      (ci.idx index self.columns >>= fun o =>
+        match o with
+        | none => ok (none, self)
+        | some i =>
+          match cellAt self.values.val i.val with
+          | none => ok (none, self)
+          | some v => inst.from_value_opt v >>= fun x =>
+              ok (some x, { self with values := self.values.set i none }))
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_some`
-/-- `take`: fails exactly as `from_value` does on the value moved out (e.g. a panic when the
-    value does not convert). -/
-recall row.Row.take_fail {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
-    (v : value.Value) (hc : cellAt self.values.val i.val = some v) (e : Error)
-    (hx : inst.from_value v = fail e) :
-    row.Row.take inst ci self index = fail e
-
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_fail`
-/-- `take_opt`: `None`, and the row unchanged, when there is no such column or its value was
-    already taken. -/
-recall row.Row.take_opt_none {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (o : Option Usize) (hidx : ci.idx index self.columns = ok o)
-    (hc : cellAtIdx self.values.val o = none) :
-    row.Row.take_opt inst ci self index = ok (none, self)
-
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_opt_none`
-/-- `take_opt`: moves the value out of cell `i` (leaving it empty, the columns unchanged) and
-    returns `from_value_opt` of it. The cell stays empty even when the value does not convert
-    (the `FromValueError` holds the value). -/
-recall row.Row.take_opt_some {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
-    (v : value.Value) (hc : cellAt self.values.val i.val = some v)
-    (res : core.result.Result T value.convert.FromValueError)
-    (hx : inst.from_value_opt v = ok res) :
-    row.Row.take_opt inst ci self index ⦃ y r =>
-      y = some res ∧ r.values.val = self.values.val.set i.val none ∧ r.columns = self.columns ⦄
-
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_opt_some`
-/-- `take_opt`: fails exactly as `from_value_opt` does on the value moved out. -/
-recall row.Row.take_opt_fail {T I Ix : Type} (inst : value.convert.FromValue T I) (ci : row.ColumnIndex Ix)
-    (self : row.Row) (index : Ix) (i : Usize) (hidx : ci.idx index self.columns = ok (some i))
-    (v : value.Value) (hc : cellAt self.values.val i.val = some v) (e : Error)
-    (hx : inst.from_value_opt v = fail e) :
-    row.Row.take_opt inst ci self index = fail e
-
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_opt_fail`
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms row.Row.take_opt_eq`
 /-- `unwrap`: the values, in order, when no value was taken. -/
 recall row.Row.unwrap_spec (self : row.Row) (vs : List value.Value)
     (h : allCells self.values.val = some vs) :

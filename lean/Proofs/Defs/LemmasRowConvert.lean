@@ -66,14 +66,40 @@ theorem allCells_eq_some_iff {α : Type} (cells : List (Option α)) (vs : List �
     allCells cells = some vs ↔ cells = vs.map some := by
   sorry
 
-/-- The crate's `FromValue` impls use the default methods; e.g. `i64` and `String`. -/
+/-- A taken cell after cells that only `passed` (no rollback known): the same row as after
+    `converted` cells, since no rollback happens. -/
+theorem fromRowErrCells_taken_passed (vs : List value.Value) (rest : List (Option value.Value))
+    (os : List (Option CellOutcome)) :
+    fromRowErrCells (vs.map some ++ none :: rest)
+        (List.replicate vs.length (some .passed) ++ some .taken :: os) =
+      some (List.replicate (vs.length + 1) none ++ rest) := by
+  sorry
+
+/-- A rejected cell after a cell that only `passed`: nothing is described (the rollback of the
+    earlier cell is needed). -/
+theorem fromRowErrCells_rejected_passed (c : Option value.Value) (cells : List (Option value.Value))
+    (e : value.Value) (os : List (Option CellOutcome)) :
+    fromRowErrCells (c :: cells) (some .passed :: some (.rejected e) :: os) = none := by
+  sorry
+
+/-- `DefaultFromValue` for `i8` (by `⟨rfl, rfl⟩`, as for every impl of the crate). -/
+theorem defaultFromValue_i8 :
+    DefaultFromValue I8.Insts.Mysql_commonValueConvertFromValueParseIrOptI8 := by
+  sorry
+
+/-- `DefaultFromValue` for `i64`. -/
 theorem defaultFromValue_i64 :
     DefaultFromValue I64.Insts.Mysql_commonValueConvertFromValueParseIrOptI64 := by
   sorry
 
-/-- The crate's `FromValue` impls use the default methods; e.g. `i64` and `String`. -/
+/-- `DefaultFromValue` for `String`. -/
 theorem defaultFromValue_string :
     DefaultFromValue alloc.string.String.Insts.Mysql_commonValueConvertFromValueString := by
+  sorry
+
+/-- `DefaultFromValue` for `Value` itself. -/
+theorem defaultFromValue_value :
+    DefaultFromValue value.Value.Insts.Mysql_commonValueConvertFromValueValueIr := by
   sorry
 
 end Defs
