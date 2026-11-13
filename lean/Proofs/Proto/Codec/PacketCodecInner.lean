@@ -13,7 +13,8 @@ theorem proto.codec.PacketCodecInner.reset_seq_id_eq (self : proto.codec.PacketC
     proto.codec.PacketCodecInner.reset_seq_id self = ok (match self with
       | .Plain c => .Plain { c with seq_id := 0#u8 }
       | .Comp c => .Comp { c with comp_seq_id := 0#u8, plain_codec := { c.plain_codec with seq_id := 0#u8 } }) := by
-  sorry
+  cases self <;> simp [proto.codec.PacketCodecInner.reset_seq_id, proto.codec.PlainPacketCodec.reset_seq_id,
+    proto.codec.CompPacketCodec.reset_seq_id]
 
 /-- `sync_seq_id`: nothing for the plain codec. For the compressed codec, the plain sequence id becomes the compressed one if no decompressed input is pending. -/
 theorem proto.codec.PacketCodecInner.sync_seq_id_eq (self : proto.codec.PacketCodecInner) :
@@ -21,7 +22,13 @@ theorem proto.codec.PacketCodecInner.sync_seq_id_eq (self : proto.codec.PacketCo
       | .Plain c => .Plain c
       | .Comp c => .Comp (if c.in_buf.val = [] then
           { c with plain_codec := { c.plain_codec with seq_id := c.comp_seq_id } } else c)) := by
-  sorry
+  cases self with
+  | Plain c => simp [proto.codec.PacketCodecInner.sync_seq_id]
+  | Comp c =>
+    simp only [proto.codec.PacketCodecInner.sync_seq_id, proto.codec.CompPacketCodec.sync_seq_id,
+      proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
+      alloc.vec.Vec.deref, bind_ok]
+    split_ifs <;> simp_all [Slice.length]
 
 /-- `compress(level)`. On a plain codec, compression is turned on: the compressed sequence id is 0, the buffers are empty, the compressed-packet reader is idle, there are no flate2 streams yet, and the plain codec (sequence id and chunk reader) is kept as it was. On a compressed codec, a different level replaces the level and drops the deflate stream, and the same level changes nothing. Never panics, even for a level above 10 (that panic comes at the first deflate, see `CompPacketCodec.encode_level_panic`). -/
 theorem proto.codec.PacketCodecInner.compress_spec (self : proto.codec.PacketCodecInner) (lvl : flate2.Compression) :
@@ -31,7 +38,19 @@ theorem proto.codec.PacketCodecInner.compress_spec (self : proto.codec.PacketCod
           cc.out_buf.val = [] ∧ cc.comp_decoder = .Idle ∧ cc.deflater = none ∧ cc.inflater = none ∧
           cc.plain_codec = c
       | .Comp c => r = if c.level.level = lvl.level then .Comp c else .Comp { c with level := lvl, deflater := none } ⦄ := by
-  sorry
+  cases self with
+  | Plain c =>
+    simp [proto.codec.PacketCodecInner.compress, constants.DEFAULT_MAX_ALLOWED_PACKET,
+      proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default,
+      proto.codec.ChunkDecoder.Insts.CoreDefaultDefault.default, core.mem.replace,
+      alloc.vec.Vec.with_capacity]
+    step*
+  | Comp c =>
+    simp only [proto.codec.PacketCodecInner.compress, proto.codec.trusted.compression_eq, bind_ok]
+    by_cases h : c.level.level = lvl.level
+    · simp [h]
+    · have : ¬ c.level.level.val = lvl.level.val := fun e => h (UScalar.eq_of_val_eq e)
+      simp [h, this]
 
 /-- `decode(src, dst, max_allowed_packet)`: the plain codec's `decode` without a compressed sequence id, or the compressed codec's `decode`. -/
 theorem proto.codec.PacketCodecInner.decode_eq (self : proto.codec.PacketCodecInner) (src dst : proto.codec.buf_model.VecBuf) (max : Usize) :
@@ -43,7 +62,7 @@ theorem proto.codec.PacketCodecInner.decode_eq (self : proto.codec.PacketCodecIn
       | .Comp c => do
         let (r, c', src', dst') ← proto.codec.CompPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut c src dst max
         ok (r, .Comp c', src', dst')) := by
-  sorry
+  cases self <;> rfl
 
 /-- `encode(packet, dst, max_allowed_packet)`: the plain or the compressed codec's `encode`. -/
 theorem proto.codec.PacketCodecInner.encode_eq (self : proto.codec.PacketCodecInner) (packet dst : proto.codec.buf_model.VecBuf) (max : Usize) :
@@ -55,12 +74,15 @@ theorem proto.codec.PacketCodecInner.encode_eq (self : proto.codec.PacketCodecIn
       | .Comp c => do
         let (r, c', packet', dst') ← proto.codec.CompPacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve c packet dst max
         ok (r, .Comp c', packet', dst')) := by
-  sorry
+  cases self <;> rfl
 
 /-- `Default`: a plain codec with sequence id 0 and an idle chunk reader. -/
 theorem proto.codec.PacketCodecInner.default_eq :
     proto.codec.PacketCodecInner.Insts.CoreDefaultDefault.default =
       ok (.Plain { seq_id := 0#u8, chunk_decoder := .Idle }) := by
-  sorry
+  simp [proto.codec.PacketCodecInner.Insts.CoreDefaultDefault.default,
+    proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default,
+    proto.codec.ChunkDecoder.Insts.CoreDefaultDefault.default]
+  rfl
 
 end mysql_common
