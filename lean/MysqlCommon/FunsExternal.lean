@@ -1137,14 +1137,6 @@ axiom packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt :
   packets.UnknownBinlogDumpFlags → core.fmt.Formatter → Result
     ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
 
-axiom packets.InvalidTag.Insts.CoreFmtDisplay.fmt :
-  packets.InvalidTag → core.fmt.Formatter → Result
-    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
-
-axiom packets.InvalidTag.Insts.CoreFmtDebug.fmt :
-  packets.InvalidTag → core.fmt.Formatter → Result
-    ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
-
 /-! ## The trust boundary of the packets: `mysql_common::misc::trusted`
 
 `translation-patches/64-packets-trusted-module.patch` adds this module (later patches add to it);
@@ -1157,7 +1149,8 @@ function Aeneas does not model, and the module is `opaque` in Cargo.toml. Each f
   are valid UTF-8; the error is opaque);
 * an **opaque value, exact on ASCII input**: the two version regexes (`versionReCaptures_ascii`,
   `mariadbVersionReCaptures_ascii`);
-* an **opaque value with no specification**: the `GnoInterval` error;
+* an **opaque value with no specification**: the `GnoInterval` error and the invalid-tag error of
+  `Sid::deserialize_tagged` (`sid_tag_invalid_error`, translation-patches/156);
 * an **opaque value whose only stated property is that a new map is empty**: the `HashMap` of
   connect attributes (`std::collections::HashMap`, an opaque type in TypesExternal.lean) and its
   operations.
@@ -1175,13 +1168,17 @@ need a length `< Usize.max` guard on each insert-style law, and a model in
 the bytes of its keys and values (`Defs.BuiltFrom`): whether they are `Cow::Borrowed` or `Owned`
 is left open.
 
-Every helper is assumed not to panic (it returns `ok`). -/
+Every helper is assumed not to panic (it returns `ok`). For `sid_tag_invalid_error` this holds
+only at its single call site (its `unreachable!` is not reached there, translation-patches/156). -/
 
 namespace Trusted
 /-- `String::from_utf8_lossy` of bytes that are not valid UTF-8: opaque. -/
 axiom utf8LossyOwned : Slice Std.U8 → String
 /-- The `io::Error` of `Sid::deserialize_tagged` for bytes that are not valid UTF-8: opaque. -/
 axiom sidTagUtf8Error : Slice Std.U8 → core.io.error.Error
+/-- The `io::Error` of `Sid::deserialize_tagged` for a valid-UTF-8 tag that is not a valid `Tag`
+    (translation-patches/156): opaque. -/
+axiom sidTagInvalidError : Str → core.io.error.Error
 /-- The `io::Error` of `GnoInterval::check_and_new` for `start >= end`: opaque. -/
 axiom gnoIntervalOrderError : Std.U64 → Std.U64 → core.io.error.Error
 /-- `VERSION_RE.captures` (groups 1–3): opaque. -/
@@ -1329,6 +1326,14 @@ noncomputable def misc.trusted.sid_tag_from_utf8 (tag_bytes : Slice Std.U8) :
     Result (core.result.Result Str core.io.error.Error) :=
   ok (if (Trusted.bytesOf tag_bytes.val).IsValidUTF8 then .Ok tag_bytes
       else .Err (Trusted.sidTagUtf8Error tag_bytes))
+
+/-- The invalid-tag `io::Error` of `Sid::deserialize_tagged` (translation-patches/156): opaque.
+    This model is STRONGER than the Rust function, which panics (`unreachable!`) on a valid tag.
+    It is sound because the only caller (`packets.Sid.deserialize_tag`) calls it only on a tag
+    that `tag_bytes_valid` rejects, which `Tag::new` rejects too (the patch header argues this).
+    Do not call it from anywhere else. -/
+noncomputable def misc.trusted.sid_tag_invalid_error (tag_str : Str) : Result core.io.error.Error :=
+  ok (Trusted.sidTagInvalidError tag_str)
 
 noncomputable def misc.trusted.gno_interval_order_error (start «end» : Std.U64) :
     Result core.io.error.Error := ok (Trusted.gnoIntervalOrderError start «end»)
