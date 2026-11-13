@@ -169,6 +169,72 @@ theorem sid_clone_eq (x : packets.Sid) (ht : ∀ t, x.tag = some t → (strCowBy
   intro s hs
   exact (WP.spec_ok _).mpr (by rw [ha, ho, hs])
 
+theorem sat_add_val {ty : UScalarTy} (x y : UScalar ty) (h : x.val + y.val ≤ UScalar.max ty) :
+    (UScalar.saturating_add x y).val = x.val + y.val := by
+  simp only [UScalar.saturating_add, Nat.min_eq_right h]
+  have : x.val + y.val < 2 ^ ty.numBits := by
+    have := UScalar.max_def ty; have : 0 < 2 ^ ty.numBits := Nat.two_pow_pos _; omega
+  rw [PBUtil.val_mk, BitVec.toNat_ofNat, Nat.mod_eq_of_lt this]
+
+@[step] theorem seq_len_spec {T U : Type} (cl : core.clone.Clone T) (s : misc.raw.seq.Seq T U) :
+    misc.raw.seq.Seq.len cl s ⦃ n => n.val = (cowList s.1).length ⦄ := by
+  unfold misc.raw.seq.Seq.len
+  obtain ⟨c, u⟩ := s
+  step with cow_deref_spec as ⟨sl, hsl⟩
+  simp [Slice.len, hsl]
+
+theorem sid_len_spec (x : packets.Sid) (h : (sidEnc (SidV.of x)).length < 2 ^ 32) :
+    packets.Sid.len x ⦃ n => n.val = (sidEnc (SidV.of x)).length ⦄ := by
+  rw [Replication.length_sidEnc] at *
+  simp only [SidV.of, List.length_map] at *
+  unfold packets.Sid.len
+  step*
+  have hu : (↑x.uuid : List U8).length = 16 := by simp
+  have hl : len.val = 16 := by rw [len_post]; simp [packets.UUID_LEN]
+  have hi2 : i2.val = i1.val := by rw [i2_post]; simp
+  have hl1 : len1.val = 24 := by
+    rw [len1_post, core.num.U64.saturating_add, sat_add_val _ _ (by rw [hl]; simp [UScalar.max_def])]
+    rw [hl]; simp
+  simp only [core.num.U64.saturating_add]
+  rw [sat_add_val _ _ (by rw [hl1, hi2, i1_post, i_post, UScalar.max_def]; simp; omega), hl1, hi2, i1_post, i_post, hu]
+  omega
+
+theorem sid_tagged_len_spec (x : packets.Sid) (h : (sidTaggedEnc (SidV.of x)).length < 2 ^ 32) :
+    packets.Sid.tagged_len x ⦃ n => n.val = (sidTaggedEnc (SidV.of x)).length ⦄ := by
+  have hlen : (sidTaggedEnc (SidV.of x)).length = 16 + varlenUintSize ((x.tag.map strCowBytes).getD []).length
+      + ((x.tag.map strCowBytes).getD []).length + 8 + 16 * (cowList x.intervals.1).length := by
+    have hu : (↑x.uuid : List U8).length = 16 := by simp
+    simp only [sidTaggedEnc, SidV.of, intervalsEnc, List.length_append, IntAndMisc.varlenUint_length',
+      PBUtil.length_leBytes, Replication.length_flatMap_gnoEnc, List.length_map, hu]
+    omega
+  rw [hlen] at h ⊢
+  unfold packets.Sid.tagged_len
+  have hmax := Replication.usize_max_ge
+  step with SidUtil.tag_str_spec x (by omega) as ⟨ts, hts⟩
+  step*
+  apply WP.spec_bind (Pₘ := fun i : Usize => i.val = ts.val.length) ((WP.spec_ok _).mpr (by simp [Slice.len]))
+  intro i hi
+  step*
+  step with misc.varlen_uint_size_spec as ⟨i2, hi2⟩
+  step*
+  have hl : len.val = 16 := by rw [len_post]; simp [packets.UUID_LEN]
+  have hm : UScalar.max .U64 = 2 ^ 64 - 1 := by simp [UScalar.max_def]
+  have e1 : i1.val = ts.val.length := by rw [i1_post]; simp [hi]
+  have e3 : i3.val = varlenUintSize ts.val.length := by rw [i3_post]; simp [hi2, e1]
+  have e4 : i4.val = ts.val.length := by rw [i4_post]; simp [hi]
+  have e7 : i7.val = 16 * (cowList x.intervals.1).length := by rw [i7_post]; simp [i6_post, i5_post]; ring
+  have h8 : (8#u64).val = 8 := rfl
+  rw [hts] at e1 e3 e4
+  simp only [core.num.U64.saturating_add] at len1_post len2_post len3_post ⊢
+  have f1 : len1.val = 16 + varlenUintSize ((Option.map strCowBytes x.tag).getD []).length := by
+    rw [len1_post, sat_add_val _ _ (by rw [hm, hl, e3]; omega), hl, e3]
+  have f2 : len2.val = len1.val + ((Option.map strCowBytes x.tag).getD []).length := by
+    rw [len2_post, sat_add_val _ _ (by rw [hm, f1, e4]; omega), e4]
+  have f3 : len3.val = len2.val + 8 := by
+    rw [len3_post, sat_add_val _ _ (by rw [hm, f2, f1, h8]; omega), h8]
+  rw [sat_add_val _ _ (by rw [hm, f3, f2, f1, e7]; omega)]
+  omega
+
 end GtidUtil
 
 open GtidUtil
