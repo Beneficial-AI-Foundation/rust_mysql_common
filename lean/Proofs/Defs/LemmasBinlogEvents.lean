@@ -25,7 +25,38 @@ theorem postHeaderLen_query_default : postHeaderLen [] .QUERY_EVENT = 13 ∧ pos
 /-- The FDE reader inverts the encoder (the server version padded to 50 bytes). -/
 theorem fdeRead_fdeEnc (e : binlog.events.format_description_event.FormatDescriptionEvent) :
     fdeRead (fdeEnc e) = some ({ fdeView e with serverVersion := fixedText 50 (cowList e.server_version.1) }, []) := by
-  sorry
+  have hA := PBUtil.length_leBytes 2 (binlogVersionCode e.binlog_version.1)
+  have hB := fixedText_length 50 (cowList e.server_version.1)
+  have hC := PBUtil.length_leBytes 4 e.create_timestamp.1.val
+  have hv : binlogVersionCode e.binlog_version.1 < 2 ^ 16 := by cases e.binlog_version.1 <;> simp [binlogVersionCode]
+  have hts : e.create_timestamp.1.val < 2 ^ 32 := by scalar_tac
+  have hvc : binlogVersionOfCode (binlogVersionCode e.binlog_version.1) = some e.binlog_version.1 := by
+    cases e.binlog_version.1 <;> rfl
+  unfold fdeRead fdeEnc
+  have hlen : ¬ (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ fixedText 50 (cowList e.server_version.1) ++
+      leBytes 4 e.create_timestamp.1.val ++ [byte 19] ++ fdeLens e).length < 57 := by
+    simp only [List.length_append, hA, hB, hC, List.length_cons, List.length_nil]; omega
+  rw [ite_cond_eq_false _ _ (eq_false hlen)]
+  simp only [List.append_assoc]
+  rw [List.take_left' hA, mysql_common.EvHdrUtil.leNat_leBytes_lt 2 _ hv, hvc]
+  have e56 : (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ (fixedText 50 (cowList e.server_version.1) ++
+      (leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e))))[56]? = some (byte 19) := by
+    rw [List.getElem?_append_right (by omega), hA, List.getElem?_append_right (by omega), hB,
+      List.getElem?_append_right (by omega), hC]
+    rfl
+  simp only [e56, Option.map_some]
+  simp only [show (byte 19).val = 19 from rfl, ne_eq, not_true_eq_false, ite_false]
+  simp only [List.drop_left' hA]
+  rw [List.take_left' hB]
+  have d52 : List.drop 52 (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ (fixedText 50 (cowList e.server_version.1) ++
+      (leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e)))) =
+      leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e) := by
+    rw [show 52 = 2 + 50 from rfl, ← List.drop_drop, List.drop_left' hA, List.drop_left' hB]
+  have d57 : List.drop 57 (leBytes 2 (binlogVersionCode e.binlog_version.1) ++ (fixedText 50 (cowList e.server_version.1) ++
+      (leBytes 4 e.create_timestamp.1.val ++ ([byte 19] ++ fdeLens e)))) = fdeLens e := by
+    rw [show 57 = 52 + 4 + 1 from rfl, ← List.drop_drop, ← List.drop_drop, d52, List.drop_left' hC]; rfl
+  rw [d52, d57, List.take_left' hC, mysql_common.EvHdrUtil.leNat_leBytes_lt 4 _ hts]
+  rfl
 
 /-- The query reader inverts the encoder, for consistent lengths and a post-header of at most 13 bytes. -/
 theorem queryRead_queryEnc (e : binlog.events.query_event.QueryEvent) (p : Nat) (hp : p ≤ 13)
