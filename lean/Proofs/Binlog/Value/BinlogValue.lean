@@ -119,15 +119,15 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
     (ht : binlogEffType ct md.val = .MYSQL_TYPE_INT24) (hl : 3 ≤ buf.length) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, false, part) buf ⦃ r rest =>
       (okPart r).map binlogValView = some (some (.int (leNat (buf.val.take 3)))) ∧
-        rest.val = buf.val.drop 3 ⦄ := by
-  sorry
+        rest.val = buf.val.drop 3 ⦄ := 
+  BinlogUtil.deser_int24_signed ct md part buf ht hl
 
 /-- **Bug**, an instance: the signed MEDIUMINT `-1` (bytes `FF FF FF`) decodes as `16777215`. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_int24_minus_one (h64 : Target64) (md : Slice U8) (part : Bool)
     (tail : List U8) (buf : io.ParseBuf) (h : buf.val = [byte 0xFF, byte 0xFF, byte 0xFF] ++ tail) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (.MYSQL_TYPE_INT24, md, false, part) buf ⦃ r rest =>
-      (okPart r).map binlogValView = some (some (.int 16777215)) ∧ rest.val = tail ⦄ := by
-  sorry
+      (okPart r).map binlogValView = some (some (.int 16777215)) ∧ rest.val = tail ⦄ := 
+  BinlogUtil.deser_int24_minus_one md part tail buf h
 
 /-- **Bug** (pre-5.6.4 TIME). The crate reads the 3 bytes unsigned and takes the hours mod 256 (`as u8`), where MySQL reads them signed (`sint3korr`, `Field_time` of MySQL ≤ 5.7; `oldTimeVal`): negative times and times from 256 hours are misread (they agree elsewhere). (`mysqlbinlog` itself reads `uint3korr`, `log_event.cc:1981`; the crate additionally truncates the hours `as u8`.) -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_time_unsigned (h64 : Target64)
@@ -137,8 +137,8 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
       (okPart r).map binlogValView =
         some (some (.time false 0 (leNat (buf.val.take 3) / 10000 % 256)
           (leNat (buf.val.take 3) % 10000 / 100) (leNat (buf.val.take 3) % 100) 0)) ∧
-        rest.val = buf.val.drop 3 ⦄ := by
-  sorry
+        rest.val = buf.val.drop 3 ⦄ := 
+  BinlogUtil.deser_time ct md uns part buf ht hl
 
 /-- **Bug (crash path)**: a TIME2 column with 1–2 fractional digits and a negative value with a fraction (`time2NegFracBug`) panics (see `my_time_packed_from_binary_neg_frac`). -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_time2_neg_frac

@@ -2228,3 +2228,63 @@ theorem deser_timestamp2_roundtrip (ct : constants.ColumnType) (md : Slice U8) (
   simp only [okPart, Option.map_some, binlogValView, Val.ofValue, v_post, s_post, hi]
 
 end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+open constants.ColumnType
+
+local notation "BVdes" => binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize
+
+theorem deser_int24_signed (ct : constants.ColumnType) (md : Slice U8) (part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_INT24) (hl : 3 ≤ buf.length) :
+    BVdes (ct, md, false, part) buf ⦃ r rest =>
+      (okPart r).map binlogValView = some (some (.int (leNat (buf.val.take 3)))) ∧
+        rest.val = buf.val.drop 3 ⦄ := by
+  rw [deser_eff ct md false part buf (ne_ta_of_eff ct md _ ht (by intro h; cases h)), ht]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  obtain ⟨x, buf1, e1, hx, hb1⟩ := okEq (misc.raw.int.LeI24.Insts.Mysql_commonMiscRawIntIntReprI32.parse_rawint_spec buf) hl
+  obtain ⟨xv, xu⟩ := x
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_INT24 MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_INT24 MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, lift, e1,
+    core.result.Result.Insts.CoreOpsTry.branch, misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref, WP.spec_ok]
+  refine ⟨?_, hb1⟩
+  simp only [okPart, Option.map_some, binlogValView, Val.ofValue, cast64_i32]
+  simpa using hx
+
+theorem deser_time (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_TIME) (hl : 3 ≤ buf.length) :
+    BVdes (ct, md, uns, part) buf ⦃ r rest =>
+      (okPart r).map binlogValView =
+        some (some (.time false 0 (leNat (buf.val.take 3) / 10000 % 256)
+          (leNat (buf.val.take 3) % 10000 / 100) (leNat (buf.val.take 3) % 100) 0)) ∧
+        rest.val = buf.val.drop 3 ⦄ := by
+  rw [deser_eff ct md uns part buf (ne_ta_of_eff ct md _ ht (by intro h; cases h)), ht]
+  rw [binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize]
+  obtain ⟨x, buf1, e1, hx, hb1⟩ := okEq (misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf) hl
+  obtain ⟨xv, xu⟩ := x
+  simp only [Std.uncurry_apply_pair,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME MYSQL_TYPE_TYPED_ARRAY = ok false from rfl,
+    show constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq MYSQL_TYPE_TIME MYSQL_TYPE_STRING = ok false from rfl,
+    Std.bind_ok, Bool.false_eq_true, ite_false, lift, e1,
+    core.result.Result.Insts.CoreOpsTry.branch, misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref]
+  simp only at hx
+  step*
+  refine ⟨?_, hb1⟩
+  simp only [okPart, Option.map_some, binlogValView, Val.ofValue, Option.some.injEq, Val.time.injEq, true_and]
+  simp only [UScalar.cast_val_eq, UScalarTy.numBits] at *
+  and_intros <;> first | rfl | omega
+
+theorem deser_int24_minus_one (md : Slice U8) (part : Bool)
+    (tail : List U8) (buf : io.ParseBuf) (h : buf.val = [byte 0xFF, byte 0xFF, byte 0xFF] ++ tail) :
+    BVdes (.MYSQL_TYPE_INT24, md, false, part) buf ⦃ r rest =>
+      (okPart r).map binlogValView = some (some (.int 16777215)) ∧ rest.val = tail ⦄ := by
+  apply WP.spec_mono (deser_int24_signed _ md part buf rfl (by simp [Slice.length, h]))
+  rintro ⟨r, rest⟩ ⟨h1, h2⟩
+  rw [h] at h1 h2
+  refine ⟨?_, by simpa using h2⟩
+  rw [h1]
+  rw [show List.take 3 ([byte 0xFF, byte 0xFF, byte 0xFF] ++ tail) = [byte 0xFF, byte 0xFF, byte 0xFF] by simp]
+  decide
+
+end mysql_common.BinlogUtil
