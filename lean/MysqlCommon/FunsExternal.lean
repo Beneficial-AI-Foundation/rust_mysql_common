@@ -1873,7 +1873,9 @@ axiom core.num.error.TryFromIntError.Insts.CoreFmtDebug.fmt
 The trust boundary of the binlog code (`binlog::trusted`, opaque in Cargo.toml) and the
 out-of-scope helpers in the opaque modules `binlog::{jsonb, jsondiff, decimal}`, the tagged GTID
 format and `TransactionPayloadEvent::deserialize` (opaque in Cargo.toml). Only their signatures
-are declared, so the specs can only say that these calls return *some* value of their type. -/
+are declared, so the specs can only say that these calls return *some* value of their type.
+Exception: `binlog::trusted::read_exact_eof` is defined, as `ok` of the opaque error value
+`Trusted.readExactEofError` (it cannot fail: it only names std's `READ_EXACT_EOF` constant). -/
 
 /-- [mysql_common::binlog::decimal::read_bin_to_string_bytes]:
     Source: 'src/binlog/decimal/mod.rs', lines 438:0-445:1 -/
@@ -2007,9 +2009,19 @@ axiom binlog.jsondiff.parse_json_diffs
   io.ParseBuf → Result (core.result.Result (alloc.vec.Vec
     binlog.jsondiff.JsonDiff) core.io.error.Error)
 
-/-- [mysql_common::binlog::trusted::read_exact_eof]:
+namespace Trusted
+
+/-- `std::io::Error` for `read_exact` at EOF (std's constant `READ_EXACT_EOF`): opaque. -/
+axiom readExactEofError : core.io.error.Error
+
+end Trusted
+
+/-- [mysql_common::binlog::trusted::read_exact_eof]: returns std's `READ_EXACT_EOF` error
+    (translation-patches/149). It cannot panic (it only names a constant), so it returns `ok`;
+    the value is opaque.
     Source: 'src/binlog/trusted.rs', lines 30:0-37:1 -/
-axiom binlog.trusted.read_exact_eof : Result core.io.error.Error
+noncomputable def binlog.trusted.read_exact_eof : Result core.io.error.Error :=
+  ok Trusted.readExactEofError
 
 /-- [mysql_common::binlog::trusted::timestamp2_frac_bytes]:
     Source: 'src/binlog/trusted.rs', lines 24:0-26:1 -/
