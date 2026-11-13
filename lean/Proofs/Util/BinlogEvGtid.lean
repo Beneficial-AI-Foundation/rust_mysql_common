@@ -3,6 +3,8 @@ import Proofs.Io.ParseBuf
 import Proofs.Util.ParseBuf
 import Proofs.Util.IntAndMisc
 import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
+import Proofs.Misc.Raw.Int.LeU64
+import Proofs.Misc.Raw.Int.RawInt
 
 /-! Helper lemmas for the binlog-event proofs of group `BinlogEvGtid` (GTID, previous-GTIDs,
 rotate, intvar, rand, XID, incident, rows-query and transaction-payload events). -/
@@ -56,5 +58,38 @@ theorem leNat_leBytes_u64 (x : U64) : leNat (leBytes 8 x.val) = x.val :=
 theorem okPart_map_eq_some {T V : Type} {f : T → V} {r : core.result.Result T core.io.error.Error} {v : V}
     (h : (okPart r).map f = some v) : ∃ x, r = .Ok x ∧ f x = v := by
   cases r <;> simp_all [okPart]
+
+/-! ## `RawInt<LeU64>` -/
+
+@[step]
+theorem rawint_leu64_parse_unchecked (buf : io.ParseBuf) (h : 8 ≤ buf.length) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r rest =>
+      ∃ x, r = .Ok x ∧ x.1.val = leNat (buf.val.take 8) ∧ rest.val = buf.val.drop 8 ⦄ := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  have hd := misc.raw.int.RawInt.deserialize_spec misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 buf
+    (fun (o : Option U64) (rest : io.ParseBuf) => o.map (·.val) = some (leNat (buf.val.take 8)) ∧ rest.val = buf.val.drop 8)
+    (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_spec buf h)
+  apply WP.spec_mono hd
+  rintro ⟨r, rest⟩ ⟨h1, h2⟩
+  cases r with
+  | Ok x => exact ⟨x, rfl, by simpa [okPart] using h1, h2⟩
+  | Err e => simp [okPart] at h1
+
+theorem rawint_leu64_parse_unchecked_panics (buf : io.ParseBuf) (h : buf.length < 8) :
+    io.ParseBuf.parse_unchecked (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64) buf () = fail .panic := by
+  rw [io.ParseBuf.parse_unchecked_eq]
+  show misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize _ () buf = _
+  unfold misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  exact PBUtil.bind_fail_left (misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.deserialize_panics buf h)
+
+@[step]
+theorem rawint_leu64_serialize (x : misc.raw.int.RawInt misc.raw.int.LeU64 U64) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 8 ≤ Usize.max) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 x buf ⦃ buf' => buf'.val = buf.val ++ leBytes 8 x.1.val ⦄ := by
+  rw [misc.raw.int.RawInt.serialize_eq]
+  exact misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec _ buf h
 
 end mysql_common.BinlogEvGtid
