@@ -335,6 +335,57 @@ theorem sid_block_len_from_spec (sids : Slice packets.Sid) (tagged : Bool) (k : 
       intro r hr
       rw [hr, e5, hi2]; simp only [encOf, Bool.false_eq_true, ↓reduceIte] at hr ⊢; omega
 
+theorem serialize_sids_from_spec (sids : Slice packets.Sid) (tagged : Bool) (k : Nat) :
+    ∀ (i : Usize) (buf : alloc.vec.Vec U8), sids.length = i.val + k →
+    buf.length + (((sids.val.drop i.val).map SidV.of).flatMap (encOf tagged)).length ≤ Usize.max →
+    packets.serialize_sids_from sids tagged i buf ⦃ b =>
+      b.val = buf.val ++ ((sids.val.drop i.val).map SidV.of).flatMap (encOf tagged) ⦄ := by
+  induction k with
+  | zero =>
+    intro i buf hi _
+    unfold packets.serialize_sids_from
+    have : ¬ i < Slice.len sids := by simp [Slice.len] at *; scalar_tac
+    simp only [this, ↓reduceIte]
+    apply (WP.spec_ok _).mpr
+    simp only [Slice.length] at hi
+    rw [List.drop_of_length_le (by omega)]; simp
+  | succ k ih =>
+    intro i buf hi hb
+    unfold packets.serialize_sids_from
+    have : i < Slice.len sids := by simp [Slice.len] at *; scalar_tac
+    simp only [this, ↓reduceIte]
+    have hlt : i.val < sids.val.length := by simp [Slice.length] at hi; omega
+    split
+    · rename_i htg
+      subst htg
+      step as ⟨x, hx⟩
+      have hd : sids.val.drop i.val = x :: sids.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt, hx]
+      rw [hd] at hb ⊢
+      simp only [List.map_cons, List.flatMap_cons, List.length_append, encOf, ↓reduceIte] at hb ⊢
+      step with packets.Sid.serialize_tagged_spec x buf (by omega) as ⟨b1, hb1⟩
+      step as ⟨i2, hi2⟩
+      apply WP.spec_mono (ih i2 b1 (by simp [Slice.length] at hi ⊢; omega)
+        (by simp only [alloc.vec.Vec.length, hb1, List.length_append, hi2, encOf, ↓reduceIte] at hb ⊢; omega))
+      intro r hr
+      rw [hr, hb1, hi2]; simp [encOf]
+    · rename_i htg
+      have htf : tagged = false := by simpa using htg
+      subst htf
+      step as ⟨x, hx⟩
+      have hd : sids.val.drop i.val = x :: sids.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt, hx]
+      rw [hd] at hb ⊢
+      simp only [List.map_cons, List.flatMap_cons, List.length_append, encOf, Bool.false_eq_true,
+        ↓reduceIte] at hb ⊢
+      step with packets.Sid.Insts.Mysql_commonProtoMySerialize.serialize_spec x buf (by omega) as ⟨b1, hb1⟩
+      step as ⟨i2, hi2⟩
+      apply WP.spec_mono (ih i2 b1 (by simp [Slice.length] at hi ⊢; omega)
+        (by simp only [alloc.vec.Vec.length, hb1, List.length_append, hi2, encOf, Bool.false_eq_true,
+          ↓reduceIte] at hb ⊢; omega))
+      intro r hr
+      rw [hr, hb1, hi2]; simp [encOf]
+
 end GtidUtil
 
 open GtidUtil
