@@ -11,12 +11,249 @@ open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.EvHdrUtil
 
 namespace mysql_common
 
+set_option linter.unusedSimpArgs false in
+set_option linter.unusedTactic false in
 /-- `get_value`: the value decoded per its key (`svValRead`); the raw value as the error if it is too short. (`Q_UPDATED_DB_NAMES` and `Q_MICROSECONDS`: see below.) -/
 theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key ≠ 12 ∧ statusVarKeyCode v.key ≠ 13) :
     binlog.events.query_event.StatusVar.get_value v ⦃ r => match r with
       | .Ok x => svValRead (statusVarKeyCode v.key) v.value.val = some (svValView x)
       | .Err e => svValRead (statusVarKeyCode v.key) v.value.val = none ∧ e = v.value ⦄ := by
-  sorry
+  obtain ⟨k, val⟩ := v
+  cases k
+  case Flags2 =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u32_le_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case SqlMode =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u64_le_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case Catalog =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    exact (WP.spec_ok _).mpr (by simp [svValRead, svValView, statusVarKeyCode])
+  case AutoIncrement =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    sorry
+  case Charset =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    sorry
+  case TimeZone =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    sorry
+  case CatalogNz =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    sorry
+  case LcTimeNames =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u16_le_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case CharsetDatabase =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u16_le_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case TableMapForUpdate =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u64_le_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case MasterDataWritten =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    sorry
+  case Invoker =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    sorry
+  case UpdatedDbNames =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    simp [statusVarKeyCode] at hk
+  case Microseconds =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    simp [statusVarKeyCode] at hk
+  case CommitTs =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    exact (WP.spec_ok _).mpr (by simp [svValRead, svValView, statusVarKeyCode])
+  case CommitTs2 =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    exact (WP.spec_ok _).mpr (by simp [svValRead, svValView, statusVarKeyCode])
+  case ExplicitDefaultsForTimestamp =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u8_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case DdlLoggedWithXid =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u64_le_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case DefaultCollationForUtf8mb4 =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u16_le_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case SqlRequirePrimaryKey =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u8_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
+  case DefaultTableEncryption =>
+    unfold binlog.events.query_event.StatusVar.get_value
+    simp only []
+    step with io.ParseBuf.checked_eat_u8_spec as ⟨o, rest, ho⟩
+    split_ifs at ho with hl
+    · obtain ⟨h1, -⟩ := ho
+      cases o with
+      | none => simp at h1
+      | some x =>
+        simp only [Option.map_some, Option.some.injEq] at h1
+        step*
+        simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+        simp only [Slice.length] at hl
+        subst_vars
+        simp [hl, h1]
+    · obtain ⟨rfl, -⟩ := ho
+      simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
+      simp only [Slice.length] at hl
+      simp [hl]
 
 /-- **Upstream bug:** `get_value` of `Q_UPDATED_DB_NAMES` gives `dbNamesCrate` (the first name, then empty names), not the names of the format (`dbNames`); the raw value as the error without a count or a terminated first name. -/
 theorem binlog.events.query_event.StatusVar.get_value_updated_db_names (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 12) :
