@@ -2,6 +2,7 @@ import Defs
 import Proofs.Util.BinlogEvHdr
 import Proofs.Util.PacketsOkErr
 import Proofs.Io.ParseBuf
+import Proofs.Util.RawBytesSeq
 
 /-! Statements for `struct StatusVar and its impls` (spec file: `Specs/Binlog/Events/QueryEvent.lean`). -/
 
@@ -506,6 +507,113 @@ theorem binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.qu
       simp only [statusVarKeyCode, svValRead, ↓reduceIte, svValView]
       simp only [Slice.length] at hl
       simp [hl]
+
+private theorem udn_loop_spec (read : Slice U8) :
+    binlog.events.query_event.updated_db_names_loop read 0#usize ⦃ r => r.val ≤ read.length ∧
+      (∀ b ∈ read.val.take r.val, b.val ≠ 0) ∧ (r.val < read.length → (read.val[r.val]!).val = 0) ⦄ := by
+  unfold binlog.events.query_event.updated_db_names_loop
+  apply loop.spec_decr_nat (fun i => read.length - i.val)
+    (fun i => i.val ≤ read.length ∧ ∀ b ∈ read.val.take i.val, b.val ≠ 0)
+  · rintro i ⟨hi, hall⟩
+    unfold binlog.events.query_event.updated_db_names_loop.body
+    step*
+    · have hlt : i.val < read.length := by scalar_tac
+      refine ⟨by omega, ?_, by omega⟩
+      rw [index1_post, List.take_add_one, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
+      intro b hb
+      simp only [List.mem_append, Option.toList_some, List.mem_singleton] at hb
+      rcases hb with hb | rfl
+      · exact hall b hb
+      · rw [← i1_post]; intro h0; apply (show ¬i1 = 0#u8 by simpa using ‹(i1 != 0#u8) = true›); simp [UScalar.eq_equiv, h0]
+    · have hlt : i.val < read.length := by scalar_tac
+      refine ⟨by omega, hall, fun _ => ?_⟩
+      rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
+      simp only [Option.getD_some, ← i1_post]
+      have h0 : i1 = 0#u8 := UScalar.eq_of_val_eq (by simpa using ‹¬(i1 != 0#u8) = true›)
+      rw [h0]; rfl
+  · simp
+
+private theorem hasNul_iff (l : List U8) : hasNul l = true ↔ ∃ b ∈ l, b.val = 0 := by
+  simp [hasNul]
+
+private theorem udn_spec : ∀ (n : Nat) (count : Usize) (read : Slice U8)
+    (names : alloc.vec.Vec (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit)),
+    count.val = n → names.length + n < Usize.max →
+    binlog.events.query_event.updated_db_names read count names ⦃ p =>
+      if n = 0 then p.1 = some () ∧ p.2 = names
+      else if hasNul read.val then p.1 = some () ∧ p.2.val.map (fun x => cowList x.1) =
+        names.val.map (fun x => cowList x.1) ++ (beforeZero read.val :: List.replicate (n - 1) [])
+      else p.1 = none ⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro count read names hc _
+    unfold binlog.events.query_event.updated_db_names
+    have : count = 0#usize := UScalar.eq_of_val_eq (by simpa using hc)
+    simp [this]
+  | succ n ih =>
+    intro count read names hc hb
+    unfold binlog.events.query_event.updated_db_names
+    have hne : count ≠ 0#usize := fun h => by subst h; simp at hc
+    simp only [hne, ite_false]
+    step with udn_loop_spec as ⟨idx, hidx1, hidx2, hidx3⟩
+    simp only [Nat.add_one_ne_zero, ite_false]
+    by_cases hz : idx.val = read.length
+    · have hidx : idx = Slice.len read := UScalar.eq_of_val_eq (by simp [hz])
+      simp only [hidx, ite_true]
+      have hnn : hasNul read.val = false := by
+        rw [Slice.length] at hz
+        rw [hz, List.take_length] at hidx2
+        cases hh : hasNul read.val
+        · rfl
+        · obtain ⟨b, hb, hb0⟩ := (hasNul_iff _).mp hh; exact absurd hb0 (hidx2 b hb)
+      simp [hnn]
+    · have hidx : idx ≠ Slice.len read := fun h => hz (by rw [h]; simp [Slice.length])
+      simp only [hidx, ite_false]
+      have hlt : idx.val < read.length := by omega
+      have h0 := hidx3 hlt
+      have hbz : beforeZero read.val = read.val.take idx.val :=
+        PBUtil.beforeZero_of_zero _ _ (by simpa [Slice.length] using hlt) hidx2 h0
+      have hnul : hasNul read.val = true := by
+        rw [hasNul_iff]
+        exact ⟨read.val[idx.val]!, by
+          rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
+          simp, h0⟩
+      simp only [core.slice.index.SliceIndexRangeToUsizeSlice.index]
+      have hs : idx.val ≤ read.length := hidx1
+      simp only [hs, ite_true, bind_ok, hnul]
+      step with rawbytes_new_borrowed as ⟨rb, hrb⟩
+      step with alloc.vec.Vec.push_spec as ⟨names1, hn1⟩
+      simp only [core.slice.index.SliceIndexRangeFromUsizeSlice.index, hs, ite_true, bind_ok]
+      step as ⟨c1, hc1⟩
+      have hd0 : (Slice.drop read idx).val = read.val.drop idx.val := by simp [Slice.drop]
+      have hhead : ∃ t, (Slice.drop read idx).val = read.val[idx.val]! :: t := by
+        rw [hd0, List.drop_eq_getElem_cons (by simpa [Slice.length] using hlt)]
+        refine ⟨read.val.drop (idx.val + 1), ?_⟩
+        rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa [Slice.length] using hlt)]
+        rfl
+      obtain ⟨t, ht⟩ := hhead
+      have hnul' : hasNul (Slice.drop read idx).val = true := by
+        rw [ht, hasNul_iff]; exact ⟨_, List.mem_cons_self, h0⟩
+      have hbz' : beforeZero (Slice.drop read idx).val = [] := by
+        have h0' : (read.val[idx.val]?.getD default).val = 0 := by rw [← List.getElem!_eq_getElem?_getD]; exact h0
+        rw [ht, mysql_common.beforeZero_cons]; simp [h0']
+      apply WP.spec_mono (ih c1 (Slice.drop read idx) names1 (by omega)
+        (by simp [alloc.vec.Vec.length, hn1] at hb ⊢; omega))
+      rintro ⟨o, ns⟩ hp
+      simp only [hnul', ite_true, hbz'] at hp
+      split_ifs at hp with hn0
+      · obtain ⟨h1, h2⟩ := hp
+        subst h2
+        refine ⟨h1, ?_⟩
+        simp [hn1, hrb, hbz, hn0]
+      · obtain ⟨h1, h2⟩ := hp
+        refine ⟨h1, ?_⟩
+        rw [h2, hn1]
+        simp [hrb, hbz]
+        cases n with
+        | zero => simp at hn0
+        | succ m => simp [List.replicate_succ]
 
 /-- **Upstream bug:** `get_value` of `Q_UPDATED_DB_NAMES` gives `dbNamesCrate` (the first name, then empty names), not the names of the format (`dbNames`); the raw value as the error without a count or a terminated first name. -/
 theorem binlog.events.query_event.StatusVar.get_value_updated_db_names (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 12) :
