@@ -128,5 +128,13 @@ import Proofs.Proto.Codec.ChunkDecoder
 import Proofs.Proto.Codec.PlainPacketCodec
 import Proofs.Defs.LemmasCF
 import Proofs.Defs.LemmasG
+import Proofs.Defs.LemmasSqlText
+import Proofs.NamedParams.ParsedNamedParams
+import Proofs.Params.ParamsError
+import Proofs.Params.Params
+import Proofs.Params.FromImpls
+import Proofs.Params.FromTuples
+import Proofs.Value.Escaped
+import Proofs.Value.AsSql
 
 /-! The proofs of the spec statements, one file per Rust item (see `VERIFICATION.md` §8). -/

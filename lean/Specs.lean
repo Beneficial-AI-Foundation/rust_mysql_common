@@ -22,5 +22,9 @@ import Specs.Constants
 import Specs.Row
 import Specs.Packets
 import Specs.Proto.Codec
+import Specs.NamedParams
+import Specs.Params
+import Specs.Value.AsSql
+import Specs.DefsSqlText
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/
