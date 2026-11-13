@@ -66,7 +66,7 @@ theorem binlog.events.table_map_event.TableMapEvent.get_raw_column_type_spec (e 
 /-- `get_column_metadata(i)`: the metadata of column `i` (`tmMetaAt`). -/
 theorem binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
     binlog.events.table_map_event.TableMapEvent.get_column_metadata e i ⦃ o => o.map (·.val) = tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val ⦄ := by
-  sorry
+  exact BERUtil.col_meta_spec e i
 
 /-- `get_column_type(i)`: as `get_raw_column_type`, but `DATE` is `NEWDATE`, and a `STRING` column with metadata has the real type of its first metadata byte (`tmStringRealType`; another value `x` is `BadColumnType::Unexpected(x | 0x30)`). -/
 theorem binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
@@ -83,7 +83,27 @@ theorem binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : bi
               | some t' => r = .Ok (some t')
               | none => r = .Err (.Unexpected (byte ((m.headD (byte 0)).val ||| 0x30)))
           else r = .Ok (some t) ⦄ := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.get_column_type
+  step with misc.raw.seq.RawSeq.get_spec as ⟨ o, ho ⟩
+  cases o with
+  | none => simp at ho; simp [List.getElem?_eq_none ho]
+  | some x =>
+    simp at ho
+    rw [← ho]
+    simp only [misc.raw._const.RawConst.get_eq, constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, bind_ok]
+    rcases hc : columnTypeOfCode x.1.val with _ | t
+    · simp [binlog.events.table_map_event.BadColumnType.Insts.CoreConvertFromUnknownColumnType.from]
+    · have hcode : columnTypeCode t = x.1.val := by
+        have := List.find?_some hc; simpa using this
+      have hS : columnTypeCode t = 254 → ∀ m, tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val = some m → m ≠ [] := by
+        intro h254 m hm hnil
+        have := BERUtil.tmMetaAt_string _ _ _ _ x.1 hm ho.symm (by rw [← hcode, h254])
+        simp [hnil] at this
+      apply WP.spec_bind (BERUtil.real_type_spec e i t hS)
+      intro r hr
+      rw [hcode] at hr
+      simp only
+      sorry
 
 /-- `into_owned`: the same fields (now owned). -/
 theorem binlog.events.table_map_event.TableMapEvent.into_owned_spec (e : binlog.events.table_map_event.TableMapEvent) :

@@ -24,6 +24,7 @@ import Proofs.Misc.LenencStrLen
 import Proofs.Constants.ColumnType
 import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
 import Proofs.Defs.LemmasBinlogEvents
+import Proofs.Defs.LemmasCF
 
 /-! Helper lemmas for the table-map and rows events (`Proofs/Binlog/Events/{TableMapEvent,RowsEvent,*RowsEvent*}`). -/
 
@@ -370,5 +371,230 @@ theorem json_loop (s : Slice U8) (count i : Usize) (hi : i.val ≤ s.length) (hc
       rw [List.drop_eq_nil_of_le hj] at h3
       simp at h3; omega
   · exact ⟨hi, hc, rfl⟩
+
+theorem patA (ptr : Slice U8) (k : Usize) (m : Nat) (hk : k.val = m) :
+    (do
+      let o ← core.slice.Slice.get (core.slice.index.SliceIndexRangeToUsizeSlice U8) ptr { «end» := k }
+      match o with
+      | none => ok none
+      | some x => ok (some (x, k))) ⦃ o =>
+      o.map (fun p => (p.1.val, p.2.val)) = (takeExact m ptr.val).map (fun p => (p.1, m)) ∧
+      ∀ p ∈ o, p.2.val ≤ ptr.length ⦄ := by
+  simp only [core.slice.Slice.get, 
+    core.slice.index.SliceIndexRangeToUsizeSlice.get]
+  subst hk
+  by_cases h : k ≤ ptr.length
+  · have h' : k.val ≤ ptr.val.length := h
+    simp [h, takeExact, List.slice, Slice.length]
+  · have h' : ¬ k.val ≤ ptr.val.length := h
+    simp [h, takeExact]
+
+theorem patB (ptr : Slice U8) :
+    (do
+      let s ← lift (Array.to_slice (Std.Array.empty U8))
+      ok (some (s, 0#usize))) ⦃ o =>
+      o.map (fun p => (p.1.val, p.2.val)) = (takeExact 0 ptr.val).map (fun p => (p.1, 0)) ∧
+      ∀ p ∈ o, p.2.val ≤ ptr.length ⦄ := by
+  simp [lift, takeExact, Array.to_slice, Std.Array.empty]
+
+theorem get_metadata_spec : ∀ (n : Nat) (t : constants.ColumnType) (ptr : Slice U8) (isArr : Bool), ptr.length = n →
+    binlog.ColumnType.get_metadata t ptr isArr ⦃ o =>
+      o.map (fun p => (p.1.val, p.2.val)) = tmColumnMeta isArr (columnTypeCode t) ptr.val ∧
+      ∀ p ∈ o, p.2.val ≤ ptr.length ⦄ := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro t ptr isArr hn
+  have key := tmColumnMeta.eq_def isArr (columnTypeCode t) ptr.val
+  rw [(columnTypeOfCode_columnTypeCode t).2] at key
+  simp only [key]
+  rw [binlog.ColumnType.get_metadata.eq_def]
+  cases t <;> simp only [columnTypeCode, getMetadataLen, Nat.reduceEqDiff, ↓reduceIte]
+  case MYSQL_TYPE_DECIMAL | MYSQL_TYPE_TINY | MYSQL_TYPE_SHORT | MYSQL_TYPE_LONG | MYSQL_TYPE_NULL | MYSQL_TYPE_TIMESTAMP | MYSQL_TYPE_LONGLONG | MYSQL_TYPE_INT24 | MYSQL_TYPE_DATE | MYSQL_TYPE_TIME | MYSQL_TYPE_DATETIME | MYSQL_TYPE_YEAR | MYSQL_TYPE_NEWDATE | MYSQL_TYPE_UNKNOWN | MYSQL_TYPE_VAR_STRING => exact patB ptr
+  case MYSQL_TYPE_FLOAT | MYSQL_TYPE_DOUBLE | MYSQL_TYPE_TIMESTAMP2 | MYSQL_TYPE_DATETIME2 | MYSQL_TYPE_TIME2 | MYSQL_TYPE_VECTOR | MYSQL_TYPE_JSON | MYSQL_TYPE_TINY_BLOB | MYSQL_TYPE_MEDIUM_BLOB | MYSQL_TYPE_LONG_BLOB | MYSQL_TYPE_BLOB | MYSQL_TYPE_GEOMETRY => exact patA ptr _ _ rfl
+  case MYSQL_TYPE_BIT | MYSQL_TYPE_NEWDECIMAL | MYSQL_TYPE_ENUM | MYSQL_TYPE_SET | MYSQL_TYPE_STRING => exact patA ptr _ _ rfl
+  case MYSQL_TYPE_VARCHAR => cases isArr <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> exact patA ptr _ _ rfl
+  case MYSQL_TYPE_TYPED_ARRAY =>
+    simp only [core.slice.Slice.first, bind_ok]
+    rcases hp : ptr.val with _ | ⟨e, rest⟩
+    · simp
+    · simp only [List.head?_cons, constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, bind_ok]
+      have hk := tmColumnMeta.eq_def true e.val rest
+      rcases hc : columnTypeOfCode e.val with _ | ty
+      · simp only [hc] at hk; simp [hk]
+      · have hcode : columnTypeCode ty = e.val := by
+          have := List.find?_some hc; simpa using this
+        have hl1 : (1#usize).val ≤ ptr.length := by simp [Slice.length, hp]
+        simp only [core.slice.Slice.get,
+          core.slice.index.SliceIndexRangeFromUsizeSlice.get, hl1, ↓reduceIte, bind_ok]
+        have hd : (ptr.drop 1#usize).val = rest := by simp [Slice.drop, hp]
+        have hdl : (ptr.drop 1#usize).length < n := by simp [Slice.length, hd] at hn ⊢; simp [hp] at hn; omega
+        apply WP.spec_bind (ih _ hdl ty (ptr.drop 1#usize) true rfl)
+        rintro o2 ⟨h1, h2⟩
+        rw [hcode, hd] at h1
+        cases o2 with
+        | none => simp at h1; simp [← h1]
+        | some p =>
+          obtain ⟨x, k⟩ := p
+          simp at h1 h2
+          step*
+          have hpl : ptr.length = (ptr.val).length := rfl
+          rw [← h1]; simp [i_post]; omega
+
+theorem cmf_spec : ∀ (k : Nat) (cs : misc.raw.seq.RawSeq U8 constants.ColumnType U8) (md : Slice U8) (i off col : Usize),
+    col.val - i.val = k → i.val ≤ col.val → off.val ≤ md.length →
+    binlog.events.table_map_event.column_metadata_from cs md i off col ⦃ o =>
+      o.map (·.val) = tmMetaAt ((cowList cs.1).drop i.val) (md.val.drop off.val) (col.val - i.val) ⦄ := by
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+  intro cs md i off col hk hic hoff
+  rw [binlog.events.table_map_event.column_metadata_from.eq_def]
+  step with misc.raw.seq.RawSeq.get_spec as ⟨ o, ho ⟩
+  cases o with
+  | none =>
+    simp at ho
+    simp [List.drop_eq_nil_of_le ho, tmMetaAt]
+  | some x =>
+    simp at ho
+    have hlt : i.val < (cowList cs.1).length := by
+      by_contra hh; rw [List.getElem?_eq_none (by omega)] at ho; simp at ho
+    have hdrop : (cowList cs.1).drop i.val = x.1 :: (cowList cs.1).drop (i.val + 1) := by
+      rw [List.drop_eq_getElem_cons hlt]; congr; rw [List.getElem?_eq_getElem hlt] at ho; simp at ho; exact ho.symm
+    rw [hdrop]
+    simp only [misc.raw._const.RawConst.get_eq, constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, bind_ok]
+    have hk2 := tmColumnMeta.eq_def false x.1.val (md.val.drop off.val)
+    rcases hc : columnTypeOfCode x.1.val with _ | ty
+    · simp only [hc] at hk2; simp [tmMetaAt, hk2]
+    · have hcode : columnTypeCode ty = x.1.val := by
+        have := List.find?_some hc; simpa using this
+      have hoff' : off ≤ md.length := hoff
+      simp only [core.slice.Slice.get, core.slice.index.SliceIndexRangeFromUsizeSlice.get, hoff', ↓reduceIte, bind_ok]
+      apply WP.spec_bind (get_metadata_spec _ ty (md.drop off) false rfl)
+      rintro o2 ⟨h1, h2⟩
+      have hdv : (md.drop off).val = md.val.drop off.val := by simp [Slice.drop]
+      rw [hcode, hdv] at h1
+      cases o2 with
+      | none => simp at h1; simp [tmMetaAt, ← h1]
+      | some p =>
+        obtain ⟨mt, len⟩ := p
+        simp at h1 h2
+        simp only [tmMetaAt, ← h1]
+        split
+        · rename_i heq
+          have : col.val - i.val = 0 := by rw [heq]; simp
+          simp [this]
+        · rename_i hne
+          have hne' : i.val ≠ col.val := fun h => hne (UScalar.eq_of_val_eq h)
+          have h0 : col.val - i.val ≠ 0 := by omega
+          simp only [h0, ↓reduceIte]
+          have hml : md.length = md.val.length := rfl
+          have hmx := md.property
+          step as ⟨ i1, i1_post ⟩
+          step as ⟨ i2, i2_post ⟩
+          have hrec := ih (col.val - i1.val) (by omega) cs md i1 i2 col rfl (by omega) (by omega)
+          apply WP.spec_mono hrec
+          intro r hr
+          rw [hr, i1_post, i2_post]
+          simp [List.drop_drop]
+          congr 1
+
+theorem col_meta_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
+    binlog.events.table_map_event.TableMapEvent.get_column_metadata e i ⦃ o =>
+      o.map (·.val) = tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val ⦄ := by
+  unfold binlog.events.table_map_event.TableMapEvent.get_column_metadata
+  step with PKUtil.lenenc_as_bytes_spec as ⟨ s, hs ⟩
+  apply WP.spec_mono (cmf_spec _ e.columns_type s 0#usize 0#usize i rfl (by simp) (by simp))
+  intro o ho
+  simpa [hs] using ho
+
+theorem tmMetaAt_string : ∀ (tys md : List U8) (i : Nat) (m : List U8) (b : U8),
+    tmMetaAt tys md i = some m → tys[i]? = some b → b.val = 254 → m.length = 2 := by
+  intro tys
+  induction tys with
+  | nil => intro md i m b h; simp [tmMetaAt] at h
+  | cons ty tys ih =>
+    intro md i m b h hb h254
+    simp only [tmMetaAt] at h
+    rcases hm : tmColumnMeta false ty.val md with _ | ⟨m', k⟩
+    · simp [hm] at h
+    · simp only [hm] at h
+      cases i with
+      | zero =>
+        simp at h hb
+        subst hb h
+        have := tmColumnMeta.eq_def false ty.val md
+        rw [hm, h254] at this
+        simp [columnTypeOfCode, allColumnTypes, columnTypeCode, getMetadataLen, takeExact] at this
+        obtain ⟨⟨x, hx⟩, _⟩ := this
+        by_cases hl : 2 ≤ md.length
+        · simp only [hl, ↓reduceIte, Option.some.injEq, Prod.mk.injEq] at hx; rw [← hx.1]; simp; omega
+        · simp [hl] at hx
+      | succ i =>
+        simp at h hb
+        exact ih _ _ _ _ h hb h254
+
+theorem real_string_spec (rt f1 : U8) (hrt : rt.val = 254) :
+    binlog.events.table_map_event.real_string_type rt f1 ⦃ r =>
+      match tmStringRealType f1.val with
+      | some t => r = .Ok t
+      | none => r = .Err (.Unexpected (byte (f1.val ||| 0x30))) ⦄ := by
+  unfold binlog.events.table_map_event.real_string_type
+  have hrt' : rt = 254#u8 := UScalar.eq_of_val_eq (by simp [hrt])
+  subst hrt'
+  by_cases h0 : f1 = 0#u8
+  · subst h0; simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
+    exact (WP.spec_ok _).mpr rfl
+  · have h0' : f1.val ≠ 0 := fun h => h0 (UScalar.eq_of_val_eq (by simp [h]))
+    simp only [bne_iff_ne, ne_eq, h0, not_false_eq_true, ↓reduceIte, bind_ok, tmStringRealType, h0']
+    generalize hv : f1 ||| 48#u8 = v
+    have hvv : v.val = f1.val ||| 0x30 := by rw [← hv]; simp
+    split
+    · have : f1.val ||| 48 = 247 := by rw [← hvv]; rfl
+      simp [this]
+    · have : f1.val ||| 48 = 248 := by rw [← hvv]; rfl
+      simp [this]
+    · have : f1.val ||| 48 = 254 := by rw [← hvv]; rfl
+      simp [this]
+    · rename_i n1 n2 n3
+      have a1 : v.val ≠ 247 := fun h => n1 (UScalar.eq_of_val_eq (by rw [h]; rfl))
+      have a2 : v.val ≠ 248 := fun h => n2 (UScalar.eq_of_val_eq (by rw [h]; rfl))
+      have a3 : v.val ≠ 254 := fun h => n3 (UScalar.eq_of_val_eq (by rw [h]; rfl))
+      rw [← hvv]
+      simp [a1, a2, a3, PCSUtil.byte_eq_self]
+
+theorem real_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) (t : constants.ColumnType)
+    (hS : columnTypeCode t = 254 → ∀ m, tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val = some m → m ≠ []) :
+    binlog.events.table_map_event.TableMapEvent.get_real_type e i t ⦃ r =>
+      if columnTypeCode t = 10 then r = .Ok .MYSQL_TYPE_NEWDATE
+      else if columnTypeCode t = 254 then
+        match tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val with
+        | none => r = .Ok t
+        | some m => match tmStringRealType (m.headD (byte 0)).val with
+          | some t' => r = .Ok t'
+          | none => r = .Err (.Unexpected (byte ((m.headD (byte 0)).val ||| 0x30)))
+      else r = .Ok t ⦄ := by
+  cases t
+  case MYSQL_TYPE_STRING =>
+    simp only [columnTypeCode] at hS ⊢
+    simp only [binlog.events.table_map_event.TableMapEvent.get_real_type, Nat.reduceEqDiff, ↓reduceIte]
+    step*
+    step with col_meta_spec as ⟨ o, ho ⟩
+    cases o with
+    | none => simp at ho; simp [← ho]
+    | some mb =>
+      simp at ho
+      have hne := hS trivial _ ho.symm
+      have h0 : 0 < mb.length := by
+        simp [Slice.length]; exact List.length_pos_iff.mpr hne
+      step*
+      rw [← ho]
+      have hrt : real_type.val = 254 := by rw [real_type_post]; rfl
+      apply WP.spec_mono (real_string_spec real_type i hrt)
+      intro r hr
+      rcases hm : mb.val with _ | ⟨a, l⟩
+      · exact absurd hm hne
+      · simp only [hm] at i_post ⊢; simp at i_post; subst i_post; simpa using hr
+  all_goals simp [binlog.events.table_map_event.TableMapEvent.get_real_type, columnTypeCode]
 
 end mysql_common.BERUtil
