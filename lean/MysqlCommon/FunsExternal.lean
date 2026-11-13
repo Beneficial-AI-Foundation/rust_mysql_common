@@ -1159,6 +1159,15 @@ function Aeneas does not model, and the module is `opaque` in Cargo.toml. Each f
   the `HashMap` of connect attributes (`std::collections::HashMap`, an opaque type in
   TypesExternal.lean) and its operations.
 
+**Caveat (connect attributes):** no property of the `connectAttrs*` axioms is stated. Any Lean
+model of them makes a map's iteration order (`connectAttrsEntries`) a deterministic function of
+the operations that built it, while Rust seeds every `HashMap` randomly (std `hash/random.rs`):
+serializing the same attributes twice can give different bytes. Specs must not relate the
+order, the serialized bytes or the Lean equality of separately built maps, or of the same
+construction in separate calls. If property axioms are ever added (e.g. that a new map has no
+entries), every insert-style law needs a length `< Usize.max` guard, and a model of them belongs
+in `lean/Proofs/Consistency/` (as for `ParamsMap`).
+
 Every helper is assumed not to panic (it returns `ok`). -/
 
 namespace Trusted

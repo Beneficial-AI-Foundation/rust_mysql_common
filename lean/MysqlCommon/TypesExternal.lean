@@ -37,9 +37,10 @@ axiom core.io.error.Error : Type
 /-! ## Models of external types -/
 
 /-- [alloc::sync::Arc]: an `Arc<T>` is modelled by the value it points to. The translated code
-    only creates (`Arc::new`), clones and dereferences `Arc`s (no `get_mut`, `make_mut`,
-    `ptr_eq` or reference counts), and through these operations an `Arc<T>` is
-    indistinguishable from an immutable `T`.
+    only creates (`Arc::new`), clones and dereferences `Arc`s, and calls `Arc::make_mut` (only
+    in `Column::with_*`; no `get_mut`, `ptr_eq` or reference counts). Through these operations
+    an `Arc<T>` is indistinguishable from a `T`: `make_mut` clones a shared value before
+    mutating it, so no other `Arc` observes the change, which is exactly the value semantics.
     Source: '/rustc/library/alloc/src/sync.rs', lines 274:0-277:1 -/
 @[rust_type "alloc::sync::Arc"]
 abbrev alloc.sync.Arc.{u} (T : Type u) : Type u := T
