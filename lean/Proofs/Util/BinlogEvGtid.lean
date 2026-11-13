@@ -476,4 +476,21 @@ theorem constu8_default {T : Type} (N : U8) (d : core.default.Default T) :
     misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default N d ⦃ _ => True ⦄ := by
   simp [misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default, core.marker.PhantomData.Insts.CoreDefaultDefault.default]
 
+/-! ## Length-encoded integers -/
+
+theorem cast_u8_u64 (x : U8) : (UScalar.cast .U64 x).val = x.val :=
+  UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by simp [UScalarTy.numBits])
+
+theorem lenencInt_length_le (n : Nat) : (lenencInt n).length ≤ 9 := by
+  unfold lenencInt; split_ifs <;> simp [PBUtil.length_leBytes]
+
+theorem lenencInt_length_pos (n : Nat) : 1 ≤ (lenencInt n).length := by
+  unfold lenencInt; split_ifs <;> simp [PBUtil.length_leBytes]
+
+theorem lenencInt_small_length (n : Nat) (h : n < 251) : (lenencInt n).length = 1 := by
+  simp [lenencInt, h]
+
+theorem lenencInt_lenlen_length (n : Nat) : (lenencInt (lenencInt n).length).length = 1 :=
+  lenencInt_small_length _ (by have := lenencInt_length_le n; omega)
+
 end mysql_common.BinlogEvGtid
