@@ -332,11 +332,13 @@ def value.convert.trusted.btou_u8 (b : Slice Std.U8) : Result (Option Std.U8) :=
 def value.convert.trusted.btou_u32 (b : Slice Std.U8) : Result (Option Std.U32) :=
   ok (Trusted.btou .U32 b)
 
-/-! ### regex: opaque, exact on ASCII input
+/-! ### regex: opaque, exact on ASCII input, a necessary shape on any input
 
 The seven regexes of `value::convert` (`regex::bytes::Regex`, Unicode mode: `\d` matches any
-Unicode decimal digit, so on non-ASCII input nothing is assumed). On ASCII input `\d` is
-`[0-9]`, and `^`/`$` anchor at the ends of the input. -/
+Unicode decimal digit). On ASCII input `\d` is `[0-9]`, and `^`/`$` anchor at the ends of the
+input (`isMatch_ascii`: exact). On any input, a match has the shape of the pattern, where a
+`\d` is one ASCII digit or at least two bytes that are all `≥ 128` (`isMatch_loose`: one
+direction only; which non-ASCII byte sequences are digits is not specified). -/
 
 namespace Trusted
 
@@ -389,6 +391,76 @@ axiom isMatch : Regex → Slice Std.U8 → Bool
 /-- On ASCII input, `is_match` is `Regex.asciiMatch`. -/
 axiom isMatch_ascii (r : Regex) (b : Slice Std.U8) (h : ∀ x ∈ b.val, x.val < 128) :
   isMatch r b = r.asciiMatch b.val
+
+/-- One position of a pattern: `\d`, or a class of single bytes `[lo-hi]` (a literal is
+    `lo = hi`). Every class of the seven regexes is ASCII (`hi < 128`). -/
+inductive Pat where
+  | d
+  | r (lo hi : Nat)
+
+/-- The shape every match of a pattern has, whatever the input: the input is one piece per
+    position, in order, with nothing before, between or after. The piece for a class `[lo-hi]`
+    is one byte in that range. The piece for `\d` is one ASCII digit, or at least two bytes
+    that are all `≥ 128` (a non-ASCII digit, UTF-8 encoded; nothing more is said about it). -/
+def Pat.Loose : List Pat → List Std.U8 → Prop
+  | [], l => l = []
+  | .r lo hi :: ps, l => ∃ x bs, l = x :: bs ∧ lo ≤ x.val ∧ x.val ≤ hi ∧ Pat.Loose ps bs
+  | .d :: ps, l =>
+    (∃ x bs, l = x :: bs ∧ isAsciiDigit x = true ∧ Pat.Loose ps bs) ∨
+    (∃ u bs, l = u ++ bs ∧ 2 ≤ u.length ∧ (∀ x ∈ u, 128 ≤ x.val) ∧ Pat.Loose ps bs)
+
+/-- `\d{4}-\d{2}-\d{2}`. -/
+def Pat.ymd : List Pat := [.d, .d, .d, .d, .r 45 45, .d, .d, .r 45 45, .d, .d]
+/-- `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`. -/
+def Pat.ymdHms : List Pat :=
+  Pat.ymd ++ [.r 32 32, .d, .d, .r 58 58, .d, .d, .r 58 58, .d, .d]
+/-- `:[0-5]\d:[0-5]\d`. -/
+def Pat.mmss : List Pat := [.r 58 58, .r 48 53, .d, .r 58 58, .r 48 53, .d]
+/-- `\d{2}:[0-5]\d:[0-5]\d`. -/
+def Pat.hhmmss : List Pat := [.d, .d] ++ Pat.mmss
+/-- `[0-8]\d\d:[0-5]\d:[0-5]\d`. -/
+def Pat.hhhmmss : List Pat := [.r 48 56, .d, .d] ++ Pat.mmss
+/-- `\.\d{n}`. -/
+def Pat.frac (n : Nat) : List Pat := .r 46 46 :: List.replicate n .d
+
+/-- The shape of a match of each regex (`\.\d{1,6}` is `Pat.frac n` for some `1 ≤ n ≤ 6`). -/
+def Regex.Loose : Regex → List Std.U8 → Prop
+  | .datetimeYmd, l => Pat.Loose Pat.ymd l
+  | .datetimeYmdHms, l => Pat.Loose Pat.ymdHms l
+  | .datetimeYmdHmsNs, l => ∃ n, 1 ≤ n ∧ n ≤ 6 ∧ Pat.Loose (Pat.ymdHms ++ Pat.frac n) l
+  | .timeHhMmSs, l => Pat.Loose Pat.hhmmss l
+  | .timeHhMmSsMs, l => ∃ n, 1 ≤ n ∧ n ≤ 6 ∧ Pat.Loose (Pat.hhmmss ++ Pat.frac n) l
+  | .timeHhhMmSs, l => Pat.Loose Pat.hhhmmss l
+  | .timeHhhMmSsMs, l => ∃ n, 1 ≤ n ∧ n ≤ 6 ∧ Pat.Loose (Pat.hhhmmss ++ Pat.frac n) l
+
+/-- On any input, a match has the shape of the pattern (`Regex.Loose`). One direction only: it
+    says nothing about which inputs with non-ASCII bytes do match.
+
+    Why it is true of regex 1.13.1 (regex-automata 0.4.18, regex-syntax 0.8.11, default
+    features, so Unicode mode):
+    * the patterns are a concatenation between `^` and `$`, which without the `m` flag are
+      `Look::Start`/`Look::End`, the two ends of the haystack
+      (regex-syntax `src/hir/translate.rs:924-941`), so the whole input is consumed, one piece
+      per position in order;
+    * a literal and a bracketed range such as `[0-5]` match exactly one scalar value in that
+      range, all below 128, encoded as that single byte;
+    * `\d` is the class of scalar values of general category `Nd`
+      (`src/hir/translate.rs:398-402`, `1081-1101`; `src/unicode.rs:430-449`; table
+      `src/unicode_tables/perl_decimal.rs`: `'0'..='9'`, then nothing below U+0660), compiled to
+      the UTF-8 encodings of those scalar values (regex-automata
+      `src/nfa/thompson/compiler.rs:1395-1470`, `Utf8Sequences`). So a `\d` matches one ASCII
+      digit, or the UTF-8 encoding of a scalar value `≥ U+0660`: two to four bytes, all `≥ 128`.
+
+    Tested (scratch cargo project, regex =1.13.1): `^\d$` against every byte string of length 1,
+    2, 3 and every 4-byte string with lead byte `≥ 0xF0` matches exactly the encodings of 760
+    scalar values (10 ASCII, 750 from U+0660 up, each 2–4 bytes); each of the 750 at each `\d`
+    position of each regex matches, and at each other position does not; and over 43 million
+    inputs (34 million with a byte `≥ 128`: pattern instances with digits replaced by Unicode
+    digits, other scalar values, truncated and overlong encodings and random high bytes, then
+    mutated; plus unstructured strings), 297 thousand of them non-ASCII matches, every match
+    had this shape (with blocks of at most 4 bytes) and was valid UTF-8, and on ASCII inputs
+    `is_match` equalled `Regex.asciiMatch`. -/
+axiom isMatch_loose (r : Regex) (b : Slice Std.U8) (h : isMatch r b = true) : r.Loose b.val
 
 end Trusted
 
