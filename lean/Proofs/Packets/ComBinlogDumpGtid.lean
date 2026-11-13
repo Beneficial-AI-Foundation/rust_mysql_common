@@ -508,7 +508,16 @@ theorem sidTaggedRead_some_len {bs : List U8} {sv : SidV} {r : List U8}
         · simp at h
         · split at h
           · simp at h
-          · split at h <;> simp at h
+          · split at h
+            · split at h
+              · rename_i is rest hi
+                simp only [ReadOut.done.injEq] at h
+                rw [← h.2]
+                have := (Replication.intervalsRead_suffix hi).length_le
+                simp only [List.length_drop] at this
+                omega
+              all_goals simp at h
+            · simp at h
 
 theorem untagged_loop (h64 : Target64) (n : Nat) : ∀ (buf : io.ParseBuf) (nn : U64)
     (acc : alloc.vec.Vec packets.Sid), nn.val = n → 16 * acc.val.length + buf.length ≤ Usize.max →

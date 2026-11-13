@@ -62,7 +62,7 @@ import Proofs.Packets.SemiSyncAckPacket
     `ssInfoRead`, `ssInfos`, `SsChange`, `ssChangeRead`), `Defs/BinlogCmd.lean` (`RegSlave`,
     `regSlaveEnc`, `regSlaveRead`, `tableDumpEnc`, `tableDumpRead`, `BinlogDump`,
     `binlogDumpEnc`, `binlogDumpRead`, `binlogDumpFlagsAll`, `BINLOG_THROUGH_GTID`, `gnoEnc`,
-    `SidV`, `sidEnc`, `sidTaggedEnc`, `gtidTagged`, `nSidsHeader`, `sidBlock`, `GtidDump`,
+    `SidV`, `sidEnc`, `sidTaggedEnc`, `tagFirstByte`, `tagRestByte`, `tagBytesValid`, `gtidTagged`, `nSidsHeader`, `sidBlock`, `GtidDump`,
     `gtidDumpEnc`, `intervalsRead`, `sidRead`, `sidTaggedRead`, `sidsRead`, `gtidDumpRead`,
     `semiSyncAckEnc`, `semiSyncAckRead`), `Defs/Packets.lean` (`ColDef`), `Defs/Value.lean`
     (`Val`, `binEnc`, `binRead`, `binSupported`, `isUnsigned`), `Defs/Convert.lean` (`IsUtf8`,
@@ -71,11 +71,15 @@ import Proofs.Packets.SemiSyncAckPacket
     **Trusted axioms.** Beyond the opaque `io::Error` constructors and the opaque `Display` impls
     of the error types (which assert nothing): `Trusted.utf8LossyOwned` (the lossy accessors:
     their statements are exact only on valid UTF-8, the replaced string is opaque);
-    `Trusted.gnoIntervalOrderError` (`GnoInterval::check_and_new`); `Trusted.sidTagUtf8Error`
-    (the tagged `ComBinlogDumpGtid` reader). No `HashMap` axiom is used. No statement rests on
-    the behaviour of `core.str.iter.IteratorChars.next` (an `opaque` of the Aeneas library
-    without a model, reached by `Tag::new`): the `Tag` statements are partial and the GTID reader
-    reports `unknown` where it would be needed.
+    `Trusted.gnoIntervalOrderError` (`GnoInterval::check_and_new`); `Trusted.sidTagUtf8Error` and
+    `Trusted.sidTagInvalidError` (the tagged `ComBinlogDumpGtid` reader: the errors for a tag that
+    is not valid UTF-8, and for one that is but is not a valid tag; the second is the opaque
+    `misc::trusted::sid_tag_invalid_error` of translation-patches/156, modelled as returning, which
+    is sound at its single call site). No `HashMap` axiom is used. No statement rests on the
+    behaviour of `core.str.iter.IteratorChars.next` (an `opaque` of the Aeneas library without a
+    model, reached by `Tag::new`): the `Tag` statements are partial, and the GTID reader does not
+    reach it, since translation-patches/156 makes `Sid::deserialize_tag` check a tag read from the
+    wire bytewise (`Defs.tagBytesValid`).
 
     **Not covered.** `ColumnMeta::*_str` and `Column::*_str` (not in the translation's
     `start_from`); `ComStmtBulkExecuteRequestBuilder::add_params`, `_add_params`,
@@ -87,11 +91,10 @@ import Proofs.Packets.SemiSyncAckPacket
     `tag_str`/`tagged_len`/`serialize_tagged`/`deserialize_tagged`/`deserialize_tag`,
     `any_sid_tagged`, `sid_block_len_from`, `n_sids_header`, `serialize_sids_from`,
     `deserialize_tagged_sids`/`deserialize_untagged_sids`, `ComBinlogDumpGtid::is_tagged_format`/
-    `sid_block_len`) are covered through their callers. Which 1–32-byte tags `Tag::new` accepts
-    (see above), and hence the tagged `ComBinlogDumpGtid` reading of a SID whose tag has 1–32
-    valid UTF-8 bytes (`unknown` in `gtidDumpRead`; it needs a model of `Chars::next`, or a
-    translation patch checking the tag bytewise). Every other input of the readers is covered:
-    `Defs.bulkReqRead_ne_unknown`, `Defs.sidRead_ne_unknown`, `Defs.gtidDumpRead_unknown`. The connection-phase packets of this file (handshake, auth, change user,
+    `sid_block_len`, `tag_bytes_valid`/`tag_bytes_valid_from`) are covered through their callers.
+    Which 1–32-byte tags `Tag::new` accepts (see above). Every input of the readers is covered
+    (none gives `unknown`): `Defs.bulkReqRead_ne_unknown`, `Defs.sidRead_ne_unknown`,
+    `Defs.sidTaggedRead_ne_unknown`, `Defs.gtidDumpRead_ne_unknown`. The connection-phase packets of this file (handshake, auth, change user,
     SSL request, local infile) are in their own spec file.
 
     **Behaviour to note (bugs first).**
@@ -1429,12 +1432,9 @@ recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZ
 
 /-- [propext] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq
-/-- `MyDeserialize for ComBinlogDumpGtid`: exactly `gtidDumpRead` whenever that reader returns.
-    It does in the untagged format, and in the tagged format until it meets a non-empty tag
-    (`unknown`: the tag's character check is not modelled, see `sidTaggedRead`).
-    It is never `unknown` in the untagged format (`Defs.sidsRead_untagged_ne_unknown`), and in
-    the tagged format only through a tag of 1–32 valid UTF-8 bytes
-    (`Defs.gtidDumpRead_unknown`, `Defs.sidTaggedRead_unknown_iff`).
+/-- `MyDeserialize for ComBinlogDumpGtid`: exactly `gtidDumpRead` whenever that reader returns,
+    in both formats. `gtidDumpRead` never gives `unknown` (`Defs.gtidDumpRead_ne_unknown`), so
+    with `deserialize_panics` this covers every input.
     **Allocation caveat (GTID).** The SID count comes from the input (up to `2^56`) and is passed
     to `Vec::with_capacity` before any SID is read, which the model treats as free: in real Rust
     a 31-byte packet announcing `2^56` SIDs makes the reader try to allocate `2^56` SIDs and
@@ -1446,7 +1446,7 @@ recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.des
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (okPart r).map GtidDump.of = r0 ∧ rest.val = rest0 ⦄
 
-/-- [propext, Classical.choice, Quot.sound, Trusted.sidTagUtf8Error, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg, packets.InvalidTag.Insts.CoreFmtDebug.fmt, packets.InvalidTag.Insts.CoreFmtDisplay.fmt, packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt] -/
+/-- [propext, Classical.choice, Quot.sound, Trusted.sidTagInvalidError, Trusted.sidTagUtf8Error, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg, packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
 /-- **Crash path.** `MyDeserialize for ComBinlogDumpGtid` panics where `gtidDumpRead` does: a SID
     whose interval count `n` has `16 * n` above `usize::MAX` (see `Sid::deserialize_overflow`:
@@ -1455,11 +1455,11 @@ recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.des
     (h64 : Target64) (buf : io.ParseBuf) (e : Error) (h : gtidDumpRead buf.val = .panic e) :
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf = fail e
 
-/-- [propext, Classical.choice, Quot.sound, Trusted.sidTagUtf8Error, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg, packets.InvalidTag.Insts.CoreFmtDebug.fmt, packets.InvalidTag.Insts.CoreFmtDisplay.fmt, packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt] -/
+/-- [propext, Classical.choice, Quot.sound, Trusted.sidTagInvalidError, Trusted.sidTagUtf8Error, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg, packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics
 /-- Round trip (untagged format): a request without tags, with known flags, a file name shorter
     than `2^32` bytes and a SID block shorter than `2^32` bytes, is read back from
-    `gtidDumpEnc`. (With a tag, see `deserialize_spec`.) -/
+    `gtidDumpEnc`. (With tags, see `roundtrip_tagged`.) -/
 recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip
     (h64 : Target64) (g : packets.ComBinlogDumpGtid)
     (hnotag : gtidTagged (GtidDump.of g).sids = false)
@@ -1470,8 +1470,23 @@ recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.rou
     packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (okPart r).map GtidDump.of = some (GtidDump.of g) ∧ rest.val = tail ⦄
 
-/-- [propext, Classical.choice, Quot.sound, Trusted.sidTagUtf8Error, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg, packets.InvalidTag.Insts.CoreFmtDebug.fmt, packets.InvalidTag.Insts.CoreFmtDisplay.fmt, packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt] -/
+/-- [propext, Classical.choice, Quot.sound, Trusted.sidTagInvalidError, Trusted.sidTagUtf8Error, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg, packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip
+/-- Round trip, with or without tags: a request whose tags are all valid (`tagBytesValid`), with
+    known flags, a file name shorter than `2^32` bytes and a SID block shorter than `2^32` bytes,
+    is read back from `gtidDumpEnc`. -/
+recall packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip_tagged
+    (h64 : Target64) (g : packets.ComBinlogDumpGtid)
+    (htags : ∀ s ∈ (GtidDump.of g).sids, ∀ t, s.tag = some t → tagBytesValid t = true)
+    (hf : (GtidDump.of g).flags &&& binlogDumpFlagsAll = (GtidDump.of g).flags)
+    (hfn : (GtidDump.of g).filename.length < 2 ^ 32)
+    (hblk : (sidBlock (GtidDump.of g).sids).length < 2 ^ 32)
+    (tail : List U8) (buf : io.ParseBuf) (h : buf.val = gtidDumpEnc (GtidDump.of g) ++ tail) :
+    packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
+      (okPart r).map GtidDump.of = some (GtidDump.of g) ∧ rest.val = tail ⦄
+
+/-- [propext, Classical.choice, Quot.sound, Trusted.sidTagInvalidError, Trusted.sidTagUtf8Error, core.io.error.Error, core.io.error.Error.ofError, core.io.error.Error.ofMsg, packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.roundtrip_tagged
 /-! ### `struct SemiSyncAckPacket and its impls` -/
 
 /-- `SemiSyncAckPacket::new(position, filename)`: the position and the file name
