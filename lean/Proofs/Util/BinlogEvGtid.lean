@@ -493,4 +493,35 @@ theorem lenencInt_small_length (n : Nat) (h : n < 251) : (lenencInt n).length = 
 theorem lenencInt_lenlen_length (n : Nat) : (lenencInt (lenencInt n).length).length = 1 :=
   lenencInt_small_length _ (by have := lenencInt_length_le n; omega)
 
+/-! ## Vectors and byte arrays -/
+
+@[step]
+theorem extend_from_slice_u8 (buf : alloc.vec.Vec U8) (s : Slice U8) (h : buf.length + s.length ≤ Usize.max) :
+    alloc.vec.Vec.extend_from_slice core.clone.CloneU8 buf s ⦃ b' => b'.val = buf.val ++ s.val ⦄ := by
+  unfold alloc.vec.Vec.extend_from_slice
+  simp only [h, ↓reduceDIte]
+  apply WP.spec_bind (List.clone_spec (by intro x _; rfl))
+  intro l hl
+  simp [hl.1]
+
+@[step]
+theorem lift_u64_to_le_bytes (x : U64) :
+    lift (core.num.U64.to_le_bytes x) ⦃ y => y.val = leBytes 8 x.val ⦄ := by
+  apply WP.spec_mono (core.num.U64.to_le_bytes.step_spec x)
+  intro y hy; rw [hy, IntAndMisc.leBytes_bv 8 rfl]; rfl
+
+@[step]
+theorem lift_array_to_slice {α : Type} {n : Usize} (a : Std.Array α n) :
+    lift (Std.Array.to_slice a) ⦃ s => s.val = a.val ⦄ := by
+  simp [lift, Std.Array.to_slice]
+
+theorem cast_usize_u64 (x : Usize) : (UScalar.cast .U64 x).val = x.val :=
+  UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by
+    simp only [UScalarTy.numBits]; cases System.Platform.numBits_eq <;> simp [*])
+
+@[step]
+theorem lift_cast_usize_u64 (x : Usize) :
+    lift (UScalar.cast .U64 x) ⦃ y => y.val = x.val ⦄ := by
+  simp only [lift, WP.spec_ok]; exact cast_usize_u64 x
+
 end mysql_common.BinlogEvGtid
