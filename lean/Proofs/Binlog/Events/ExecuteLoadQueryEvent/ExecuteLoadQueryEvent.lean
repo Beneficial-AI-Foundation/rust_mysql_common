@@ -110,8 +110,8 @@ theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql
     binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs elqView (elqRead buf.val) r rest ⦄ := by
   sorry
 
-/-- `MySerialize`: appends the layout `elqEnc`. -/
 set_option linter.unusedSimpArgs false in
+/-- `MySerialize`: appends the layout `elqEnc`. -/
 theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.execute_load_query_event.ExecuteLoadQueryEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (elqEnc e).length ≤ Usize.max) :
     binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ elqEnc e ⦄ := by
