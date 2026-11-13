@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Util.BinlogEvHdr
 
 /-! Statements for `enum EventData and its impls` (spec file: `Specs/Binlog/Events.lean`). -/
 
@@ -16,12 +17,16 @@ theorem binlog.events.EventData.into_owned_spec (d : binlog.events.EventData) :
 /-- `MySerialize` of a data-less variant: writes nothing. -/
 theorem binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize_unit (d : binlog.events.EventData) (h : edUnit d = true) (buf : alloc.vec.Vec U8) :
     binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize d buf = ok buf := by
-  sorry
+  cases d <;> simp [edUnit] at h <;> rfl
 
 /-- `MySerialize` of an uninterpreted variant: appends its raw data. -/
 theorem binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize_raw (d : binlog.events.EventData) (bs : List U8) (h : edRaw d = some bs) (buf : alloc.vec.Vec U8) (hb : buf.length + bs.length ≤ Usize.max) :
     binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize d buf ⦃ buf' => buf'.val = buf.val ++ bs ⦄ := by
-  sorry
+  cases d <;> simp only [edRaw, reduceCtorEq, Option.some.injEq] at h <;> subst h <;>
+    simp only [binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize] <;>
+    exact WP.spec_bind (cow_deref_spec _ _) (fun s hs => by
+      apply WP.spec_mono (IntAndMisc.put_slice_spec buf s (by simp [Slice.length, hs]; omega))
+      intro b hb; rw [hb, hs])
 
 /-- `MySerialize` of a parsed variant: the event's own `serialize`. -/
 theorem binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize_parsed (buf : alloc.vec.Vec U8) :
@@ -42,6 +47,6 @@ theorem binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize_par
     (∀ x, binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize (.PreviousGtidsEvent x) buf = binlog.events.previous_gtids_event.PreviousGtidsEvent.Insts.Mysql_commonProtoMySerialize.serialize x buf) ∧
     (∀ x, binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize (.TransactionPayloadEvent x) buf = binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonProtoMySerialize.serialize x buf) ∧
     (∀ x, binlog.events.EventData.Insts.Mysql_commonProtoMySerialize.serialize (.RowsEvent x) buf = binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize x buf) := by
-  sorry
+  exact ⟨fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
 
 end mysql_common
