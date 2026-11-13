@@ -1,5 +1,9 @@
 import Defs
 import Proofs.Util.CompCodec
+import Proofs.Proto.Codec.CompressWith
+import Proofs.Proto.Codec.CompDecoder
+import Proofs.Proto.Codec.PlainPacketCodec
+import Proofs.Defs.LemmasCF
 
 /-! Statements for `struct CompPacketCodec and its impls` (spec file: `Specs/Proto/Codec.lean`). -/
 
@@ -194,7 +198,45 @@ theorem proto.codec.CompPacketCodec.encode_spec (self : proto.codec.CompPacketCo
             CompPacketsOf (self.deflater.getD (Trusted.compressNew self.level)) self.level.level.val self.comp_seq_id.val
               ((chunksOf (compChunkSize max.val) (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val)).take k) out ∧
             dst'.val = dst.val ++ out ⦄ := by
-  sorry
+  unfold proto.codec.CompPacketCodec.encode
+  have hpe := proto.codec.PlainPacketCodec.encode_spec self.plain_codec packet self.out_buf max
+    (by by_cases hm : max.val < packet.val.length
+        · exact Or.inl hm
+        · exact Or.inr (by have := h.1; omega))
+  obtain ⟨⟨r1, ppc, packet1, vb⟩, hv, hp⟩ := PBUtil.spec_eq_ok hpe
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hp
+  have e0 : alloc.vec.Vec.length packet = packet.val.length := rfl
+  rw [e0] at hp
+  by_cases hm : max.val < packet.val.length
+  · simp only [hm, ↓reduceIte] at hp ⊢
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := hp
+    simp [core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+  · simp only [hm, ↓reduceIte] at hp ⊢
+    obtain ⟨rfl, rfl, hpk, hvb⟩ := hp
+    have hmax0 : max.val ≠ 0 := by rcases hmax with h0 | h0 <;> omega
+    have hne : vb.val ≠ [] := by
+      rw [hvb]; intro e
+      have := congrArg List.length e
+      simp [frame_length, frameCount] at this
+    have hcw := proto.codec.compress_with_spec self.comp_seq_id self.level self.deflater max vb dst hne hmax0
+      (by rw [hvb]; exact hlvl) (by rw [hvb]; exact h.2)
+    obtain ⟨⟨r2, o, vb1, dst1⟩, hv2, hp2⟩ := PBUtil.spec_eq_ok hcw
+    simp only [WP.uncurry'_pair] at hp2
+    rw [hvb] at hp2
+    cases r2 with
+    | Ok val =>
+      obtain ⟨hval, hvb1, out, henc, hdst1⟩ := hp2
+      simp [core.result.Result.Insts.CoreOpsTry.branch, hv2, proto.codec.trusted.vec_capacity,
+        proto.codec.COMP_CODEC_SHRINK_THRESHOLD]
+      step*
+    | Err e =>
+      obtain ⟨⟨ioe, rfl⟩, rfl, k, out, hk, hl0, hbig, hcp, hdst1⟩ := hp2
+      simp [core.result.Result.Insts.CoreOpsTry.branch, hv2, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+        core.convert.FromSame.from]
+      refine ⟨hpk, hvb, k, hk, hl0, ?_, out, hcp, hdst1⟩
+      simpa [List.getD_eq_getElem?_getD] using hbig
 
 /-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). With `max_allowed_packet = 0`, encoding an empty packet panics. The empty packet passes the size check, its one empty chunk (4 bytes) goes to `out_buf`, and compressing it calls `chunks(0)`. (A non-empty packet gets `PacketTooLarge` instead.) -/
 theorem proto.codec.CompPacketCodec.encode_max_zero (self : proto.codec.CompPacketCodec) (packet dst : proto.codec.buf_model.VecBuf)
@@ -210,6 +252,29 @@ theorem proto.codec.CompPacketCodec.encode_level_panic (self : proto.codec.CompP
     (h : self.out_buf.val.length + (frame self.plain_codec.seq_id.val packet.val).length ≤ Usize.max ∧
       dst.val.length + 8 * (self.out_buf.val ++ frame self.plain_codec.seq_id.val packet.val).length ≤ Usize.max) :
     proto.codec.CompPacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst max = fail .panic := by
-  sorry
+  unfold proto.codec.CompPacketCodec.encode
+  have hpe := proto.codec.PlainPacketCodec.encode_spec self.plain_codec packet self.out_buf max
+    (Or.inr (by have := h.1; omega))
+  obtain ⟨⟨r1, ppc, packet1, vb⟩, hv, hp⟩ := PBUtil.spec_eq_ok hpe
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hp
+  have e0 : alloc.vec.Vec.length packet = packet.val.length := rfl
+  rw [e0] at hp
+  have hm : ¬ max.val < packet.val.length := by omega
+  simp only [hm, ↓reduceIte] at hp
+  obtain ⟨rfl, rfl, hpk, hvb⟩ := hp
+  have hcs : 512 ≤ compChunkSize max.val := by
+    have : minCompressLength = 512 := rfl
+    have := le_trans hbig (Nat.min_le_left _ _); omega
+  have hmax0 : max.val ≠ 0 := by
+    have : compChunkSize max.val = min (2 ^ 24 - 1) max.val := rfl
+    omega
+  have hne : vb.val ≠ [] := by
+    rw [hvb]; intro e
+    have := congrArg List.length e
+    simp [frame_length, frameCount] at this
+  have hpan := proto.codec.compress_with_level_panic self.comp_seq_id self.level max vb dst hne hmax0 hlvl
+    (by rw [hvb]; exact hbig)
+  simp [core.result.Result.Insts.CoreOpsTry.branch, hd, hpan]
 
 end mysql_common
