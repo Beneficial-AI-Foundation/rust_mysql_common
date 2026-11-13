@@ -163,6 +163,7 @@ import Proofs.Defs.LemmasComp
 import Proofs.Defs.LemmasCF
 import Proofs.Defs.LemmasG
 import Proofs.Consistency.ParamsMap
+import Proofs.Consistency.ConnTrusted
 import Proofs.Defs.LemmasSqlText
 import Proofs.NamedParams.ParsedNamedParams
 import Proofs.Params.ParamsError
@@ -171,5 +172,19 @@ import Proofs.Params.FromImpls
 import Proofs.Params.FromTuples
 import Proofs.Value.Escaped
 import Proofs.Value.AsSql
+import Proofs.Defs.LemmasConn
+import Proofs.Packets.LocalInfilePacket
+import Proofs.Packets.AuthPlugin
+import Proofs.Packets.AuthMoreData
+import Proofs.Packets.PublicKeyResponse
+import Proofs.Packets.OldAuthSwitchRequest
+import Proofs.Packets.AuthSwitchRequest
+import Proofs.Packets.ParseParsecSalt
+import Proofs.Packets.HandshakePacket
+import Proofs.Packets.ComChangeUser
+import Proofs.Packets.ComChangeUserMoreData
+import Proofs.Packets.HandshakeResponse
+import Proofs.Packets.SslRequest
+import Proofs.Packets.CachingSha2Password.PublicKeyRequest
 
 /-! The proofs of the spec statements, one file per Rust item (see `VERIFICATION.md` §8). -/
