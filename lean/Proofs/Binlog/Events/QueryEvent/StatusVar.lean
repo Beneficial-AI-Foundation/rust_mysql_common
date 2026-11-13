@@ -1,10 +1,13 @@
 import Defs
+import Proofs.Util.BinlogEvHdr
+import Proofs.Util.PacketsOkErr
+import Proofs.Io.ParseBuf
 
 /-! Statements for `struct StatusVar and its impls` (spec file: `Specs/Binlog/Events/QueryEvent.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.EvHdrUtil
 
 namespace mysql_common
 
@@ -28,11 +31,27 @@ theorem binlog.events.query_event.StatusVar.get_value_updated_db_names (v : binl
 theorem binlog.events.query_event.StatusVar.get_value_microseconds (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 13) :
     binlog.events.query_event.StatusVar.get_value v ⦃ r => if 4 ≤ v.value.length then ∃ x, r = .Ok x ∧ svValView x = (13, [leNat (v.value.val.take 4)], [])
       else r = .Err v.value ⦄ := by
-  sorry
+  obtain ⟨k, val⟩ := v
+  cases k <;> simp only [statusVarKeyCode] at hk <;> try omega
+  unfold binlog.events.query_event.StatusVar.get_value
+  step with io.ParseBuf.checked_eat_u32_le_spec as ⟨o, rest, ho⟩
+  split_ifs at ho ⊢ with hl
+  · obtain ⟨h1, -⟩ := ho
+    cases o with
+    | none => simp at h1
+    | some x =>
+      simp only [Option.map_some, Option.some.injEq] at h1
+      exact (WP.spec_ok _).mpr ⟨_, rfl, by simp [svValView, h1]⟩
+  · obtain ⟨rfl, -⟩ := ho
+    exact (WP.spec_ok _).mpr rfl
 
 /-- **Upstream bug:** every `Q_MICROSECONDS` variable the iterator yields (3 bytes) fails to decode. -/
 theorem binlog.events.query_event.StatusVar.get_value_microseconds_bug (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 13) (hl : v.value.length = 3) :
     binlog.events.query_event.StatusVar.get_value v = ok (.Err v.value) := by
-  sorry
+  have h := binlog.events.query_event.StatusVar.get_value_microseconds v hk
+  have hl' : ¬ 4 ≤ v.value.length := by omega
+  simp only [hl', ite_false] at h
+  obtain ⟨r, hr, hp⟩ := PBUtil.spec_eq_ok h
+  rw [hr, hp]
 
 end mysql_common
