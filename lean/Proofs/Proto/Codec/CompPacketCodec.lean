@@ -1333,11 +1333,28 @@ theorem proto.codec.CompPacketCodec.encode_spec (self : proto.codec.CompPacketCo
       refine ⟨hpk, hvb, k, hk, hl0, ?_, out, hcp, hdst1⟩
       simpa [List.getD_eq_getElem?_getD] using hbig
 
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). With `max_allowed_packet = 0`, encoding an empty packet panics. The empty packet passes the size check, its one empty chunk (4 bytes) goes to `out_buf`, and compressing it calls `chunks(0)`. (A non-empty packet gets `PacketTooLarge` instead.) -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). With `max_allowed_packet = 0`, encoding an empty packet panics (an `assert!` failure: Aeneas label `.assertionFailure`). The empty packet passes the size check, its one empty chunk (4 bytes) goes to `out_buf`, and compressing it calls `chunks(0)`. (A non-empty packet gets `PacketTooLarge` instead.) -/
 theorem proto.codec.CompPacketCodec.encode_max_zero (self : proto.codec.CompPacketCodec) (packet dst : proto.codec.buf_model.VecBuf)
     (hp : packet.val = []) (h : self.out_buf.val.length + 4 ≤ Usize.max) :
-    proto.codec.CompPacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst 0#usize = fail .panic := by
-  sorry
+    proto.codec.CompPacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst 0#usize = fail .assertionFailure := by
+  unfold proto.codec.CompPacketCodec.encode
+  have hfl := frame_length self.plain_codec.seq_id.val packet.val
+  have hpe := proto.codec.PlainPacketCodec.encode_spec self.plain_codec packet self.out_buf 0#usize
+    (Or.inr (by rw [hp] at hfl ⊢; simp [frameCount] at hfl ⊢; omega))
+  obtain ⟨⟨r1, ppc, packet1, vb⟩, hv, hpp⟩ := PBUtil.spec_eq_ok hpe
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hpp
+  have e0 : alloc.vec.Vec.length packet = packet.val.length := rfl
+  rw [e0, hp] at hpp
+  have hm : ¬ (0#usize : Usize).val < 0 := by simp
+  simp only [List.length_nil, hm, ↓reduceIte] at hpp
+  obtain ⟨rfl, rfl, -, hvb⟩ := hpp
+  have hne : vb.val ≠ [] := by
+    rw [hvb]; intro e
+    have := congrArg List.length e
+    simp [frame_length, frameCount] at this
+  simp [core.result.Result.Insts.CoreOpsTry.branch,
+    proto.codec.compress_with_max_zero self.comp_seq_id self.level self.deflater vb dst hne]
 
 /-- With no deflate stream yet and a level above 10, `encode` of a packet within `max_allowed_packet` panics when the first piece of `out_buf` (after the packet's chunks are added) has at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only, no panic in release. -/
 theorem proto.codec.CompPacketCodec.encode_level_panic (self : proto.codec.CompPacketCodec) (packet dst : proto.codec.buf_model.VecBuf) (max : Usize)

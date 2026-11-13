@@ -16,10 +16,12 @@ theorem proto.codec.compress_empty (seq : U8) (lvl : flate2.Compression) (max : 
   rw [proto.codec.compress_with_empty seq lvl none max src dst hsrc]
   simp
 
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress` with `max_allowed_packet = 0` on a non-empty `src` panics (`src.chunks(0)`; the patched copy has the same `assert!`) instead of returning an error. -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress` with `max_allowed_packet = 0` on a non-empty `src` panics (an `assert!` failure: Aeneas label `.assertionFailure`) (`src.chunks(0)`; the patched copy has the same `assert!`) instead of returning an error. -/
 theorem proto.codec.compress_max_zero (seq : U8) (lvl : flate2.Compression) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val ≠ []) :
-    proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl 0#usize src dst = fail .panic := by
-  sorry
+    proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl 0#usize src dst = fail .assertionFailure := by
+  unfold proto.codec.compress
+  rw [proto.codec.compress_with_max_zero seq lvl none src dst hsrc]
+  simp
 
 /-- `compress` at a compression level above 10 panics as soon as it deflates, i.e. when the first piece has at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only (the proofs use debug semantics), no panic in release. -/
 theorem proto.codec.compress_level_panic (seq : U8) (lvl : flate2.Compression) (max : Usize) (src dst : proto.codec.buf_model.VecBuf)

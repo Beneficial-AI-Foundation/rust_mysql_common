@@ -147,9 +147,9 @@ recall proto.codec.compress_empty (seq : U8) (lvl : flate2.Compression) (max : U
     proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl max src dst = ok (.Ok 0#u8, src, dst)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_empty`
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress` with `max_allowed_packet = 0` on a non-empty `src` panics (`src.chunks(0)`; the patched copy has the same `assert!`) instead of returning an error. -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress` with `max_allowed_packet = 0` on a non-empty `src` panics (an `assert!` failure: Aeneas label `.assertionFailure`) (`src.chunks(0)`; the patched copy has the same `assert!`) instead of returning an error. -/
 recall proto.codec.compress_max_zero (seq : U8) (lvl : flate2.Compression) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val ≠ []) :
-    proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl 0#usize src dst = fail .panic
+    proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl 0#usize src dst = fail .assertionFailure
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_max_zero`
 /-- `compress` at a compression level above 10 panics as soon as it deflates, i.e. when the first piece has at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only (the proofs use debug semantics), no panic in release. -/
@@ -187,9 +187,9 @@ recall proto.codec.compress_with_empty (seq : U8) (lvl : flate2.Compression) (d 
     proto.codec.compress_with proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl d max src dst = ok (.Ok 0#u8, d, src, dst)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_with_empty`
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress_with` with `max_allowed_packet = 0` on a non-empty `src` panics (`chunks(0)`). -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress_with` with `max_allowed_packet = 0` on a non-empty `src` panics (an `assert!` failure: Aeneas label `.assertionFailure`) (`chunks(0)`). -/
 recall proto.codec.compress_with_max_zero (seq : U8) (lvl : flate2.Compression) (d : Option flate2.mem.Compress) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val ≠ []) :
-    proto.codec.compress_with proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl d 0#usize src dst = fail .panic
+    proto.codec.compress_with proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl d 0#usize src dst = fail .assertionFailure
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.compress_with_max_zero`
 /-- `compress_with` with no deflate stream yet and a level above 10 panics when it creates one, i.e. when the first piece has at least `minCompressLength` bytes (flate2's `debug_assert!(level <= 10)`, `src/ffi/miniz_oxide.rs:153`: debug builds only, no panic in release). -/
@@ -395,11 +395,11 @@ recall proto.codec.PacketCodec.encode_decode_comp (enc dec : proto.codec.PacketC
               cd'.in_buf.val = [] ∧ cd'.comp_decoder = .Idle ∧ cd'.plain_codec.chunk_decoder = .Idle ⦄ ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PacketCodec.encode_decode_comp`
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). A compressed codec with `max_allowed_packet = 0` panics when encoding an empty packet (`chunks(0)` in `compress_with`), instead of returning an error. -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). A compressed codec with `max_allowed_packet = 0` panics (an `assert!` failure: Aeneas label `.assertionFailure`) when encoding an empty packet (`chunks(0)` in `compress_with`), instead of returning an error. -/
 recall proto.codec.PacketCodec.encode_comp_max_zero (self : proto.codec.PacketCodec) (c : proto.codec.CompPacketCodec)
     (hc : self.inner = .Comp c) (hmax : self.max_allowed_packet.val = 0) (packet dst : proto.codec.buf_model.VecBuf)
     (hp : packet.val = []) (h : c.out_buf.val.length + 4 ≤ Usize.max) :
-    proto.codec.PacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst = fail .panic
+    proto.codec.PacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst = fail .assertionFailure
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PacketCodec.encode_comp_max_zero`
 /-- A compression level above 10 is accepted by `compress`, but the first `encode` that deflates then panics: one whose packet (within `max_allowed_packet`) has chunks making a first piece of at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only, no panic in release. The default zlib backend, outside the verified configuration, instead panics above 9 in every profile. -/
@@ -740,10 +740,10 @@ recall proto.codec.CompPacketCodec.encode_spec (self : proto.codec.CompPacketCod
             dst'.val = dst.val ++ out ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.encode_spec`
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). With `max_allowed_packet = 0`, encoding an empty packet panics. The empty packet passes the size check, its one empty chunk (4 bytes) goes to `out_buf`, and compressing it calls `chunks(0)`. (A non-empty packet gets `PacketTooLarge` instead.) -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). With `max_allowed_packet = 0`, encoding an empty packet panics (an `assert!` failure: Aeneas label `.assertionFailure`). The empty packet passes the size check, its one empty chunk (4 bytes) goes to `out_buf`, and compressing it calls `chunks(0)`. (A non-empty packet gets `PacketTooLarge` instead.) -/
 recall proto.codec.CompPacketCodec.encode_max_zero (self : proto.codec.CompPacketCodec) (packet dst : proto.codec.buf_model.VecBuf)
     (hp : packet.val = []) (h : self.out_buf.val.length + 4 ≤ Usize.max) :
-    proto.codec.CompPacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst 0#usize = fail .panic
+    proto.codec.CompPacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst 0#usize = fail .assertionFailure
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.CompPacketCodec.encode_max_zero`
 /-- With no deflate stream yet and a level above 10, `encode` of a packet within `max_allowed_packet` panics when the first piece of `out_buf` (after the packet's chunks are added) has at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only, no panic in release. -/

@@ -389,13 +389,15 @@ theorem proto.codec.compress_with_empty (seq : U8) (lvl : flate2.Compression) (d
   simp [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty,
     alloc.vec.Vec.deref, hsrc]
 
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress_with` with `max_allowed_packet = 0` on a non-empty `src` panics (`chunks(0)`). -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress_with` with `max_allowed_packet = 0` on a non-empty `src` panics (an `assert!` failure: Aeneas label `.assertionFailure`) (`chunks(0)`). -/
 theorem proto.codec.compress_with_max_zero (seq : U8) (lvl : flate2.Compression) (d : Option flate2.mem.Compress) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val ≠ []) :
-    proto.codec.compress_with proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl d 0#usize src dst = fail .panic := by
+    proto.codec.compress_with proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl d 0#usize src dst = fail .assertionFailure := by
   unfold proto.codec.compress_with
-  have hmp : constants.MAX_PAYLOAD_LEN.val = maxPayloadLen := by
-    simp [constants.MAX_PAYLOAD_LEN, maxPayloadLen]
-  sorry
+  have hne : ¬ (alloc.vec.Vec.deref src).val = [] := by simpa [alloc.vec.Vec.deref] using hsrc
+  have hz : core.cmp.impls.OrdUsize.min constants.MAX_PAYLOAD_LEN 0#usize = 0#usize := by
+    apply UScalar.eq_of_val_eq; simp
+  simp [proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref, core.slice.Slice.is_empty, hne,
+    core.cmp.min, hz, massert]
 
 /-- `compress_with` with no deflate stream yet and a level above 10 panics when it creates one, i.e. when the first piece has at least `minCompressLength` bytes (flate2's `debug_assert!(level <= 10)`, `src/ffi/miniz_oxide.rs:153`: debug builds only, no panic in release). -/
 theorem proto.codec.compress_with_level_panic (seq : U8) (lvl : flate2.Compression) (max : Usize) (src dst : proto.codec.buf_model.VecBuf)

@@ -222,12 +222,15 @@ theorem proto.codec.PacketCodec.encode_decode_comp (enc dec : proto.codec.Packet
     · rw [h5, hcs, hseq.1]
     · rw [h6, hseq.2]
 
-/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). A compressed codec with `max_allowed_packet = 0` panics when encoding an empty packet (`chunks(0)` in `compress_with`), instead of returning an error. -/
+/-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). A compressed codec with `max_allowed_packet = 0` panics (an `assert!` failure: Aeneas label `.assertionFailure`) when encoding an empty packet (`chunks(0)` in `compress_with`), instead of returning an error. -/
 theorem proto.codec.PacketCodec.encode_comp_max_zero (self : proto.codec.PacketCodec) (c : proto.codec.CompPacketCodec)
     (hc : self.inner = .Comp c) (hmax : self.max_allowed_packet.val = 0) (packet dst : proto.codec.buf_model.VecBuf)
     (hp : packet.val = []) (h : c.out_buf.val.length + 4 ≤ Usize.max) :
-    proto.codec.PacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst = fail .panic := by
-  sorry
+    proto.codec.PacketCodec.encode proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve self packet dst = fail .assertionFailure := by
+  rw [proto.codec.PacketCodec.encode_comp_eq self c hc]
+  have hm0 : self.max_allowed_packet = 0#usize := UScalar.eq_of_val_eq (by simpa using hmax)
+  rw [hm0, proto.codec.CompPacketCodec.encode_max_zero c packet dst hp h]
+  simp
 
 /-- A compression level above 10 is accepted by `compress`, but the first `encode` that deflates then panics: one whose packet (within `max_allowed_packet`) has chunks making a first piece of at least `minCompressLength` bytes. This is flate2's `debug_assert!(level <= 10)` in `Compress::new` (`src/ffi/miniz_oxide.rs:153`): debug builds only, no panic in release. The default zlib backend, outside the verified configuration, instead panics above 9 in every profile. -/
 theorem proto.codec.PacketCodec.compress_then_encode_panics (self : proto.codec.PacketCodec) (c : proto.codec.PlainPacketCodec)
