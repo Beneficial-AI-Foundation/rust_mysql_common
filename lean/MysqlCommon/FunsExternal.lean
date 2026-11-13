@@ -1868,7 +1868,11 @@ axiom core.num.error.TryFromIntError.Insts.CoreFmtDebug.fmt
 The trust boundary of the binlog code (`binlog::trusted`, opaque in Cargo.toml) and the
 out-of-scope helpers in the opaque modules `binlog::{jsonb, jsondiff, decimal}`, the tagged GTID
 format and `TransactionPayloadEvent::deserialize` (opaque in Cargo.toml). Only their signatures
-are declared, so the specs can only say that these calls return *some* value of their type. -/
+are declared, so the specs can only say that these calls return *some* value of their type.
+
+Exceptions, assumed not to panic (they only copy borrowed data) with an opaque result:
+`binlog::trusted::tag_into_owned` (`Trusted.tagIntoOwned`) and `UserVarEvent::into_owned`
+(`Trusted.userVarIntoOwned`). -/
 
 /-- [mysql_common::binlog::decimal::read_bin_to_string_bytes]:
     Source: 'src/binlog/decimal/mod.rs', lines 438:0-445:1 -/
@@ -1963,17 +1967,28 @@ axiom binlog.trusted.previous_gtids_tag
   :
   Slice Std.U8 → Result (core.result.Result packets.Tag core.io.error.Error)
 
+/-- The owned copy of a user-var event (opaque: `UserVarEvent` is an opaque type). -/
+axiom Trusted.userVarIntoOwned :
+  binlog.events.user_var_event.UserVarEvent → binlog.events.user_var_event.UserVarEvent
+
 /-- [mysql_common::binlog::events::user_var_event::{mysql_common::binlog::events::user_var_event::UserVarEvent<'a>}::into_owned]:
     Source: 'src/binlog/events/user_var_event.rs', lines 95:4-104:5
-    Visibility: public -/
-axiom binlog.events.user_var_event.UserVarEvent.into_owned
-  :
-  binlog.events.user_var_event.UserVarEvent → Result
-    binlog.events.user_var_event.UserVarEvent
+    Visibility: public
+    Cannot panic (it only copies borrowed data); the value is opaque. -/
+noncomputable def binlog.events.user_var_event.UserVarEvent.into_owned
+  (u : binlog.events.user_var_event.UserVarEvent) :
+  Result binlog.events.user_var_event.UserVarEvent :=
+  ok (Trusted.userVarIntoOwned u)
+
+/-- The owned copy of a GTID tag (opaque: turning the borrowed `str` into a `String` is not
+    modelled). -/
+axiom Trusted.tagIntoOwned : packets.Tag → packets.Tag
 
 /-- [mysql_common::binlog::trusted::tag_into_owned]:
-    Source: 'src/binlog/trusted.rs', lines 45:0-47:1 -/
-axiom binlog.trusted.tag_into_owned : packets.Tag → Result packets.Tag
+    Source: 'src/binlog/trusted.rs', lines 45:0-47:1
+    Cannot panic (it only copies borrowed data); the value is opaque. -/
+noncomputable def binlog.trusted.tag_into_owned (t : packets.Tag) : Result packets.Tag :=
+  ok (Trusted.tagIntoOwned t)
 
 /-- [mysql_common::binlog::jsonb::{mysql_common::binlog::jsonb::Value<'a>}::into_owned]:
     Source: 'src/binlog/jsonb.rs', lines 585:4-603:5
