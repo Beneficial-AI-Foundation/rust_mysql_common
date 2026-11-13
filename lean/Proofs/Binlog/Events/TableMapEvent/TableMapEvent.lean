@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Util.BinlogEvRows
 
 /-! Statements for `struct TableMapEvent and its impls` (spec file: `Specs/Binlog/Events/TableMapEvent.lean`). -/
 
@@ -11,27 +12,40 @@ namespace mysql_common
 /-- `table_id`. -/
 theorem binlog.events.table_map_event.TableMapEvent.impl.table_id_eq (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.impl.table_id e = ok e.table_id.1 := by
-  sorry
+  rfl
 
 /-- `columns_count`. -/
 theorem binlog.events.table_map_event.TableMapEvent.impl.columns_count_eq (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1 := by
-  sorry
+  rfl
 
 /-- `json_column_count`: the number of `JSON` (245) column types. -/
 theorem binlog.events.table_map_event.TableMapEvent.json_column_count_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.json_column_count e ⦃ n => n.val = (cowList e.columns_type.1).countP (fun b => b.val = 245) ⦄ := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.json_column_count binlog.events.table_map_event.count_json_columns
+  obtain ⟨c, u⟩ := e.columns_type
+  step as ⟨ s, hs ⟩
+  apply WP.spec_mono (BERUtil.json_loop s 0#usize 0#usize (by simp) (by simp))
+  intro r hr
+  simp [hr, hs]
 
 /-- `database_name_raw`: the name, its first 255 bytes. -/
 theorem binlog.events.table_map_event.TableMapEvent.database_name_raw_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.database_name_raw e ⦃ s => s.val = (cowList e.database_name.1).take 255 ⦄ := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.database_name_raw
+  obtain ⟨m, hm, hv⟩ := PBUtil.spec_eq_ok misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec _ m hm _)
+  intro s hs
+  rw [hs, hv]
 
 /-- `table_name_raw`: the name, its first 255 bytes. -/
 theorem binlog.events.table_map_event.TableMapEvent.table_name_raw_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.table_name_raw e ⦃ s => s.val = (cowList e.table_name.1).take 255 ⦄ := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.table_name_raw
+  obtain ⟨m, hm, hv⟩ := PBUtil.spec_eq_ok misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec _ m hm _)
+  intro s hs
+  rw [hs, hv]
 
 /-- `get_raw_column_type(i)`: `Ok(None)` past the last column, the type with that code, or the unknown code as an error. -/
 theorem binlog.events.table_map_event.TableMapEvent.get_raw_column_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
@@ -40,7 +54,14 @@ theorem binlog.events.table_map_event.TableMapEvent.get_raw_column_type_spec (e 
       | some b => match columnTypeOfCode b.val with
         | some t => r = .Ok (some t)
         | none => r = .Err b ⦄ := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.get_raw_column_type
+  step with misc.raw.seq.RawSeq.get_spec as ⟨ o, ho ⟩
+  cases o with
+  | none => simp at ho; simp [List.getElem?_eq_none ho]
+  | some x =>
+    simp at ho
+    simp only [misc.raw._const.RawConst.get_eq, constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, ← ho]
+    cases columnTypeOfCode x.1.val <;> simp
 
 /-- `get_column_metadata(i)`: the metadata of column `i` (`tmMetaAt`). -/
 theorem binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
@@ -67,12 +88,19 @@ theorem binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : bi
 /-- `into_owned`: the same fields (now owned). -/
 theorem binlog.events.table_map_event.TableMapEvent.into_owned_spec (e : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.table_map_event.TableMapEvent.into_owned e ⦃ e' => tmView e' = tmView e ⦄ := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.into_owned
+  step with PKUtil.rawbytes_into_owned_spec as ⟨ rb, h1 ⟩
+  step with PKUtil.rawbytes_into_owned_spec as ⟨ rb1, h2 ⟩
+  step with misc.raw.seq.RawSeq.into_owned_spec U8.Insts.Mysql_commonMiscRawIntIntReprU8 (fun x => by rfl) as ⟨ rs, h3, _ ⟩
+  step with PKUtil.rawbytes_into_owned_spec as ⟨ rb2, h4 ⟩
+  step with PKUtil.rawbytes_into_owned_spec as ⟨ rb3, h5 ⟩
+  step with PKUtil.rawbytes_into_owned_spec as ⟨ rb4, h6 ⟩
+  simp [tmView, h1, h2, h3, h4, h5, h6]
 
 /-- `MyDeserialize::SIZE` is `None`. -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE; rfl
 
 /-- `MyDeserialize`: total; `tmRead` with the FDE's table-map post-header length. -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
@@ -94,7 +122,7 @@ theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDes
 /-- `BinlogEvent::EVENT_TYPE`: `TABLE_MAP_EVENT` (19). -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .TABLE_MAP_EVENT := by
-  sorry
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
 
 /-- `BinlogStruct::len`: `tmLenCrate` (with the bitmap counted as `(n + 8) / 7` bytes: a bug). -/
 theorem binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64) :

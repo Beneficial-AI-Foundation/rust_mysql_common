@@ -22,7 +22,6 @@ import Proofs.Misc.Raw.Const.RawConst
 import Proofs.Misc.LenencIntLen
 import Proofs.Misc.LenencStrLen
 import Proofs.Constants.ColumnType
-import Proofs.Binlog.Consts.RowsEventFlags
 import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
 import Proofs.Defs.LemmasBinlogEvents
 
@@ -234,6 +233,10 @@ theorem sat_val (x y : Usize) : (core.num.Usize.saturating_add x y).val = min (x
   have := usize_sat_add x y
   simpa [lift] using this
 
+theorem cast_u8max : (UScalar.cast UScalarTy.Usize core.num.U8.MAX).val = 255 := by
+  simp [UScalar.cast_val_eq, core.num.U8.MAX]
+  rcases System.Platform.numBits_eq with h | h <;> simp [h, U8.rMax]
+
 theorem cast_u16max : (UScalar.cast UScalarTy.Usize core.num.U16.MAX).val = 65535 := by
   simp [UScalar.cast_val_eq, core.num.U16.MAX]
   rcases System.Platform.numBits_eq with h | h <;> simp [h, U16.rMax]
@@ -332,5 +335,40 @@ theorem rowsLenCrate_v1' (e : binlog.events.rows_event.RowsEvent) (hc : RowsCons
   simp only [rowsEnc, h1, Bool.false_eq_true, ↓reduceIte, List.length_append, hb, ha, length_leBytes, List.length_nil] at hcap ⊢
   simp only [rowsLenCrate, hex, List.length_nil]
   omega
+
+/-! ## Table map -/
+
+theorem json_loop (s : Slice U8) (count i : Usize) (hi : i.val ≤ s.length) (hc : count.val ≤ i.val) :
+    binlog.events.table_map_event.count_json_columns_loop s count i ⦃ r =>
+      r.val = count.val + (s.val.drop i.val).countP (fun b => b.val = 245) ⦄ := by
+  unfold binlog.events.table_map_event.count_json_columns_loop
+  apply loop.spec_decr_nat (fun x : Usize × Usize => s.length - x.2.val)
+    (fun x => x.2.val ≤ s.length ∧ x.1.val ≤ x.2.val ∧
+      x.1.val + (s.val.drop x.2.val).countP (fun b => b.val = 245) = count.val + (s.val.drop i.val).countP (fun b => b.val = 245))
+  · rintro ⟨c, j⟩ ⟨h1, h2, h3⟩
+    unfold binlog.events.table_map_event.count_json_columns_loop.body
+    simp only at h1 h2 h3
+    step*
+    · have hj : j.val < s.val.length := by scalar_tac
+      have hi4 : i4.val = 245 := by rw [i4_post]; simp [UScalar.cast_val_eq, i3_post]
+      have hd : s.val.drop j.val = s.val[j.val] :: s.val.drop (j.val+1) := List.drop_eq_getElem_cons hj
+      rw [hd] at h3
+      have hsl : s.length = s.val.length := rfl
+      split
+      · rename_i heq
+        have h245 : (s.val[j.val]).val = 245 := by rw [← i2_post, heq, hi4]
+        step*
+        simp only [List.countP_cons, h245, decide_true, ↓reduceIte] at h3
+        refine ⟨by omega, by omega, by rw [i5_post, count1_post]; omega, by omega⟩
+      · rename_i hne
+        have h245 : ¬ (s.val[j.val]).val = 245 := by
+          intro h; apply hne; rw [i2_post]; exact UScalar.eq_of_val_eq (by rw [h, hi4])
+        step*
+        simp only [List.countP_cons, h245, decide_false, Bool.false_eq_true, ↓reduceIte] at h3
+        refine ⟨by omega, by omega, by rw [i5_post]; omega, by omega⟩
+    · have hj : s.val.length ≤ j.val := by scalar_tac
+      rw [List.drop_eq_nil_of_le hj] at h3
+      simp at h3; omega
+  · exact ⟨hi, hc, rfl⟩
 
 end mysql_common.BERUtil
