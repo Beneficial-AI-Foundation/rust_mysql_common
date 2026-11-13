@@ -109,6 +109,53 @@ theorem binlog.events.Event.len_spec (self : binlog.events.Event) (v : binlog.co
           simp_all [sat_add_usize]
           omega
 
+/-- The `parse` call of `read_event`, as a function of the event. -/
+private theorem read_event_unfold {T : Type} (inst : binlog.BinlogEvent T) (self : binlog.events.Event) (hlen : self.data.length + 19 ≤ Usize.max)
+    (ctx : binlog.BinlogCtx) (hc : ctx.event_size.val = 19 + self.data.length ∧ ctx.fde = self.fde ∧
+      ctx.event_type_raw = self.header.event_type.1) (buf : io.ParseBuf) (hb : buf.val = self.data.val) :
+    binlog.events.Event.read_event inst self = (do
+      let (r, event_data) ← io.ParseBuf.parse inst.BinlogStructInst.protoMyDeserializeASelfBinlogCtxInst buf ctx
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let b ← io.ParseBuf.is_empty event_data
+        if b then ok (core.result.Result.Ok val)
+        else
+          let e ← binlog.trusted.bytes_remaining_error T
+          ok (core.result.Result.Err e)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual T
+          (core.convert.FromSame core.io.error.Error) residual) := by
+  obtain ⟨fde, ⟨h1, ⟨t, u⟩, h3, h4, h5, h6⟩, data, ft, cs⟩ := self
+  have hL : binlog.events.BinlogEventHeader.LEN = 19#usize := by unfold binlog.events.BinlogEventHeader.LEN; rfl
+  obtain ⟨es, hes, hesv⟩ := PBUtil.spec_eq_ok (show (binlog.events.BinlogEventHeader.LEN + alloc.vec.Vec.len data)
+      ⦃ z => z.val = 19 + data.length ⦄ by rw [hL]; step*)
+  have hs : alloc.vec.Vec.deref data = buf := by
+    apply Slice.ext; simp only [alloc.vec.Vec.deref, Slice.from_val]; exact hb.symm
+  have hctx : ({ event_size := es, fde := fde, event_type_raw := t } : binlog.BinlogCtx) = ctx := by
+    obtain ⟨c1, c2, c3⟩ := ctx
+    simp only at hc
+    obtain ⟨h1, rfl, rfl⟩ := hc
+    have : es = c1 := UScalar.eq_of_val_eq (by rw [hesv, h1])
+    rw [this]
+  unfold binlog.events.Event.read_event
+  simp only []
+  rw [hes, bind_ok, hs]
+  have het : binlog.events.BinlogEventHeader.event_type_raw
+      { timestamp := h1, event_type := (t, u), server_id := h3, event_size := h4, log_pos := h5, flags := h6 } = ok t := rfl
+  rw [het, bind_ok]
+  simp only [binlog.BinlogCtx.new, bind_ok]
+  rw [hctx]
+  rfl
+
+private theorem is_empty_eq (b : io.ParseBuf) : io.ParseBuf.is_empty b = ok (decide (b.val = [])) := by
+  simp only [io.ParseBuf.is_empty, io.ParseBuf.len, bind_ok]
+  congr 1
+  simp only [decide_eq_decide]
+  constructor
+  · intro h; have := congrArg UScalar.val h; simpa [Slice.len] using this
+  · intro h; apply UScalar.eq_of_val_eq; simp [Slice.len, h]
+
 /-- `read_event::<T>`: `T` is parsed from the data with `parse` (so `T::SIZE` is checked) in the context (`19 + data.len()`, the FDE, the raw type); its error is passed on; a success is `Ok` iff no bytes are left, and otherwise the (opaque) `bytes_remaining_error`. -/
 theorem binlog.events.Event.read_event_spec {T : Type} (inst : binlog.BinlogEvent T) (self : binlog.events.Event) (hlen : self.data.length + 19 ≤ Usize.max)
     (ctx : binlog.BinlogCtx) (hc : ctx.event_size.val = 19 + self.data.length ∧ ctx.fde = self.fde ∧
@@ -120,7 +167,17 @@ theorem binlog.events.Event.read_event_spec {T : Type} (inst : binlog.BinlogEven
       | .Ok x => if rest0.val = [] then ok (.Ok x) else do
           let e ← binlog.trusted.bytes_remaining_error T
           ok (.Err e)) := by
-  sorry
+  rw [read_event_unfold inst self hlen ctx hc buf hb]
+  cases r0 with
+  | Ok x =>
+    dsimp only
+    rw [hp, bind_ok]
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, is_empty_eq]
+    by_cases h : rest0.val = [] <;> simp [h]
+  | Err e =>
+    dsimp only
+    rw [hp, bind_ok]
+    simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_event::<T>` fails (panics) exactly as `T`'s `parse` does. -/
 theorem binlog.events.Event.read_event_fail {T : Type} (inst : binlog.BinlogEvent T) (self : binlog.events.Event) (hlen : self.data.length + 19 ≤ Usize.max)
@@ -128,12 +185,24 @@ theorem binlog.events.Event.read_event_fail {T : Type} (inst : binlog.BinlogEven
       ctx.event_type_raw = self.header.event_type.1) (buf : io.ParseBuf) (hb : buf.val = self.data.val) (err : Error)
     (hp : io.ParseBuf.parse inst.BinlogStructInst.protoMyDeserializeASelfBinlogCtxInst buf ctx = fail err) :
     binlog.events.Event.read_event inst self = fail err := by
-  sorry
+  rw [read_event_unfold inst self hlen ctx hc buf hb, hp]
+  simp
+
+private theorem read_data_get (self : binlog.events.Event) :
+    misc.raw._const.RawConst.get U8.Insts.Mysql_commonMiscRawIntIntReprU8 core.marker.CopyU8
+      binlog.consts.EventType.Insts.CoreConvertTryFromU8UnknownEventType self.header.event_type =
+    ok (match eventTypeOfCode self.header.event_type.1.val with
+        | some x => .Ok x
+        | none => .Err self.header.event_type.1) := by
+  rw [misc.raw._const.RawConst.get_eq]
+  exact binlog.consts.EventType.Insts.CoreConvertTryFromU8UnknownEventType.try_from_spec _
 
 /-- `read_data` on an unknown type code (41, ≥ 43): `Ok(None)`. -/
 theorem binlog.events.Event.read_data_unknown (self : binlog.events.Event) (h : eventTypeOfCode self.header.event_type.1.val = none) :
     binlog.events.Event.read_data self = ok (.Ok none) := by
-  sorry
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h]
+  simp only [bind_ok]
 
 /-- `read_data` on a type it does not parse: the data-less variant of that type, or the variant holding the raw data. -/
 theorem binlog.events.Event.read_data_unparsed (self : binlog.events.Event) (h : self.header.event_type.1.val ∈ edUnitCodes ++ edRawCodes) :
@@ -148,7 +217,11 @@ theorem binlog.events.Event.read_data_code2 (self : binlog.events.Event) (h : se
       ok (match r with
         | .Ok x => .Ok (some (.QueryEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 2 = some .QUERY_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 4: `read_event::<RotateEvent>`, wrapped in `EventData::RotateEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code4 (self : binlog.events.Event) (h : self.header.event_type.1.val = 4) :
@@ -157,7 +230,11 @@ theorem binlog.events.Event.read_data_code4 (self : binlog.events.Event) (h : se
       ok (match r with
         | .Ok x => .Ok (some (.RotateEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 4 = some .ROTATE_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 5: `read_event::<IntvarEvent>`, wrapped in `EventData::IntvarEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code5 (self : binlog.events.Event) (h : self.header.event_type.1.val = 5) :
@@ -166,7 +243,11 @@ theorem binlog.events.Event.read_data_code5 (self : binlog.events.Event) (h : se
       ok (match r with
         | .Ok x => .Ok (some (.IntvarEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 5 = some .INTVAR_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 13: `read_event::<RandEvent>`, wrapped in `EventData::RandEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code13 (self : binlog.events.Event) (h : self.header.event_type.1.val = 13) :
@@ -175,7 +256,11 @@ theorem binlog.events.Event.read_data_code13 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RandEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 13 = some .RAND_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 14: `read_event::<UserVarEvent>`, wrapped in `EventData::UserVarEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code14 (self : binlog.events.Event) (h : self.header.event_type.1.val = 14) :
@@ -184,7 +269,11 @@ theorem binlog.events.Event.read_data_code14 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.UserVarEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 14 = some .USER_VAR_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 16: `read_event::<XidEvent>`, wrapped in `EventData::XidEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code16 (self : binlog.events.Event) (h : self.header.event_type.1.val = 16) :
@@ -193,7 +282,11 @@ theorem binlog.events.Event.read_data_code16 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.XidEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 16 = some .XID_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 17: `read_event::<BeginLoadQueryEvent>`, wrapped in `EventData::BeginLoadQueryEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code17 (self : binlog.events.Event) (h : self.header.event_type.1.val = 17) :
@@ -202,7 +295,11 @@ theorem binlog.events.Event.read_data_code17 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.BeginLoadQueryEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 17 = some .BEGIN_LOAD_QUERY_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 18: `read_event::<ExecuteLoadQueryEvent>`, wrapped in `EventData::ExecuteLoadQueryEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code18 (self : binlog.events.Event) (h : self.header.event_type.1.val = 18) :
@@ -211,7 +308,11 @@ theorem binlog.events.Event.read_data_code18 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.ExecuteLoadQueryEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 18 = some .EXECUTE_LOAD_QUERY_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 19: `read_event::<TableMapEvent>`, wrapped in `EventData::TableMapEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code19 (self : binlog.events.Event) (h : self.header.event_type.1.val = 19) :
@@ -220,7 +321,11 @@ theorem binlog.events.Event.read_data_code19 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.TableMapEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 19 = some .TABLE_MAP_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 23: `read_event::<WriteRowsEventV1>`, wrapped in `EventData::RowsEvent`(`RowsEventData::WriteRowsEventV1`) (its errors passed on). -/
 theorem binlog.events.Event.read_data_code23 (self : binlog.events.Event) (h : self.header.event_type.1.val = 23) :
@@ -229,7 +334,11 @@ theorem binlog.events.Event.read_data_code23 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsEvent (.WriteRowsEventV1 x)))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 23 = some .WRITE_ROWS_EVENT_V1 := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 24: `read_event::<UpdateRowsEventV1>`, wrapped in `EventData::RowsEvent`(`RowsEventData::UpdateRowsEventV1`) (its errors passed on). -/
 theorem binlog.events.Event.read_data_code24 (self : binlog.events.Event) (h : self.header.event_type.1.val = 24) :
@@ -238,7 +347,11 @@ theorem binlog.events.Event.read_data_code24 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsEvent (.UpdateRowsEventV1 x)))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 24 = some .UPDATE_ROWS_EVENT_V1 := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 25: `read_event::<DeleteRowsEventV1>`, wrapped in `EventData::RowsEvent`(`RowsEventData::DeleteRowsEventV1`) (its errors passed on). -/
 theorem binlog.events.Event.read_data_code25 (self : binlog.events.Event) (h : self.header.event_type.1.val = 25) :
@@ -247,7 +360,11 @@ theorem binlog.events.Event.read_data_code25 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsEvent (.DeleteRowsEventV1 x)))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 25 = some .DELETE_ROWS_EVENT_V1 := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 26: `read_event::<IncidentEvent>`, wrapped in `EventData::IncidentEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code26 (self : binlog.events.Event) (h : self.header.event_type.1.val = 26) :
@@ -256,7 +373,11 @@ theorem binlog.events.Event.read_data_code26 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.IncidentEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 26 = some .INCIDENT_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 29: `read_event::<RowsQueryEvent>`, wrapped in `EventData::RowsQueryEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code29 (self : binlog.events.Event) (h : self.header.event_type.1.val = 29) :
@@ -265,7 +386,11 @@ theorem binlog.events.Event.read_data_code29 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsQueryEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 29 = some .ROWS_QUERY_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 30: `read_event::<WriteRowsEvent>`, wrapped in `EventData::RowsEvent`(`RowsEventData::WriteRowsEvent`) (its errors passed on). -/
 theorem binlog.events.Event.read_data_code30 (self : binlog.events.Event) (h : self.header.event_type.1.val = 30) :
@@ -274,7 +399,11 @@ theorem binlog.events.Event.read_data_code30 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsEvent (.WriteRowsEvent x)))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 30 = some .WRITE_ROWS_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 31: `read_event::<UpdateRowsEvent>`, wrapped in `EventData::RowsEvent`(`RowsEventData::UpdateRowsEvent`) (its errors passed on). -/
 theorem binlog.events.Event.read_data_code31 (self : binlog.events.Event) (h : self.header.event_type.1.val = 31) :
@@ -283,7 +412,11 @@ theorem binlog.events.Event.read_data_code31 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsEvent (.UpdateRowsEvent x)))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 31 = some .UPDATE_ROWS_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 32: `read_event::<DeleteRowsEvent>`, wrapped in `EventData::RowsEvent`(`RowsEventData::DeleteRowsEvent`) (its errors passed on). -/
 theorem binlog.events.Event.read_data_code32 (self : binlog.events.Event) (h : self.header.event_type.1.val = 32) :
@@ -292,7 +425,11 @@ theorem binlog.events.Event.read_data_code32 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsEvent (.DeleteRowsEvent x)))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 32 = some .DELETE_ROWS_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 33: `read_event::<GtidEvent>`, wrapped in `EventData::GtidEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code33 (self : binlog.events.Event) (h : self.header.event_type.1.val = 33) :
@@ -301,7 +438,11 @@ theorem binlog.events.Event.read_data_code33 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.GtidEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 33 = some .GTID_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 34: `read_event::<AnonymousGtidEvent>`, wrapped in `EventData::AnonymousGtidEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code34 (self : binlog.events.Event) (h : self.header.event_type.1.val = 34) :
@@ -310,7 +451,11 @@ theorem binlog.events.Event.read_data_code34 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.AnonymousGtidEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 34 = some .ANONYMOUS_GTID_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 35: `read_event::<PreviousGtidsEvent>`, wrapped in `EventData::PreviousGtidsEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code35 (self : binlog.events.Event) (h : self.header.event_type.1.val = 35) :
@@ -319,7 +464,11 @@ theorem binlog.events.Event.read_data_code35 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.PreviousGtidsEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 35 = some .PREVIOUS_GTIDS_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 39: `read_event::<PartialUpdateRowsEvent>`, wrapped in `EventData::RowsEvent`(`RowsEventData::PartialUpdateRowsEvent`) (its errors passed on). -/
 theorem binlog.events.Event.read_data_code39 (self : binlog.events.Event) (h : self.header.event_type.1.val = 39) :
@@ -328,7 +477,11 @@ theorem binlog.events.Event.read_data_code39 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.RowsEvent (.PartialUpdateRowsEvent x)))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 39 = some .PARTIAL_UPDATE_ROWS_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 40: `read_event::<TransactionPayloadEvent>`, wrapped in `EventData::TransactionPayloadEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code40 (self : binlog.events.Event) (h : self.header.event_type.1.val = 40) :
@@ -337,7 +490,11 @@ theorem binlog.events.Event.read_data_code40 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.TransactionPayloadEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 40 = some .TRANSACTION_PAYLOAD_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for type code 42: `read_event::<GtidEvent>`, wrapped in `EventData::GtidEvent` (its errors passed on). -/
 theorem binlog.events.Event.read_data_code42 (self : binlog.events.Event) (h : self.header.event_type.1.val = 42) :
@@ -346,7 +503,11 @@ theorem binlog.events.Event.read_data_code42 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.GtidEvent x))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 42 = some .GTID_TAGGED_LOG_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
 
 /-- `read_data` for a `FORMAT_DESCRIPTION_EVENT` (15): `read_event::<FormatDescriptionEvent>`, with this event's footer (`with_footer`). -/
 theorem binlog.events.Event.read_data_code15 (self : binlog.events.Event) (h : self.header.event_type.1.val = 15) :
@@ -355,7 +516,11 @@ theorem binlog.events.Event.read_data_code15 (self : binlog.events.Event) (h : s
       ok (match r with
         | .Ok x => .Ok (some (.FormatDescriptionEvent { x with footer := self.footer }))
         | .Err err => .Err err)) := by
-  sorry
+  have e : eventTypeOfCode 15 = some .FORMAT_DESCRIPTION_EVENT := rfl
+  unfold binlog.events.Event.read_data
+  rw [read_data_get, h, e]
+  simp only [bind_ok]
+  congr 1; funext r; cases r <;> simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, binlog.events.format_description_event.FormatDescriptionEvent.with_footer]
 
 /-- End to end: the `EventData` of a query event (2) is the `queryRead` of its data (the post-header length from the event's FDE); an error iff that fails. -/
 theorem binlog.events.Event.read_data_query_wire (self : binlog.events.Event) (h : self.header.event_type.1.val = 2) (hlen : self.data.length + 19 ≤ Usize.max) :
