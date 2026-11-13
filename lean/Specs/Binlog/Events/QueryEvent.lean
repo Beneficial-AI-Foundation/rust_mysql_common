@@ -20,7 +20,7 @@ import Proofs.Binlog.Events.QueryEvent.StatusVarsIterator
     stack is not modelled. When a reader fails, what it leaves of the buffer is not stated.
 
     **Definitions used.** `Defs/BinlogEvents.lean` (`QueryView`, `queryView`, `queryEnc`,
-    `queryRead`, `postHeaderLen`, `fdeLens`, `svKeyCode`, `svKeyOfCode`, `svValueLen`,
+    `queryRead`, `postHeaderLen`, `fdeLens`, `statusVarKeyCode`, `statusVarKeyOfCode`, `svValueLen`,
     `dbNamesLen`, `svWalk`, `statusVarsOf`, `svStep`, `SvView`, `svValView`, `svValRead`, `lp1`,
     `dbNames`, `dbNamesCrate`, `ReadsAs`, `takeExact`, `evLenCap`), `Defs/Connection.lean`
     (`hasNul`, `NoNul`), `Defs/Bytes.lean`. **Trusted axioms:** none beyond `io::Error`'s.
@@ -36,12 +36,19 @@ import Proofs.Binlog.Events.QueryEvent.StatusVarsIterator
     * **`Q_MICROSECONDS` never decodes:** the iterator slices it as 3 bytes (as MySQL writes it)
       but `get_value` reads a `u32` from it, so it is always an error
       (`get_value_microseconds_bug`).
-    * The count 254 of `Q_UPDATED_DB_NAMES` (`OVER_MAX_DBS_IN_EVENT_MTS`: no names follow) is read
-      as 254 names (`svValueLen`).
     * The reader skips the byte after the schema without checking it is `0`. `serialize` writes
       the stored `schema_len` / `status_vars_len` (kept consistent by `new` / `with_*`) and 13
       post-header bytes, so the round trip needs an FDE whose query post-header is at most 13.
-    * The iterator stops silently (no error) at an unknown key or a truncated value.
+    * **The iterator is not fused:** after a `None` the position may have moved (past the key, or
+      past the end), and a later `next` can yield a variable read from inside the failed one
+      (on `[11, 16, 1]`: `None`, then `ExplicitDefaultsForTimestamp(true)`). It stops (with no
+      error) at an unknown key or a truncated value.
+    * A `Q_UPDATED_DB_NAMES` count of 254 makes the iterator look for 254 names, which normally do
+      not exist: it yields nothing from there, losing every later status variable
+      (`Defs.statusVarsOf_over_max_dbs`).
+
+    (Of these definitions, `statusVarKeyCode`, `statusVarKeyOfCode` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false
@@ -188,15 +195,15 @@ recall binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogStruct
 /-! ### `struct StatusVar and its impls` -/
 
 /-- `get_value`: the value decoded per its key (`svValRead`); the raw value as the error if it is too short. (`Q_UPDATED_DB_NAMES` and `Q_MICROSECONDS`: see below.) -/
-recall binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.query_event.StatusVar) (hk : svKeyCode v.key ≠ 12 ∧ svKeyCode v.key ≠ 13) :
+recall binlog.events.query_event.StatusVar.get_value_spec (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key ≠ 12 ∧ statusVarKeyCode v.key ≠ 13) :
     binlog.events.query_event.StatusVar.get_value v ⦃ r => match r with
-      | .Ok x => svValRead (svKeyCode v.key) v.value.val = some (svValView x)
-      | .Err e => svValRead (svKeyCode v.key) v.value.val = none ∧ e = v.value ⦄
+      | .Ok x => svValRead (statusVarKeyCode v.key) v.value.val = some (svValView x)
+      | .Err e => svValRead (statusVarKeyCode v.key) v.value.val = none ∧ e = v.value ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.query_event.StatusVar.get_value_spec`
 
 /-- **Upstream bug:** `get_value` of `Q_UPDATED_DB_NAMES` gives `dbNamesCrate` (the first name, then empty names), not the names of the format (`dbNames`); the raw value as the error without a count or a terminated first name. -/
-recall binlog.events.query_event.StatusVar.get_value_updated_db_names (v : binlog.events.query_event.StatusVar) (hk : svKeyCode v.key = 12) :
+recall binlog.events.query_event.StatusVar.get_value_updated_db_names (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 12) :
     binlog.events.query_event.StatusVar.get_value v ⦃ r => match v.value.val with
       | [] => r = .Err v.value
       | c :: rest => match dbNamesCrate c.val rest with
@@ -206,14 +213,14 @@ recall binlog.events.query_event.StatusVar.get_value_updated_db_names (v : binlo
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.query_event.StatusVar.get_value_updated_db_names`
 
 /-- `get_value` of `Q_MICROSECONDS` reads a 4-byte integer (the format has 3). -/
-recall binlog.events.query_event.StatusVar.get_value_microseconds (v : binlog.events.query_event.StatusVar) (hk : svKeyCode v.key = 13) :
+recall binlog.events.query_event.StatusVar.get_value_microseconds (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 13) :
     binlog.events.query_event.StatusVar.get_value v ⦃ r => if 4 ≤ v.value.length then ∃ x, r = .Ok x ∧ svValView x = (13, [leNat (v.value.val.take 4)], [])
       else r = .Err v.value ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.query_event.StatusVar.get_value_microseconds`
 
 /-- **Upstream bug:** every `Q_MICROSECONDS` variable the iterator yields (3 bytes) fails to decode. -/
-recall binlog.events.query_event.StatusVar.get_value_microseconds_bug (v : binlog.events.query_event.StatusVar) (hk : svKeyCode v.key = 13) (hl : v.value.length = 3) :
+recall binlog.events.query_event.StatusVar.get_value_microseconds_bug (v : binlog.events.query_event.StatusVar) (hk : statusVarKeyCode v.key = 13) (hl : v.value.length = 3) :
     binlog.events.query_event.StatusVar.get_value v = ok (.Err v.value)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.query_event.StatusVar.get_value_microseconds_bug`
@@ -228,8 +235,8 @@ recall binlog.events.query_event.StatusVars.iter_spec (s : binlog.events.query_e
 
 /-- `get_status_var(key)`: the first variable with that key in the walk, if any. -/
 recall binlog.events.query_event.StatusVars.get_status_var_spec (s : binlog.events.query_event.StatusVars) (k : binlog.consts.StatusVarKey) :
-    binlog.events.query_event.StatusVars.get_status_var s k ⦃ o => o.map (fun x => (svKeyCode x.key, x.value.val)) =
-      (statusVarsOf ((cowList s.1).take 65535)).find? (fun kv => kv.1 = svKeyCode k) ⦄
+    binlog.events.query_event.StatusVars.get_status_var s k ⦃ o => o.map (fun x => (statusVarKeyCode x.key, x.value.val)) =
+      (statusVarsOf ((cowList s.1).take 65535)).find? (fun kv => kv.1 = statusVarKeyCode k) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.query_event.StatusVars.get_status_var_spec`
 
@@ -261,12 +268,12 @@ recall binlog.events.query_event.StatusVarsIterator.new_spec (s : Slice U8) :
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.query_event.StatusVarsIterator.new_spec`
 
-/-- `Iterator::next`: the next variable of the walk from the current position (`svStep`), and the position after it; `None` at an unknown key, a truncated value, or the end. -/
-recall binlog.events.query_event.StatusVarsIterator.Insts.CoreIterTraitsIteratorIteratorStatusVar.next_spec (it : binlog.events.query_event.StatusVarsIterator) (h : it.pos.val ≤ it.status_vars.length) :
+/-- `Iterator::next`: the next variable of the walk from the current position (`svStep`; nothing at or past the end), and the position after it; `None` at an unknown key, a truncated value, or the end (the position after a `None` is not stated: the iterator is not fused). -/
+recall binlog.events.query_event.StatusVarsIterator.Insts.CoreIterTraitsIteratorIteratorStatusVar.next_spec (it : binlog.events.query_event.StatusVarsIterator) :
     binlog.events.query_event.StatusVarsIterator.Insts.CoreIterTraitsIteratorIteratorStatusVar.next it ⦃ o it' =>
       match svStep it.status_vars.val it.pos.val with
-      | some (kv, p) => o.map (fun x => (svKeyCode x.key, x.value.val)) = some kv ∧ it'.pos.val = p ∧ it'.status_vars = it.status_vars
-      | none => o = none ⦄
+      | some (kv, p) => o.map (fun x => (statusVarKeyCode x.key, x.value.val)) = some kv ∧ it'.pos.val = p ∧ it'.status_vars = it.status_vars
+      | none => o = none ∧ it'.status_vars = it.status_vars ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.query_event.StatusVarsIterator.Insts.CoreIterTraitsIteratorIteratorStatusVar.next_spec`
 

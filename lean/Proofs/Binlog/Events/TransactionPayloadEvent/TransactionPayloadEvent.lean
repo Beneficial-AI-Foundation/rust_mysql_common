@@ -11,7 +11,7 @@ namespace mysql_common
 /-- `new(payload_size, algorithm, uncompressed_size, payload)`: those fields, `header_size` 0. -/
 theorem binlog.events.transaction_payload_event.TransactionPayloadEvent.new_spec {T1 : Type} (into : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (ps : U64) (alg : binlog.consts.TransactionPayloadCompressionType) (us : U64) (p : T1) (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))
     (h : into.into p = ok c) :
-    binlog.events.transaction_payload_event.TransactionPayloadEvent.new into ps alg us p ⦃ e => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, tpCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e = (ps.val, tpCompressionCode alg, us.val, cowList c) ∧ e.header_size.val = 0 ⦄ := by
+    binlog.events.transaction_payload_event.TransactionPayloadEvent.new into ps alg us p ⦃ e => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e = (ps.val, txCompressionCode alg, us.val, cowList c) ∧ e.header_size.val = 0 ⦄ := by
   sorry
 
 /-- `with_payload_size`: replaces the stored payload size. -/
@@ -56,7 +56,7 @@ theorem binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.unc
 
 /-- `into_owned`: the same fields (and `header_size`). -/
 theorem binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) :
-    binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned e ⦃ e' => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, tpCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e' = (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, tpCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e ∧ e'.header_size = e.header_size ⦄ := by
+    binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned e ⦃ e' => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e' = (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e ∧ e'.header_size = e.header_size ⦄ := by
   sorry
 
 /-- `MyDeserialize::SIZE` is `None` (a hand-written model, as `deserialize` is opaque). -/
@@ -78,6 +78,11 @@ theorem binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.My
 /-- `BinlogStruct::len`: `header_size` (set only by `deserialize`; 0 after `new`) plus the payload length, capped. **Quirk:** for an event built with `new`, this is not the length `serialize` writes (`tpEnc`), which includes the header fields. -/
 theorem binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (e.header_size.val + (cowList e.payload.1).length) evLenCap ⦄ := by
+  sorry
+
+/-- **Upstream bug:** for an event with `header_size` 0 (every event built with `new`), `len` is the capped payload length, strictly less than the length `serialize` writes (`tpEnc`, which has at least 7 header bytes). -/
+theorem binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_new_bug (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (h0 : e.header_size.val = 0) (v : binlog.consts.BinlogVersion) :
+    binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (cowList e.payload.1).length evLenCap ∧ n.val + 7 ≤ (tpEnc e).length ⦄ := by
   sorry
 
 end mysql_common

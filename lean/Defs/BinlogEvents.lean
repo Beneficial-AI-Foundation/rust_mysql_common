@@ -1,6 +1,7 @@
 import Defs.Connection
 import Defs.VarLen
 import Defs.Flags
+import Defs.BinlogCore
 
 /-!
 # Binlog events (`src/binlog/events`)
@@ -59,9 +60,10 @@ and the class pages of `binary_log::*_event`). All integers are little-endian.
 The readers below describe the crate's parsers; their docstrings say where they deviate from
 the format. The encoders are the layouts as the crate fills them from its fields.
 
-**Shared with the other half of the binlog specs.** `evTypeCode`, `evTypeOfCode` (event type
-codes, `consts.rs`) and `tmColumnMetaLen` (per-type metadata lengths, `ColumnType::get_metadata`
-in `binlog/mod.rs`) are defined here for this half; the other half may define the same notions.
+**Shared definitions.** The codes of the binlog enums and the flag masks (`eventTypeCode`,
+`eventTypeOfCode`, `allEventTypes`, `statusVarKeyCode`, `binlogVersionCode`, `checksumAlgCode`,
+`intvarTypeCode`, `incidentTypeCode`, `loadDupCode`, `txCompressionCode`, `eventFlagsAll`,
+`rowsEventFlagsAll`, `gtidFlagsAll`, …) are those of `Defs/BinlogCore.lean`.
 -/
 
 set_option autoImplicit false
@@ -100,52 +102,16 @@ def fixedText (L : Nat) (s : List U8) : List U8 := s.take L ++ List.replicate (L
     that fits an event of at most `u32::MAX` bytes). -/
 def evLenCap : Nat := 2 ^ 32 - 1 - 19
 
-/-! ## Event types -/
-
-open binlog.consts.EventType in
-/-- The type code of each event type (`Log_event_type`). The crate has no
-    `HEARTBEAT_LOG_EVENT_V2` (41); `ENUM_END_EVENT` (43) is not an event. -/
-def evTypeCode : binlog.consts.EventType → Nat
-  | UNKNOWN_EVENT => 0 | START_EVENT_V3 => 1 | QUERY_EVENT => 2 | STOP_EVENT => 3
-  | ROTATE_EVENT => 4 | INTVAR_EVENT => 5 | LOAD_EVENT => 6 | SLAVE_EVENT => 7
-  | CREATE_FILE_EVENT => 8 | APPEND_BLOCK_EVENT => 9 | EXEC_LOAD_EVENT => 10
-  | DELETE_FILE_EVENT => 11 | NEW_LOAD_EVENT => 12 | RAND_EVENT => 13 | USER_VAR_EVENT => 14
-  | FORMAT_DESCRIPTION_EVENT => 15 | XID_EVENT => 16 | BEGIN_LOAD_QUERY_EVENT => 17
-  | EXECUTE_LOAD_QUERY_EVENT => 18 | TABLE_MAP_EVENT => 19 | PRE_GA_WRITE_ROWS_EVENT => 20
-  | PRE_GA_UPDATE_ROWS_EVENT => 21 | PRE_GA_DELETE_ROWS_EVENT => 22 | WRITE_ROWS_EVENT_V1 => 23
-  | UPDATE_ROWS_EVENT_V1 => 24 | DELETE_ROWS_EVENT_V1 => 25 | INCIDENT_EVENT => 26
-  | HEARTBEAT_EVENT => 27 | IGNORABLE_EVENT => 28 | ROWS_QUERY_EVENT => 29
-  | WRITE_ROWS_EVENT => 30 | UPDATE_ROWS_EVENT => 31 | DELETE_ROWS_EVENT => 32
-  | GTID_EVENT => 33 | ANONYMOUS_GTID_EVENT => 34 | PREVIOUS_GTIDS_EVENT => 35
-  | TRANSACTION_CONTEXT_EVENT => 36 | VIEW_CHANGE_EVENT => 37 | XA_PREPARE_LOG_EVENT => 38
-  | PARTIAL_UPDATE_ROWS_EVENT => 39 | TRANSACTION_PAYLOAD_EVENT => 40
-  | GTID_TAGGED_LOG_EVENT => 42 | ENUM_END_EVENT => 43
-
-open binlog.consts.EventType in
-/-- The event types that occur on the wire (all but `ENUM_END_EVENT`). -/
-def allEvTypes : List binlog.consts.EventType :=
-  [UNKNOWN_EVENT, START_EVENT_V3, QUERY_EVENT, STOP_EVENT, ROTATE_EVENT, INTVAR_EVENT, LOAD_EVENT,
-   SLAVE_EVENT, CREATE_FILE_EVENT, APPEND_BLOCK_EVENT, EXEC_LOAD_EVENT, DELETE_FILE_EVENT,
-   NEW_LOAD_EVENT, RAND_EVENT, USER_VAR_EVENT, FORMAT_DESCRIPTION_EVENT, XID_EVENT,
-   BEGIN_LOAD_QUERY_EVENT, EXECUTE_LOAD_QUERY_EVENT, TABLE_MAP_EVENT, PRE_GA_WRITE_ROWS_EVENT,
-   PRE_GA_UPDATE_ROWS_EVENT, PRE_GA_DELETE_ROWS_EVENT, WRITE_ROWS_EVENT_V1, UPDATE_ROWS_EVENT_V1,
-   DELETE_ROWS_EVENT_V1, INCIDENT_EVENT, HEARTBEAT_EVENT, IGNORABLE_EVENT, ROWS_QUERY_EVENT,
-   WRITE_ROWS_EVENT, UPDATE_ROWS_EVENT, DELETE_ROWS_EVENT, GTID_EVENT, ANONYMOUS_GTID_EVENT,
-   PREVIOUS_GTIDS_EVENT, TRANSACTION_CONTEXT_EVENT, VIEW_CHANGE_EVENT, XA_PREPARE_LOG_EVENT,
-   PARTIAL_UPDATE_ROWS_EVENT, TRANSACTION_PAYLOAD_EVENT, GTID_TAGGED_LOG_EVENT]
-
-/-- The event type with code `n`, if the crate knows one (codes 41 and ≥ 43 have none). -/
-def evTypeOfCode (n : Nat) : Option binlog.consts.EventType :=
-  allEvTypes.find? (fun t => evTypeCode t = n)
+/-! ## Rows-event kinds -/
 
 /-- The rows-event kinds: v2 events carry `extra_row_info` (codes 30, 31, 32, 39). -/
-def rowsIsV2 (t : binlog.consts.EventType) : Bool := evTypeCode t ∈ [30, 31, 32, 39]
+def rowsIsV2 (t : binlog.consts.EventType) : Bool := eventTypeCode t ∈ [30, 31, 32, 39]
 
 /-- Update events carry two column bitmaps (codes 24, 31, 39). -/
-def rowsIsUpdate (t : binlog.consts.EventType) : Bool := evTypeCode t ∈ [24, 31, 39]
+def rowsIsUpdate (t : binlog.consts.EventType) : Bool := eventTypeCode t ∈ [24, 31, 39]
 
 /-- Delete events carry only the before-image bitmap (codes 25, 32). -/
-def rowsIsDelete (t : binlog.consts.EventType) : Bool := evTypeCode t ∈ [25, 32]
+def rowsIsDelete (t : binlog.consts.EventType) : Bool := eventTypeCode t ∈ [25, 32]
 
 /-! ## Common header and footer -/
 
@@ -154,34 +120,13 @@ def evHeaderEnc (h : binlog.events.BinlogEventHeader) : List U8 :=
   leBytes 4 h.timestamp.1.val ++ [h.event_type.1] ++ leBytes 4 h.server_id.1.val ++
     leBytes 4 h.event_size.1.val ++ leBytes 4 h.log_pos.1.val ++ leBytes 2 h.flags.1.val
 
-/-- The known `EventFlags` bits (`LOG_EVENT_BINLOG_IN_USE_F` 0x1 … `LOG_EVENT_MTS_ISOLATE_F`
-    0x200). -/
-def eventFlagsAll : Nat := 0x3FF
-
-/-- The known `RowsEventFlags` bits (`STMT_END_F` 1, `NO_FOREIGN_KEY_CHECKS_F` 2,
-    `RELAXED_UNIQUE_CHECKS_F` 4, `COMPLETE_ROWS_F` 8). -/
-def rowsEventFlagsAll : Nat := 0xF
-
-/-- The known `GtidFlags` bits (`FLAG_MAY_HAVE_SBR` 1). -/
-def gtidFlagsAll : Nat := 0x1
-
-open binlog.consts.BinlogChecksumAlg in
-/-- The code of a checksum algorithm (`BINLOG_CHECKSUM_ALG_OFF` 0, `_CRC32` 1). -/
-def checksumAlgCode : binlog.consts.BinlogChecksumAlg → Nat
-  | BINLOG_CHECKSUM_ALG_OFF => 0
-  | BINLOG_CHECKSUM_ALG_CRC32 => 1
-
-/-- The checksum algorithm with code `n`, if known. -/
-def checksumAlgOfCode (n : Nat) : Option binlog.consts.BinlogChecksumAlg :=
-  if n = 0 then some .BINLOG_CHECKSUM_ALG_OFF else if n = 1 then some .BINLOG_CHECKSUM_ALG_CRC32
-  else none
-
 /-- The raw checksum algorithm code of a footer, if any. -/
 def footerAlg (f : binlog.events.BinlogEventFooter) : Option Nat := f.checksum_alg.map (·.1.val)
 
 /-- Whether an event of type code `ty` with footer `f` carries a checksum: the footer names an
     algorithm, and either it is not `OFF` or the event is a `FORMAT_DESCRIPTION_EVENT` (whose
-    checksum is always present, WL#2540). -/
+    checksum is always present, WL#2540).  This is
+    regardless of `checksum_enabled` (which `Event::read` honours when stripping the checksum). -/
 def evHasChecksum (f : binlog.events.BinlogEventFooter) (ty : Nat) : Bool :=
   match footerAlg f with
   | some a => ty = 15 || a ≠ 0
@@ -189,7 +134,8 @@ def evHasChecksum (f : binlog.events.BinlogEventFooter) (ty : Nat) : Bool :=
 
 /-- The serialized length of an event (`Event::len`): header, data, and with a known checksum
     algorithm the algorithm byte (FDE only) and the checksum (FDE, or algorithm not `OFF`); capped
-    at `u32::MAX - 19` (the crate's cap). An unknown algorithm counts no footer. -/
+    at `u32::MAX - 19` (the crate's cap). An unknown algorithm counts no footer.  Regardless of
+    `checksum_enabled`. -/
 def eventLen (e : binlog.events.Event) : Nat :=
   let isFde := e.header.event_type.1.val = 15
   let foot : Nat := match (footerAlg e.footer).bind checksumAlgOfCode with
@@ -198,16 +144,6 @@ def eventLen (e : binlog.events.Event) : Nat :=
   min (19 + e.data.length + foot) evLenCap
 
 /-! ## `FORMAT_DESCRIPTION_EVENT` -/
-
-open binlog.consts.BinlogVersion in
-/-- The binlog version numbers 1–4. -/
-def binlogVersionCode : binlog.consts.BinlogVersion → Nat
-  | Version1 => 1 | Version2 => 2 | Version3 => 3 | Version4 => 4
-
-/-- The binlog version with number `n`, if any. -/
-def binlogVersionOfCode (n : Nat) : Option binlog.consts.BinlogVersion :=
-  [binlog.consts.BinlogVersion.Version1, .Version2, .Version3, .Version4].find?
-    (fun v => binlogVersionCode v = n)
 
 open binlog.consts.EventType in
 /-- The post-header length of each event type when the FDE's `post_header_len` array does not
@@ -229,8 +165,8 @@ def defaultPostHeaderLen : binlog.consts.EventType → Nat
 /-- The post-header length of event type `t` given the FDE's array `lens`: `lens[code - 1]`,
     or the default if the array is shorter; `0` for `UNKNOWN_EVENT`. -/
 def postHeaderLen (lens : List U8) (t : binlog.consts.EventType) : Nat :=
-  if evTypeCode t = 0 then 0
-  else match lens[evTypeCode t - 1]? with
+  if eventTypeCode t = 0 then 0
+  else match lens[eventTypeCode t - 1]? with
     | some b => b.val
     | none => defaultPostHeaderLen t
 
@@ -299,7 +235,8 @@ def queryEnc (e : binlog.events.query_event.QueryEvent) : List U8 :=
 /-- The crate's reader of a query event whose post-header is `p` bytes long (from the FDE): the
     13 known post-header bytes, the rest of the post-header skipped, `status_vars_len` bytes of
     status variables, `db_len` bytes of schema, one byte skipped (**not checked to be `0`**), the
-    query as the rest. -/
+    query as the rest. **Crate deviation:** with a post-header shorter than 13 bytes (pre-5.0
+    servers: 11) the crate still reads 13, so such events are misread. -/
 def queryRead (p : Nat) (bs : List U8) : Option (QueryView × List U8) := do
   let (hd, r1) ← takeExact 13 bs
   let (_, r2) ← takeExact (p - 13) r1
@@ -312,28 +249,6 @@ def queryRead (p : Nat) (bs : List U8) : Option (QueryView × List U8) := do
           schemaLen := sl.val, errorCode := leNat ((hd.drop 9).take 2), statusVarsLen := svl,
           statusVars := sv, schema := sc, query := r5 }, [])
 
-open binlog.consts.StatusVarKey in
-/-- The key code of each status variable (`Q_FLAGS2_CODE` 0 … `Q_DEFAULT_TABLE_ENCRYPTION` 20). -/
-def svKeyCode : binlog.consts.StatusVarKey → Nat
-  | Flags2 => 0 | SqlMode => 1 | Catalog => 2 | AutoIncrement => 3 | Charset => 4
-  | TimeZone => 5 | CatalogNz => 6 | LcTimeNames => 7 | CharsetDatabase => 8
-  | TableMapForUpdate => 9 | MasterDataWritten => 10 | Invoker => 11 | UpdatedDbNames => 12
-  | Microseconds => 13 | CommitTs => 14 | CommitTs2 => 15 | ExplicitDefaultsForTimestamp => 16
-  | DdlLoggedWithXid => 17 | DefaultCollationForUtf8mb4 => 18 | SqlRequirePrimaryKey => 19
-  | DefaultTableEncryption => 20
-
-open binlog.consts.StatusVarKey in
-/-- Every status variable key. -/
-def allSvKeys : List binlog.consts.StatusVarKey :=
-  [Flags2, SqlMode, Catalog, AutoIncrement, Charset, TimeZone, CatalogNz, LcTimeNames,
-   CharsetDatabase, TableMapForUpdate, MasterDataWritten, Invoker, UpdatedDbNames, Microseconds,
-   CommitTs, CommitTs2, ExplicitDefaultsForTimestamp, DdlLoggedWithXid,
-   DefaultCollationForUtf8mb4, SqlRequirePrimaryKey, DefaultTableEncryption]
-
-/-- The status variable key with code `n`, if any. -/
-def svKeyOfCode (n : Nat) : Option binlog.consts.StatusVarKey :=
-  allSvKeys.find? (fun k => svKeyCode k = n)
-
 /-- The length of `count` `0`-terminated names at the front of `bs`, if they are all there. -/
 def dbNamesLen : Nat → List U8 → Option Nat
   | 0, _ => some 0
@@ -345,7 +260,8 @@ def dbNamesLen : Nat → List U8 → Option Nat
 
 /-- The length of the value of status variable `k` at the front of `v` (the bytes after the key),
     if determined. **Crate deviation:** `Q_UPDATED_DB_NAMES` with the count 254
-    (`OVER_MAX_DBS_IN_EVENT_MTS`, no names follow) is read as 254 names. -/
+    (`OVER_MAX_DBS_IN_EVENT_MTS`, no names follow) is read as 254 names, which normally do not
+    exist, so the walk stops there and every later status variable is lost. -/
 def svValueLen (k : Nat) (v : List U8) : Option Nat :=
   if k = 0 then some 4 else if k = 1 then some 8
   else if k = 2 then v.head?.map (fun b => 1 + b.val + 1)
@@ -370,7 +286,7 @@ def svWalk : Nat → List U8 → List (Nat × List U8)
   | 0, _ => []
   | _ + 1, [] => []
   | fuel + 1, k :: rest =>
-    if svKeyOfCode k.val = none then [] else
+    if statusVarKeyOfCode k.val = none then [] else
     match svValueLen k.val rest with
     | none => []
     | some n => if n ≤ rest.length then (k.val, rest.take n) :: svWalk fuel (rest.drop n) else []
@@ -433,7 +349,10 @@ def dbNamesCrate (c : Nat) (bs : List U8) : Option (List (List U8)) :=
 
 /-- The value of status variable `k` decoded from `v` per the format (extra bytes ignored):
     integers little-endian, strings with their 1-byte length; `Catalog`, `CommitTs`,
-    `CommitTs2` keep the raw value; `Q_MICROSECONDS` is a 3-byte integer. -/
+    `CommitTs2` keep the raw value; `Q_MICROSECONDS` is a 3-byte integer;
+    `Q_UPDATED_DB_NAMES` is a count and that many `0`-terminated names, where the count 254
+    (`OVER_MAX_DBS_IN_EVENT_MTS`) means that no names follow (no names). The statements use it
+    only for keys other than 12 and 13 (the crate's decoding of those two is stated separately). -/
 def svValRead (k : Nat) (v : List U8) : Option SvView :=
   let int (w : Nat) : Option Nat := if w ≤ v.length then some (leNat (v.take w)) else none
   if k = 0 then (int 4).map (fun x => (0, [x], []))
@@ -453,7 +372,7 @@ def svValRead (k : Nat) (v : List U8) : Option SvView :=
   else if k = 12 then
     match v with
     | [] => none
-    | c :: r => (dbNames c.val r).map (fun ns => (12, [], ns))
+    | c :: r => if c.val = 254 then some (12, [], []) else (dbNames c.val r).map (fun ns => (12, [], ns))
   else if k = 13 then (int 3).map (fun x => (13, [x], []))
   else if k = 14 ∨ k = 15 then some (k, [], [v])
   else if k = 16 then (int 1).map (fun x => (16, [if x = 0 then 0 else 1], []))
@@ -476,16 +395,6 @@ def rotateRead (bs : List U8) : Option ((Nat × List U8) × List U8) :=
 def rotateView (e : binlog.events.rotate_event.RotateEvent) : Nat × List U8 :=
   (e.position.1.val, cowList e.name.1)
 
-open binlog.consts.IntvarEventType in
-/-- The intvar subtype codes (`INVALID_INT_EVENT` 0, `LAST_INSERT_ID_EVENT` 1, `INSERT_ID_EVENT` 2). -/
-def intvarTypeCode : binlog.consts.IntvarEventType → Nat
-  | INVALID_INT_EVENT => 0 | LAST_INSERT_ID_EVENT => 1 | INSERT_ID_EVENT => 2
-
-/-- The intvar subtype with code `n`, if any. -/
-def intvarTypeOfCode (n : Nat) : Option binlog.consts.IntvarEventType :=
-  [binlog.consts.IntvarEventType.INVALID_INT_EVENT, .LAST_INSERT_ID_EVENT, .INSERT_ID_EVENT].find?
-    (fun t => intvarTypeCode t = n)
-
 /-- An intvar event's data: the subtype (1) and the value (8). -/
 def intvarEnc (e : binlog.events.intvar_event.IntvarEvent) : List U8 :=
   byte (intvarTypeCode e.subtype.1) :: leBytes 8 e.value.1.val
@@ -504,15 +413,6 @@ def randEnc (e : binlog.events.rand_event.RandEvent) : List U8 :=
 /-- The crate's XID reader, after a post-header of `p` bytes: the 8-byte XID. -/
 def xidRead (p : Nat) (bs : List U8) : Option (Nat × List U8) :=
   if p + 8 ≤ bs.length then some (leNat ((bs.drop p).take 8), bs.drop (p + 8)) else none
-
-open binlog.consts.IncidentType in
-/-- The incident type codes (`INCIDENT_NONE` 0, `INCIDENT_LOST_EVENTS` 1). -/
-def incidentTypeCode : binlog.consts.IncidentType → Nat
-  | INCIDENT_NONE => 0 | INCIDENT_LOST_EVENTS => 1
-
-/-- The incident type with code `n`, if any. -/
-def incidentTypeOfCode (n : Nat) : Option binlog.consts.IncidentType :=
-  if n = 0 then some .INCIDENT_NONE else if n = 1 then some .INCIDENT_LOST_EVENTS else none
 
 /-- An incident event's data: the type (2) and the message with a 1-byte length (truncated to
     255 bytes). -/
@@ -534,11 +434,6 @@ def rowsQueryEnc (e : binlog.events.rows_query_event.RowsQueryEvent) : List U8 :
 def beginLoadQueryEnc (e : binlog.events.begin_load_query_event.BeginLoadQueryEvent) : List U8 :=
   leBytes 4 e.file_id.1.val ++ cowList e.block_data.1
 
-open binlog.consts.LoadDuplicateHandling in
-/-- The duplicate-handling codes (`LOAD_DUP_ERROR` 0, `LOAD_DUP_IGNORE` 1, `LOAD_DUP_REPLACE` 2). -/
-def dupHandlingCode : binlog.consts.LoadDuplicateHandling → Nat
-  | LOAD_DUP_ERROR => 0 | LOAD_DUP_IGNORE => 1 | LOAD_DUP_REPLACE => 2
-
 /-- The fields of an execute-load-query event: the query fields and `file_id`, `start_pos`,
     `end_pos`, `dup_handling`. -/
 structure ElqView where
@@ -555,14 +450,14 @@ def elqView (e : binlog.events.execute_load_query_event.ExecuteLoadQueryEvent) :
            statusVarsLen := e.status_vars_len.1.val, statusVars := cowList e.status_vars.1,
            schema := cowList e.schema.1, query := cowList e.query.1 },
     fileId := e.file_id.1.val, startPos := e.start_pos.1.val, endPos := e.end_pos.1.val,
-    dup := dupHandlingCode e.dup_handling.1 }
+    dup := loadDupCode e.dup_handling.1 }
 
 /-- An execute-load-query event's data as the crate writes it. -/
 def elqEnc (e : binlog.events.execute_load_query_event.ExecuteLoadQueryEvent) : List U8 :=
   leBytes 4 e.thread_id.1.val ++ leBytes 4 e.execution_time.1.val ++ [e.schema_len.1] ++
     leBytes 2 e.error_code.1.val ++ leBytes 2 e.status_vars_len.1.val ++
     leBytes 4 e.file_id.1.val ++ leBytes 4 e.start_pos.1.val ++ leBytes 4 e.end_pos.1.val ++
-    [byte (dupHandlingCode e.dup_handling.1)] ++
+    [byte (loadDupCode e.dup_handling.1)] ++
     (cowList e.status_vars.1).take 65535 ++ (cowList e.schema.1).take 255 ++ [byte 0] ++
     cowList e.query.1
 
@@ -802,12 +697,17 @@ def tmLenCrate (e : binlog.events.table_map_event.TableMapEvent) : Nat :=
     (cowList e.optional_metadata.1).length) evLenCap
 
 open constants.ColumnType in
-/-- The number of metadata bytes of a column of type `t` in a table map event (`is_array`: inside
-    a `TYPED_ARRAY`), from MySQL's `Field::save_field_metadata`: 1 for the BLOB types, `FLOAT`,
-    `DOUBLE`, `GEOMETRY`, `JSON`, `VECTOR` and the fractional temporal types; 2 for `VARCHAR`
-    (3 inside an array, as the crate reads it), `NEWDECIMAL`, `SET`, `ENUM`, `STRING`, `BIT`;
-    0 otherwise. (`TYPED_ARRAY` is handled by `tmColumnMeta`.) -/
-def tmColumnMetaLen (t : constants.ColumnType) (isArray : Bool) : Nat :=
+/-- The number of metadata bytes of a column of type `t` in a table map's metadata block
+    (`is_array`: inside a `TYPED_ARRAY`). This **transcribes the crate's
+    `ColumnType::get_metadata`** (`binlog/mod.rs`), which `TableMapEvent::get_column_metadata`
+    uses to walk the block: 1 for the BLOB types, `FLOAT`, `DOUBLE`, `GEOMETRY`, `JSON`, `VECTOR`
+    and the fractional temporal types; 2 for `VARCHAR` (3 inside an array), `NEWDECIMAL`, `SET`,
+    `ENUM`, `STRING`, `BIT`; 0 otherwise (`TYPED_ARRAY` is handled by `tmColumnMeta`). It agrees
+    with MySQL's `Field::save_field_metadata`, except that the 3 bytes of an array `VARCHAR` are
+    unverified. It is not E1's `binlogMetaLen` (`Defs/BinlogValue.lean`: how many metadata bytes
+    the *value decoder* reads), which differs on `FLOAT`, `DOUBLE`, `JSON`, `VAR_STRING` and array
+    `VARCHAR`. -/
+def getMetadataLen (t : constants.ColumnType) (isArray : Bool) : Nat :=
   match t with
   | MYSQL_TYPE_TINY_BLOB | MYSQL_TYPE_BLOB | MYSQL_TYPE_MEDIUM_BLOB | MYSQL_TYPE_LONG_BLOB
   | MYSQL_TYPE_DOUBLE | MYSQL_TYPE_FLOAT | MYSQL_TYPE_GEOMETRY | MYSQL_TYPE_TIME2
@@ -818,9 +718,12 @@ def tmColumnMetaLen (t : constants.ColumnType) (isArray : Bool) : Nat :=
   | _ => 0
 
 /-- The metadata of a column of type code `ty` at the front of `ptr` (`isArray`: inside a
-    `TYPED_ARRAY`), with the number of bytes it occupies: `tmColumnMetaLen` bytes; for
+    `TYPED_ARRAY`), with the number of bytes it occupies: `getMetadataLen` bytes; for
     `TYPED_ARRAY` (20) the element type byte, then the element type's metadata (array form),
-    which is what is returned. `none` if `ptr` is too short or a type is unknown. -/
+    which is what is returned. `none` if `ptr` is too short or a type is unknown.
+    **Upstream inconsistency:** the element metadata is returned *without* the element type byte,
+    but the value decoder (`binlog/value.rs:59`, `binlogEffType` in `Defs/BinlogValue.lean`) reads
+    `col_meta[0]` of a `TYPED_ARRAY` column as the element type. -/
 def tmColumnMeta (isArray : Bool) (ty : Nat) (ptr : List U8) : Option (List U8 × Nat) :=
   match columnTypeOfCode ty with
   | none => none
@@ -829,7 +732,7 @@ def tmColumnMeta (isArray : Bool) (ty : Nat) (ptr : List U8) : Option (List U8 �
       match ptr with
       | [] => none
       | e :: rest => (tmColumnMeta true e.val rest).map (fun p => (p.1, p.2 + 1))
-    else (takeExact (tmColumnMetaLen t isArray) ptr).map (fun p => (p.1, tmColumnMetaLen t isArray))
+    else (takeExact (getMetadataLen t isArray) ptr).map (fun p => (p.1, getMetadataLen t isArray))
 termination_by ptr.length
 
 /-- The metadata of column `i` given the column type codes `types` and the metadata block `mdata`
@@ -867,7 +770,7 @@ structure RowsView where
 
 /-- The fields of a rows event. -/
 def rowsView (e : binlog.events.rows_event.RowsEvent) : RowsView :=
-  { typeCode := evTypeCode e.event_type, tableId := e.table_id.1.val, flags := e.flags.1.val,
+  { typeCode := eventTypeCode e.event_type, tableId := e.table_id.1.val, flags := e.flags.1.val,
     extra := cowList e.extra_data.1, numColumns := e.num_columns.1.val,
     before := e.columns_before_image.map (fun b => cowList b.1),
     after := e.columns_after_image.map (fun b => cowList b.1), rows := cowList e.rows_data.1 }
@@ -902,7 +805,7 @@ def rowsRead (t : binlog.consts.EventType) (p pw : Nat) (bs : List U8) :
       (takeExact bl r4).map (fun p => (some p.1, p.2)) else some (none, r4)
   let (af, r6) ← if rowsIsDelete t then some (none, r5) else
       (takeExact bl r5).map (fun p => (some p.1, p.2))
-  some ({ typeCode := evTypeCode t, tableId := tid, flags := fl, extra := ex, numColumns := n,
+  some ({ typeCode := eventTypeCode t, tableId := tid, flags := fl, extra := ex, numColumns := n,
           before := bf, after := af, rows := r6 }, [])
 
 /-- A rows event as read from the wire is consistent: extra data of at most 65533 bytes (none for
@@ -940,11 +843,6 @@ def rowsVariantCode : binlog.events.RowsEventData → Nat
 
 /-! ## `TRANSACTION_PAYLOAD_EVENT` -/
 
-/-- The compression type codes (`ZSTD` 0, `NONE` 255). -/
-def tpCompressionCode : binlog.consts.TransactionPayloadCompressionType → Nat
-  | .ZSTD => 0
-  | .NONE => 255
-
 /-- A header field: its type, the length of its value and the value, each length-encoded. -/
 def tpField (ty v : Nat) : List U8 := lenencInt ty ++ lenencInt (lenencInt v).length ++ lenencInt v
 
@@ -952,8 +850,8 @@ def tpField (ty v : Nat) : List U8 := lenencInt ty ++ lenencInt (lenencInt v).le
     uncompressed size (only when compressed), the payload size (as stored, not recomputed), the
     end mark, the payload. -/
 def tpEnc (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) : List U8 :=
-  tpField 2 (tpCompressionCode e.algorithm) ++
-    (if tpCompressionCode e.algorithm = 255 then [] else tpField 3 e.uncompressed_size.1.val) ++
+  tpField 2 (txCompressionCode e.algorithm) ++
+    (if txCompressionCode e.algorithm = 255 then [] else tpField 3 e.uncompressed_size.1.val) ++
     tpField 1 e.payload_size.1.val ++ lenencInt 0 ++ cowList e.payload.1
 
 /-! ## `EventData` -/
@@ -992,7 +890,7 @@ def edTypeCode : binlog.events.EventData → Nat
   | .HeartbeatEvent => 27 | .IgnorableEvent _ => 28 | .RowsQueryEvent _ => 29
   | .GtidEvent _ => 33 | .AnonymousGtidEvent _ => 34 | .PreviousGtidsEvent _ => 35
   | .TransactionContextEvent _ => 36 | .ViewChangeEvent _ => 37 | .XaPrepareLogEvent _ => 38
-  | .RowsEvent r => evTypeCode (rowsInner r).event_type
+  | .RowsEvent r => eventTypeCode (rowsInner r).event_type
   | .TransactionPayloadEvent _ => 40
 
 end Defs

@@ -2,10 +2,11 @@ import Proofs.Defs.LemmasBinlogEvents
 
 /-!
 # Facts about the binlog-event definitions (`lean/Defs/BinlogEvents.lean`)
-    Pure-Lean properties a signer should read: the event type codes; header and fixed-text
+    Pure-Lean properties a signer should read: header and fixed-text
     lengths; each format reader inverts its encoder (FDE, query, GTID, previous GTIDs, table map,
     rows); worked examples of the status-variable walk and the metadata walk; the upstream bugs
-    on examples (`Q_UPDATED_DB_NAMES`, the table map and GTID lengths, the v1 rows length).
+    on examples (`Q_UPDATED_DB_NAMES`, the count 254, the non-fused iterator, the table map and
+    GTID lengths, the v1 rows length). (Facts about the enum codes are with `Defs/BinlogCore.lean`.)
     Proofs: `Proofs/Defs/LemmasBinlogEvents.lean`.
 
     **Trusted axioms:** none.
@@ -18,16 +19,6 @@ open Aeneas Aeneas.Std mysql_common
 namespace Defs
 
 /-! ### Lemmas -/
-
-/-- The type codes are a bijection between the wire event types and the codes the crate knows. -/
-recall evTypeOfCode_evTypeCode (t : binlog.consts.EventType) (ht : t ∈ allEvTypes) : evTypeOfCode (evTypeCode t) = some t
-
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.evTypeOfCode_evTypeCode`
-
-/-- Codes 41 (`HEARTBEAT_LOG_EVENT_V2`, unsupported) and 43 and above are not known. -/
-recall evTypeOfCode_none (n : Nat) (h : n = 41 ∨ 43 ≤ n) : evTypeOfCode n = none
-
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.evTypeOfCode_none`
 
 /-- The common header is 19 bytes. -/
 recall evHeaderEnc_length (h : binlog.events.BinlogEventHeader) : (evHeaderEnc h).length = 19
@@ -84,11 +75,21 @@ recall gtidLenCrate_eq (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_type
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.gtidLenCrate_eq`
 
-/-- Without it, the encoding is 25 bytes but the crate's length at least 42. -/
+/-- Without it, the encoding is 25 bytes but the crate's length at least 54. -/
 recall gtidLenCrate_ne (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode = none) :
-    (gtidEnc e).length = 25 ∧ 42 ≤ gtidLenCrate e
+    (gtidEnc e).length = 25 ∧ 54 ≤ gtidLenCrate e
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.gtidLenCrate_ne`
+
+/-- A `Q_UPDATED_DB_NAMES` count of 254 (`OVER_MAX_DBS_IN_EVENT_MTS`, no names follow) stops the walk: the `Q_FLAGS2_CODE` variable after it is lost. -/
+recall statusVarsOf_over_max_dbs : statusVarsOf [byte 12, byte 254, byte 0, byte 1, byte 2, byte 3, byte 4] = []
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.statusVarsOf_over_max_dbs`
+
+/-- The walk from inside a failed variable: on `[11, 16, 1]` the walk from 0 is empty (`Q_INVOKER` truncated) but from 1 it yields `Q_EXPLICIT_DEFAULTS_FOR_TIMESTAMP`. -/
+recall statusVarsIter_not_fused : svStep [byte 11, byte 16, byte 1] 0 = none ∧ svStep [byte 11, byte 16, byte 1] 1 = some ((16, [byte 1]), 3)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.statusVarsIter_not_fused`
 
 /-- The untagged previous-GTIDs reader inverts the encoder (fewer than `2^56` SIDs). -/
 recall pgRead_pgEnc (e : binlog.events.previous_gtids_event.PreviousGtidsEvent) (hl : e.sids.length < 2 ^ 56) (tail : List U8) :

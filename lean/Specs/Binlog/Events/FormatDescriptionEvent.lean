@@ -16,7 +16,7 @@ import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
 
     **Definitions used.** `Defs/BinlogEvents.lean` (`FdeView`, `fdeView`, `fdeEnc`, `fdeRead`,
     `fdeLens`, `fixedText`, `binlogVersionCode`, `binlogVersionOfCode`, `postHeaderLen`,
-    `defaultPostHeaderLen`, `evTypeCode`, `footerAlg`, `evLenCap`, `ReadsAs`).
+    `defaultPostHeaderLen`, `eventTypeCode`, `footerAlg`, `evLenCap`, `ReadsAs`).
     **Trusted axioms:** none beyond `io::Error`'s.
 
     **Not covered.** `server_version` (lossy UTF-8) and `split_version` (iterator-based version
@@ -26,6 +26,9 @@ import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
     `Event::read_data` sets the event's footer. The server version is kept with its padding (all
     50 bytes), so a shorter one written by `serialize` reads back padded. The defaults of
     `get_event_type_header_length` for the pre-5.0 load events are 0 (see `defaultPostHeaderLen`).
+
+    (Of these definitions, `eventTypeCode`, `binlogVersionCode`, `binlogVersionOfCode` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false

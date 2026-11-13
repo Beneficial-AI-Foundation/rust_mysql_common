@@ -16,7 +16,7 @@ theorem binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.new_spec {T
       { q := { threadId := 0, execTime := 0, schemaLen := min (cowList c2).length 255, errorCode := 0,
                statusVarsLen := min (cowList c1).length 65535, statusVars := cowList c1,
                schema := cowList c2, query := [] },
-        fileId := fid.val, startPos := 0, endPos := 0, dup := dupHandlingCode d } ⦄ := by
+        fileId := fid.val, startPos := 0, endPos := 0, dup := loadDupCode d } ⦄ := by
   sorry
 
 /-- `thread_id`. -/

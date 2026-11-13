@@ -16,7 +16,7 @@ import Proofs.Binlog.Events.RowsEvent.RowsEventRows
     modelled. When a reader fails, what it leaves of the buffer is not stated.
 
     **Definitions used.** `Defs/BinlogEvents.lean` (`RowsView`, `rowsView`, `rowsEnc`, `rowsRead`,
-    `RowsConsistent`, `rowsLenCrate`, `rowsIsV2`, `rowsIsUpdate`, `rowsIsDelete`, `evTypeCode`,
+    `RowsConsistent`, `rowsLenCrate`, `rowsIsV2`, `rowsIsUpdate`, `rowsIsDelete`, `eventTypeCode`,
     `rowsEventFlagsAll`, `postHeaderLen`, `fdeLens`, `takeExact`, `optFst`, `evLenCap`, `ReadsAs`),
     `Defs/LenEnc.lean`, `Defs/Bytes.lean` (`Target64`). **Trusted axioms:** none beyond
     `io::Error`'s.
@@ -28,10 +28,14 @@ import Proofs.Binlog.Events.RowsEvent.RowsEventRows
     * **`len` counts the 2-byte extra-data length for every type**, but `serialize` writes it only
       for v2 types: for a v1 event `len` is 2 more than what is written (`len_v1`).
     * The reader decides whether there is extra data by comparing the type's post-header length with
-      `WRITE_ROWS_EVENT`'s (both from the FDE), as MySQL does; `serialize` decides by the type. An
+      `WRITE_ROWS_EVENT`'s (both from the FDE) (MySQL compares with the constant
+      `ROWS_HEADER_LEN_V2` = 10; equivalent for real FDEs); `serialize` decides by the type. An
       extra-data length below 2 reads as no extra data. A post-header of 6 bytes means a 4-byte
       table id (pre-5.1.4 servers).
     * The bitmaps are read as `(n + 7) / 8` bytes; the rows are kept raw.
+
+    (Of these definitions, `eventTypeCode`, `rowsEventFlagsAll` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false
@@ -129,7 +133,7 @@ recall binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMySerialize.ser
 
 /-- Round trip, for a consistent event of the context's type with a table id below `2^48`, read with an FDE whose post-header lengths agree with the type (6 bytes excluded; equal to `WRITE_ROWS_EVENT`'s iff v2). -/
 recall binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.roundtrip (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (ht : e.table_id.1.val < 2 ^ 48)
-    (ctx : binlog.events.rows_event.RowsEventCtx) (he : evTypeCode ctx.event_type = evTypeCode e.event_type)
+    (ctx : binlog.events.rows_event.RowsEventCtx) (he : eventTypeCode ctx.event_type = eventTypeCode e.event_type)
     (hp : postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type ≠ 6) (hv : postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type = postHeaderLen (fdeLens ctx.binlog_ctx.fde) .WRITE_ROWS_EVENT ↔ rowsIsV2 e.event_type = true)
     (buf : io.ParseBuf) (h : buf.val = rowsEnc e) :
     binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize ctx buf ⦃ r rest => (okPart r).map rowsView = some (rowsView e) ∧ rest.val = [] ⦄

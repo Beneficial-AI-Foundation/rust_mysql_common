@@ -13,7 +13,15 @@ import Proofs.Binlog.Events.PreviousGtidsEvent.PreviousGtidsEvent
     intervals), tags through `binlog::trusted`).
 
     **Caveats.** Allocation is infallible, overflow is a panic (debug semantics), the stack is not
-    modelled. **Unbounded allocation (upstream):** `deserialize` calls `Vec::with_capacity` with
+    modelled.
+
+    **Caveat: real Rust aborts where the model returns `Err`.** Inputs: the untagged format with an
+    SID count `n` (low 56 bits of the first 8 bytes) such that `n * size_of::<PreviousGtidsSid>()`
+    exceeds `isize::MAX` (capacity-overflow panic) or the memory available (abort, e.g.
+    "memory allocation of 70368744177600 bytes failed"), and any SID entry whose interval count
+    `m` (bytes 16–23 of the entry) makes `16 * m` too large likewise; in each case with fewer
+    bytes than the count announces. The statements describe the model (an error).
+    **Unbounded allocation (upstream):** `deserialize` calls `Vec::with_capacity` with
     the SID count (up to `2^56`) and each SID's interval count (up to `2^64 - 1`) read from the
     wire, before checking that the data holds them. In real Rust a large count panics (capacity
     overflow) or aborts the process (allocation failure), from a 24-byte input; the model

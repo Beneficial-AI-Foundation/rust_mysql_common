@@ -23,12 +23,13 @@ import Proofs.Binlog.Events.Mod.RowsEventData
     modelled. `read_event` requires `19 + data.len()` not to overflow (`hlen`; true for every
     event `Event::read` builds).
 
-    **Definitions used.** `Defs/BinlogEvents.lean` (`evHeaderEnc`, `evTypeCode`, `evTypeOfCode`,
-    `eventFlagsAll`, `rowsEventFlagsAll`, `checksumAlgCode`, `checksumAlgOfCode`, `footerAlg`,
-    `evHasChecksum`, `eventLen`, `edRaw`, `edUnit`, `edUnitCodes`, `edRawCodes`, `edTypeCode`,
-    `rowsInner`, `rowsVariantCode`, `rowsView`, `rowsEnc`, `rowsRead`, `queryRead`, `queryView`,
-    `rotateRead`, `rotateView`, `fdeRead`, `fdeView`, `tmRead`, `tmView`, `postHeaderLen`,
-    `fdeLens`), `Defs/Bytes.lean`.
+    **Definitions used.** `Defs/BinlogEvents.lean` (`evHeaderEnc`, `footerAlg`, `evHasChecksum`,
+    `eventLen`, `edRaw`, `edUnit`, `edUnitCodes`, `edRawCodes`, `edTypeCode`, `rowsInner`,
+    `rowsVariantCode`, `rowsView`, `rowsEnc`, `rowsRead`, `queryRead`, `queryView`, `rotateRead`,
+    `rotateView`, `fdeRead`, `fdeView`, `tmRead`, `tmView`, `gtidRead`, `GtidView`, `gtidView`,
+    `postHeaderLen`, `fdeLens`), `Defs/BinlogCore.lean` (`eventTypeCode`, `eventTypeOfCode`,
+    `eventFlagsAll`, `rowsEventFlagsAll`, `checksumAlgCode`, `checksumAlgOfCode`),
+    `Defs/Bytes.lean`.
 
     **Trusted axioms.** None of namespace `Trusted`. Opaque (nothing assumed): `io::Error`, and
     `binlog::trusted::bytes_remaining_error` (the error of `read_event` when bytes are left: the
@@ -45,6 +46,16 @@ import Proofs.Binlog.Events.Mod.RowsEventData
     code 0 (43 is unknown on the wire); `GTID_TAGGED_LOG_EVENT` (42) gives `EventData::GtidEvent`.
     `Event::len` counts a footer only for a known checksum algorithm and caps at `u32::MAX - 19`.
     The checksum is reported for an FDE whenever the footer names an algorithm, `OFF` included.
+    * **`checksum()`, `len` and `write` ignore `checksum_enabled`**, while `Event::read` honours it
+      when stripping the checksum: an event read with checksums disabled (inside a
+      `TRANSACTION_PAYLOAD_EVENT`) under a non-`OFF` algorithm reports `Some([0; 4])` as its
+      checksum and 4 extra bytes of length (`checksum_eq`, `len_spec`).
+    * **`Event::read` (not translated) panics instead of returning an error** on input shorter than
+      the header's `event_size` (`read_exact(..).unwrap()`), and on event data shorter than its
+      checksum footer (`data.len() - 4` underflows, e.g. `event_size` 19 under a CRC32 FDE).
+    * `read_data` of a GTID event that carries `commit_group_ticket` (MySQL 8.0.33+) is an error:
+      the GTID reader leaves those bytes, so `read_event` reports bytes remaining
+      (`read_data_gtid_leftover`).
 -/
 
 set_option autoImplicit false
@@ -115,7 +126,7 @@ recall binlog.events.Event.read_event_fail {T : Type} (inst : binlog.BinlogEvent
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.Event.read_event_fail`
 
 /-- `read_data` on an unknown type code (41, ≥ 43): `Ok(None)`. -/
-recall binlog.events.Event.read_data_unknown (self : binlog.events.Event) (h : evTypeOfCode self.header.event_type.1.val = none) :
+recall binlog.events.Event.read_data_unknown (self : binlog.events.Event) (h : eventTypeOfCode self.header.event_type.1.val = none) :
     binlog.events.Event.read_data self = ok (.Ok none)
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.Event.read_data_unknown`
@@ -401,13 +412,31 @@ recall binlog.events.Event.read_data_table_map_wire (h64 : Target64) (self : bin
 
 /-- End to end: the `EventData` of a rows event (23–25, 30–32, 39): the `RowsEventData` variant of its type, with `rowsRead` of its data (post-header lengths from the event's FDE). -/
 recall binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.events.Event) (t : binlog.consts.EventType)
-    (ht : evTypeOfCode self.header.event_type.1.val = some t) (hr : evTypeCode t ∈ [23, 24, 25, 30, 31, 32, 39])
+    (ht : eventTypeOfCode self.header.event_type.1.val = some t) (hr : eventTypeCode t ∈ [23, 24, 25, 30, 31, 32, 39])
     (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match rowsRead t (postHeaderLen (fdeLens self.fde) t) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
-      | some (v, _) => ∃ x, r = .Ok (some (.RowsEvent x)) ∧ rowsVariantCode x = evTypeCode t ∧ rowsView (rowsInner x) = v
+      | some (v, _) => ∃ x, r = .Ok (some (.RowsEvent x)) ∧ rowsVariantCode x = eventTypeCode t ∧ rowsView (rowsInner x) = v
       | none => okPart r = none ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.Event.read_data_rows_wire`
+
+/-- End to end: the `EventData` of a GTID event (33) whose data the untagged GTID reader consumes entirely: `gtidRead`; an error iff that fails. -/
+recall binlog.events.Event.read_data_gtid_wire (self : binlog.events.Event) (h : self.header.event_type.1.val = 33) (hlen : self.data.length + 19 ≤ Usize.max)
+    (hg : ∀ v b bs, gtidRead self.data.val ≠ some (v, b :: bs)) :
+    binlog.events.Event.read_data self ⦃ r => match gtidRead self.data.val with
+      | some (v, _) => ∃ x, r = .Ok (some (.GtidEvent x)) ∧ gtidView x = v ∧ x.tag = none
+      | none => okPart r = none ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.Event.read_data_gtid_wire`
+
+/-- A GTID event (33) whose data has bytes after what the GTID reader reads (e.g. MySQL 8.0.33+'s `commit_group_ticket`): `read_data` is the (opaque) bytes-remaining error. -/
+recall binlog.events.Event.read_data_gtid_leftover (self : binlog.events.Event) (h : self.header.event_type.1.val = 33) (hlen : self.data.length + 19 ≤ Usize.max)
+    (v : GtidView) (b : U8) (bs : List U8) (hg : gtidRead self.data.val = some (v, b :: bs)) :
+    binlog.events.Event.read_data self = (do
+      let e ← binlog.trusted.bytes_remaining_error binlog.events.gtid_event.GtidEvent
+      ok (.Err e))
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.Event.read_data_gtid_leftover`
 
 /-! ### `struct BinlogEventHeader and its impls` -/
 
@@ -419,7 +448,7 @@ recall binlog.events.BinlogEventHeader.LEN_eq :
 
 /-- `new`: those fields (the type as its code, the flags' bits). -/
 recall binlog.events.BinlogEventHeader.new_spec (ts : U32) (t : binlog.consts.EventType) (sid size pos : U32) (fl : binlog.consts.EventFlags) :
-    binlog.events.BinlogEventHeader.new ts t sid size pos fl ⦃ h => h.timestamp.1 = ts ∧ h.event_type.1.val = evTypeCode t ∧
+    binlog.events.BinlogEventHeader.new ts t sid size pos fl ⦃ h => h.timestamp.1 = ts ∧ h.event_type.1.val = eventTypeCode t ∧
       h.server_id.1 = sid ∧ h.event_size.1 = size ∧ h.log_pos.1 = pos ∧ h.flags.1 = fl ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.BinlogEventHeader.new_spec`
@@ -438,7 +467,7 @@ recall binlog.events.BinlogEventHeader.event_type_raw_eq (h : binlog.events.Binl
 
 /-- `event_type`: the known type with that code, or the raw byte as an error. -/
 recall binlog.events.BinlogEventHeader.impl.event_type_spec (h : binlog.events.BinlogEventHeader) :
-    binlog.events.BinlogEventHeader.impl.event_type h ⦃ r => match evTypeOfCode h.event_type.1.val with
+    binlog.events.BinlogEventHeader.impl.event_type h ⦃ r => match eventTypeOfCode h.event_type.1.val with
       | some t => r = .Ok t
       | none => r = .Err h.event_type.1 ⦄
 

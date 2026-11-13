@@ -20,6 +20,9 @@ import Proofs.Binlog.Events.IncidentEvent.IncidentEvent
 
     **Behaviour to note.** A message is truncated to 255 bytes when written (and by `message_raw`).
     Bytes after the message are left unread (an error in `Event::read_event`).
+
+    (Of these definitions, `incidentTypeCode`, `incidentTypeOfCode` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false

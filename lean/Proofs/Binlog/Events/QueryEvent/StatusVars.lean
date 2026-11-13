@@ -15,8 +15,8 @@ theorem binlog.events.query_event.StatusVars.iter_spec (s : binlog.events.query_
 
 /-- `get_status_var(key)`: the first variable with that key in the walk, if any. -/
 theorem binlog.events.query_event.StatusVars.get_status_var_spec (s : binlog.events.query_event.StatusVars) (k : binlog.consts.StatusVarKey) :
-    binlog.events.query_event.StatusVars.get_status_var s k ⦃ o => o.map (fun x => (svKeyCode x.key, x.value.val)) =
-      (statusVarsOf ((cowList s.1).take 65535)).find? (fun kv => kv.1 = svKeyCode k) ⦄ := by
+    binlog.events.query_event.StatusVars.get_status_var s k ⦃ o => o.map (fun x => (statusVarKeyCode x.key, x.value.val)) =
+      (statusVarsOf ((cowList s.1).take 65535)).find? (fun kv => kv.1 = statusVarKeyCode k) ⦄ := by
   sorry
 
 /-- `into_owned`: the same bytes. -/

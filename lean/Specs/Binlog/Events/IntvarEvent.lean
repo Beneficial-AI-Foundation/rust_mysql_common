@@ -20,6 +20,9 @@ import Proofs.Binlog.Events.IntvarEvent.IntvarEvent
     **Behaviour to note.** `deserialize` does not check the length (`SIZE` is `Some(9)`, it uses
     `parse_unchecked`): called directly on fewer than 9 bytes it panics unless it first meets an
     unknown subtype; `parse` (as `Event::read_event` uses it) checks.
+
+    (Of these definitions, `intvarTypeCode`, `intvarTypeOfCode` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false

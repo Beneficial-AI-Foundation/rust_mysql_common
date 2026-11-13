@@ -16,24 +16,28 @@ import Proofs.Binlog.Events.TableMapEvent.TableMapEvent
     modelled. When the reader fails, what it leaves of the buffer is not stated.
 
     **Definitions used.** `Defs/BinlogEvents.lean` (`TmView`, `tmView`, `tmEnc`, `tmRead`,
-    `TmConsistent`, `tmLenCrate`, `tmColumnMetaLen`, `tmColumnMeta`, `tmMetaAt`,
+    `TmConsistent`, `tmLenCrate`, `getMetadataLen`, `tmColumnMeta`, `tmMetaAt`,
     `tmStringRealType`, `u8Str`, `takeExact`, `optFst`, `postHeaderLen`, `fdeLens`, `evLenCap`,
     `ReadsAs`), `Defs/Flags.lean` (`columnTypeCode`, `columnTypeOfCode`), `Defs/LenEnc.lean`
     (`lenencInt`, `lenencStr`, `checkedLenencInt`, `checkedLenencStr`, `checkedLenPrefixed`),
     `Defs/Bytes.lean` (`Target64`). **Trusted axioms:** none beyond `io::Error`'s.
 
-    **Not covered.** `null_bitmask` and `iter_optional_meta` and the optional-metadata types and
-    iterators (`bitvec`; excluded), `database_name` / `table_name` (lossy UTF-8; excluded); the
+    **Not covered.** `null_bitmask` (`bitvec`; excluded); `iter_optional_meta` and the
+    optional-metadata types and iterators (not translated: outside the `start_from` list); `database_name` / `table_name` (lossy UTF-8; excluded); the
     derived impls.
 
     **Behaviour to note (bug first).**
     * **`len` counts the NULL bitmap as `(columns_count + 8) / 7` bytes** instead of
-      `(columns_count + 7) / 8` (`len_spec`, `len_bug`): it is wrong for every column count
-      except 1–6 and 8 (e.g. one byte too many for 0 columns, `Defs.tmLenCrate_zero`). It also
+      `(columns_count + 7) / 8` (`len_spec`, `len_bug`): the two agree only for
+      n ∈ {1–5, 9–12, 17–19, 25, 26, 33}; it is wrong for 0 columns (one byte too many,
+      `Defs.tmLenCrate_zero`) and for every other n, including all n ≥ 34. It also
       panics (overflow) for a column count within 8 of `2^64` (`len_panics`; such an event cannot
       be read from the wire).
     * The reader does not check the `0` after each name, nor that the metadata block matches the
       column types. Names are truncated to 255 bytes when written.
+    * **Upstream inconsistency:** `get_column_metadata` of a `TYPED_ARRAY` column returns the
+      element's metadata *without* the element type byte (`tmColumnMeta`), but the value decoder
+      (`binlog/value.rs:59`) reads `col_meta[0]` as the element type.
     * `get_column_type` reports `DATE` columns as `NEWDATE` (the binlog's `real_type`), and a
       `STRING` column as `ENUM`/`SET`/`STRING` from its first metadata byte (`tmStringRealType`;
       other values are an error).
@@ -93,7 +97,7 @@ recall binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec (e :
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec`
 
-/-- `get_column_type(i)`: as `get_raw_column_type`, but `DATE` is `NEWDATE`, and a `STRING` column with metadata has the real type of its first metadata byte (`tmStringRealType`; another value is `BadColumnType::Unexpected`). -/
+/-- `get_column_type(i)`: as `get_raw_column_type`, but `DATE` is `NEWDATE`, and a `STRING` column with metadata has the real type of its first metadata byte (`tmStringRealType`; another value `x` is `BadColumnType::Unexpected(x | 0x30)`). -/
 recall binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
     binlog.events.table_map_event.TableMapEvent.get_column_type e i ⦃ r => match (cowList e.columns_type.1)[i.val]? with
       | none => r = .Ok none
@@ -106,7 +110,7 @@ recall binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : bin
             | none => r = .Ok (some t)
             | some m => match tmStringRealType (m.headD (byte 0)).val with
               | some t' => r = .Ok (some t')
-              | none => ∃ x, r = .Err (.Unexpected x)
+              | none => r = .Err (.Unexpected (byte ((m.headD (byte 0)).val ||| 0x30)))
           else r = .Ok (some t) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.get_column_type_spec`

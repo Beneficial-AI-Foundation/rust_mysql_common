@@ -60,7 +60,7 @@ theorem binlog.events.Event.read_event_fail {T : Type} (inst : binlog.BinlogEven
   sorry
 
 /-- `read_data` on an unknown type code (41, ≥ 43): `Ok(None)`. -/
-theorem binlog.events.Event.read_data_unknown (self : binlog.events.Event) (h : evTypeOfCode self.header.event_type.1.val = none) :
+theorem binlog.events.Event.read_data_unknown (self : binlog.events.Event) (h : eventTypeOfCode self.header.event_type.1.val = none) :
     binlog.events.Event.read_data self = ok (.Ok none) := by
   sorry
 
@@ -316,11 +316,27 @@ theorem binlog.events.Event.read_data_table_map_wire (h64 : Target64) (self : bi
 
 /-- End to end: the `EventData` of a rows event (23–25, 30–32, 39): the `RowsEventData` variant of its type, with `rowsRead` of its data (post-header lengths from the event's FDE). -/
 theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.events.Event) (t : binlog.consts.EventType)
-    (ht : evTypeOfCode self.header.event_type.1.val = some t) (hr : evTypeCode t ∈ [23, 24, 25, 30, 31, 32, 39])
+    (ht : eventTypeOfCode self.header.event_type.1.val = some t) (hr : eventTypeCode t ∈ [23, 24, 25, 30, 31, 32, 39])
     (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match rowsRead t (postHeaderLen (fdeLens self.fde) t) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
-      | some (v, _) => ∃ x, r = .Ok (some (.RowsEvent x)) ∧ rowsVariantCode x = evTypeCode t ∧ rowsView (rowsInner x) = v
+      | some (v, _) => ∃ x, r = .Ok (some (.RowsEvent x)) ∧ rowsVariantCode x = eventTypeCode t ∧ rowsView (rowsInner x) = v
       | none => okPart r = none ⦄ := by
+  sorry
+
+/-- End to end: the `EventData` of a GTID event (33) whose data the untagged GTID reader consumes entirely: `gtidRead`; an error iff that fails. -/
+theorem binlog.events.Event.read_data_gtid_wire (self : binlog.events.Event) (h : self.header.event_type.1.val = 33) (hlen : self.data.length + 19 ≤ Usize.max)
+    (hg : ∀ v b bs, gtidRead self.data.val ≠ some (v, b :: bs)) :
+    binlog.events.Event.read_data self ⦃ r => match gtidRead self.data.val with
+      | some (v, _) => ∃ x, r = .Ok (some (.GtidEvent x)) ∧ gtidView x = v ∧ x.tag = none
+      | none => okPart r = none ⦄ := by
+  sorry
+
+/-- A GTID event (33) whose data has bytes after what the GTID reader reads (e.g. MySQL 8.0.33+'s `commit_group_ticket`): `read_data` is the (opaque) bytes-remaining error. -/
+theorem binlog.events.Event.read_data_gtid_leftover (self : binlog.events.Event) (h : self.header.event_type.1.val = 33) (hlen : self.data.length + 19 ≤ Usize.max)
+    (v : GtidView) (b : U8) (bs : List U8) (hg : gtidRead self.data.val = some (v, b :: bs)) :
+    binlog.events.Event.read_data self = (do
+      let e ← binlog.trusted.bytes_remaining_error binlog.events.gtid_event.GtidEvent
+      ok (.Err e)) := by
   sorry
 
 end mysql_common

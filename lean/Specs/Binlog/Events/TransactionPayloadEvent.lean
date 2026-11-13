@@ -11,7 +11,7 @@ import Proofs.Binlog.Events.TransactionPayloadEvent.TransactionPayloadEvent
     (debug semantics), the stack is not modelled. A reader's statement says what it returns; when it
     fails, what it leaves of the buffer is not stated (`ReadsAs`; `Event::read_event` discards it).
 
-    **Definitions used.** `Defs/BinlogEvents.lean` (`tpEnc`, `tpField`, `tpCompressionCode`,
+    **Definitions used.** `Defs/BinlogEvents.lean` (`tpEnc`, `tpField`, `txCompressionCode`,
     `evLenCap`), `Defs/LenEnc.lean` (`lenencInt`). **Trusted axioms:** none beyond `io::Error`'s.
 
     **Not covered.** `deserialize` (opaque in Cargo.toml: it walks the header with
@@ -21,9 +21,19 @@ import Proofs.Binlog.Events.TransactionPayloadEvent.TransactionPayloadEvent
 
     **Behaviour to note.** `len` is `header_size + payload.len()`, where `header_size` is only set
     by `deserialize`: for an event built with `new` it is 0, so `len` is the payload length alone,
-    not the length `serialize` writes (`len_eq`). `serialize` writes the stored `payload_size`, not
-    the payload's length. (Upstream, `deserialize` panics (`unwrap`) on an unknown compression type
-    and on a payload size beyond the buffer before checking; not stated, as it is opaque here.)
+    not the length `serialize` writes (`len_eq`, `len_new_bug`). `serialize` writes the stored
+    `payload_size`, not the payload's length. `SIZE` is `ok none`, a `Result`, unlike the other
+    events' `SIZE`: it is the hand-written model of `FunsExternal.lean` (Aeneas leaves the constant
+    to us because `deserialize` is opaque), intended.
+    **Upstream (not stated: `deserialize` is opaque here).** `deserialize` panics on server input:
+    `TransactionPayloadCompressionType::try_from(val).unwrap()` for any unknown compression code
+    (anything but 0 and 255), and on an unknown field type it reads the field length with the
+    unchecked `eat_lenenc_int` and skips that many bytes with the unchecked `skip`
+    (`transaction_payload_event.rs:317–318`), so a truncated or too-long unknown field panics. It
+    does check the payload size against the buffer before using it.
+
+    (Of these definitions, `txCompressionCode` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false
@@ -37,7 +47,7 @@ namespace mysql_common
 /-- `new(payload_size, algorithm, uncompressed_size, payload)`: those fields, `header_size` 0. -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.new_spec {T1 : Type} (into : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (ps : U64) (alg : binlog.consts.TransactionPayloadCompressionType) (us : U64) (p : T1) (c : alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))
     (h : into.into p = ok c) :
-    binlog.events.transaction_payload_event.TransactionPayloadEvent.new into ps alg us p ⦃ e => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, tpCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e = (ps.val, tpCompressionCode alg, us.val, cowList c) ∧ e.header_size.val = 0 ⦄
+    binlog.events.transaction_payload_event.TransactionPayloadEvent.new into ps alg us p ⦃ e => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e = (ps.val, txCompressionCode alg, us.val, cowList c) ∧ e.header_size.val = 0 ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.new_spec`
 
@@ -91,7 +101,7 @@ recall binlog.events.transaction_payload_event.TransactionPayloadEvent.impl.unco
 
 /-- `into_owned`: the same fields (and `header_size`). -/
 recall binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned_spec (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) :
-    binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned e ⦃ e' => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, tpCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e' = (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, tpCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e ∧ e'.header_size = e.header_size ⦄
+    binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned e ⦃ e' => (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e' = (fun (x : binlog.events.transaction_payload_event.TransactionPayloadEvent) => (x.payload_size.1.val, txCompressionCode x.algorithm, x.uncompressed_size.1.val, cowList x.payload.1)) e ∧ e'.header_size = e.header_size ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.into_owned_spec`
 
@@ -119,5 +129,11 @@ recall binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mys
     binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (e.header_size.val + (cowList e.payload.1).length) evLenCap ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq`
+
+/-- **Upstream bug:** for an event with `header_size` 0 (every event built with `new`), `len` is the capped payload length, strictly less than the length `serialize` writes (`tpEnc`, which has at least 7 header bytes). -/
+recall binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_new_bug (e : binlog.events.transaction_payload_event.TransactionPayloadEvent) (h0 : e.header_size.val = 0) (v : binlog.consts.BinlogVersion) :
+    binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = min (cowList e.payload.1).length evLenCap ∧ n.val + 7 ≤ (tpEnc e).length ⦄
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.transaction_payload_event.TransactionPayloadEvent.Insts.Mysql_commonBinlogBinlogStruct.len_new_bug`
 
 end mysql_common

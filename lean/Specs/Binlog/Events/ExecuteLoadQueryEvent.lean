@@ -14,7 +14,7 @@ import Proofs.Binlog.Events.ExecuteLoadQueryEvent.ExecuteLoadQueryEvent
     fails, what it leaves of the buffer is not stated (`ReadsAs`; `Event::read_event` discards it).
 
     **Definitions used.** `Defs/BinlogEvents.lean` (`ElqView`, `elqView`, `elqEnc`, `elqRead`,
-    `dupHandlingCode`, `QueryView`, `ReadsAs`). **Trusted axioms:** none beyond `io::Error`'s.
+    `loadDupCode`, `QueryView`, `ReadsAs`). **Trusted axioms:** none beyond `io::Error`'s.
 
     **Not covered.** The `with_*` builders (as for `QueryEvent`: they set the field and, for status
     variables and schema, the stored length); `schema`/`query` (lossy UTF-8, excluded); the
@@ -24,6 +24,9 @@ import Proofs.Binlog.Events.ExecuteLoadQueryEvent.ExecuteLoadQueryEvent
     and does not check the `0` after the schema. `len` caps the status variables at 65522 bytes
     while `serialize` writes up to 65535, so for status variables longer than 65522 bytes `len` is
     too small (the `len` statement assumes at most 65522).
+
+    (Of these definitions, `loadDupCode` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false
@@ -42,7 +45,7 @@ recall binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.new_spec {T1
       { q := { threadId := 0, execTime := 0, schemaLen := min (cowList c2).length 255, errorCode := 0,
                statusVarsLen := min (cowList c1).length 65535, statusVars := cowList c1,
                schema := cowList c2, query := [] },
-        fileId := fid.val, startPos := 0, endPos := 0, dup := dupHandlingCode d } ⦄
+        fileId := fid.val, startPos := 0, endPos := 0, dup := loadDupCode d } ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.execute_load_query_event.ExecuteLoadQueryEvent.new_spec`
 

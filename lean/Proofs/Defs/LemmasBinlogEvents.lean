@@ -9,14 +9,6 @@ open Aeneas Aeneas.Std mysql_common
 
 namespace Defs
 
-/-- The type codes are a bijection between the wire event types and the codes the crate knows. -/
-theorem evTypeOfCode_evTypeCode (t : binlog.consts.EventType) (ht : t ∈ allEvTypes) : evTypeOfCode (evTypeCode t) = some t := by
-  sorry
-
-/-- Codes 41 (`HEARTBEAT_LOG_EVENT_V2`, unsupported) and 43 and above are not known. -/
-theorem evTypeOfCode_none (n : Nat) (h : n = 41 ∨ 43 ≤ n) : evTypeOfCode n = none := by
-  sorry
-
 /-- The common header is 19 bytes. -/
 theorem evHeaderEnc_length (h : binlog.events.BinlogEventHeader) : (evHeaderEnc h).length = 19 := by
   sorry
@@ -63,9 +55,17 @@ theorem gtidLenCrate_eq (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typ
     gtidLenCrate e = min (gtidEnc e).length evLenCap := by
   sorry
 
-/-- Without it, the encoding is 25 bytes but the crate's length at least 42. -/
+/-- Without it, the encoding is 25 bytes but the crate's length at least 54. -/
 theorem gtidLenCrate_ne (e : binlog.events.gtid_event.GtidEvent) (hlc : e.lc_typecode = none) :
-    (gtidEnc e).length = 25 ∧ 42 ≤ gtidLenCrate e := by
+    (gtidEnc e).length = 25 ∧ 54 ≤ gtidLenCrate e := by
+  sorry
+
+/-- A `Q_UPDATED_DB_NAMES` count of 254 (`OVER_MAX_DBS_IN_EVENT_MTS`, no names follow) stops the walk: the `Q_FLAGS2_CODE` variable after it is lost. -/
+theorem statusVarsOf_over_max_dbs : statusVarsOf [byte 12, byte 254, byte 0, byte 1, byte 2, byte 3, byte 4] = [] := by
+  sorry
+
+/-- The walk from inside a failed variable: on `[11, 16, 1]` the walk from 0 is empty (`Q_INVOKER` truncated) but from 1 it yields `Q_EXPLICIT_DEFAULTS_FOR_TIMESTAMP`. -/
+theorem statusVarsIter_not_fused : svStep [byte 11, byte 16, byte 1] 0 = none ∧ svStep [byte 11, byte 16, byte 1] 1 = some ((16, [byte 1]), 3) := by
   sorry
 
 /-- The untagged previous-GTIDs reader inverts the encoder (fewer than `2^56` SIDs). -/

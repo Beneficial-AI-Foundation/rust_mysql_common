@@ -212,7 +212,18 @@ theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeD
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map gtidView = some (gtidView e) ∧ rest.val = tail ⦄ := by
   sorry
 
-/-- `BinlogStruct::len` of an untagged event: `gtidLenCrate`, which always counts the logical-clock part. **Quirk:** without it (`lc_typecode` `None`) `serialize` writes 25 bytes but `len` is at least 42 (`Defs.gtidLenCrate_ne`); with it, `len` is the length of `gtidEnc` (`Defs.gtidLenCrate_eq`). -/
+/-- Round trip of an untagged event without the logical-clock part (pre-5.7): the 25-byte prefix reads back with the defaults (zeros, server versions `UNDEFINED_SERVER_VERSION`), provided the following bytes do not start with `2`. -/
+theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_roundtrip_no_lc (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (hlc : e.lc_typecode = none)
+    (ctx : binlog.BinlogCtx) (hc : ctx.event_type_raw.val = 33 ∨ ctx.event_type_raw.val = 34)
+    (tail : List U8) (hb : tail.head?.map (·.val) ≠ some 2) (buf : io.ParseBuf) (h : buf.val = gtidEnc e ++ tail) :
+    binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map gtidView = some
+      { gtidView e with
+        lc := false, lastCommitted := 0, sequenceNumber := 0, immediateCommitTs := 0,
+        originalCommitTs := 0, txLength := 0, immediateServerVersion := undefinedServerVersion,
+        originalServerVersion := undefinedServerVersion } ∧ rest.val = tail ⦄ := by
+  sorry
+
+/-- `BinlogStruct::len` of an untagged event: `gtidLenCrate`, which always counts the logical-clock part. **Quirk:** without it (`lc_typecode` `None`) `serialize` writes 25 bytes but `len` is at least 54 (`Defs.gtidLenCrate_ne`); with it, `len` is the length of `gtidEnc` (`Defs.gtidLenCrate_eq`). -/
 theorem binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (e : binlog.events.gtid_event.GtidEvent) (ht : e.tag = none) (v : binlog.consts.BinlogVersion) :
     binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = gtidLenCrate e ⦄ := by
   sorry

@@ -22,6 +22,9 @@ import Proofs.Binlog.Events.UpdateRowsEvent.UpdateRowsEvent
 
     **Not covered.** The `bitvec` views (`columns_before_image` / `columns_after_image`,
     excluded; they `expect` the bitmap of a rows event read from the wire); the derived impls.
+
+    (Of these definitions, `rowsEventFlagsAll` are in `Defs/BinlogCore.lean`, shared with the
+    other binlog spec files.)
 -/
 
 set_option autoImplicit false

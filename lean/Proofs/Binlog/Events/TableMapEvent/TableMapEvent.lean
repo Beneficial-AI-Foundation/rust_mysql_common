@@ -47,7 +47,7 @@ theorem binlog.events.table_map_event.TableMapEvent.get_column_metadata_spec (e 
     binlog.events.table_map_event.TableMapEvent.get_column_metadata e i ⦃ o => o.map (·.val) = tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val ⦄ := by
   sorry
 
-/-- `get_column_type(i)`: as `get_raw_column_type`, but `DATE` is `NEWDATE`, and a `STRING` column with metadata has the real type of its first metadata byte (`tmStringRealType`; another value is `BadColumnType::Unexpected`). -/
+/-- `get_column_type(i)`: as `get_raw_column_type`, but `DATE` is `NEWDATE`, and a `STRING` column with metadata has the real type of its first metadata byte (`tmStringRealType`; another value `x` is `BadColumnType::Unexpected(x | 0x30)`). -/
 theorem binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
     binlog.events.table_map_event.TableMapEvent.get_column_type e i ⦃ r => match (cowList e.columns_type.1)[i.val]? with
       | none => r = .Ok none
@@ -60,7 +60,7 @@ theorem binlog.events.table_map_event.TableMapEvent.get_column_type_spec (e : bi
             | none => r = .Ok (some t)
             | some m => match tmStringRealType (m.headD (byte 0)).val with
               | some t' => r = .Ok (some t')
-              | none => ∃ x, r = .Err (.Unexpected x)
+              | none => r = .Err (.Unexpected (byte ((m.headD (byte 0)).val ||| 0x30)))
           else r = .Ok (some t) ⦄ := by
   sorry
 

@@ -15,7 +15,7 @@ theorem binlog.events.BinlogEventHeader.LEN_eq :
 
 /-- `new`: those fields (the type as its code, the flags' bits). -/
 theorem binlog.events.BinlogEventHeader.new_spec (ts : U32) (t : binlog.consts.EventType) (sid size pos : U32) (fl : binlog.consts.EventFlags) :
-    binlog.events.BinlogEventHeader.new ts t sid size pos fl ⦃ h => h.timestamp.1 = ts ∧ h.event_type.1.val = evTypeCode t ∧
+    binlog.events.BinlogEventHeader.new ts t sid size pos fl ⦃ h => h.timestamp.1 = ts ∧ h.event_type.1.val = eventTypeCode t ∧
       h.server_id.1 = sid ∧ h.event_size.1 = size ∧ h.log_pos.1 = pos ∧ h.flags.1 = fl ⦄ := by
   sorry
 
@@ -31,7 +31,7 @@ theorem binlog.events.BinlogEventHeader.event_type_raw_eq (h : binlog.events.Bin
 
 /-- `event_type`: the known type with that code, or the raw byte as an error. -/
 theorem binlog.events.BinlogEventHeader.impl.event_type_spec (h : binlog.events.BinlogEventHeader) :
-    binlog.events.BinlogEventHeader.impl.event_type h ⦃ r => match evTypeOfCode h.event_type.1.val with
+    binlog.events.BinlogEventHeader.impl.event_type h ⦃ r => match eventTypeOfCode h.event_type.1.val with
       | some t => r = .Ok t
       | none => r = .Err h.event_type.1 ⦄ := by
   sorry
