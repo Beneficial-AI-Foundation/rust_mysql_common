@@ -246,9 +246,9 @@ def scramble2Len (b : Nat) : Nat := max 13 (b - 8)
 /-- **The crate's length of `auth_plugin_data_part_2`** (`max(13, (b as i8) - 8)`): as
     `scramble2Len` for `b < 128`; **13 for `b ≥ 136`, in every build** (the byte is read as a
     negative `i8`; the protocol says `b - 8 ≥ 128`). For `128 ≤ b < 136` the `i8` subtraction
-    overflows: with overflow checks (e.g. debug builds) a panic (`handshakePanics`); without them
-    it wraps to exactly `b - 8`, the protocol's value (this definition then describes only builds
-    with overflow checks, which are the semantics Aeneas models). -/
+    overflows: with overflow checks (e.g. debug builds) a panic, so the value here is unused there
+    (`handshakePanics`); without them it wraps to exactly `b - 8`, the protocol's value (Aeneas
+    models builds with overflow checks). -/
 def scramble2LenCrate (b : Nat) : Nat := if b < 128 then max 13 (b - 8) else 13
 
 /-- The crate's reader of a handshake packet (`MyDeserialize for HandshakePacket`), when it does

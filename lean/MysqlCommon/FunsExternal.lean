@@ -1157,9 +1157,10 @@ function Aeneas does not model, and the module is `opaque` in Cargo.toml. Each f
   are valid UTF-8; the error is opaque);
 * an **opaque value, exact on ASCII input**: the two version regexes (`versionReCaptures_ascii`,
   `mariadbVersionReCaptures_ascii`);
-* an **opaque value with no specification** (except that a new map is empty): the `GnoInterval`
-  error and the `HashMap` of connect attributes (`std::collections::HashMap`, an opaque type in
-  TypesExternal.lean) and its operations.
+* an **opaque value with no specification**: the `GnoInterval` error;
+* an **opaque value whose only stated property is that a new map is empty**: the `HashMap` of
+  connect attributes (`std::collections::HashMap`, an opaque type in TypesExternal.lean) and its
+  operations.
 
 **Caveat (connect attributes):** the only property of the `connectAttrs*` axioms stated is
 that a new map has no entries (`connectAttrsEntries_new`). Any Lean
@@ -1167,9 +1168,10 @@ model of them makes a map's iteration order (`connectAttrsEntries`) a determinis
 the operations that built it, while Rust seeds every `HashMap` randomly (std `hash/random.rs`):
 serializing the same attributes twice can give different bytes. Specs must not relate the
 order, the serialized bytes or the Lean equality of separately built maps, or of the same
-construction in separate calls. If property axioms are ever added (e.g. that a new map has no
-entries), every insert-style law needs a length `< Usize.max` guard, and a model of them belongs
-in `lean/Proofs/Consistency/` (as for `ParamsMap`). The specs describe a parsed map only up to
+construction in separate calls. Further property axioms beyond `connectAttrsEntries_new` would
+need a length `< Usize.max` guard on each insert-style law, and a model in
+`lean/Proofs/Consistency/` (as for `ParamsMap`; `connectAttrsEntries_new` is modelled in
+`ConnTrusted.lean`). The specs describe a parsed map only up to
 the bytes of its keys and values (`Defs.BuiltFrom`): whether they are `Cow::Borrowed` or `Owned`
 is left open.
 
@@ -1206,11 +1208,14 @@ maximal digit run and `-MariaDB`; the optional prefix is tried first, and the un
 alternative only if the prefixed one fails.
 
 **Evidence** for `versionReCaptures_ascii` / `mariadbVersionReCaptures_ascii`: these
-definitions were checked against the pinned `regex` 1.13.1 (`Regex::captures` on `&[u8]`, the
-crate's two patterns) on the crate's test strings and on 200 000 random ASCII strings over the
-alphabet `0-9 . - 5 M a r i D B x \n` with lengths 0–30, plus every string of length ≤ 7 over
-`{0, 1, ., -}`; all agreed (script: the commit that added these axioms). Reviewers checked the
-definitions against the regex semantics. Off ASCII nothing is assumed (`\d` there matches
+definitions were checked against `regex` 1.13.1, the version pinned in `Cargo.lock` (`Cargo.toml`
+asks for `1.5`; the regex semantics used here are stable across 1.x), with `Regex::captures` on
+`&[u8]` and the crate's two patterns, on 621 856 inputs: the crate's test strings, every string of
+length ≤ 7 over `{0, 1, ., -}`, and three random families of 200 000 each (strings over
+`0-9 . - 5 M a r i D B x \n` with embedded `-MariaDB` / `5.5.5-`, concatenations of
+version-like tokens, and version-shaped strings with one random byte changed); all agreed. The
+program and checker are in `lean/Proofs/Consistency/RegexEval/`. Reviewers checked the
+definitions against the regex semantics again (3.1M further inputs, no mismatch). Off ASCII nothing is assumed (`\d` there matches
 non-ASCII Unicode digits). -/
 
 /-- The maximal run of ASCII digits at the front of `bs`. -/

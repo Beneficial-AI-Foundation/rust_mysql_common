@@ -89,8 +89,8 @@ import Proofs.Packets.SslRequest
       correctly. The crate's own `serialize` writes such a byte for a 120–127-byte scramble with
       `CLIENT_PLUGIN_AUTH` (`Defs.handshakePanics_handshakeEnc`). **In every build**, for a byte
       of 136 or more it reads 13 scramble bytes instead of `b - 8` (`scramble2LenCrate`,
-      `Defs.scramble2LenCrate_ne`), so it silently misreads its own packet with a 128–247-byte
-      scramble (`Defs.handshakeEnc_misread`).
+      `Defs.scramble2LenCrate_ne`), so it silently misreads its own packet with
+      `CLIENT_PLUGIN_AUTH` and a 128–247-byte scramble (`Defs.handshakeEnc_misread`).
     * **`server_version_parsed` / `maria_db_server_version_parsed` panic** on a server version
       with non-ASCII Unicode digits that the (Unicode-aware) regex matches, since `btoi` accepts
       only ASCII digits (`unwrap`). On ASCII input they return the right version (`_ascii`).
