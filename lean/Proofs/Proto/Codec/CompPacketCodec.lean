@@ -187,34 +187,6 @@ theorem plainDecodeAux_append (f : Nat) : ∀ (seq : U8) (st : ChunkState) (src 
             exact ih _ _ _ _ _ _ _ _ _ _ h more
     · simp at h
 
-theorem chunkStep_sizes (st : ChunkState) (src dst : List U8) (max : Nat) :
-    (chunkStep st src dst max).2.2.2.length + (chunkStep st src dst max).2.2.1.length ≤ dst.length + src.length := by
-  unfold chunkStep
-  cases st <;> simp only <;> split_ifs <;> simp <;> omega
-
-theorem plainDecodeAux_sizes (n : Nat) : ∀ (seq : U8) (st : ChunkState) (src dst : List U8) (max : Nat) (comp : Option U8),
-    (plainDecodeAux n seq st src dst max comp).2.2.2.2.length + (plainDecodeAux n seq st src dst max comp).2.2.2.1.length ≤
-      dst.length + src.length := by
-  induction n with
-  | zero => intros; simp [plainDecodeAux]
-  | succ n ih =>
-    intro seq st src dst max comp
-    have hsz := chunkStep_sizes st src dst max
-    simp only [plainDecodeAux]
-    rcases hc : chunkStep st src dst max with ⟨r, st', src', dst'⟩
-    rw [hc] at hsz
-    simp only at hsz
-    rcases r with ((_ | info) | e)
-    · simp; omega
-    · cases info with
-      | Last _ => simp only; split_ifs <;> simp <;> omega
-      | Middle s0 =>
-        simp only; split_ifs
-        all_goals first
-          | (simp; omega)
-          | (have := ih (byte ((chunkInfoSeq (.Middle s0)).val + 1)) st' src' dst' max comp; omega)
-    · simp; omega
-
 theorem compStep_none_append (inf : List U8 → Nat → core.result.Result (List U8) core.io.error.Error)
     (st : CompState) (src dst : List U8) (max : Nat)
     (st' : CompState) (src' dst' : List U8) (h : compStep inf st src dst max = (.Ok none, st', src', dst'))
