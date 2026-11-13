@@ -9,5 +9,6 @@ import Defs.Row
 import Defs.Framing
 import Defs.StmtExecute
 import Defs.Packets
+import Defs.Compression
 
 /-! Definitions needed to state the specs (see `VERIFICATION.md` §6, §7). -/

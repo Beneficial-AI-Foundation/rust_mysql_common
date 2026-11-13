@@ -3,6 +3,7 @@ import Proofs.Misc.LenencStrLen
 import Proofs.Misc.ReadVarlenUint
 import Proofs.Misc.WriteVarlenUint
 import Proofs.Misc.VarlenUintSize
+import Proofs.Misc.SplitVersion
 
 /-!
 # `src/misc/mod.rs`
@@ -13,9 +14,14 @@ import Proofs.Misc.VarlenUintSize
     `scripts/aeneas-translate.sh`).
 
     **Definitions used.** `Defs/LenEnc.lean` (`lenencInt`, `lenencStr`), `Defs/VarLen.lean`
-    (`varlenUint`, `varlenUintSize`, `varlenUintDecode`), `Defs/Bytes.lean` (`okPart`).
+    (`varlenUint`, `varlenUintSize`, `varlenUintDecode`), `Defs/Bytes.lean` (`okPart`),
+    `Defs/Compression.lean` (`splitVersion`, `versionPart`), `Defs/Convert.lean` (`asciiInt`,
+    `isDigit`). Facts about `splitVersion`: `Specs/DefsComp.lean`.
 
-    **Not covered.** `split_version` (string parsing, not translated); `unexpected_buf_eof`,
+    **Trusted axioms.** None of ours: `split_version` reaches `btoi` through patch 40's helper,
+    which has an exact Lean model (`Trusted.btoiUnsigned`, a definition).
+
+    **Not covered.** The private helpers `dot_or_end`/`digits_end` (added by patch 125); `unexpected_buf_eof`,
     `io_error_msg`, `io_error_from` (constructors of the opaque `io::Error`; the last two are opaque).
 -/
 
@@ -77,4 +83,21 @@ recall misc.varlen_uint_size_spec (v : U64) :
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.varlen_uint_size_spec
+/-! ### `fn split_version` and `fn split_version_inner` -/
+
+/-- `split_version(version_str)`: total, exact on any input. It returns `splitVersion` of the string's bytes: the major and minor parts (before the first and second `.`), and the run of ASCII digits starting the third part, each a number in `0..=255`. It returns `(0, 0, 0)` if there are fewer than two `.` or a part is not such a number. **Quirks:**
+    * a failure is indistinguishable from version `0.0.0`;
+    * the first two parts may carry a sign (`"+5.-0.7"` gives `(5, 0, 7)`, via `btoi`);
+    * a part above 255 makes the whole result `(0, 0, 0)`.
+    Stated for any `AsRef<[u8]>` whose `as_ref` returns. -/
+recall misc.split_version_eq {T : Type} (inst : core.convert.AsRef T (Slice U8)) (x : T) (s : Slice U8)
+    (hs : inst.as_ref x = ok s) :
+    misc.split_version inst x = ok ((splitVersion s.val).getD (0#u8, 0#u8, 0#u8))
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.split_version_eq`
+/-- `split_version_inner(input)`: total; exactly `splitVersion`. -/
+recall misc.split_version_inner_eq (input : Slice U8) :
+    misc.split_version_inner input = ok (splitVersion input.val)
+
+-- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms misc.split_version_inner_eq`
 end mysql_common

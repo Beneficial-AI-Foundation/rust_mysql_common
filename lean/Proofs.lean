@@ -126,6 +126,16 @@ import Proofs.Proto.Codec.PacketToChunks
 import Proofs.Proto.Codec.ChunkInfo
 import Proofs.Proto.Codec.ChunkDecoder
 import Proofs.Proto.Codec.PlainPacketCodec
+import Proofs.Proto.Codec.Compress
+import Proofs.Proto.Codec.CompressWith
+import Proofs.Proto.Codec.CompData
+import Proofs.Proto.Codec.CompDecoder
+import Proofs.Proto.Codec.PacketCodec
+import Proofs.Proto.Codec.PacketCodecInner
+import Proofs.Proto.Codec.CompPacketCodec
+import Proofs.Proto.Codec.Error.PacketCodecError
+import Proofs.Misc.SplitVersion
+import Proofs.Defs.LemmasComp
 import Proofs.Defs.LemmasCF
 import Proofs.Defs.LemmasG
 
