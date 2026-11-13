@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Binlog.Events.RowsEvent.RowsEvent
 
 /-! Statements for `struct WriteRowsEvent and its impls` (spec file: `Specs/Binlog/Events/WriteRowsEvent.lean`). -/
 
@@ -11,42 +12,49 @@ namespace mysql_common
 /-- `table_id`. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.table_id_eq (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event.WriteRowsEvent.table_id e = ok e.table_id.1 := by
-  sorry
+  rfl
 
 /-- `num_columns`. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.num_columns_eq (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event.WriteRowsEvent.num_columns e = ok e.num_columns.1 := by
-  sorry
+  rfl
 
 /-- `rows_data`: the raw rows. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.rows_data_spec (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event.WriteRowsEvent.rows_data e ⦃ s => s.val = cowList e.rows_data.1 ⦄ := by
-  sorry
+  unfold binlog.events.write_rows_event.WriteRowsEvent.rows_data
+  exact binlog.events.rows_event.RowsEvent.impl.rows_data_spec e
 
 /-- `flags`: the known flag bits. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.flags_spec (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event.WriteRowsEvent.flags e ⦃ f => f.val = e.flags.1.val &&& rowsEventFlagsAll ⦄ := by
-  sorry
+  unfold binlog.events.write_rows_event.WriteRowsEvent.flags
+  exact binlog.events.rows_event.RowsEvent.impl.flags_spec e
 
 /-- `flags_raw`: all the flag bits. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.flags_raw_eq (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event.WriteRowsEvent.flags_raw e = ok e.flags.1 := by
-  sorry
+  rfl
 
 /-- `rows(tme)`: an iterator over the raw rows, with that table map. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.rows_spec (e : binlog.events.rows_event.RowsEvent) (tme : binlog.events.table_map_event.TableMapEvent) :
     binlog.events.write_rows_event.WriteRowsEvent.rows e tme ⦃ it => it.rows_event = e ∧ it.table_map_event = tme ∧ it.rows_data.val = cowList e.rows_data.1 ⦄ := by
-  sorry
+  unfold binlog.events.write_rows_event.WriteRowsEvent.rows binlog.events.write_rows_event.WriteRowsEvent.rows_data
+  step with binlog.events.rows_event.RowsEvent.impl.rows_data_spec as ⟨ s, hs ⟩
+  simp [binlog.events.rows_event.RowsEventRows.new, hs]
 
 /-- `into_owned`: the same fields (now owned). -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.into_owned_spec (e : binlog.events.rows_event.RowsEvent) :
     binlog.events.write_rows_event.WriteRowsEvent.into_owned e ⦃ e' => rowsView e' = rowsView e ⦄ := by
-  sorry
+  unfold binlog.events.write_rows_event.WriteRowsEvent.into_owned
+  step with binlog.events.rows_event.RowsEvent.into_owned_spec as ⟨ e1, h1 ⟩
+  exact h1
 
 /-- `MyDeserialize::SIZE` is `None`. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq :
     binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none := by
-  sorry
+  unfold binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE
+  exact binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE_eq
 
 /-- `MyDeserialize`: total; `rowsRead` with type `WRITE_ROWS_EVENT` and the FDE's post-header lengths. -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
@@ -66,6 +74,6 @@ theorem binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonBinlogBi
 /-- `BinlogEvent::EVENT_TYPE`: `WRITE_ROWS_EVENT` (30). -/
 theorem binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .WRITE_ROWS_EVENT := by
-  sorry
+  unfold binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
 
 end mysql_common
