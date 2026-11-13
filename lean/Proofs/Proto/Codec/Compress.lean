@@ -1,4 +1,5 @@
 import Defs
+import Proofs.Proto.Codec.CompressWith
 
 /-! Statements for `fn compress` (spec file: `Specs/Proto/Codec.lean`). -/
 
@@ -11,7 +12,9 @@ namespace mysql_common
 /-- `compress(seq_id, compression, max_allowed_packet, src, dst)` on an empty `src`: `Ok(0)`, nothing changed. **Quirk:** the result is `0`, not the given `seq_id` (upstream returns early with `Ok(0)`). The crate's own codec never calls it with an empty buffer. -/
 theorem proto.codec.compress_empty (seq : U8) (lvl : flate2.Compression) (max : Usize) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val = []) :
     proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl max src dst = ok (.Ok 0#u8, src, dst) := by
-  sorry
+  unfold proto.codec.compress
+  rw [proto.codec.compress_with_empty seq lvl none max src dst hsrc]
+  simp
 
 /-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). `compress` with `max_allowed_packet = 0` on a non-empty `src` panics (`src.chunks(0)`; the patched copy has the same `assert!`) instead of returning an error. -/
 theorem proto.codec.compress_max_zero (seq : U8) (lvl : flate2.Compression) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val ≠ []) :
@@ -23,7 +26,9 @@ theorem proto.codec.compress_level_panic (seq : U8) (lvl : flate2.Compression) (
     (hsrc : src.val ≠ []) (hmax : max.val ≠ 0) (hlvl : 10 < lvl.level.val)
     (hbig : minCompressLength ≤ Nat.min (compChunkSize max.val) src.val.length) :
     proto.codec.compress proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve seq lvl max src dst = fail .panic := by
-  sorry
+  unfold proto.codec.compress
+  rw [proto.codec.compress_with_level_panic seq lvl max src dst hsrc hmax hlvl hbig]
+  simp
 
 /-- `compress(seq_id, compression, max_allowed_packet, src, dst)` on a non-empty `src`, whenever it does not panic (`max_allowed_packet ≠ 0`, and a level of at most 10 or no piece long enough to deflate). `src` is cut into pieces of `min(2^24 - 1, max_allowed_packet)` bytes (`chunksOf`, `compChunkSize`). Each piece is sent as one compressed packet (`CompEncoding`), with sequence ids counting up from `seq_id`. A piece is deflated when the level is not 0, the piece has at least 512 bytes and deflating made it shorter, and stored otherwise (`EncChoice`).
     * `Ok(s)`: `s` is `seq_id` plus the number of packets (mod 256), `src` is emptied, and the packets are appended to `dst`.
@@ -44,6 +49,12 @@ theorem proto.codec.compress_spec (seq : U8) (lvl : flate2.Compression) (max : U
           minCompressLength ≤ ((chunksOf (compChunkSize max.val) src.val).getD k []).length ∧
           CompPacketsOf (Trusted.compressNew lvl) lvl.level.val seq.val ((chunksOf (compChunkSize max.val) src.val).take k) out ∧
           dst'.val = dst.val ++ out ⦄ := by
-  sorry
+  unfold proto.codec.compress
+  obtain ⟨⟨r, d', s', d''⟩, hv, hp⟩ := PBUtil.spec_eq_ok
+    (proto.codec.compress_with_spec seq lvl none max src dst hsrc hmax (Or.inr hlvl) h)
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hp
+  simp only [Option.getD_none] at hp
+  cases r <;> simpa using hp
 
 end mysql_common
