@@ -1,7 +1,13 @@
 import Proofs.Io.ParseBuf
 import Proofs.Util.IntAndMisc
 set_option autoImplicit false
+set_option linter.unusedTactic false
+set_option linter.unusedSimpArgs false
+set_option linter.unreachableTactic false
 open Aeneas Aeneas.Std Result mysql_common Defs
+
+/-! Helper lemmas for the binlog packed-time readers and `BinlogValue::deserialize`
+(`Proofs/Binlog/Misc/*`, `Proofs/Binlog/Value/*`, `Proofs/Defs/LemmasBinlogCore.lean`). -/
 
 namespace mysql_common.BinlogUtil
 
@@ -253,6 +259,289 @@ theorem datetime_from_packed_spec (tmp : I64) (h : tmp.val ≠ -2 ^ 63) :
       i12_post, hcast32_nat _ _ hu, hyear, hhour]
     simp only [Val.date.injEq]
     norm_num at *
+    omega
+
+end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+
+/-- The opaque `read_exact_eof` returns (it builds an `io::Error`); nothing in the trusted base says so. -/
+def EofOk : Prop := ∃ e, binlog.trusted.read_exact_eof = ok e
+
+theorem read_eof_spec (input : io.ParseBuf) (hE : EofOk) :
+    binlog.misc.read_eof input ⦃ _ rest => rest.val = [] ⦄ := by
+  obtain ⟨e, he⟩ := hE
+  unfold binlog.misc.read_eof
+  step*
+  simp [he, s_post]
+
+set_option hygiene false in
+/-- The shape of every `read_*` helper: a checked read, or `read_eof` on a short input. -/
+local macro "read_tac " sp:term:max hE:term:max : tactic => `(tactic| (
+  step with $sp as ⟨o, input1, ho⟩
+  split_ifs at ho with hl
+  · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
+    simp only [Option.map_some, Option.some.injEq] at ho
+    simp [okPart, hl, ho]
+  · obtain ⟨rfl, rfl⟩ := ho
+    simp only
+    step with read_eof_spec _ (($hE).resolve_left hl) as ⟨e, input2, h2⟩
+    simp [okPart, hl, h2]))
+
+theorem beNat_take1 (l : List U8) : beNat (l.take 1) = leNat (l.take 1) := by
+  cases l <;> simp [beNat]
+
+theorem read_u8_spec (input : io.ParseBuf) (hE : 1 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_u8 input ⦃ r rest =>
+      if 1 ≤ input.length then (okPart r).map (·.val) = some (leNat (input.val.take 1)) ∧ rest.val = input.val.drop 1
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_u8; read_tac (io.ParseBuf.checked_eat_u8_spec input) hE
+
+theorem read_i8_spec (input : io.ParseBuf) (hE : 1 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_i8 input ⦃ r rest =>
+      if 1 ≤ input.length then (okPart r).map (·.val) = some (toSigned 8 (leNat (input.val.take 1))) ∧ rest.val = input.val.drop 1
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_i8; read_tac (io.ParseBuf.checked_eat_i8_spec input) hE
+
+theorem read_u16_be_spec (input : io.ParseBuf) (hE : 2 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_u16_be input ⦃ r rest =>
+      if 2 ≤ input.length then (okPart r).map (·.val) = some (beNat (input.val.take 2)) ∧ rest.val = input.val.drop 2
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_u16_be; read_tac (io.ParseBuf.checked_eat_u16_be_spec input) hE
+
+theorem read_i16_be_spec (input : io.ParseBuf) (hE : 2 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_i16_be input ⦃ r rest =>
+      if 2 ≤ input.length then (okPart r).map (·.val) = some (toSigned 16 (beNat (input.val.take 2))) ∧ rest.val = input.val.drop 2
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_i16_be; read_tac (io.ParseBuf.checked_eat_i16_be_spec input) hE
+
+theorem read_u24_be_spec (input : io.ParseBuf) (hE : 3 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_u24_be input ⦃ r rest =>
+      if 3 ≤ input.length then (okPart r).map (·.val) = some (beNat (input.val.take 3)) ∧ rest.val = input.val.drop 3
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_u24_be; read_tac (io.ParseBuf.checked_eat_u24_be_spec input) hE
+
+theorem read_u32_be_spec (input : io.ParseBuf) (hE : 4 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_u32_be input ⦃ r rest =>
+      if 4 ≤ input.length then (okPart r).map (·.val) = some (beNat (input.val.take 4)) ∧ rest.val = input.val.drop 4
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_u32_be; read_tac (io.ParseBuf.checked_eat_u32_be_spec input) hE
+
+theorem read_u40_be_spec (input : io.ParseBuf) (hE : 5 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_u40_be input ⦃ r rest =>
+      if 5 ≤ input.length then (okPart r).map (·.val) = some (beNat (input.val.take 5)) ∧ rest.val = input.val.drop 5
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_u40_be; read_tac (io.ParseBuf.checked_eat_u40_be_spec input) hE
+
+theorem read_u48_be_spec (input : io.ParseBuf) (hE : 6 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_u48_be input ⦃ r rest =>
+      if 6 ≤ input.length then (okPart r).map (·.val) = some (beNat (input.val.take 6)) ∧ rest.val = input.val.drop 6
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_u48_be; read_tac (io.ParseBuf.checked_eat_u48_be_spec input) hE
+
+theorem read_i24_be_spec (input : io.ParseBuf) (hE : 3 ≤ input.length ∨ EofOk) :
+    binlog.misc.read_i24_be input ⦃ r rest =>
+      if 3 ≤ input.length then (okPart r).map (·.val) = some (toSigned 24 (beNat (input.val.take 3))) ∧ rest.val = input.val.drop 3
+      else okPart r = none ∧ rest.val = [] ⦄ := by
+  unfold binlog.misc.read_i24_be
+  step with io.ParseBuf.checked_eat_u24_be_spec input as ⟨o, input1, ho⟩
+  split_ifs at ho with hl
+  · obtain ⟨x, rfl⟩ : ∃ x, o = some x := by cases o <;> simp_all
+    simp only [Option.map_some, Option.some.injEq] at ho
+    simp only
+    step*
+    have hx : x.val < 2^24 := by
+      have := PBUtil.leNat_lt (List.take 3 input.val).reverse
+      rw [ho.1, beNat]; simp only [List.length_reverse, List.length_take] at this
+      have : 2 ^ (8 * min 3 input.val.length) ≤ 2^24 := Nat.pow_le_pow_right (by norm_num) (by omega)
+      omega
+    simp only [hl, ite_true, okPart, Option.map_some, Option.some.injEq, ho.2, and_true]
+    rw [i2_post, i1_post, UScalar.hcast_val_eq, i_post, Int.shiftRight_eq_div_pow, ← ho.1]
+    simp only [U32.size, U32.numBits, UScalarTy.numBits, IScalarTy.numBits, Nat.shiftLeft_eq, toSigned]
+    have : (x.val * 2^8 % 2^32 : Nat) = x.val * 2^8 := Nat.mod_eq_of_lt (by omega)
+    rw [this]
+    unfold Int.bmod
+    have h2 : ((x.val * 2^8 : Nat) : Int) % ((2^32 : Nat) : Int) = ((x.val * 2^8 : Nat) : Int) :=
+      Int.emod_eq_of_lt (by omega) (by omega)
+    simp only [h2]
+    split_ifs <;> push_cast at * <;> omega
+  · obtain ⟨rfl, rfl⟩ := ho
+    simp only
+    step with read_eof_spec _ (hE.resolve_left hl) as ⟨e, input2, h2⟩
+    simp [okPart, hl, h2]
+
+
+theorem ok_of_spec {α : Type} {m : Result (core.result.Result α core.io.error.Error × io.ParseBuf)}
+    {V : α → Int} {v : Int} {t : List U8}
+    (h : m ⦃ r rest => (okPart r).map V = some v ∧ rest.val = t ⦄) :
+    ∃ y rest, m = ok (.Ok y, rest) ∧ V y = v ∧ rest.val = t := by
+  obtain ⟨⟨r, rest⟩, hm, h1, h2⟩ := PBUtil.spec_eq_ok h
+  cases r with
+  | Ok y => exact ⟨y, rest, hm, by simpa [okPart] using h1, h2⟩
+  | Err e => simp [okPart] at h1
+
+theorem ok_of_spec_nat {α : Type} {m : Result (core.result.Result α core.io.error.Error × io.ParseBuf)}
+    {V : α → Nat} {v : Nat} {t : List U8}
+    (h : m ⦃ r rest => (okPart r).map V = some v ∧ rest.val = t ⦄) :
+    ∃ y rest, m = ok (.Ok y, rest) ∧ V y = v ∧ rest.val = t := by
+  obtain ⟨⟨r, rest⟩, hm, h1, h2⟩ := PBUtil.spec_eq_ok h
+  cases r with
+  | Ok y => exact ⟨y, rest, hm, by simpa [okPart] using h1, h2⟩
+  | Err e => simp [okPart] at h1
+
+theorem read_u8_ok (input : io.ParseBuf) (h : 1 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_u8 input = ok (.Ok y, rest) ∧ y.val = leNat (input.val.take 1) ∧ rest.val = input.val.drop 1 :=
+  ok_of_spec_nat (WP.spec_mono (read_u8_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_i8_ok (input : io.ParseBuf) (h : 1 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_i8 input = ok (.Ok y, rest) ∧ y.val = toSigned 8 (leNat (input.val.take 1)) ∧ rest.val = input.val.drop 1 :=
+  ok_of_spec (WP.spec_mono (read_i8_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_u16_be_ok (input : io.ParseBuf) (h : 2 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_u16_be input = ok (.Ok y, rest) ∧ y.val = beNat (input.val.take 2) ∧ rest.val = input.val.drop 2 :=
+  ok_of_spec_nat (WP.spec_mono (read_u16_be_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_i16_be_ok (input : io.ParseBuf) (h : 2 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_i16_be input = ok (.Ok y, rest) ∧ y.val = toSigned 16 (beNat (input.val.take 2)) ∧ rest.val = input.val.drop 2 :=
+  ok_of_spec (WP.spec_mono (read_i16_be_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_u24_be_ok (input : io.ParseBuf) (h : 3 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_u24_be input = ok (.Ok y, rest) ∧ y.val = beNat (input.val.take 3) ∧ rest.val = input.val.drop 3 :=
+  ok_of_spec_nat (WP.spec_mono (read_u24_be_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_i24_be_ok (input : io.ParseBuf) (h : 3 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_i24_be input = ok (.Ok y, rest) ∧ y.val = toSigned 24 (beNat (input.val.take 3)) ∧ rest.val = input.val.drop 3 :=
+  ok_of_spec (WP.spec_mono (read_i24_be_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_u32_be_ok (input : io.ParseBuf) (h : 4 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_u32_be input = ok (.Ok y, rest) ∧ y.val = beNat (input.val.take 4) ∧ rest.val = input.val.drop 4 :=
+  ok_of_spec_nat (WP.spec_mono (read_u32_be_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_u40_be_ok (input : io.ParseBuf) (h : 5 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_u40_be input = ok (.Ok y, rest) ∧ y.val = beNat (input.val.take 5) ∧ rest.val = input.val.drop 5 :=
+  ok_of_spec_nat (WP.spec_mono (read_u40_be_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+theorem read_u48_be_ok (input : io.ParseBuf) (h : 6 ≤ input.length) :
+    ∃ y rest, binlog.misc.read_u48_be input = ok (.Ok y, rest) ∧ y.val = beNat (input.val.take 6) ∧ rest.val = input.val.drop 6 :=
+  ok_of_spec_nat (WP.spec_mono (read_u48_be_spec input (Or.inl h)) (fun _ hh => by simpa [h] using hh))
+
+
+theorem hcast32_toSigned (x : U32) : (UScalar.hcast .I32 x).val = toSigned 32 x.val := by
+  rw [UScalar.hcast_val_eq]
+  have := x.hBounds
+  simp only [IScalarTy.numBits, toSigned]
+  unfold Int.bmod
+  have h2 : ((x.val : Int) % ((2^32 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by simp at this ⊢; omega)
+  simp only [h2]
+  split_ifs <;> simp at this <;> omega
+
+theorem okS {α β : Type} {m : Result (core.result.Result α core.io.error.Error × io.ParseBuf)}
+    {V : α → β} {v : β} {t : List U8}
+    (h : ∃ y rest, m = ok (.Ok y, rest) ∧ V y = v ∧ rest.val = t) :
+    m ⦃ r rest => ∃ y, r = .Ok y ∧ V y = v ∧ rest.val = t ⦄ := by
+  obtain ⟨y, rest, hm, h1, h2⟩ := h
+  rw [hm]; simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨y, rfl, h1, h2⟩
+
+theorem timestamp_ok (input : io.ParseBuf) (dec : U8) (hl : 4 + fracBytes dec.val ≤ input.length) :
+    binlog.misc.my_timestamp_from_binary input dec ⦃ r rest =>
+      ∃ sec usec : I32, r = .Ok (sec, usec) ∧
+        timestamp2Read dec.val input.val = some ((sec.val, usec.val), rest.val) ⦄ := by
+  unfold binlog.misc.my_timestamp_from_binary
+  step with okS (read_u32_be_ok input (by unfold fracBytes at hl; split_ifs at hl <;> omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+  subst hr
+  have hlen1 : in1.length = input.length - 4 := by simp [Slice.length, hin1]
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+  have hsec : (UScalar.hcast .I32 x).val = toSigned 32 (beNat (input.val.take 4)) := by rw [hcast32_toSigned, hx]
+  split
+  case h_1 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl ⊢
+    norm_num [fracBytes] at hl
+    step with okS (read_i8_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    refine ⟨_, _, rfl, ?_⟩
+    have hc : (IScalar.cast IScalarTy.I32 y).val = y.val := by simp [IScalar.cast_val_eq]
+    rw [usec_post, hc]
+    simp only [timestamp2Read, fracBytes, temporalFracRead, BitVec.toNat_ofNat, hsec, hy, hin2, hin1, List.drop_drop]
+    norm_num
+    try simp only [beNat_take1]
+    first | exact ⟨hl, trivial⟩ | exact hl
+  case h_2 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl ⊢
+    norm_num [fracBytes] at hl
+    step with okS (read_i8_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    refine ⟨_, _, rfl, ?_⟩
+    have hc : (IScalar.cast IScalarTy.I32 y).val = y.val := by simp [IScalar.cast_val_eq]
+    rw [usec_post, hc]
+    simp only [timestamp2Read, fracBytes, temporalFracRead, BitVec.toNat_ofNat, hsec, hy, hin2, hin1, List.drop_drop]
+    norm_num
+    try simp only [beNat_take1]
+    first | exact ⟨hl, trivial⟩ | exact hl
+  case h_3 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl ⊢
+    norm_num [fracBytes] at hl
+    step with okS (read_i16_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    refine ⟨_, _, rfl, ?_⟩
+    have hc : (IScalar.cast IScalarTy.I32 y).val = y.val := by simp [IScalar.cast_val_eq]
+    rw [usec_post, hc]
+    simp only [timestamp2Read, fracBytes, temporalFracRead, BitVec.toNat_ofNat, hsec, hy, hin2, hin1, List.drop_drop]
+    norm_num
+    try simp only [beNat_take1]
+    first | exact ⟨hl, trivial⟩ | exact hl
+  case h_4 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl ⊢
+    norm_num [fracBytes] at hl
+    step with okS (read_i16_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    refine ⟨_, _, rfl, ?_⟩
+    have hc : (IScalar.cast IScalarTy.I32 y).val = y.val := by simp [IScalar.cast_val_eq]
+    rw [usec_post, hc]
+    simp only [timestamp2Read, fracBytes, temporalFracRead, BitVec.toNat_ofNat, hsec, hy, hin2, hin1, List.drop_drop]
+    norm_num
+    try simp only [beNat_take1]
+    first | exact ⟨hl, trivial⟩ | exact hl
+  case h_5 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl ⊢
+    norm_num [fracBytes] at hl
+    step with okS (read_i24_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    refine ⟨_, _, rfl, ?_⟩
+    simp only [timestamp2Read, fracBytes, temporalFracRead, BitVec.toNat_ofNat, hsec, hy, hin2, hin1, List.drop_drop]
+    norm_num
+    try simp only [beNat_take1]
+    first | exact ⟨hl, trivial⟩ | exact hl
+  case h_6 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl ⊢
+    norm_num [fracBytes] at hl
+    step with okS (read_i24_be_ok in1 (by simp only [Slice.length] at *; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    step*
+    refine ⟨_, _, rfl, ?_⟩
+    simp only [timestamp2Read, fracBytes, temporalFracRead, BitVec.toNat_ofNat, hsec, hy, hin2, hin1, List.drop_drop]
+    norm_num
+    try simp only [beNat_take1]
+    first | exact ⟨hl, trivial⟩ | exact hl
+  case h_7 h1 h2 h3 h4 h5 h6 =>
+    have hd : ¬(dec.val = 1 ∨ dec.val = 2 ∨ dec.val = 3 ∨ dec.val = 4 ∨ dec.val = 5 ∨ dec.val = 6) := by
+      intro hd
+      rcases hd with hd | hd | hd | hd | hd | hd
+      · exact h1 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h2 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h3 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h4 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h5 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h6 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+    simp only [WP.spec_ok, WP.uncurry'_pair]
+    refine ⟨_, _, rfl, ?_⟩
+    have hf : fracBytes dec.val = 0 := by unfold fracBytes; split_ifs <;> omega
+    have ht : temporalFracRead dec.val [] = 0 := by unfold temporalFracRead; split_ifs <;> omega
+    simp only [timestamp2Read, hf, hsec, hin1, List.take_zero, ht]
+    simp only [Slice.length] at hl
+    norm_num
     omega
 
 end mysql_common.BinlogUtil
