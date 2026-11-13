@@ -1,10 +1,11 @@
 import Defs
+import Proofs.Util.BinlogEvGtid
 
 /-! Statements for `struct AnonymousGtidEvent and its impls` (spec file: `Specs/Binlog/Events/AnonymousGtidEvent.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil
 
 namespace mysql_common
 
@@ -21,16 +22,16 @@ theorem binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_common
 /-- `MySerialize`: `GtidEvent::serialize`. -/
 theorem binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize_eq (e : binlog.events.anonymous_gtid_event.AnonymousGtidEvent) (buf : alloc.vec.Vec U8) :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf = binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf := by
-  sorry
+  unfold binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonProtoMySerialize.serialize; rfl
 
 /-- `BinlogStruct::len`: `GtidEvent::len`. -/
 theorem binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len_eq (e : binlog.events.anonymous_gtid_event.AnonymousGtidEvent) (v : binlog.consts.BinlogVersion) :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v = binlog.events.gtid_event.GtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v := by
-  sorry
+  unfold binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogStruct.len; rfl
 
 /-- `BinlogEvent::EVENT_TYPE`: `ANONYMOUS_GTID_EVENT` (34). -/
 theorem binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
     binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .ANONYMOUS_GTID_EVENT := by
-  sorry
+  unfold binlog.events.anonymous_gtid_event.AnonymousGtidEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
 
 end mysql_common
