@@ -39,26 +39,29 @@ private theorem vb_as_ref (v : VecBuf) : VecBuf.Insts.CoreConvertAsRefSliceU8.as
 
 open proto.codec.buf_model in
 @[step]
-private theorem decode_chunk (seq : U8) (needed : NonZeroUsize) (hv : 0 < needed.val ∧ needed.val < 2 ^ 24) (src dst : VecBuf)
-    (max : Usize) (h : dst.length + 2 ^ 24 ≤ Usize.max) :
+private theorem decode_chunk (seq : U8) (needed : NonZeroUsize) (src dst : VecBuf) (max : Usize)
+    (h : chunkStepFits (.chunk seq needed.val) src.val dst.val) :
     proto.codec.ChunkDecoder.decode VecBuf.Insts.CoreOpsDerefDerefSliceU8 VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf VecBuf.Insts.CoreConvertAsRefSliceU8 VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut (.Chunk seq needed) src dst max ⦃ r cd src' dst' =>
       (r, ChunkState.of cd, src'.val, dst'.val) = chunkStep (.chunk seq needed.val) src.val dst.val max.val ∧
-      (ChunkState.of cd).Valid ⦄ := by
+      ((ChunkState.chunk seq needed.val).Valid → (ChunkState.of cd).Valid) ⦄ := by
+  obtain ⟨h1, h2⟩ := h
   rw [proto.codec.ChunkDecoder.decode]
   simp only [proto.codec.buf_model.NonZeroUsize.get, constants.MAX_PAYLOAD_LEN]
   step*
   all_goals simp_all [chunkStep, ChunkState.of, ChunkState.Valid, List.drop_drop, maxPayloadLen, Slice.length]
+  all_goals omega
 
 
-/-- `decode(src, dst, max_allowed_packet)`: total; exactly one step of `chunkStep` (needs more input, a chunk read, or `PacketTooLarge`), with the new state, input and output; the new state is again valid, so the next call's `hv` holds. -/
-theorem proto.codec.ChunkDecoder.decode_spec (self : proto.codec.ChunkDecoder) (hv : (ChunkState.of self).Valid) (src dst : proto.codec.buf_model.VecBuf)
-    (max : Usize) (h : dst.length + 2 ^ 24 ≤ Usize.max) :
+/-- `decode(src, dst, max_allowed_packet)`: total; exactly one step of `chunkStep` (needs more input, a chunk read, or `PacketTooLarge`), with the new state, input and output. The only hypothesis is that the lengths computed fit in a `usize` (`chunkStepFits`; a valid state with `dst.length + 2^24 ≤ usize::MAX` is enough, `chunkStepFits_of_valid`). From a valid state the new state is again valid. -/
+theorem proto.codec.ChunkDecoder.decode_spec (self : proto.codec.ChunkDecoder) (src dst : proto.codec.buf_model.VecBuf)
+    (max : Usize) (h : chunkStepFits (ChunkState.of self) src.val dst.val) :
     proto.codec.ChunkDecoder.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r cd src' dst' =>
       (r, ChunkState.of cd, src'.val, dst'.val) = chunkStep (ChunkState.of self) src.val dst.val max.val ∧
-      (ChunkState.of cd).Valid ⦄ := by
+      ((ChunkState.of self).Valid → (ChunkState.of cd).Valid) ⦄ := by
   cases self with
-  | Chunk seq needed => exact decode_chunk seq needed hv src dst max h
+  | Chunk seq needed => exact decode_chunk seq needed src dst max h
   | Idle =>
+    simp only [ChunkState.of, chunkStepFits] at h
     rw [proto.codec.ChunkDecoder.decode]
     simp only [proto.codec.buf_model.NonZeroUsize.get, proto.codec.buf_model.NonZeroUsize.new]
     step*
@@ -80,6 +83,8 @@ theorem proto.codec.ChunkDecoder.decode_spec (self : proto.codec.ChunkDecoder) (
       have hlt : leNat [a, b, c] < 2 ^ 24 := by
         have := PBUtil.leNat_lt [a, b, c]; simpa using this
       have hseq : seq_id = d := by simp_all
+      have hfit : dst.val.length + leNat [a, b, c] ≤ Usize.max := by
+        have := h hl; simpa [hsrc] using this
       by_cases h0 : leNat [a, b, c] = 0
       · have : raw_chunk_len = 0#usize := by scalar_tac
         simp only [this, bne_self_eq_false, Bool.false_eq_true, ite_false]
@@ -88,6 +93,9 @@ theorem proto.codec.ChunkDecoder.decode_spec (self : proto.codec.ChunkDecoder) (
       · have : (raw_chunk_len != 0#usize) = true := by simp; scalar_tac
         simp only [this, ite_true]
         have hpos : 0 < leNat [a, b, c] := Nat.pos_of_ne_zero h0
+        have hfit' : chunkStepFits (.chunk seq_id raw_chunk_len.val) src.val dst.val := by
+          have hmax : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+          exact ⟨by rw [hrl]; omega, fun _ => by rw [hrl]; exact hfit⟩
         step*
         all_goals simp_all [chunkStep, ChunkState.of, ChunkState.Valid]
         all_goals (split_ifs <;> first | rfl | omega)

@@ -66,6 +66,12 @@ recall chunkStep_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8) (ma
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.chunkStep_valid
+/-- A valid state and room for one more chunk in `dst` are enough for `chunkStepFits`. -/
+recall chunkStepFits_of_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8)
+    (h : dst.length + 2 ^ 24 ≤ Usize.max) : chunkStepFits st src dst
+
+/-- [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.chunkStepFits_of_valid
 /-- The packet reader keeps the state valid. -/
 recall plainDecode_valid (seq : U8) (st : ChunkState) (hv : st.Valid) (src dst : List U8) (max : Nat) (comp : Option U8) :
     (plainDecode seq st src dst max comp).2.2.1.Valid
@@ -99,10 +105,12 @@ recall plainDecode_resume (seq : U8) (p tail : List U8) (k : Nat) (hk : k < (fra
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.plainDecode_resume
-/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync; the expected id is kept. -/
-recall plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat) (hmax : p.length ≤ max) :
+/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync: the first chunk is read (it only has to pass the size check itself: `min p.length maxPayloadLen ≤ max`), the expected id is kept, and the reader is idle again. -/
+recall plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat)
+    (hmax : min p.length maxPayloadLen ≤ max) :
     (plainDecode seq .idle (frame s.val p ++ tail) [] max none).1 = .Err .PacketsOutOfSync ∧
-    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq ∧
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.2.1 = .idle
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.plainDecode_outOfSync

@@ -54,8 +54,9 @@ def ChunkState.of : proto.codec.ChunkDecoder → ChunkState
 /-- A `ChunkDecoder` state that the decoder can be in: a pending chunk has a length between 1 and
     `2^24 - 1`. `needed ≠ 0` is a type invariant (`needed` is a `NonZeroUsize`, whose field is
     private); `needed < 2^24` holds for every state the decoder produces (the length comes from a
-    3-byte field, `chunkStep_valid`) but is an **assumption** on a state built by a caller, since
-    the fields of `ChunkDecoder::Chunk` are public. -/
+    3-byte field, `chunkStep_valid`) but not necessarily for a state built by a caller, since
+    the fields of `ChunkDecoder::Chunk` are public. (The `decode` specs do not assume it: they ask
+    for `chunkStepFits` only.) -/
 def ChunkState.Valid : ChunkState → Prop
   | .idle => True
   | .chunk _ needed => 0 < needed ∧ needed < 2 ^ 24
@@ -98,6 +99,20 @@ def chunkStep (st : ChunkState) (src dst : List U8) (max : Nat) :
       else if max < dst.length + len then (.Err .PacketTooLarge, .idle, src, dst)
       else body seq len
   | .chunk seq len => body seq len
+
+/-- The lengths one call of the chunk reader computes fit in a `usize`: what `ChunkDecoder::decode`
+    needs in order not to overflow, and nothing more.
+    * Idle: once a header is there, `dst.len() + chunk length` (computed for the
+      `max_allowed_packet` check, and the length of `dst` after the payload is appended).
+    * Pending `chunk seq len`: `4 + len` (computed to see whether the payload is there), and, if
+      it is there, `dst.len() + len`.
+    A valid state and `dst.length + 2^24 ≤ usize::MAX` are enough (`chunkStepFits_of_valid`), but a
+    pending length of `2^24` or more (possible for a caller-built state: the fields of
+    `ChunkDecoder::Chunk` are public) is fine too. -/
+def chunkStepFits (st : ChunkState) (src dst : List U8) : Prop :=
+  match st with
+  | .idle => 4 ≤ src.length → dst.length + leNat (src.take 3) ≤ Usize.max
+  | .chunk _ len => 4 + len ≤ Usize.max ∧ (4 + len ≤ src.length → dst.length + len ≤ Usize.max)
 
 /-- `plainDecode` with an explicit bound on the number of chunks read (see `plainDecode`). -/
 def plainDecodeAux : Nat → U8 → ChunkState → List U8 → List U8 → Nat → Option U8 →

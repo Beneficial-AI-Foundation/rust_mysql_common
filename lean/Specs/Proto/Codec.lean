@@ -20,14 +20,16 @@ import Proofs.Proto.Codec.PlainPacketCodec
     **Configuration.** As in `Specs/Io.lean`.
 
     **Definitions used.** `Defs/Framing.lean` (`maxPayloadLen`, `frame`, `frameCount`,
-    `ChunkState`, `ChunkState.of`, `ChunkState.Valid`, `chunkInfoSeq`, `chunkStep`, `plainDecode`),
+    `ChunkState`, `ChunkState.of`, `ChunkState.Valid`, `chunkStepFits`, `chunkInfoSeq`, `chunkStep`,
+    `plainDecode`),
     `Defs/Bytes.lean` (`byte`). Facts about these: `Specs/DefsCF.lean`.
 
     **Reading the statements.** `&mut` arguments come back as components of the result: for
     `decode`, `(result, decoder or codec, src, dst)`. The size bounds on `dst` only rule out
     arithmetic overflow of `usize` lengths (no real buffer comes near them). A `ChunkDecoder` is
-    assumed to be in a state the decoder can produce (`ChunkState.Valid`; the Rust enum's fields
-    are public).
+    not assumed to be in a state the decoder can produce (`ChunkState.Valid`; the Rust enum's
+    fields are public): the `decode` statements only ask that the lengths computed from it fit in a
+    `usize`, and say that a valid state stays valid.
 
     **Not covered.** The public `PacketCodec` (built on `PlainPacketCodec`, with optional
     compression) and its `Decoder`/`Encoder` impls (they use `BytesMut` directly); the compressed
@@ -69,12 +71,12 @@ recall proto.codec.ChunkInfo.seq_id_eq (ci : proto.codec.ChunkInfo) :
 #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.ChunkInfo.seq_id_eq
 /-! ### `enum ChunkDecoder and its impls` -/
 
-/-- `decode(src, dst, max_allowed_packet)`: total; exactly one step of `chunkStep` (needs more input, a chunk read, or `PacketTooLarge`), with the new state, input and output; the new state is again valid, so the next call's `hv` holds. -/
-recall proto.codec.ChunkDecoder.decode_spec (self : proto.codec.ChunkDecoder) (hv : (ChunkState.of self).Valid) (src dst : proto.codec.buf_model.VecBuf)
-    (max : Usize) (h : dst.length + 2 ^ 24 ≤ Usize.max) :
+/-- `decode(src, dst, max_allowed_packet)`: total; exactly one step of `chunkStep` (needs more input, a chunk read, or `PacketTooLarge`), with the new state, input and output. The only hypothesis is that the lengths computed fit in a `usize` (`chunkStepFits`; a valid state with `dst.length + 2^24 ≤ usize::MAX` is enough, `chunkStepFits_of_valid`). From a valid state the new state is again valid. -/
+recall proto.codec.ChunkDecoder.decode_spec (self : proto.codec.ChunkDecoder) (src dst : proto.codec.buf_model.VecBuf)
+    (max : Usize) (h : chunkStepFits (ChunkState.of self) src.val dst.val) :
     proto.codec.ChunkDecoder.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max ⦃ r cd src' dst' =>
       (r, ChunkState.of cd, src'.val, dst'.val) = chunkStep (ChunkState.of self) src.val dst.val max.val ∧
-      (ChunkState.of cd).Valid ⦄
+      ((ChunkState.of self).Valid → (ChunkState.of cd).Valid) ⦄
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.ChunkDecoder.decode_spec
@@ -98,14 +100,15 @@ recall proto.codec.PlainPacketCodec.encode_spec (self : proto.codec.PlainPacketC
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.encode_spec
-/-- `decode(src, dst, max_allowed_packet, comp_seq_id)`: total; exactly `plainDecode` (chunks read with `chunkStep` until the last chunk of a packet, `Ok(true)`, or more input is needed, `Ok(false)`, or an error: `PacketTooLarge`, or `PacketsOutOfSync` for a chunk whose sequence id is neither the expected one nor `comp_seq_id`); the new state is again valid. -/
-recall proto.codec.PlainPacketCodec.decode_spec (self : proto.codec.PlainPacketCodec) (hv : (ChunkState.of self.chunk_decoder).Valid)
+/-- `decode(src, dst, max_allowed_packet, comp_seq_id)`: total; exactly `plainDecode` (chunks read with `chunkStep` until the last chunk of a packet, `Ok(true)`, or more input is needed, `Ok(false)`, or an error: `PacketTooLarge`, or `PacketsOutOfSync` for a chunk whose sequence id is neither the expected one nor `comp_seq_id`). The decoder state need not be one the decoder produces: a pending length only has to satisfy `4 + needed ≤ usize::MAX` (`hv`). From a valid state the new state is again valid. -/
+recall proto.codec.PlainPacketCodec.decode_spec (self : proto.codec.PlainPacketCodec)
+    (hv : ∀ seq needed, self.chunk_decoder = .Chunk seq needed → 4 + needed.val ≤ Usize.max)
     (src dst : proto.codec.buf_model.VecBuf) (max : Usize) (comp : Option U8)
     (h : dst.length + src.length + 2 ^ 24 ≤ Usize.max) :
     proto.codec.PlainPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max comp ⦃ r codec src' dst' =>
       (r, codec.seq_id, ChunkState.of codec.chunk_decoder, src'.val, dst'.val) =
         plainDecode self.seq_id (ChunkState.of self.chunk_decoder) src.val dst.val max.val comp ∧
-      (ChunkState.of codec.chunk_decoder).Valid ⦄
+      ((ChunkState.of self.chunk_decoder).Valid → (ChunkState.of codec.chunk_decoder).Valid) ⦄
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_spec
@@ -146,12 +149,12 @@ recall proto.codec.PlainPacketCodec.decode_resume (self : proto.codec.PlainPacke
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_resume
-/-- Out of sync: an idle codec given (outside compressed mode) the chunks of a payload whose sequence id `s` is not the expected one fails with `PacketsOutOfSync`, and its expected sequence id is unchanged. -/
+/-- Out of sync: an idle codec given (outside compressed mode) the chunks of a payload whose sequence id `s` is not the expected one fails with `PacketsOutOfSync`; its expected sequence id is unchanged and its chunk decoder is idle again (the first chunk has been consumed). Only the first chunk has to pass the size check (`hmax`). -/
 recall proto.codec.PlainPacketCodec.decode_out_of_sync (self : proto.codec.PlainPacketCodec) (hidle : self.chunk_decoder = .Idle) (s : U8) (hs : s ≠ self.seq_id)
     (p tail : List U8) (src dst : proto.codec.buf_model.VecBuf) (hsrc : src.val = frame s.val p ++ tail) (hdst : dst.val = [])
-    (max : Usize) (hmax : p.length ≤ max.val) (h : src.length + 2 ^ 24 ≤ Usize.max) :
+    (max : Usize) (hmax : min p.length maxPayloadLen ≤ max.val) (h : src.length + 2 ^ 24 ≤ Usize.max) :
     proto.codec.PlainPacketCodec.decode proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf proto.codec.buf_model.VecBuf.Insts.CoreConvertAsRefSliceU8 proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut self src dst max none ⦃ r codec _ _ =>
-      r = .Err .PacketsOutOfSync ∧ codec.seq_id = self.seq_id ⦄
+      r = .Err .PacketsOutOfSync ∧ codec.seq_id = self.seq_id ∧ codec.chunk_decoder = .Idle ⦄
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.PlainPacketCodec.decode_out_of_sync

@@ -377,6 +377,21 @@ theorem chunkStep_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8) (m
     simp only [chunkStep]
     split_ifs <;> simp_all [ChunkState.Valid]
 
+/-- A valid state and room for one more chunk in `dst` are enough for `chunkStepFits`. -/
+theorem chunkStepFits_of_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8)
+    (h : dst.length + 2 ^ 24 ≤ Usize.max) : chunkStepFits st src dst := by
+  cases st with
+  | idle =>
+    intro _
+    have := PBUtil.leNat_lt (src.take 3)
+    have : 2 ^ (8 * (src.take 3).length) ≤ 2 ^ 24 :=
+      Nat.pow_le_pow_right (by norm_num) (by simp; omega)
+    omega
+  | chunk seq len =>
+    obtain ⟨_, h2⟩ := hv
+    have hmax : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+    exact ⟨by omega, fun _ => by omega⟩
+
 private theorem chunkStep_middle_len (st : ChunkState) (src dst : List U8) (max : Nat) (s : U8)
     (st' : ChunkState) (src' dst' : List U8)
     (h : chunkStep st src dst max = (.Ok (some (.Middle s)), st', src', dst')) :
@@ -722,8 +737,8 @@ theorem plainDecode_resume (seq : U8) (p tail : List U8) (k : Nat) (hk : k < (fr
   simpa using this
 
 private theorem chunkStep_frame_first (n : Nat) (p tail dst : List U8) (max : Nat)
-    (hm : dst.length + p.length ≤ max) :
-    ∃ info st' src' dst', chunkStep .idle (frame n p ++ tail) dst max = (.Ok (some info), st', src', dst') ∧
+    (hm : dst.length + min p.length maxPayloadLen ≤ max) :
+    ∃ info src' dst', chunkStep .idle (frame n p ++ tail) dst max = (.Ok (some info), .idle, src', dst') ∧
       chunkInfoSeq info = byte n := by
   have hM : maxPayloadLen = 16777215 := rfl
   by_cases hs : p.length < maxPayloadLen
@@ -731,13 +746,13 @@ private theorem chunkStep_frame_first (n : Nat) (p tail dst : List U8) (max : Na
     simp only [List.append_assoc, List.cons_append]
     rw [chunkStep_idle_hdr _ _ (by rw [hM] at hs; omega)]
     by_cases h0 : p.length = 0
-    · simp only [h0, ↓reduceIte]; exact ⟨_, _, _, _, rfl, rfl⟩
+    · simp only [h0, ↓reduceIte]; exact ⟨_, _, _, rfl, rfl⟩
     · have hmx : ¬ max < dst.length + p.length := by omega
       simp only [h0, hmx, ↓reduceIte]
       rw [chunkStep_chunk_hdr _ _ _ (PBUtil.length_leBytes 3 _)]
       have hle : p.length ≤ (p ++ tail).length := by simp
       simp only [hle, ↓reduceIte]
-      split_ifs <;> exact ⟨_, _, _, _, rfl, rfl⟩
+      split_ifs <;> exact ⟨_, _, _, rfl, rfl⟩
   · rw [frame_long _ _ hs]
     simp only [List.append_assoc, List.cons_append]
     rw [chunkStep_idle_hdr _ _ (by rw [hM]; omega)]
@@ -749,13 +764,15 @@ private theorem chunkStep_frame_first (n : Nat) (p tail dst : List U8) (max : Na
     have hle : maxPayloadLen ≤ (p.take maxPayloadLen ++ (frame (n + 1) (p.drop maxPayloadLen) ++ tail)).length := by
       simp only [List.length_append]; omega
     simp only [hle, ↓reduceIte]
-    split_ifs <;> exact ⟨_, _, _, _, rfl, rfl⟩
+    split_ifs <;> exact ⟨_, _, _, rfl, rfl⟩
 
-/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync; the expected id is kept. -/
-theorem plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat) (hmax : p.length ≤ max) :
+/-- Chunks with an unexpected sequence id (outside compressed mode) are out of sync: the first chunk is read (it only has to pass the size check itself: `min p.length maxPayloadLen ≤ max`), the expected id is kept, and the reader is idle again. -/
+theorem plainDecode_outOfSync (seq s : U8) (hs : s ≠ seq) (p tail : List U8) (max : Nat)
+    (hmax : min p.length maxPayloadLen ≤ max) :
     (plainDecode seq .idle (frame s.val p ++ tail) [] max none).1 = .Err .PacketsOutOfSync ∧
-    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq := by
-  obtain ⟨info, st', src', dst', hc, hi⟩ := chunkStep_frame_first s.val p tail [] max (by simpa using hmax)
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.1 = seq ∧
+    (plainDecode seq .idle (frame s.val p ++ tail) [] max none).2.2.1 = .idle := by
+  obtain ⟨info, src', dst', hc, hi⟩ := chunkStep_frame_first s.val p tail [] max (by simpa using hmax)
   rw [byte_val_self] at hi
   have hne : seq ≠ chunkInfoSeq info ∧ none ≠ some (chunkInfoSeq info) := ⟨by rw [hi]; exact hs.symm, by simp⟩
   unfold plainDecode
