@@ -11,6 +11,6 @@ namespace mysql_common
 /-- `From<io::Error> for PacketCodecError`: wraps the error as `Io`. -/
 theorem proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from_eq (e : core.io.error.Error) :
     proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from e = ok (.Io e) := by
-  sorry
+  rfl
 
 end mysql_common
