@@ -3,6 +3,7 @@ import Proofs.Util.ParseBuf
 import Proofs.Proto.Codec.PacketCodecInner
 import Proofs.Proto.Codec.PlainPacketCodec
 import Proofs.Proto.Codec.CompPacketCodec
+import Proofs.Defs.LemmasComp
 
 /-! Statements for `struct PacketCodec and its impls` (spec file: `Specs/Proto/Codec.lean`). -/
 
@@ -163,7 +164,63 @@ theorem proto.codec.PacketCodec.encode_decode_comp (enc dec : proto.codec.Packet
             ∃ cd', dec'.inner = .Comp cd' ∧ cd'.comp_seq_id = ce'.comp_seq_id ∧
               cd'.plain_codec.seq_id = byte (ce.plain_codec.seq_id.val + frameCount packet.val.length) ∧
               cd'.in_buf.val = [] ∧ cd'.comp_decoder = .Idle ∧ cd'.plain_codec.chunk_decoder = .Idle ⦄ ⦄ := by
-  sorry
+  rw [proto.codec.PacketCodec.encode_comp_eq enc ce he]
+  have hob : ce.out_buf.val ++ frame ce.plain_codec.seq_id.val packet.val = frame ce.plain_codec.seq_id.val packet.val := by
+    rw [hout]; rfl
+  have hfl := frame_length ce.plain_codec.seq_id.val packet.val
+  obtain ⟨⟨r, c', pk', dst'⟩, hv, hp⟩ := PBUtil.spec_eq_ok (proto.codec.CompPacketCodec.encode_spec ce packet dst
+    enc.max_allowed_packet (Or.inl hmax0) (by rw [hob]; exact hlvl)
+    ⟨by rw [hout]; simp only [List.length_nil, zero_add]; omega, by rw [hob]; exact h⟩)
+  rw [hv]
+  simp only [WP.uncurry'_pair] at hp
+  simp only [Std.bind_ok]
+  apply (WP.spec_ok _).mpr
+  simp only [WP.uncurry'_pair]
+  intro hr
+  split_ifs at hp with hm
+  · rw [hr] at hp; simp at hp
+  · rw [hr] at hp
+    obtain ⟨-, -, -, -, -, -, hcs, -, -, out, henc, hdst'⟩ := hp
+    refine ⟨c', rfl, ?_⟩
+    intro tail src d0 hsrc hd0 hbig
+    rw [proto.codec.PacketCodec.decode_comp_eq dec cd hd]
+    rw [hob] at henc hcs
+    have hn : 0 < compChunkSize enc.max_allowed_packet.val := by
+      have : compChunkSize enc.max_allowed_packet.val = min (2 ^ 24 - 1) enc.max_allowed_packet.val := rfl
+      omega
+    have hplain : frame ce.plain_codec.seq_id.val packet.val ≠ [] := by
+      intro e; rw [e] at hfl; simp [frameCount] at hfl
+    obtain ⟨hcf, -, hci⟩ := chunksOf_spec _ hn (frame ce.plain_codec.seq_id.val packet.val)
+    have hsrc' : src.val = out ++ tail := by rw [hsrc, hdst']; simp
+    have hdc := proto.codec.CompPacketCodec.decode_compStream cd hfresh packet.val [] tail out
+      (chunksOf (compChunkSize enc.max_allowed_packet.val) (frame ce.plain_codec.seq_id.val packet.val))
+      (by rw [hcf, hseq.2]; simp)
+      (by rw [hseq.2]; simpa using chunksOf_dropLast_length _ hn _ hplain)
+      dec.max_allowed_packet
+      (by
+        intro c hc
+        obtain ⟨i, hi⟩ := List.mem_iff_getElem?.mp hc
+        obtain ⟨h1, h2, -⟩ := hci i c hi
+        refine ⟨h1, ?_⟩
+        have e1 : compChunkSize enc.max_allowed_packet.val = min (2 ^ 24 - 1) enc.max_allowed_packet.val := rfl
+        have e2 : Nat.min maxPayloadLen dec.max_allowed_packet.val = min (2 ^ 24 - 1) dec.max_allowed_packet.val := rfl
+        omega)
+      (by rw [hseq.1]; exact compEncoding_compStreamOf _ _ _ _ _ _ henc)
+      src d0 hsrc' hd0
+      (by
+        have : packet.val.length ≤ enc.max_allowed_packet.val := by omega
+        omega)
+      hbig
+    obtain ⟨⟨r2, c2, s2, d2⟩, hv2, hp2⟩ := PBUtil.spec_eq_ok hdc
+    rw [hv2]
+    simp only [WP.uncurry'_pair] at hp2
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := hp2
+    simp only [Std.bind_ok]
+    apply (WP.spec_ok _).mpr
+    simp only [WP.uncurry'_pair]
+    refine ⟨h1, h2, h3, c2, rfl, ?_, ?_, h4, h7, h8⟩
+    · rw [h5, hcs, hseq.1]
+    · rw [h6, hseq.2]
 
 /-- **Upstream defect:** a panic instead of an error on a degenerate setting (the server's minimum `max_allowed_packet` is 1024). A compressed codec with `max_allowed_packet = 0` panics when encoding an empty packet (`chunks(0)` in `compress_with`), instead of returning an error. -/
 theorem proto.codec.PacketCodec.encode_comp_max_zero (self : proto.codec.PacketCodec) (c : proto.codec.CompPacketCodec)
