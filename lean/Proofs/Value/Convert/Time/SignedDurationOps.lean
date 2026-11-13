@@ -37,15 +37,15 @@ theorem u8_hcast_i64_val (y : U8) : (UScalar.hcast .I64 y).val = y.val := by
 
 theorem days_ok (x : I64) (h : -2 ^ 63 ≤ x.val * 86400 ∧ x.val * 86400 < 2 ^ 63) :
     ∃ d, value.convert.trusted.time_duration_days x = ok d ∧
-      durNanos d = x.val * 86400 * 10 ^ 9 := (durationDays_spec x).1 h
+      durNanos d = x.val * 86400 * 10 ^ 9 := durationDays_spec x h
 
 theorem hours_ok (x : I64) (h : -2 ^ 63 ≤ x.val * 3600 ∧ x.val * 3600 < 2 ^ 63) :
     ∃ d, value.convert.trusted.time_duration_hours x = ok d ∧
-      durNanos d = x.val * 3600 * 10 ^ 9 := (durationHours_spec x).1 h
+      durNanos d = x.val * 3600 * 10 ^ 9 := durationHours_spec x h
 
 theorem minutes_ok (x : I64) (h : -2 ^ 63 ≤ x.val * 60 ∧ x.val * 60 < 2 ^ 63) :
     ∃ d, value.convert.trusted.time_duration_minutes x = ok d ∧
-      durNanos d = x.val * 60 * 10 ^ 9 := (durationMinutes_spec x).1 h
+      durNanos d = x.val * 60 * 10 ^ 9 := durationMinutes_spec x h
 
 theorem seconds_ok (x : I64) :
     ∃ d, value.convert.trusted.time_duration_seconds x = ok d ∧
@@ -61,17 +61,14 @@ theorem add_ok (a b : time.signed_duration.SignedDuration)
     (h : -2 ^ 63 * 10 ^ 9 - 999999999 ≤ durNanos a + durNanos b ∧
       durNanos a + durNanos b ≤ (2 ^ 63 - 1) * 10 ^ 9 + 999999999) :
     ∃ d, value.convert.trusted.time_duration_add a b = ok d ∧
-      durNanos d = durNanos a + durNanos b := (durationAdd_spec a b).1 h
+      durNanos d = durNanos a + durNanos b := durationAdd_spec a b h
 
 /-- Subtracting a smaller non-negative duration never panics. -/
 theorem sub_ok (a b : time.signed_duration.SignedDuration) (hb : 0 ≤ durNanos b)
     (hab : durNanos b ≤ durNanos a) :
     ∃ d, value.convert.trusted.time_duration_sub a b = ok d ∧
-      durNanos d = durNanos a - durNanos b := by
-  apply (durationSub_spec a b).1
-  have ha := durNanos_range a
-  rw [Int.tdiv_eq_ediv_of_nonneg (by omega), Int.tdiv_eq_ediv_of_nonneg hb]
-  omega
+      durNanos d = durNanos a - durNanos b :=
+  durationSub_spec a b ⟨hb, hab⟩
 
 theorem neg_ok (a : time.signed_duration.SignedDuration) (h : -2 ^ 63 * 10 ^ 9 < durNanos a) :
     ∃ d, value.convert.trusted.time_duration_neg a = ok d ∧ durNanos d = -durNanos a :=
@@ -83,26 +80,19 @@ theorem neg_panic (a : time.signed_duration.SignedDuration) (h : durNanos a ≤ 
 /-! ## Getters of a non-negative duration -/
 
 theorem whole_days_val (a : time.signed_duration.SignedDuration) (h : 0 ≤ durNanos a) :
-    (durationWholeDays a).val = durNanos a / 10 ^ 9 / 86400 := by
-  rw [durationWholeDays_spec, Int.tdiv_eq_ediv_of_nonneg h, Int.tdiv_eq_ediv_of_nonneg (by omega)]
+    (durationWholeDays a).val = durNanos a / 10 ^ 9 / 86400 := durationWholeDays_spec a h
 
 theorem whole_hours_val (a : time.signed_duration.SignedDuration) (h : 0 ≤ durNanos a) :
-    (durationWholeHours a).val = durNanos a / 10 ^ 9 / 3600 := by
-  rw [durationWholeHours_spec, Int.tdiv_eq_ediv_of_nonneg h, Int.tdiv_eq_ediv_of_nonneg (by omega)]
+    (durationWholeHours a).val = durNanos a / 10 ^ 9 / 3600 := durationWholeHours_spec a h
 
 theorem whole_minutes_val (a : time.signed_duration.SignedDuration) (h : 0 ≤ durNanos a) :
-    (durationWholeMinutes a).val = durNanos a / 10 ^ 9 / 60 := by
-  rw [durationWholeMinutes_spec, Int.tdiv_eq_ediv_of_nonneg h,
-    Int.tdiv_eq_ediv_of_nonneg (by omega)]
+    (durationWholeMinutes a).val = durNanos a / 10 ^ 9 / 60 := durationWholeMinutes_spec a h
 
 theorem whole_seconds_val (a : time.signed_duration.SignedDuration) (h : 0 ≤ durNanos a) :
     (durationWholeSeconds a).val = durNanos a / 10 ^ 9 := by
   rw [durationWholeSeconds_spec, Int.tdiv_eq_ediv_of_nonneg h]
 
 theorem whole_microseconds_val (a : time.signed_duration.SignedDuration) (h : 0 ≤ durNanos a) :
-    (durationWholeMicroseconds a).val = durNanos a / 1000 := by
-  rw [durationWholeMicroseconds_spec, Int.tdiv_eq_ediv_of_nonneg h,
-    Int.tmod_eq_emod_of_nonneg h, Int.tdiv_eq_ediv_of_nonneg (by omega)]
-  omega
+    (durationWholeMicroseconds a).val = durNanos a / 1000 := durationWholeMicroseconds_spec a h
 
 end mysql_common.TimeDur

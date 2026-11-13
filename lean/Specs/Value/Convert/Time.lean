@@ -451,8 +451,9 @@ recall value.Value.Insts.CoreConvertFromSignedDuration.roundtrip (x : time.signe
 /-- Round trip `Value → time::Duration → Value`, for every `TIME`: both conversions succeed, and
     the result is the original `TIME` **iff** its fields are normalised (hours `< 24`, minutes
     and seconds `< 60`, microseconds `< 10^6`) and it is not a negative zero. (Otherwise the
-    result is the normalised `TIME`, `signedDurationTime` of the same nanoseconds; the days never
-    wrap here.) -/
+    result is the normalised `TIME`, `signedDurationTime` of the same nanoseconds, whose days
+    can wrap: `Time(false, 4294967295, 24, 0, 0, 0)` is `2^32` days and comes back with 0 days.
+    The days never wrap when the fields are normalised.) -/
 recall value.Value.Insts.CoreConvertFromSignedDuration.roundtrip_value (neg : Bool) (d : U32) (h m s : U8) (us : U32) :
     ∃ x, value.convert.from_value_opt time.signed_duration.SignedDuration.Insts.Mysql_commonValueConvertFromValueParseIrSignedDuration (.Time neg d h m s us) = ok (.Ok x) ∧
       value.Value.Insts.CoreConvertFromSignedDuration.from x ⦃ w =>
