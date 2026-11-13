@@ -16,6 +16,7 @@ import Proofs.Util.ConvBytesTime
 import Proofs.Constants.CapabilityFlags
 import Proofs.Util.ConnAuth
 import Proofs.Misc.Raw.Int.U8
+import Proofs.Packets.AuthPlugin
 
 /-! Helper lemmas for the handshake packet proofs (`Proofs/Packets/{HandshakePacket,
 HandshakeResponse,SslRequest}.lean`). -/
@@ -667,5 +668,104 @@ theorem hsRespRead_enc (v : HsResp) (kvs : Option (List (List U8 × List U8))) (
     (try rw [Defs.connectAttrsRead_attrsEnc _ _ (hA _ hK)])
     cases v
     simp_all
+
+/-! ## Handshake response reading steps -/
+
+theorem parse_u8bytes_spec (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      ((okPart r).map (fun rb => cowList rb.1), rest.val) = checkedLenPrefixed 1 buf.val ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq,
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  exact misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ () buf
+    (fun o rest => (o, rest.val) = checkedLenPrefixed 1 buf.val)
+    (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
+
+theorem flag_pos_iff (flags : U32) (c : constants.CapabilityFlags) (i : U32) (k : Nat)
+    (hc : c.val = 2 ^ k) (hi : i.val = (flags &&& c).val) :
+    (i > 0#u32 ↔ hasFlag flags.val (2 ^ k) = true) := by
+  have : i = flags &&& c := UScalar.eq_of_val_eq hi
+  rw [this]; exact u32_and_pos_iff flags c k hc
+
+theorem scramble_step (h64 : Target64) (flags : U32) (buf : io.ParseBuf) :
+    packets.parse_scramble_buf flags buf ⦃ r rest =>
+      ((okPart r).map scrambleView, rest.val) = scrambleRead flags.val buf.val ⦄ := by
+  unfold packets.parse_scramble_buf scrambleRead scrambleKindFor
+  have hlv : (constants.CapabilityFlags.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA).val = 2 ^ 21 := by
+    simp [constants.CapabilityFlags.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA]
+  have hsv : (constants.CapabilityFlags.CLIENT_SECURE_CONNECTION).val = 2 ^ 15 := by
+    simp [constants.CapabilityFlags.CLIENT_SECURE_CONNECTION]
+  step*
+  · have hf := (flag_pos_iff flags i i1 21 (by rw [i_post, hlv]) i1_post).1 (by assumption)
+    step with parse_lenenc_bytes_spec h64 as ⟨r, b, hr⟩
+    simp only [CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA, hf, ite_true]
+    rw [← hr]
+    cases r <;> simp [okPart, scrambleView]
+  · have hf1 := (flag_pos_iff flags i i1 21 (by rw [i_post, hlv]) i1_post).not.1 (by assumption)
+    have hf2 := (flag_pos_iff flags i2 i3 15 (by rw [i2_post, hsv]) i3_post).1 (by assumption)
+    step with parse_u8bytes_spec as ⟨r, b, hr⟩
+    simp only [CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA, CLIENT_SECURE_CONNECTION, hf1, hf2, ite_true,
+      Bool.false_eq_true, ite_false]
+    rw [← hr]
+    cases r <;> simp [okPart, scrambleView]
+  · have hf1 := (flag_pos_iff flags i i1 21 (by rw [i_post, hlv]) i1_post).not.1 (by assumption)
+    have hf2 := (flag_pos_iff flags i2 i3 15 (by rw [i2_post, hsv]) i3_post).not.1 (by assumption)
+    step with CAUtil.parse_null_bytes_spec as ⟨r, b, hr⟩
+    simp only [CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA, CLIENT_SECURE_CONNECTION, hf1, hf2,
+      Bool.false_eq_true, ite_false]
+    rw [← hr]
+    cases r <;> simp [okPart, scrambleView]
+
+/-- The database step of `hsRespRead`. -/
+def dbRead (caps : Nat) (bs : List U8) : Option (Option (List U8)) × List U8 :=
+  if hasFlag caps CLIENT_CONNECT_WITH_DB then
+    match nulStrRead bs with
+    | (none, r) => (none, r)
+    | (some d, r) => (some (some d), r)
+  else (some none, bs)
+
+/-- The plugin step of `hsRespRead`. -/
+def hrPnRead (caps : Nat) (bs : List U8) : Option (List U8) × List U8 :=
+  if hasFlag caps CLIENT_PLUGIN_AUTH then (some (beforeZero bs), bs.drop ((beforeZero bs).length + 1))
+  else (none, bs)
+
+theorem db_step (flags : U32) (buf : io.ParseBuf) :
+    packets.parse_handshake_response_db_name flags buf ⦃ r rest =>
+      ((okPart r).map (Option.map (fun rb => cowList rb.1)), rest.val) = dbRead flags.val buf.val ⦄ := by
+  unfold packets.parse_handshake_response_db_name dbRead
+  have hdv : (constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB).val = 2 ^ 3 := by
+    simp [constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB]
+  step*
+  · have hf := (flag_pos_iff flags i i1 3 (by rw [i_post, hdv]) i1_post).1 (by assumption)
+    step with CAUtil.parse_null_bytes_spec as ⟨r, b, hr⟩
+    simp only [CLIENT_CONNECT_WITH_DB, hf, ite_true]
+    rw [← hr]
+    cases r <;> simp [okPart]
+  · have hf := (flag_pos_iff flags i i1 3 (by rw [i_post, hdv]) i1_post).not.1 (by assumption)
+    have hf' : hasFlag flags.val 8 = false := by simpa using hf
+    simp only [CLIENT_CONNECT_WITH_DB]
+    simp [hf', okPart]
+
+theorem hr_plugin_step (flags : U32) (buf : io.ParseBuf) :
+    packets.parse_handshake_response_auth_plugin flags buf ⦃ o rest =>
+      (o.map authPluginName, rest.val) = hrPnRead flags.val buf.val ∧ ∀ p, o = some p → PluginCanonical p ⦄ := by
+  unfold packets.parse_handshake_response_auth_plugin hrPnRead
+  have hpv : (constants.CapabilityFlags.CLIENT_PLUGIN_AUTH).val = 2 ^ 19 := by
+    simp [constants.CapabilityFlags.CLIENT_PLUGIN_AUTH]
+  step*
+  · have hf := (flag_pos_iff flags i i1 19 (by rw [i_post, hpv]) i1_post).1 (by assumption)
+    step with io.ParseBuf.eat_null_str_spec as ⟨s0, b1, hs0, hb1⟩
+    step with packets.AuthPlugin.from_bytes_spec as ⟨ap, hap⟩
+    have hn := (PluginFromBytes.named hap)
+    rw [hs0, CAUtil.dropTrailingNul_of_noNul _ (CAUtil.noNul_beforeZero _)] at hn
+    simp only [CLIENT_PLUGIN_AUTH, hf, ite_true]
+    refine ⟨?_, ?_⟩
+    · simp [IsPluginNamed.authPluginName hn.1, hb1]
+    · intro p hp; cases hp; exact hn.2
+  · have hf := (flag_pos_iff flags i i1 19 (by rw [i_post, hpv]) i1_post).not.1 (by assumption)
+    have hf' : hasFlag flags.val 524288 = false := by simpa using hf
+    simp only [CLIENT_PLUGIN_AUTH]
+    simp [hf']
 
 end mysql_common.ConnHSUtil
