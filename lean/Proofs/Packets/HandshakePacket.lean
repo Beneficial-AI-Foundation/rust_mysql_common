@@ -183,11 +183,79 @@ theorem packets.HandshakePacket.scramble_2_ref_spec (self : packets.HandshakePac
   · step*
     simp_all
 
+private theorem nonce_scramble_2_spec (self : packets.HandshakePacket) :
+    packets.HandshakePacket.nonce_scramble_2 self ⦃ s =>
+      s.val = match self.scramble_2 with
+        | some rb => dropTrailingNul ((cowList rb.1).take 247)
+        | none => [] ⦄ := by
+  unfold packets.HandshakePacket.nonce_scramble_2
+  step with packets.HandshakePacket.scramble_2_ref_spec as ⟨o, ho⟩
+  rcases hs : self.scramble_2 with _ | rb <;> rw [hs] at ho <;> rcases o with _ | sl <;> simp at ho
+  · simp only
+    apply (WP.spec_ok _).mpr
+    rfl
+  · simp only
+    step*
+    · rename_i h0
+      rw [← ho, dropTrailingNul_last_zero _ (by scalar_tac)]
+      · rw [s_post]; simp only [List.slice, List.drop_zero, Nat.sub_zero]; congr 1
+      · rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by scalar_tac)]
+        simp only [Option.getD_some]
+        rw [← h0, i1_post]; congr 1; scalar_tac
+    · rename_i h0
+      rw [← ho, dropTrailingNul_last_ne _ (by scalar_tac)]
+      rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by scalar_tac)]
+      simp only [Option.getD_some]
+      intro h1; apply h0; rw [i1_post]; rw [← h1]
+      have : i.val = sl.val.length - 1 := by scalar_tac
+      simp only [this]
+    · rename_i h0
+      have : sl.val = [] := by
+        have : sl.len.val = 0 := by scalar_tac
+        simpa using this
+      rw [← ho, this]; rfl
+
 /-- `nonce`: `scramble_1` then `scramble_2` without its trailing `0`, zero-padded to 20 bytes (`handshakeNonce`). -/
 theorem packets.HandshakePacket.nonce_spec (self : packets.HandshakePacket) :
     packets.HandshakePacket.nonce self ⦃ v =>
       v.val = handshakeNonce self.scramble_1.val (self.scramble_2.map (fun rb => (cowList rb.1).take 247)) ⦄ := by
-  sorry
+  unfold packets.HandshakePacket.nonce
+  step with packets.HandshakePacket.scramble_1_ref_spec as ⟨s, hs⟩
+  step with alloc.slice.Slice.to_vec_spec as ⟨out, hout⟩
+  step with nonce_scramble_2_spec as ⟨s1, hs1⟩
+  have hl1 : s1.val.length ≤ 247 := by
+    rw [hs1]; split
+    · exact le_trans (dropTrailingNul_length_le _) (by simp)
+    · simp
+  have hout' : out.val = self.scramble_1.val := by rw [← hs, hout]; rfl
+  have h8 : self.scramble_1.val.length = 8 := by simp
+  have hb : out.length + s1.length ≤ Usize.max := by
+    have : out.length = 8 := by simp [alloc.vec.Vec.length, hout', h8]
+    have : s1.length ≤ 247 := hl1
+    scalar_tac
+  have hn : handshakeNonce self.scramble_1.val (self.scramble_2.map (fun rb => (cowList rb.1).take 247)) =
+      (self.scramble_1.val ++ s1.val) ++ List.replicate (20 - (self.scramble_1.val ++ s1.val).length) (byte 0) := by
+    unfold handshakeNonce
+    rw [hs1]
+    rcases self.scramble_2 with _ | rb <;> rfl
+  rw [hn]
+  have hS : auth.plugins.mysql_native_password.SCRAMBLE_LENGTH = 20#usize := by
+    unfold auth.plugins.mysql_native_password.SCRAMBLE_LENGTH; rfl
+  have hz : byte 0 = 0#u8 := rfl
+  step*
+  · rename_i hlt
+    rw [hS] at hlt
+    have hlt' : out1.val.length < 20 := by scalar_tac
+    rw [v_post, out1_post, hout', hz, List.resize]
+    rw [out1_post, hout'] at hlt'
+    simp only [ge_iff_le, Nat.zero_le, ite_true]
+    rw [List.take_of_length_le (by omega)]
+  · rename_i hlt
+    rw [hS] at hlt
+    have hlt' : 20 ≤ out1.val.length := by scalar_tac
+    rw [out1_post, hout'] at hlt' ⊢
+    rw [show 20 - (self.scramble_1.val ++ s1.val).length = 0 by omega]
+    simp
 
 /-- `capabilities`: the two halves together. -/
 theorem packets.HandshakePacket.capabilities_spec (self : packets.HandshakePacket) :
@@ -237,6 +305,40 @@ theorem packets.HandshakePacket.auth_plugin_name_str_spec (self : packets.Handsh
 theorem packets.HandshakePacket.auth_plugin_spec (self : packets.HandshakePacket) :
     packets.HandshakePacket.auth_plugin self ⦃ o =>
       optMatch (fun rb r => PluginFromBytes (dropTrailingNul (cowList rb.1)) r) self.auth_plugin_name o ⦄ := by
-  sorry
+  unfold packets.HandshakePacket.auth_plugin
+  rcases hs : self.auth_plugin_name with _ | rb
+  · simp only
+    apply (WP.spec_ok _).mpr
+    trivial
+  · simp only
+    step with nullbytes_as_bytes as ⟨sl, ho⟩
+    step*
+    · rename_i h0
+      step with packets.AuthPlugin.from_bytes_spec as ⟨ap, hap⟩
+      simp only [optMatch]
+      rw [← ho, dropTrailingNul_last_zero _ (by scalar_tac)]
+      · rw [s_post] at hap; simp only [List.slice, List.drop_zero, Nat.sub_zero] at hap
+        have : i.val = sl.val.length - 1 := by scalar_tac
+        rw [this] at hap; exact hap
+      · rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by scalar_tac)]
+        simp only [Option.getD_some]
+        rw [← h0, i1_post]; congr 1; scalar_tac
+    · rename_i h0
+      step with packets.AuthPlugin.from_bytes_spec as ⟨ap, hap⟩
+      simp only [optMatch]
+      rw [← ho, dropTrailingNul_last_ne _ (by scalar_tac)]
+      · exact hap
+      rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by scalar_tac)]
+      simp only [Option.getD_some]
+      intro h1; apply h0; rw [i1_post]; rw [← h1]
+      have : i.val = sl.val.length - 1 := by scalar_tac
+      simp only [this]
+    · rename_i h0
+      step with packets.AuthPlugin.from_bytes_spec as ⟨ap, hap⟩
+      have : sl.val = [] := by
+        have : sl.len.val = 0 := by scalar_tac
+        simpa using this
+      simp only [optMatch]
+      rw [← ho, this]; rw [this] at hap; exact hap
 
 end mysql_common

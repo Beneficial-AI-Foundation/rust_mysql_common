@@ -328,4 +328,39 @@ theorem mariadbVersionReMatch_good (bs : List U8) (g1 g2 g3 : List U8) (h : mari
     · exact reMariadbCore_good _ _ _ _ hg
   · exact reMariadbCore_good _ _ _ _ h
 
+/-! ## Trailing `0` -/
+
+theorem dropTrailingNul_nil : dropTrailingNul [] = [] := rfl
+
+theorem dropTrailingNul_length_le (l : List U8) : (dropTrailingNul l).length ≤ l.length := by
+  unfold dropTrailingNul
+  split
+  · split <;> simp
+  · simp
+
+theorem dropTrailingNul_last_zero (l : List U8) (h : 0 < l.length) (h0 : l[l.length - 1]! = 0#u8) :
+    dropTrailingNul l = l.take (l.length - 1) := by
+  unfold dropTrailingNul
+  rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega)]
+  rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), Option.getD_some] at h0
+  simp only [h0]
+  simp [List.dropLast_eq_take]
+
+theorem dropTrailingNul_last_ne (l : List U8) (h : 0 < l.length) (h0 : ¬ l[l.length - 1]! = 0#u8) :
+    dropTrailingNul l = l := by
+  unfold dropTrailingNul
+  rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega)]
+  rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), Option.getD_some] at h0
+  have : ¬ (l[l.length - 1]).val = 0 := fun hh => h0 (UScalar.eq_of_val_eq (by simpa using hh))
+  simp only [this, ite_false]
+
+@[step]
+theorem extend_from_slice_u8 (v : alloc.vec.Vec U8) (s : Slice U8) (h : v.length + s.length ≤ Usize.max) :
+    alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v s ⦃ v' => v'.val = v.val ++ s.val ⦄ := by
+  unfold alloc.vec.Vec.extend_from_slice
+  simp only [h, ↓reduceDIte]
+  apply WP.spec_bind (List.clone_spec (by intro x _; rfl))
+  intro l hl
+  simp [hl.1]
+
 end mysql_common.ConnHSUtil
