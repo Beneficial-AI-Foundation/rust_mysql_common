@@ -386,6 +386,49 @@ theorem serialize_sids_from_spec (sids : Slice packets.Sid) (tagged : Bool) (k :
       intro r hr
       rw [hr, hb1, hi2]; simp [encOf]
 
+theorem leBytes_succ_top (c : Nat) : ∀ (k n : Nat), n < 2 ^ (8 * k) →
+    leBytes (k + 1) (n + 2 ^ (8 * k) * c) = leBytes k n ++ [byte c] := by
+  intro k
+  induction k with
+  | zero => intro n hn; simp at hn; subst hn; simp [leBytes]
+  | succ k ih =>
+    intro n hn
+    have hp : 2 ^ (8 * (k + 1)) * c = 256 * (2 ^ (8 * k) * c) := by ring
+    have e1 : (n + 2 ^ (8 * (k + 1)) * c) / 256 = n / 256 + 2 ^ (8 * k) * c := by
+      rw [hp]; generalize 2 ^ (8 * k) * c = P; omega
+    have e2 : byte (n + 2 ^ (8 * (k + 1)) * c) = byte n := by
+      apply UScalar.eq_of_val_eq
+      rw [PBUtil.byte_val, PBUtil.byte_val, hp]; generalize 2 ^ (8 * k) * c = P; omega
+    rw [show k + 1 + 1 = (k + 1) + 1 from rfl, leBytes, e2, e1,
+      ih (n / 256) (by rw [show 8 * (k + 1) = 8 * k + 8 by ring, pow_add] at hn; omega)]
+    simp [leBytes]
+
+theorem n_sids_header_spec (tagged : Bool) (n : U64) (hn : n.val < 2 ^ 48) :
+    packets.n_sids_header tagged n ⦃ r => leBytes 8 r.val = nSidsHeader tagged n.val ⦄ := by
+  unfold packets.n_sids_header
+  cases tagged
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    step*
+    have hi : i.val = 0 := by rw [i_post]; simp
+    have hi1 : i1.val = 0 := by rw [i1_post, hi]; simp
+    simp only [nSidsHeader, Bool.false_eq_true, ↓reduceIte, UScalar.val_or, hi1, Nat.or_zero]
+  · simp only [↓reduceIte]
+    step*
+    have hs : U64.size = 2 ^ 64 := by simp [U64.size_def, U64.numBits_def]
+    have hi : i.val = n.val * 256 := by
+      rw [i_post, Nat.shiftLeft_eq, hs]; apply Nat.mod_eq_of_lt; omega
+    have hi1 : i1.val = 1 := by rw [i1_post]; simp
+    have hi2 : i2.val = 2 ^ 56 := by rw [i2_post, hi1, hs]; rfl
+    have hor : i.val ||| i2.val = n.val * 256 + 2 ^ 56 * 1 := by
+      rw [hi, hi2, Nat.lor_comm, show (2:Nat) ^ 56 = 2 ^ 56 * 1 by rfl, ← Nat.two_pow_add_eq_or_of_lt (by omega)]; ring
+    simp only [UScalar.val_or, hor, nSidsHeader, ↓reduceIte]
+    rw [show 8 = 7 + 1 from rfl, show (2:Nat) ^ 56 = 2 ^ (8 * 7) from rfl, leBytes_succ_top 1 7 _ (by omega)]
+    rw [show 7 = 6 + 1 from rfl, leBytes, Nat.mul_div_cancel _ (by norm_num)]
+    have hb : byte (n.val * 256) = byte 0 := by
+      apply UScalar.eq_of_val_eq
+      simp [PBUtil.byte_val]
+    rw [hb]
+
 end GtidUtil
 
 open GtidUtil
