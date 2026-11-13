@@ -136,10 +136,206 @@ theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializ
     binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE = none := by
   unfold binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE; rfl
 
+theorem parse_status_vars (len : U16) (buf : io.ParseBuf) :
+    io.ParseBuf.parse binlog.events.query_event.StatusVars.Insts.Mysql_commonProtoMyDeserializeDeU16 buf len ⦃ r rest =>
+      if len.val ≤ buf.length then ∃ v, r = .Ok v ∧ cowList v.1 = buf.val.take len.val ∧ rest.val = buf.val.drop len.val
+      else okPart r = none ⦄ := by
+  have hS : binlog.events.query_event.StatusVars.Insts.Mysql_commonProtoMyDeserializeDeU16.SIZE = none := by
+    unfold binlog.events.query_event.StatusVars.Insts.Mysql_commonProtoMyDeserializeDeU16.SIZE; rfl
+  rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [hS])]
+  apply WP.spec_mono (binlog.events.query_event.StatusVars.Insts.Mysql_commonProtoMyDeserializeDeU16.deserialize_spec len buf)
+  rintro ⟨r, rest⟩ hr
+  split_ifs at hr ⊢
+  · obtain ⟨h1, h2⟩ := hr
+    cases r with
+    | Ok v => exact ⟨v, rfl, by simpa using h1, h2⟩
+    | Err e => simp at h1
+  · exact hr.1
+
+theorem parse_bare (M n : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize M)) buf n ⦃ r rest =>
+      if n.val ≤ buf.length then ∃ v, r = .Ok v ∧ cowList v.1 = buf.val.take n.val ∧ rest.val = buf.val.drop n.val
+      else okPart r = none ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ _ _ (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE_eq, misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.SIZE_eq])]
+  have h := misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize M) n buf
+    (fun o rest => if n.val ≤ buf.length then o = some (buf.val.take n.val) ∧ rest.val = buf.val.drop n.val
+      else o = none)
+    (by
+      apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize_spec M n buf)
+      rintro ⟨r, rest⟩ hr
+      split_ifs at hr ⊢
+      · exact hr
+      · simp [hr.1])
+  apply WP.spec_mono h
+  rintro ⟨r, rest⟩ hr
+  split_ifs at hr ⊢
+  · obtain ⟨h1, h2⟩ := hr
+    cases r with
+    | Ok v => exact ⟨v, rfl, by simpa using h1, h2⟩
+    | Err e => simp at h1
+  · cases r with
+    | Ok v => simp at hr
+    | Err e => rfl
+
+theorem parse_skip1 (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize) buf () ⦃ r rest =>
+      if 1 ≤ buf.length then ∃ v, r = .Ok v ∧ rest.val = buf.val.drop 1 else okPart r = none ⦄ := by
+  have := IntAndMisc.parse_fixed (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize) 1#usize
+    (by simp [misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq]) buf ()
+    (fun o => o.isSome) (by
+      intro sub hsub hl
+      apply WP.spec_mono (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec 1#usize sub
+        (by simp [Slice.length, hsub] at *; omega))
+      rintro ⟨r, rest⟩ ⟨h1, _⟩
+      exact h1)
+  apply WP.spec_mono this
+  rintro ⟨r, rest⟩ hr
+  simp only [show (1#usize : Usize).val = 1 from rfl] at hr
+  split_ifs at hr ⊢
+  · obtain ⟨h1, h2⟩ := hr
+    cases r with
+    | Ok v => exact ⟨v, rfl, h2⟩
+    | Err e => simp at h1
+  · exact hr.1
+
+theorem u8_sat_sub (x y : U8) : (core.num.U8.saturating_sub x y).val = x.val - y.val := by
+  have hb : x.val - y.val < 2 ^ UScalarTy.U8.numBits := lt_of_le_of_lt (Nat.sub_le _ _) x.hBounds
+  show (UScalar.saturating_sub x y).val = _
+  simp only [UScalar.saturating_sub, Nat.zero_max]
+  exact Nat.mod_eq_of_lt hb
+
+theorem leNat_one (b : U8) : leNat [b] = b.val := by simp [leNat]
+
 /-- `MyDeserialize`: total; `queryRead` with the FDE's query post-header length. -/
 theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => ReadsAs queryView (queryRead (postHeaderLen (fdeLens ctx.fde) .QUERY_EVENT) buf.val) r rest ⦄ := by
-  sorry
+  unfold binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  step with PKUtil.parse_usize_spec as ⟨r, b1, h1⟩
+  by_cases hl : 13 ≤ buf.length
+  · simp only [hl, ite_true] at h1
+    obtain ⟨h1, hb1⟩ := h1
+    have hlen : 13 ≤ buf.val.length := hl
+    cases r with
+    | Err e => simp at h1
+    | Ok pb =>
+      simp only [PKUtil.okPart_Ok, Option.map_some, Option.some.injEq] at h1
+      simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+      have lp : pb.val.length = 13 := by rw [h1]; simp; omega
+      step with pu_leu32 as ⟨r1, s1, v1, hr1, h1v, hs1⟩
+      subst hr1
+      simp only [bind_ok]
+      have l1 : s1.val.length = 9 := by rw [hs1]; simp [lp]
+      step with pu_leu32 as ⟨r2, s2, v2, hr2, h2v, hs2⟩
+      subst hr2
+      simp only [bind_ok]
+      have l2 : s2.val.length = 5 := by rw [hs2]; simp [l1]
+      step with pu_u8 as ⟨r3, s3, v3, hr3, h3v, hs3⟩
+      subst hr3
+      simp only [bind_ok]
+      have l3 : s3.val.length = 4 := by rw [hs3]; simp [l2]
+      step with pu_leu16 as ⟨r4, s4, v4, hr4, h4v, hs4⟩
+      subst hr4
+      simp only [bind_ok]
+      have l4 : s4.val.length = 2 := by rw [hs4]; simp [l3]
+      step with pu_leu16 as ⟨r5, s5, v5, hr5, h5v, hs5⟩
+      subst hr5
+      simp only [bind_ok]
+      have hET : binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .QUERY_EVENT := by
+        unfold binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
+      rw [hET]
+      step with binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec as ⟨ph, hph⟩
+      simp only [lift, bind_ok]
+      have hsk : (UScalar.cast .Usize (core.num.U8.saturating_sub ph 13#u8)).val = postHeaderLen (fdeLens ctx.fde) .QUERY_EVENT - 13 := by
+        rw [IntAndMisc.cast_usize_small _ (by scalar_tac), u8_sat_sub, hph]; rfl
+      have e2 : s2.val = pb.val.drop 8 := by rw [hs2, hs1, List.drop_drop]
+      have e3 : s3.val = pb.val.drop 9 := by rw [hs3, e2, List.drop_drop]
+      have e4 : s4.val = pb.val.drop 11 := by rw [hs4, e3, List.drop_drop]
+      have f44 : leNat ((pb.val.drop 4).take 4) = v2.1.val := by rw [h2v, hs1]
+      have f8 : (pb.val.drop 8).headD (byte 0) = v3.1 := by
+        rw [← e2]
+        obtain ⟨b, t, hbt⟩ : ∃ b t, s2.val = b :: t := by
+          cases hx : s2.val with
+          | nil => rw [hx] at l2; simp at l2
+          | cons b t => exact ⟨b, t, rfl⟩
+        rw [hbt] at h3v ⊢
+        apply UScalar.eq_of_val_eq
+        simp [h3v, leNat]
+      have f8' : pb.val[8]?.getD (byte 0) = v3.1 := by rw [← f8]; simp
+      have f9 : leNat ((pb.val.drop 9).take 2) = v4.1.val := by rw [h4v, e3]
+      have f11 : leNat ((pb.val.drop 11).take 2) = v5.1.val := by rw [h5v, e4]
+      have hT13 : takeExact 13 buf.val = some (pb.val, b1.val) := by
+        simp [takeExact, hlen, h1, hb1]
+      step with io.ParseBuf.checked_skip_spec as ⟨bsk, b2, hsk2⟩
+      rw [hsk] at hsk2
+      split_ifs at hsk2 with hk
+      · obtain ⟨rfl, hb2⟩ := hsk2
+        have hTk : takeExact (postHeaderLen (fdeLens ctx.fde) .QUERY_EVENT - 13) b1.val = some (b1.val.take (postHeaderLen (fdeLens ctx.fde) .QUERY_EVENT - 13), b2.val) := by
+          simp [takeExact, hb2]; simpa [Slice.length] using hk
+        simp only [ite_true]
+        step with IntAndMisc.rawint_deref_spec as ⟨d5, hd5⟩
+        subst hd5
+        step with parse_status_vars as ⟨r6, b3, h6⟩
+        split_ifs at h6 with hk6
+        · obtain ⟨sv, rfl, hsv, hb3⟩ := h6
+          have hT6 : takeExact v5.1.val b2.val = some (b2.val.take v5.1.val, b3.val) := by
+            simp [takeExact, hb3]; simpa [Slice.length] using hk6
+          simp only [bind_ok]
+          step with IntAndMisc.rawint_deref_spec as ⟨d3, hd3⟩
+          subst hd3
+          have hc3 : (UScalar.cast .Usize v3.1).val = v3.1.val := IntAndMisc.cast_usize_small _ (by scalar_tac)
+          step with parse_bare as ⟨r7, b4, h7⟩
+          rw [hc3] at h7
+          split_ifs at h7 with hk7
+          · obtain ⟨rb, rfl, hrb, hb4⟩ := h7
+            have hT7 : takeExact v3.1.val b3.val = some (b3.val.take v3.1.val, b4.val) := by
+              simp [takeExact, hb4]; simpa [Slice.length] using hk7
+            simp only [bind_ok]
+            step with parse_skip1 as ⟨r8, b5, h8⟩
+            split_ifs at h8 with hk8
+            · obtain ⟨v8, rfl, hb5⟩ := h8
+              have hT8 : takeExact 1 b4.val = some (b4.val.take 1, b5.val) := by
+                simp only [takeExact, show 1 ≤ b4.val.length from by simpa [Slice.length] using hk8, ite_true, hb5]
+              simp only [bind_ok]
+              step with PKUtil.parse_eof_bytes_spec as ⟨r9, b6, h9, hb6⟩
+              cases r9 with
+              | Err e => simp at h9
+              | Ok rb1 =>
+                simp only [PKUtil.okPart_Ok, Option.map_some, Option.some.injEq] at h9
+                simp only [bind_ok]
+                apply (WP.spec_ok _).mpr
+                simp only [ReadsAs, queryRead, Option.bind_eq_bind, hT13, Option.bind_some, hTk, f11, hT6, f8, hT7, hT8]
+                refine ⟨?_, hb6⟩
+                simp [queryView, f44, f9, ← h1v, hsv, hrb, h9, hb5]
+            · cases r8 with
+              | Ok v => simp at h8
+              | Err e =>
+                have hT8 : takeExact 1 b4.val = none := by
+                  simp [takeExact]; simpa [Slice.length] using hk8
+                simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, queryRead, Option.bind_eq_bind, hT13, hTk, f11, hT6, f8', hT7, hT8]
+          · cases r7 with
+            | Ok v => simp at h7
+            | Err e =>
+              have hT7 : takeExact v3.1.val b3.val = none := by
+                simp [takeExact]; simpa [Slice.length] using hk7
+              simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, queryRead, Option.bind_eq_bind, hT13, hTk, f11, hT6, f8', hT7]
+        · cases r6 with
+          | Ok v => simp at h6
+          | Err e =>
+            have hT6 : takeExact v5.1.val b2.val = none := by
+              simp [takeExact]; simpa [Slice.length] using hk6
+            simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, queryRead, Option.bind_eq_bind, hT13, hTk, f11, hT6]
+      · obtain ⟨rfl, -⟩ := hsk2
+        have hTk : takeExact (postHeaderLen (fdeLens ctx.fde) .QUERY_EVENT - 13) b1.val = none := by
+          simp [takeExact]; simpa [Slice.length] using hk
+        simp [ReadsAs, queryRead, Option.bind_eq_bind, hT13, hTk, misc.unexpected_buf_eof, misc.io_error_msg]
+  · simp only [hl, ite_false] at h1
+    obtain ⟨h1, -⟩ := h1
+    have hfr : ¬ 13 ≤ buf.val.length := by simp [Slice.length] at hl; omega
+    cases r with
+    | Ok pb => simp at h1
+    | Err e =>
+      simp [core.result.Result.Insts.CoreOpsTry.branch, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, ReadsAs, queryRead, takeExact, hfr]
 
 /-- `MySerialize`: appends the layout `queryEnc`. -/
 theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.query_event.QueryEvent) (buf : alloc.vec.Vec U8)
@@ -185,7 +381,10 @@ theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializ
     (hs' : (cowList e.schema.1).length ≤ 255) (ctx : binlog.BinlogCtx) (hp : postHeaderLen (fdeLens ctx.fde) .QUERY_EVENT ≤ 13)
     (buf : io.ParseBuf) (h : buf.val = queryEnc e) :
     binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest => (okPart r).map queryView = some (queryView e) ∧ rest.val = [] ⦄ := by
-  sorry
+  apply WP.spec_mono (binlog.events.query_event.QueryEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec ctx buf)
+  rintro ⟨r, rest⟩ hr
+  rw [h, queryRead_queryEnc e _ hp hsv hsv' hs hs'] at hr
+  simpa [ReadsAs] using hr
 
 /-- `BinlogEvent::EVENT_TYPE`: `QUERY_EVENT` (2). -/
 theorem binlog.events.query_event.QueryEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq :
