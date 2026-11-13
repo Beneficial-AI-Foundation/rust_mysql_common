@@ -1405,4 +1405,85 @@ theorem tm_deser (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
     obtain ⟨h11a, h11b⟩ := h11
     simp [ReadsAs, tmRead, hp, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11a, h11b, okPart, hcast, hbm, tmView]
 
+/-! ## Rows reader -/
+
+theorem dFlags (buf sub : io.ParseBuf) (hsub : sub.val = buf.val.take 2) (h2 : 2 ≤ sub.length) :
+    misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 () sub ⦃ r _ =>
+      (okPart r).map (fun x => x.1.val) = some (leNat (buf.val.take 2)) ⦄ := by
+  have inner : misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize sub ⦃ r rest =>
+      (fun o (_ : io.ParseBuf) => o.map (fun (x : U16) => x.val) = some (leNat (buf.val.take 2))) (okPart r) rest ⦄ := by
+    apply WP.spec_mono (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spec sub h2)
+    rintro ⟨r, rest⟩ ⟨h, -⟩
+    show (okPart r).map (fun (x : U16) => x.val) = some (leNat (buf.val.take 2))
+    rw [h, hsub, List.take_take]; simp
+  apply WP.spec_mono (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
+    binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 sub
+    (fun o (_ : io.ParseBuf) => o.map (fun (x : U16) => x.val) = some (leNat (buf.val.take 2))) inner)
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
+theorem pFlags (hsz : core.mem.size_of Std.U16 = ok 2#usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () ⦃ r rest =>
+      readLE 2 buf.val = (okPart r).map (fun x => (x.1.val, rest.val)) ⦄ := by
+  have hl : buf.length = buf.val.length := rfl
+  have hs : (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16).SIZE = ok (some 2#usize) := by
+    show misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE _ _ = _
+    unfold misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+    rw [hsz]; simp
+  by_cases h2 : (2#usize).val ≤ buf.length
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () 2#usize hs h2
+      (fun o => o.map (fun x => x.1.val) = some (leNat (buf.val.take 2))) (by
+        intro sub hsub
+        exact dFlags buf sub hsub (by simp [Slice.length, hsub] at h2 ⊢; omega)))
+    rintro ⟨r, rest⟩ ⟨ha, hb⟩
+    simp only [WP.uncurry'] at ha hb ⊢
+    simp at h2
+    cases hr : okPart r <;> simp_all [readLE]
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size_short (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () 2#usize hs (by omega))
+    rintro ⟨r, rest⟩ ⟨ha, hb⟩
+    simp only [WP.uncurry'] at ha hb ⊢
+    simp at h2
+    simp [ha, readLE]; omega
+
+theorem pEat16 (buf : io.ParseBuf) :
+    io.ParseBuf.checked_eat_u16_le buf ⦃ o rest => readLE 2 buf.val = o.map (fun x => (x.val, rest.val)) ⦄ := by
+  apply WP.spec_mono (io.ParseBuf.checked_eat_u16_le_spec buf)
+  rintro ⟨o, rest⟩ h
+  have hl : buf.length = buf.val.length := rfl
+  simp only [WP.uncurry'] at h ⊢
+  unfold readLE
+  split_ifs at h with hk
+  · obtain ⟨h1, h2⟩ := h; cases o <;> simp_all
+  · obtain ⟨h1, h2⟩ := h; subst h1 h2; simp; omega
+
+theorem sat_sub_val (x y : Usize) : (core.num.Usize.saturating_sub x y).val = x.val - y.val := by
+  simp only [core.num.Usize.saturating_sub, UScalar.saturating_sub, UScalar.val, BitVec.toNat_ofNat]
+  have := x.hBounds
+  simp only [UScalar.val] at this
+  rw [Nat.mod_eq_of_lt (by omega)]; omega
+
+theorem cast16_val (x : U16) : (UScalar.cast UScalarTy.Usize x).val = x.val := by
+  rw [UScalar.cast_val_eq]; apply Nat.mod_eq_of_lt
+  have := x.hBounds
+  have : 2 ^ 16 ≤ 2 ^ UScalarTy.Usize.numBits := by
+    apply Nat.pow_le_pow_right (by omega)
+    simp [UScalarTy.numBits]
+  simp at *; omega
+
+theorem ev_bool (t a : binlog.consts.EventType) :
+    binlog.consts.EventType.Insts.CoreCmpPartialEqEventType.eq t a ⦃ b => b = decide (eventTypeCode t = eventTypeCode a) ⦄ := by
+  rw [ev_eq]; simp
+
 end mysql_common.BERUtil
