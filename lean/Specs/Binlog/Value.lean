@@ -25,7 +25,7 @@ import Proofs.Binlog.Value.BinlogValue
     `binlog.jsondiff.parse_json_diffs` (JSON), `binlog.decimal.read_bin_to_string_bytes`
     (NEWDECIMAL), `binlog.trusted.timestamp2_frac_bytes` (`format!("{}.{:06}", sec, usec)`, for a
     TIMESTAMP2 with a fraction), `binlog.trusted.read_exact_eof` (the error value of the temporal
-    readers), and `into_owned` calls `binlog.jsonb.Value.into_owned`,
+    readers: `ok Trusted.readExactEofError`, an opaque value), and `into_owned` calls `binlog.jsonb.Value.into_owned`,
     `binlog.jsondiff.json_diffs_into_owned`. `YEAR`/`TIMESTAMP2` text goes through
     `i128::to_string`/`String::into_bytes`, modelled exactly in `FunsExternal.lean`.
 

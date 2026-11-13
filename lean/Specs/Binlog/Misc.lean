@@ -34,8 +34,9 @@ import Proofs.Binlog.Misc.MyTimestampFromBinary
     `timeFromPacked`, `datetime2Read`, `datetime2Bin`, `datetimeFromPacked`, `timestamp2Read`,
     `timestamp2Bin`), `Defs/Value.lean` (`Val`), `Defs/Bytes.lean`.
 
-    **Trusted axioms.** `binlog.trusted.read_exact_eof` (opaque: the `io::Error` value; nothing is
-    assumed about it, and the statements say nothing about errors beyond `okPart r = none`).
+    **Trusted axioms.** `Trusted.readExactEofError`, the opaque `io::Error` returned by
+    `binlog.trusted.read_exact_eof` (modelled as always returning it: it only names std's
+    `READ_EXACT_EOF`); the statements say nothing about errors beyond `okPart r = none`.
 
     **Not covered.** The private `read_*` helpers (covered through the public readers);
     `LimitedWrite`/`LimitWrite` (used only by `Event::write`, out of scope).
