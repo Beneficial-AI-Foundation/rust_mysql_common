@@ -38,6 +38,14 @@ def core.f64.F64.from_le_bytes (a : Array Std.U8 8#usize) : Result F64 :=
 def core.f64.F64.from_be_bytes (a : Array Std.U8 8#usize) : Result F64 :=
   ok ⟨core.num.U64.from_be_bytes a⟩
 
+/-- `impl Clone for f32`: `*self` (a bitwise copy). Used by the derived `Clone for Value`. -/
+@[rust_fun "core::clone::impls::{core::clone::Clone<f32>}::clone"]
+def F32.Insts.CoreCloneClone.clone (x : F32) : Result F32 := ok x
+
+/-- `impl Clone for f64`: `*self` (a bitwise copy). Used by the derived `Clone for Value`. -/
+@[rust_fun "core::clone::impls::{core::clone::Clone<f64>}::clone"]
+def F64.Insts.CoreCloneClone.clone (x : F64) : Result F64 := ok x
+
 /-! ## `Cow<'_, [T]>` and its trait instances: the std bodies.
     (These cannot be patched into the crate: Aeneas fails on matching a `&Cow` whose
     `Borrowed` variant holds a shared borrow, see translation notes.) -/
@@ -93,6 +101,11 @@ def Shared0T.Insts.CoreFmtDisplay.fmt
   {T : Type _} (DisplayInst : core.fmt.Display T) (x : T) (f : core.fmt.Formatter) :
   Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter) :=
   DisplayInst.fmt x f
+
+/-- `Option::as_ref` (`&Option<T>` to `Option<&T>`): the identity, since Aeneas translates a
+    shared borrow as the value it points to. -/
+@[rust_fun "core::option::{core::option::Option<@T>}::as_ref"]
+def core.option.Option.as_ref {T : Type _} (x : Option T) : Result (Option T) := ok x
 
 /-! ## `Arc<T>`, modelled by its value (see `alloc.sync.Arc` in TypesExternal.lean). -/
 
@@ -1238,3 +1251,301 @@ noncomputable def misc.trusted.connect_attrs_into_owned (attrs : Trusted.Connect
 noncomputable def misc.trusted.connect_attrs_to_strings (attrs : Trusted.ConnectAttrs) :
     Result Trusted.StringMap :=
   ok (Trusted.connectAttrsToStrings attrs)
+/-! ## The trust boundary of the compressed codec: `mysql_common::proto::codec::trusted`
+
+`translation-patches/120-codec-trusted-flate2-module.patch` adds this module (opaque in
+Cargo.toml); each function is one flate2 operation (flate2 1.1.11 with `rust_backend`, i.e.
+miniz_oxide 0.9.1, both checked by `PINNED_DEPS` in
+`scripts/aeneas-translate.sh`) or `Vec::capacity`. Each gets one of:
+
+* an **exact model**: `compression_none`, `compression_eq` (`Compression` is its `u32` level,
+  see TypesExternal.lean);
+* an **opaque value**: the new streams (`compress_new`, which panics for a level above 10,
+  `decompress_new`), `Vec::capacity`;
+* an **opaque value with partial specification axioms**: `deflate`, `inflate`. The axioms are
+  the weakest the codec's round trip needs: a successful deflate is non-empty and shorter than
+  its input (`deflateResult_short`), a successful inflate has the declared length
+  (`inflateResult_len`, from the helper's body), and inflating a successful deflate gives the
+  input back (`inflate_deflate`). Nothing is assumed about errors: deflate may fail, and inflate
+  may fail on any input that is not such an output (malformed or wrong length).
+
+Except `compress_new` (above), every helper is assumed not to panic (allocation is infallible in
+Aeneas' model). -/
+
+namespace Trusted
+/-- `Compress::new(level, true)` (flate2 1.1.11 / miniz_oxide 0.9.1): opaque. -/
+axiom compressNew : flate2.Compression → flate2.mem.Compress
+/-- `Decompress::new(true)` (flate2 1.1.11 / miniz_oxide 0.9.1): opaque. -/
+axiom decompressNew : flate2.mem.Decompress
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) The result of `trusted::deflate(d, chunk)`: `Ok (Some deflated)`, `Ok None` (incompressible
+    or not shorter) or an error. Opaque, see `deflateResult_short` and `inflate_deflate`. -/
+axiom deflateResult : flate2.mem.Compress → Slice Std.U8 →
+  core.result.Result (Option (alloc.vec.Vec Std.U8)) core.io.error.Error
+/-- The stream after `trusted::deflate(d, chunk)` (flate2 1.1.11 / miniz_oxide 0.9.1): opaque. -/
+axiom deflateState : flate2.mem.Compress → Slice Std.U8 → flate2.mem.Compress
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) The result of `trusted::inflate(i, compressed, plain_len)`. Opaque, see `inflateResult_len`
+    and `inflate_deflate`. -/
+axiom inflateResult : flate2.mem.Decompress → Slice Std.U8 → Std.Usize →
+  core.result.Result (alloc.vec.Vec Std.U8) core.io.error.Error
+/-- The stream after `trusted::inflate(i, compressed, plain_len)` (flate2 1.1.11 /
+    miniz_oxide 0.9.1): opaque. -/
+axiom inflateState : flate2.mem.Decompress → Slice Std.U8 → Std.Usize → flate2.mem.Decompress
+/-- `Vec::capacity`: opaque (Aeneas does not model capacity). Nothing is assumed about it.
+    Caveat: as a Lean function it gives equal vectors equal capacities; it is only used by the
+    codec's shrink-on-threshold logic, whose two branches leave the same (empty) buffer. -/
+axiom vecCapacity : alloc.vec.Vec Std.U8 → Std.Usize
+
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) A successful deflate is non-empty and shorter than its
+    input. Shorter: the helper returns `Some` only when `compressed_len < chunk.len()`, truncating
+    its `chunk.len()`-byte buffer to `compressed_len`. Non-empty: `Some` needs
+    `Status::StreamEnd`, i.e. a complete zlib stream, which has at least 7 bytes: the 2-byte
+    header (miniz_oxide 0.9.1 `src/deflate/core.rs:1790-1797`, written since `Compress::new(..,
+    true)` selects the zlib format), at least one block, and the 4-byte Adler-32 trailer
+    (`core.rs:1877-1880`). -/
+axiom deflateResult_short (d : flate2.mem.Compress) (chunk : Slice Std.U8)
+    (out : alloc.vec.Vec Std.U8) :
+    deflateResult d chunk = .Ok (some out) →
+      0 < out.val.length ∧ out.val.length < chunk.val.length
+
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) A successful inflate has the declared length: the helper returns `Ok` only when the stream
+    ended with `total_out == plain_len`, and the buffer has `plain_len` bytes. -/
+axiom inflateResult_len (i : flate2.mem.Decompress) (s : Slice Std.U8) (n : Std.Usize)
+    (v : alloc.vec.Vec Std.U8) :
+    inflateResult i s n = .Ok v → v.val.length = n.val
+
+/-- (flate2 1.1.11 / miniz_oxide 0.9.1.) zlib round trip: a successful deflate (a complete zlib stream, `FlushCompress::Finish` and
+    `Status::StreamEnd`) inflates, with any inflate stream (the helper resets it with a zlib
+    header first), into a buffer of the input's length, to exactly the input. Checked by the
+    crate's `compressed_roundtrip_reuses_streams` test (lengths 0 to `MAX_PAYLOAD_LEN + 100`,
+    compressible and incompressible data). -/
+axiom inflate_deflate (d : flate2.mem.Compress) (chunk : Slice Std.U8)
+    (out : alloc.vec.Vec Std.U8) (h : deflateResult d chunk = .Ok (some out))
+    (i : flate2.mem.Decompress) (s : Slice Std.U8) (hs : s.val = out.val) :
+    ∃ v, inflateResult i s (Slice.len chunk) = .Ok v ∧ v.val = chunk.val
+end Trusted
+
+/-- `Compression::none()`: exact (`Compression(0)`). -/
+def proto.codec.trusted.compression_none : Result flate2.Compression := ok ⟨0#u32⟩
+
+/-- `a == b`: exact (the derived `PartialEq` of `Compression(u32)`). -/
+def proto.codec.trusted.compression_eq (a b : flate2.Compression) : Result Bool :=
+  ok (a.level.val == b.level.val)
+
+/-- `Compress::new(level, true)`: panics for a level above 10. flate2 1.1.11's miniz_oxide
+    backend has `debug_assert!(level.level() <= 10)` (`src/ffi/miniz_oxide.rs:153`), and the
+    proofs use debug semantics (overflow checks and debug assertions on, lean/README.md §4);
+    otherwise an opaque stream. (The default `zlib` C backend instead panics for a level above 9
+    in every profile, `src/ffi/c.rs:376`; that backend is outside the verified configuration.) -/
+noncomputable def proto.codec.trusted.compress_new (level : flate2.Compression) :
+    Result flate2.mem.Compress :=
+  if level.level.val > 10 then fail .panic else ok (Trusted.compressNew level)
+
+noncomputable def proto.codec.trusted.decompress_new : Result flate2.mem.Decompress :=
+  ok Trusted.decompressNew
+
+noncomputable def proto.codec.trusted.deflate (d : flate2.mem.Compress) (chunk : Slice Std.U8) :
+    Result ((core.result.Result (Option (alloc.vec.Vec Std.U8)) core.io.error.Error) ×
+      flate2.mem.Compress) :=
+  ok (Trusted.deflateResult d chunk, Trusted.deflateState d chunk)
+
+noncomputable def proto.codec.trusted.inflate (i : flate2.mem.Decompress) (s : Slice Std.U8)
+    (n : Std.Usize) :
+    Result ((core.result.Result (alloc.vec.Vec Std.U8) core.io.error.Error) ×
+      flate2.mem.Decompress) :=
+  ok (Trusted.inflateResult i s n, Trusted.inflateState i s n)
+
+noncomputable def proto.codec.trusted.vec_capacity (v : alloc.vec.Vec Std.U8) : Result Std.Usize :=
+  ok (Trusted.vecCapacity v)
+/-! ## The trust boundary of `Value::as_sql` and `Params`: `mysql_common::sql_trusted`
+
+`translation-patches/80-sql-trusted-module.patch` adds this module (`opaque` in Cargo.toml); each
+function is one call into std. Each gets one of:
+
+* an **exact model**: `String::from(&str)`, `extend(chars())` (concatenation), the integer
+  `format!`s (decimal, zero-padded to the field width) and `{:02X}`;
+* an **opaque value with no specification**: `format!("{}", x)` of `f32`/`f64` (assumed only
+  not to panic);
+* the `HashMap<Vec<u8>, Value>` of `Params::Named`: an opaque list of entries
+  `Trusted.paramsMapEntries` (in the map's iteration order, which is unspecified) with
+  distinct keys, and axioms giving the entries after `default`, `insert` and `remove` **up to
+  permutation** (`List.Perm`). `contains_key`/`get`/`insert`/`remove`/`into_iter` are then
+  definitions in terms of these. A model satisfying all the axioms: a duplicate-free
+  association list, with `insert` consing a new key. **Caveat:** in this model a map's
+  iteration order is a deterministic function of the operations that built it, while Rust
+  seeds every `HashMap` randomly (std `hash/random.rs`), so two maps built the same way may
+  iterate differently. Specs must not state facts relating the order (or the Lean equality)
+  of separately built maps, or of the same construction in separate calls. The crate's
+  results (`into_values`, `into_positional`) do not depend on the order.
+
+Unless a declaration says otherwise, a helper is assumed not to panic (it returns `ok`). -/
+
+namespace Trusted
+
+/-- `n` in decimal, left-padded with `0` to at least `w` characters: Rust's `{:0w}` for an
+    unsigned integer (wider numbers are not truncated). -/
+def padDec (w n : Nat) : String :=
+  let s := toString n
+  "".pushn '0' (w - s.length) ++ s
+
+/-- An upper-case hexadecimal digit (`n < 16`). -/
+def hexDigitUpper (n : Nat) : Char :=
+  if n < 10 then Char.ofNat (48 + n) else Char.ofNat (55 + n)
+
+/-- `format!("{:02X}", b)` for a byte `b < 256`: exactly two upper-case hex digits. -/
+def hexByteUpper (b : Nat) : String :=
+  (String.singleton (hexDigitUpper (b / 16))).push (hexDigitUpper (b % 16))
+
+/-- `format!("{}", x)` of an `f32`: opaque. -/
+axiom f32Display : F32 → String
+
+/-- `format!("{}", x)` of an `f64`: opaque. -/
+axiom f64Display : F64 → String
+
+/-- The map of `Params::Named`. -/
+abbrev ParamsMap :=
+  std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value std.hash.random.RandomState
+    alloc.alloc.Global
+
+/-- The entries of a map, in its iteration order. Rust's order is unspecified and depends on the
+    map's random seed: the model is only sound if no spec relates the orders (or the Lean
+    equality) of separately built maps (see the section docstring). -/
+axiom paramsMapEntries : ParamsMap → List (alloc.vec.Vec Std.U8 × value.Value)
+
+/-- A `HashMap` holds each key at most once. -/
+axiom paramsMapEntries_keys_nodup (m : ParamsMap) :
+  ((paramsMapEntries m).map fun e => e.1.val).Nodup
+
+/-- A `HashMap` has at most `usize::MAX` entries (`HashMap::len` is a `usize`). -/
+axiom paramsMapEntries_length (m : ParamsMap) : (paramsMapEntries m).length ≤ Usize.max
+
+/-- `HashMap::default()`. -/
+axiom paramsMapEmpty : ParamsMap
+
+/-- `HashMap::default()` has no entries. -/
+axiom paramsMapEntries_empty : paramsMapEntries paramsMapEmpty = []
+
+/-- The value of key `k`, if any. -/
+noncomputable def paramsMapLookup (m : ParamsMap) (k : List Std.U8) : Option value.Value :=
+  ((paramsMapEntries m).find? fun e => e.1.val = k).map (·.2)
+
+/-- The map after `insert(k, v)`. -/
+axiom paramsMapInsert : ParamsMap → alloc.vec.Vec Std.U8 → value.Value → ParamsMap
+
+/-- `insert(k, v)` of a key **not already present** adds the entry `(k, v)`; the order is
+    unspecified. (Nothing is assumed when `k` is present: the crate only inserts after a
+    `contains_key` check, in `From<Vec<(N, V)>> for Params`.) -/
+axiom paramsMapEntries_insert (m : ParamsMap) (k : alloc.vec.Vec Std.U8) (v : value.Value)
+    (h : paramsMapLookup m k.val = none) :
+  (paramsMapEntries (paramsMapInsert m k v)).Perm ((k, v) :: paramsMapEntries m)
+
+/-- The map after `remove(k)`. -/
+axiom paramsMapRemove : ParamsMap → List Std.U8 → ParamsMap
+
+/-- `remove(k)` drops the entry of `k` (if any); the order of the others is unspecified. -/
+axiom paramsMapEntries_remove (m : ParamsMap) (k : List Std.U8) :
+  (paramsMapEntries (paramsMapRemove m k)).Perm
+    ((paramsMapEntries m).filter fun e => e.1.val ≠ k)
+
+end Trusted
+
+/-! ### `String` -/
+
+/-- `String::from(s)`: exact (`Str` is the UTF-8 bytes of a Rust `&str`, which are always valid
+    UTF-8, so the `fail` branch is unreachable from Rust). -/
+def sql_trusted.string_from_str (s : Str) : Result String :=
+  match String.fromUTF8? (Trusted.bytesOf s.val) with
+  | some t => ok t
+  | none => fail .panic
+
+/-- `s.extend(t.chars())`: exact (appends the characters of `t`). -/
+def sql_trusted.string_extend_chars (s t : String) : Result String := ok (s ++ t)
+
+/-! ### `format!` -/
+
+/-- `format!("{}", x)` of an `i64`: exact (decimal, with a leading `-` for negative values). -/
+def sql_trusted.format_i64 (x : Std.I64) : Result String := ok (toString x.val)
+
+/-- `format!("{}", x)` of a `u64`: exact (decimal). -/
+def sql_trusted.format_u64 (x : Std.U64) : Result String := ok (toString x.val)
+
+/-- `format!("{}", x)` of an `f32`: opaque (float formatting is not modelled). -/
+noncomputable def sql_trusted.format_f32 (x : F32) : Result String := ok (Trusted.f32Display x)
+
+/-- `format!("{}", x)` of an `f64`: opaque (float formatting is not modelled). -/
+noncomputable def sql_trusted.format_f64 (x : F64) : Result String := ok (Trusted.f64Display x)
+
+/-- `format!("'{:04}-{:02}-{:02}'", y, m, d)`: exact. -/
+def sql_trusted.format_date (y : Std.U16) (m d : Std.U8) : Result String :=
+  ok ("'" ++ Trusted.padDec 4 y.val ++ "-" ++ Trusted.padDec 2 m.val ++ "-" ++
+    Trusted.padDec 2 d.val ++ "'")
+
+/-- `format!("'{:04}-{:02}-{:02} {:02}:{:02}:{:02}'", ..)`: exact. -/
+def sql_trusted.format_datetime (y : Std.U16) (m d h i s : Std.U8) : Result String :=
+  ok ("'" ++ Trusted.padDec 4 y.val ++ "-" ++ Trusted.padDec 2 m.val ++ "-" ++
+    Trusted.padDec 2 d.val ++ " " ++ Trusted.padDec 2 h.val ++ ":" ++ Trusted.padDec 2 i.val ++
+    ":" ++ Trusted.padDec 2 s.val ++ "'")
+
+/-- `format!("'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}'", ..)`: exact. -/
+def sql_trusted.format_datetime_micros (y : Std.U16) (m d h i s : Std.U8) (us : Std.U32) :
+    Result String :=
+  ok ("'" ++ Trusted.padDec 4 y.val ++ "-" ++ Trusted.padDec 2 m.val ++ "-" ++
+    Trusted.padDec 2 d.val ++ " " ++ Trusted.padDec 2 h.val ++ ":" ++ Trusted.padDec 2 i.val ++
+    ":" ++ Trusted.padDec 2 s.val ++ "." ++ Trusted.padDec 6 us.val ++ "'")
+
+/-- `format!("'-{:03}:{:02}:{:02}'", hours, i, s)`: exact. -/
+def sql_trusted.format_time_neg (hours : Std.U32) (i s : Std.U8) : Result String :=
+  ok ("'-" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "'")
+
+/-- `format!("'{:03}:{:02}:{:02}'", hours, i, s)`: exact. -/
+def sql_trusted.format_time (hours : Std.U32) (i s : Std.U8) : Result String :=
+  ok ("'" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "'")
+
+/-- `format!("'-{:03}:{:02}:{:02}.{:06}'", hours, minutes, seconds, micros)`: exact. -/
+def sql_trusted.format_time_micros_neg (hours : Std.U32) (i s : Std.U8) (us : Std.U32) :
+    Result String :=
+  ok ("'-" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "." ++ Trusted.padDec 6 us.val ++ "'")
+
+/-- `format!("'{:03}:{:02}:{:02}.{:06}'", hours, minutes, seconds, micros)`: exact. -/
+def sql_trusted.format_time_micros (hours : Std.U32) (i s : Std.U8) (us : Std.U32) :
+    Result String :=
+  ok ("'" ++ Trusted.padDec 3 hours.val ++ ":" ++ Trusted.padDec 2 i.val ++ ":" ++
+    Trusted.padDec 2 s.val ++ "." ++ Trusted.padDec 6 us.val ++ "'")
+
+/-- `format!("{:02X}", c)`: exact (two upper-case hex digits). -/
+def sql_trusted.format_hex_upper_02 (c : Std.U8) : Result String :=
+  ok (Trusted.hexByteUpper c.val)
+
+/-! ### `HashMap<Vec<u8>, Value>` (see `Trusted.paramsMapEntries`) -/
+
+/-- `HashMap::default()`. -/
+noncomputable def sql_trusted.params_map_new : Result Trusted.ParamsMap :=
+  ok Trusted.paramsMapEmpty
+
+/-- `map.contains_key(key)`. -/
+noncomputable def sql_trusted.params_map_contains_key (m : Trusted.ParamsMap)
+    (k : Slice Std.U8) : Result Bool :=
+  ok (Trusted.paramsMapLookup m k.val).isSome
+
+/-- `map.insert(key, value)`: the previous value of `key`, and the new map. -/
+noncomputable def sql_trusted.params_map_insert (m : Trusted.ParamsMap)
+    (k : alloc.vec.Vec Std.U8) (v : value.Value) :
+    Result (Option value.Value × Trusted.ParamsMap) :=
+  ok (Trusted.paramsMapLookup m k.val, Trusted.paramsMapInsert m k v)
+
+/-- `map.get(key)`. -/
+noncomputable def sql_trusted.params_map_get (m : Trusted.ParamsMap) (k : Slice Std.U8) :
+    Result (Option value.Value) :=
+  ok (Trusted.paramsMapLookup m k.val)
+
+/-- `map.remove(key)`: the value of `key` (if any), and the new map. -/
+noncomputable def sql_trusted.params_map_remove (m : Trusted.ParamsMap) (k : Slice Std.U8) :
+    Result (Option value.Value × Trusted.ParamsMap) :=
+  ok (Trusted.paramsMapLookup m k.val, Trusted.paramsMapRemove m k.val)
+
+/-- `map.into_iter().collect()`: the entries, in the map's iteration order. -/
+noncomputable def sql_trusted.params_map_into_entries (m : Trusted.ParamsMap) :
+    Result (alloc.vec.Vec (alloc.vec.Vec Std.U8 × value.Value)) :=
+  ok (alloc.vec.Vec.from (Trusted.paramsMapEntries m) (Trusted.paramsMapEntries_length m))

@@ -164,6 +164,13 @@ structure bitflags.traits.Flags (Self : Type _) (Self_Bits : Type _) where
   from_bits_truncate : Self_Bits → Result Self
   from_bits_retain : Self_Bits → Result Self
 
+/-- [frunk_core::hlist::HNil]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/frunk_core-0.5.0/src/hlist.rs', lines 170:0-170:15
+    Name pattern: [frunk_core::hlist::HNil]
+    Visibility: public -/
+@[reducible, rust_type "frunk_core::hlist::HNil"]
+def frunk_core.hlist.HNil := Unit
+
 /-- [time::error::try_from_parsed::TryFromParsed]
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.55/src/error/try_from_parsed.rs', lines 11:0-11:22
     Name pattern: [time::error::try_from_parsed::TryFromParsed]
@@ -644,6 +651,38 @@ def misc.raw.seq.RawSeq (T : Type _) (U : Type _) (Clause0_Primitive : Type _)
   alloc.borrow.Cow (Slice Clause0_Primitive) (alloc.vec.Vec Clause0_Primitive)
   × core.marker.PhantomData U
 
+/-- [mysql_common::named_params::MixedParamsError]
+    Source: 'src/named_params.rs', lines 13:0-13:28
+    Visibility: public -/
+@[reducible]
+def named_params.MixedParamsError := Unit
+
+/-- [mysql_common::named_params::ParserState]
+    Source: 'src/named_params.rs', lines 15:0-30:1 -/
+@[discriminant isize]
+inductive named_params.ParserState where
+| TopLevel : named_params.ParserState
+| InStringLiteral : Std.U8 → Bool → named_params.ParserState
+| MaybeInNamedParam : named_params.ParserState
+| InNamedParam : named_params.ParserState
+| InSharpComment : named_params.ParserState
+| MaybeInDoubleDashComment1 : named_params.ParserState
+| MaybeInDoubleDashComment2 : named_params.ParserState
+| InDoubleDashComment : named_params.ParserState
+| MaybeInCComment1 : named_params.ParserState
+| MaybeInCComment2 : named_params.ParserState
+| InCComment : named_params.ParserState
+| MaybeExitCComment : named_params.ParserState
+| InQuotedIdentifier : named_params.ParserState
+
+/-- [mysql_common::named_params::ParsedNamedParams]
+    Source: 'src/named_params.rs', lines 157:0-160:1
+    Visibility: public -/
+structure named_params.ParsedNamedParams where
+  query : alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)
+  params : alloc.vec.Vec (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+    Std.U8))
+
 /-- [mysql_common::packets::InvalidFixedLengthFieldsLen]
     Source: 'src/packets/mod.rs', lines 80:8-80:24; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
     Visibility: public -/
@@ -866,6 +905,40 @@ structure packets.ComStmtExecuteRequest where
   params : Slice value.Value
   as_long_data : Bool
 
+/-- [mysql_common::params::MissingNamedParameterError]
+    Source: 'src/params.rs', lines 19:0-19:51
+    Visibility: public -/
+@[reducible]
+def params.MissingNamedParameterError := alloc.vec.Vec Std.U8
+
+/-- [mysql_common::params::ParamsConfusionError]
+    Source: 'src/params.rs', lines 22:0-27:1
+    Visibility: public -/
+@[discriminant isize]
+inductive params.ParamsConfusionError where
+| NamedParamsForPositionalQuery : params.ParamsConfusionError
+| PositionalParamsForNamedQuery : params.ParamsConfusionError
+
+/-- [mysql_common::params::ParamsError]
+    Source: 'src/params.rs', lines 30:0-35:1
+    Visibility: public -/
+@[discriminant isize]
+inductive params.ParamsError where
+| Missing : params.MissingNamedParameterError → params.ParamsError
+| Confusion : params.ParamsConfusionError → params.ParamsError
+
+/-- [mysql_common::params::Params]
+    Source: 'src/params.rs', lines 39:0-43:1
+    Visibility: public -/
+@[discriminant isize]
+inductive params.Params where
+| Empty : params.Params
+| Named :
+  std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global →
+  params.Params
+| Positional : alloc.vec.Vec value.Value → params.Params
+
 /-- [mysql_common::proto::codec::buf_model::NonZeroUsize]
     Source: 'src/proto/codec/buf_model.rs', lines 17:0-17:31
     Visibility: public -/
@@ -900,6 +973,12 @@ structure proto.codec.buf_model.Reserve (Self : Type _) where
 @[reducible]
 def proto.codec.buf_model.VecBuf := alloc.vec.Vec Std.U8
 
+/-- Trait declaration: [mysql_common::proto::codec::buf_model::Clear]
+    Source: 'src/proto/codec/buf_model.rs', lines 160:0-163:1
+    Visibility: public -/
+structure proto.codec.buf_model.Clear (Self : Type _) where
+  clear : Self → Result Self
+
 /-- [mysql_common::proto::codec::error::PacketCodecError]
     Source: 'src/proto/codec/error.rs', lines 12:0-17:1
     Visibility: public -/
@@ -911,7 +990,7 @@ inductive proto.codec.error.PacketCodecError where
 | BadCompressedPacketHeader : proto.codec.error.PacketCodecError
 
 /-- [mysql_common::proto::codec::ChunkInfo]
-    Source: 'src/proto/codec/mod.rs', lines 189:0-198:1
+    Source: 'src/proto/codec/mod.rs', lines 161:0-170:1
     Visibility: public -/
 @[discriminant isize]
 inductive proto.codec.ChunkInfo where
@@ -919,7 +998,7 @@ inductive proto.codec.ChunkInfo where
 | Last : Std.U8 → proto.codec.ChunkInfo
 
 /-- [mysql_common::proto::codec::ChunkDecoder]
-    Source: 'src/proto/codec/mod.rs', lines 210:0-223:1
+    Source: 'src/proto/codec/mod.rs', lines 182:0-195:1
     Visibility: public -/
 @[discriminant isize]
 inductive proto.codec.ChunkDecoder where
@@ -929,11 +1008,56 @@ inductive proto.codec.ChunkDecoder where
   proto.codec.buf_model.NonZeroUsize →
   proto.codec.ChunkDecoder
 
+/-- [mysql_common::proto::codec::CompData]
+    Source: 'src/proto/codec/mod.rs', lines 273:0-278:1
+    Visibility: public -/
+@[discriminant isize]
+inductive proto.codec.CompData where
+| Compressed :
+  proto.codec.buf_model.NonZeroUsize →
+  proto.codec.buf_model.NonZeroUsize →
+  proto.codec.CompData
+| Uncompressed : proto.codec.buf_model.NonZeroUsize → proto.codec.CompData
+
+/-- [mysql_common::proto::codec::CompDecoder]
+    Source: 'src/proto/codec/mod.rs', lines 345:0-355:1
+    Visibility: public -/
+@[discriminant isize]
+inductive proto.codec.CompDecoder where
+| Idle : proto.codec.CompDecoder
+| Packet : Std.U8 → proto.codec.CompData → proto.codec.CompDecoder
+
 /-- [mysql_common::proto::codec::PlainPacketCodec]
-    Source: 'src/proto/codec/mod.rs', lines 585:0-590:1 -/
+    Source: 'src/proto/codec/mod.rs', lines 577:0-582:1 -/
 structure proto.codec.PlainPacketCodec where
   seq_id : Std.U8
   chunk_decoder : proto.codec.ChunkDecoder
+
+/-- [mysql_common::proto::codec::CompPacketCodec]
+    Source: 'src/proto/codec/mod.rs', lines 663:0-680:1 -/
+structure proto.codec.CompPacketCodec where
+  level : flate2.Compression
+  comp_seq_id : Std.U8
+  in_buf : proto.codec.buf_model.VecBuf
+  out_buf : proto.codec.buf_model.VecBuf
+  comp_decoder : proto.codec.CompDecoder
+  deflater : Option flate2.mem.Compress
+  inflater : Option flate2.mem.Decompress
+  plain_codec : proto.codec.PlainPacketCodec
+
+/-- [mysql_common::proto::codec::PacketCodecInner]
+    Source: 'src/proto/codec/mod.rs', lines 487:0-492:1 -/
+@[discriminant isize]
+inductive proto.codec.PacketCodecInner where
+| Plain : proto.codec.PlainPacketCodec → proto.codec.PacketCodecInner
+| Comp : proto.codec.CompPacketCodec → proto.codec.PacketCodecInner
+
+/-- [mysql_common::proto::codec::PacketCodec]
+    Source: 'src/proto/codec/mod.rs', lines 428:0-433:1
+    Visibility: public -/
+structure proto.codec.PacketCodec where
+  max_allowed_packet : Std.Usize
+  inner : proto.codec.PacketCodecInner
 
 /-- [mysql_common::proto::Text]
     Source: 'src/proto/mod.rs', lines 18:0-18:16
@@ -954,8 +1078,55 @@ structure row.Row where
   values : alloc.vec.Vec (Option value.Value)
   columns : alloc.sync.Arc (Slice packets.Column)
 
+/-- [mysql_common::row::convert::FromRowError]
+    Source: 'src/row/convert/mod.rs', lines 23:0-23:33
+    Visibility: public -/
+@[reducible]
+def row.convert.FromRowError := row.Row
+
+/-- Trait declaration: [mysql_common::row::convert::FromRow]
+    Source: 'src/row/convert/mod.rs', lines 77:0-93:1
+    Visibility: public -/
+structure row.convert.FromRow (Self : Type _) where
+  from_row : row.Row → Result Self
+  from_row_opt : row.Row → Result (core.result.Result Self
+    row.convert.FromRowError)
+
+/-- [mysql_common::value::convert::FromValueError]
+    Source: 'src/value/convert/mod.rs', lines 86:0-86:37
+    Visibility: public -/
+@[reducible]
+def value.convert.FromValueError := value.Value
+
+/-- Trait declaration: [mysql_common::value::convert::FromValue]
+    Source: 'src/value/convert/mod.rs', lines 93:0-116:1
+    Visibility: public -/
+structure value.convert.FromValue (Self : Type _) (Self_Intermediate : Type _)
+  where
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :
+    core.convert.TryFrom Self_Intermediate value.Value
+    value.convert.FromValueError
+  coreconvertIntoInst : core.convert.Into Self_Intermediate Self
+  from_value : value.Value → Result Self
+  from_value_opt : value.Value → Result (core.result.Result Self
+    value.convert.FromValueError)
+  get_intermediate : value.Value → Result (core.result.Result
+    Self_Intermediate value.convert.FromValueError)
+
+/-- [mysql_common::value::convert::ValueIr]
+    Source: 'src/value/convert/mod.rs', lines 562:0-562:30
+    Visibility: public -/
+@[reducible]
+def value.convert.ValueIr := value.Value
+
+/-- Trait declaration: [mysql_common::row::ColumnIndex]
+    Source: 'src/row/mod.rs', lines 238:0-240:1
+    Visibility: public -/
+structure row.ColumnIndex (Self : Type _) where
+  idx : Self → Slice packets.Column → Result (Option Std.Usize)
+
 /-- [mysql_common::row::RowDeserializer]
-    Source: 'src/row/mod.rs', lines 232:0-232:59
+    Source: 'src/row/mod.rs', lines 283:0-283:59
     Visibility: public -/
 def row.RowDeserializer (S : Type _) (P : Type _) :=
   row.Row × core.marker.PhantomData (S × P)
@@ -982,27 +1153,6 @@ def value.BinValue := Unit
     Source: 'src/value/convert/mod.rs', lines 120:0-120:40
     Visibility: public -/
 def value.convert.ParseIr (T : Type _) := T × value.Value
-
-/-- [mysql_common::value::convert::FromValueError]
-    Source: 'src/value/convert/mod.rs', lines 86:0-86:37
-    Visibility: public -/
-@[reducible]
-def value.convert.FromValueError := value.Value
-
-/-- Trait declaration: [mysql_common::value::convert::FromValue]
-    Source: 'src/value/convert/mod.rs', lines 93:0-116:1
-    Visibility: public -/
-structure value.convert.FromValue (Self : Type _) (Self_Intermediate : Type _)
-  where
-  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :
-    core.convert.TryFrom Self_Intermediate value.Value
-    value.convert.FromValueError
-  coreconvertIntoInst : core.convert.Into Self_Intermediate Self
-  from_value : value.Value → Result Self
-  from_value_opt : value.Value → Result (core.result.Result Self
-    value.convert.FromValueError)
-  get_intermediate : value.Value → Result (core.result.Result
-    Self_Intermediate value.convert.FromValueError)
 
 /-- [mysql_common::value::convert::parse_mysql_datetime_string::{closure#3}]
     Source: 'src/value/convert/mod.rs', lines 79:19-79:50 -/
@@ -1064,12 +1214,6 @@ inductive value.convert.OptionIr2 (T : Type _) (Clause0_Intermediate : Type _)
 | Some :
   Clause0_Intermediate →
   value.convert.OptionIr2 T Clause0_Intermediate
-
-/-- [mysql_common::value::convert::ValueIr]
-    Source: 'src/value/convert/mod.rs', lines 562:0-562:30
-    Visibility: public -/
-@[reducible]
-def value.convert.ValueIr := value.Value
 
 /-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for [u8; N]}::try_from::{closure}]
     Source: 'src/value/convert/mod.rs', lines 632:25-632:60 -/

@@ -1,0 +1,26 @@
+Translation patch: `Index<&str> for Row` (search)
+
+Change: The loop `for (i, column) in self.columns.iter().enumerate() { if column.name_ref() == index.as_bytes() { return self.values[i].as_ref().unwrap() } } panic!(..)` becomes `match ColumnIndex::idx(&index, &self.columns) { Some(i) => self.values[i].as_ref().unwrap(), None => panic!(..) }`.
+Why: It is the loop of `ColumnIndex for &str` (patch 102), which Aeneas cannot translate (nested borrows, `enumerate`); `<&str as ColumnIndex>::idx` is exactly that search.
+Behaviour: Identical: `idx` returns the first index whose column name equals `index.as_bytes()`, or `None`, so the same cell is returned (and the same `unwrap` panics on a taken cell), and the same panic happens when no column matches.
+
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index 68caedc..05f0bdb 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -225,12 +225,10 @@ impl<'a> Index<&'a str> for Row {
+     type Output = Value;
+ 
+     fn index<'r>(&'r self, index: &'a str) -> &'r Value {
+-        for (i, column) in self.columns.iter().enumerate() {
+-            if column.name_ref() == index.as_bytes() {
+-                return self.values[i].as_ref().unwrap();
+-            }
++        match ColumnIndex::idx(&index, &self.columns) {
++            Some(i) => self.values[i].as_ref().unwrap(),
++            None => panic!("No such column"),
+         }
+-        panic!("No such column");
+     }
+ }
+ 

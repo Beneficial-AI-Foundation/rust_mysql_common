@@ -50,6 +50,16 @@ def U8.Insts.CoreFmtDisplay : core.fmt.Display Std.U8 := {
   fmt := core.fmt.num.imp.DisplayU8.fmt
 }
 
+/-- Trait implementation: [core::slice::cmp::{impl core::cmp::PartialEq<[U]> for [T]}]
+    Source: '/rustc/library/core/src/slice/cmp.rs', lines 14:0-16:28
+    Name pattern: [core::cmp::PartialEq<[@T], [@U]>] -/
+@[reducible, rust_trait_impl "core::cmp::PartialEq<[@T], [@U]>"]
+def Slice.Insts.CoreCmpPartialEqSlice {T : Type _} {U : Type _}
+  (cmpPartialEqInst : core.cmp.PartialEq T U) : core.cmp.PartialEq (Slice T)
+  (Slice U) := {
+  eq := core.slice.cmp.PartialEqSlice.eq cmpPartialEqInst
+}
+
 /-- Trait implementation: [alloc::alloc::{impl core::alloc::AllocatorClone for alloc::alloc::Global}]
     Source: '/rustc/library/alloc/src/alloc.rs', lines 62:0-62:50
     Name pattern: [core::alloc::AllocatorClone<alloc::alloc::Global>] -/
@@ -124,6 +134,20 @@ def uuid.Uuid.as_bytes
     Visibility: public -/
 @[global_simps, irreducible]
 def constants.MAX_PAYLOAD_LEN : Std.Usize := 16777215#usize
+
+/-- [mysql_common::constants::DEFAULT_MAX_ALLOWED_PACKET]
+    Source: 'src/constants.rs', lines 12:0-12:63
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.DEFAULT_MAX_ALLOWED_PACKET : Result Std.Usize := do
+  let i ← 4#usize * 1024#usize
+  i * 1024#usize
+
+/-- [mysql_common::constants::MIN_COMPRESS_LENGTH]
+    Source: 'src/constants.rs', lines 13:0-13:44
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.MIN_COMPRESS_LENGTH : Std.Usize := 512#usize
 
 /-- [mysql_common::constants::{mysql_common::constants::StatusFlags}::all]:
     Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
@@ -5144,6 +5168,135 @@ def misc.write_varlen_uint
         { «end» := num_bytes }
     alloc.vec.Vec.extend_from_slice core.clone.CloneU8 buf s
 
+/-- [mysql_common::misc::digits_end]: loop body 0:
+    Source: 'src/misc/mod.rs', lines 223:4-230:1 -/
+@[rust_loop_body]
+def misc.digits_end_loop.body
+  (input : Slice Std.U8) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Std.Usize)
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let i2 ← Slice.index_usize input i
+    if i2 < 48#u8
+    then ok (done i)
+    else
+      if i2 > 57#u8
+      then ok (done i)
+      else let i3 ← i + 1#usize
+           ok (cont i3)
+  else let i2 := Slice.len input
+       ok (done i2)
+
+/-- [mysql_common::misc::digits_end]: loop 0:
+    Source: 'src/misc/mod.rs', lines 223:4-230:1 -/
+@[rust_loop]
+def misc.digits_end_loop
+  (input : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  loop
+    (fun i1 => misc.digits_end_loop.body input i1)
+    i
+
+/-- [mysql_common::misc::digits_end]:
+    Source: 'src/misc/mod.rs', lines 221:0-230:1 -/
+@[reducible]
+def misc.digits_end (input : Slice Std.U8) : Result Std.Usize := do
+  misc.digits_end_loop input 0#usize
+
+/-- [mysql_common::misc::dot_or_end]: loop body 0:
+    Source: 'src/misc/mod.rs', lines 211:4-218:1 -/
+@[rust_loop_body]
+def misc.dot_or_end_loop.body
+  (input : Slice Std.U8) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Std.Usize)
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let i2 ← Slice.index_usize input i
+    if i2 = 46#u8
+    then ok (done i)
+    else let i3 ← i + 1#usize
+         ok (cont i3)
+  else let i2 := Slice.len input
+       ok (done i2)
+
+/-- [mysql_common::misc::dot_or_end]: loop 0:
+    Source: 'src/misc/mod.rs', lines 211:4-218:1 -/
+@[rust_loop]
+def misc.dot_or_end_loop
+  (input : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  loop
+    (fun i1 => misc.dot_or_end_loop.body input i1)
+    i
+
+/-- [mysql_common::misc::dot_or_end]:
+    Source: 'src/misc/mod.rs', lines 209:0-218:1 -/
+@[reducible]
+def misc.dot_or_end
+  (input : Slice Std.U8) (start : Std.Usize) : Result Std.Usize := do
+  misc.dot_or_end_loop input start
+
+/-- [mysql_common::misc::split_version_inner]:
+    Source: 'src/misc/mod.rs', lines 178:0-206:1 -/
+def misc.split_version_inner
+  (input : Slice Std.U8) : Result (Option (Std.U8 × Std.U8 × Std.U8)) := do
+  let end0 ← misc.dot_or_end input 0#usize
+  let i := Slice.len input
+  if end0 = i
+  then ok none
+  else
+    let i1 ← end0 + 1#usize
+    let end1 ← misc.dot_or_end input i1
+    let i2 := Slice.len input
+    if end1 = i2
+    then ok none
+    else
+      let i3 ← end1 + 1#usize
+      let end2 ← misc.dot_or_end input i3
+      let s ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) input
+          { «end» := end0 }
+      let o ← value.convert.trusted.btoi_u8 s
+      match o with
+      | none => ok none
+      | some x =>
+        let s1 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) input
+            { start := i1, «end» := end1 }
+        let o1 ← value.convert.trusted.btoi_u8 s1
+        match o1 with
+        | none => ok none
+        | some x1 =>
+          let chunk_with_junk ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) input
+              { start := i3, «end» := end2 }
+          let i4 ← misc.digits_end chunk_with_junk
+          let chunk ←
+            core.slice.index.Slice.index
+              (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)
+              chunk_with_junk { «end» := i4 }
+          let o2 ← value.convert.trusted.btoi_u8 chunk
+          match o2 with
+          | none => ok none
+          | some x2 => ok (some (x, x1, x2))
+
+/-- [mysql_common::misc::split_version]:
+    Source: 'src/misc/mod.rs', lines 170:0-173:1
+    Visibility: public -/
+def misc.split_version
+  {T : Type _} (coreconvertAsRefTSliceU8Inst : core.convert.AsRef T (Slice
+  Std.U8)) (version_str : T) :
+  Result (Std.U8 × Std.U8 × Std.U8)
+  := do
+  let bytes ← coreconvertAsRefTSliceU8Inst.as_ref version_str
+  let o ← misc.split_version_inner bytes
+  ok (core.option.Option.unwrap_or o (0#u8, 0#u8, 0#u8))
+
 /-- [mysql_common::misc::raw::_const::{mysql_common::misc::raw::_const::Const<T, U>}::new]:
     Source: 'src/misc/raw/_const.rs', lines 34:4-36:5
     Visibility: public -/
@@ -8562,6 +8715,383 @@ def misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize {T : Type _} (U
     intIntReprTU8Inst
 }
 
+/-- [mysql_common::named_params::parse_step]:
+    Source: 'src/named_params.rs', lines 35:0-130:1 -/
+def named_params.parse_step
+  (state : named_params.ParserState) (c : Std.U8) (i : Std.Usize)
+  (have_positional : Bool) (cur_param : Std.Usize)
+  (params : alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize)) :
+  Result (named_params.ParserState × Bool × Std.Usize × (alloc.vec.Vec
+    (Std.Usize × Std.Usize × Std.Usize)))
+  := do
+  let (have_positional1, cur_param1, params1, state1, rematch) ←
+    match state with
+    | named_params.ParserState.TopLevel =>
+      do
+      let (b, ps) ←
+        match c with
+        | 58#uscalar =>
+          ok (have_positional, named_params.ParserState.MaybeInNamedParam)
+        | 47#uscalar =>
+          ok (have_positional, named_params.ParserState.MaybeInCComment1)
+        | 45#uscalar =>
+          ok (have_positional,
+            named_params.ParserState.MaybeInDoubleDashComment1)
+        | 35#uscalar =>
+          ok (have_positional, named_params.ParserState.InSharpComment)
+        | 39#uscalar =>
+          ok (have_positional, named_params.ParserState.InStringLiteral 39#u8
+            false)
+        | 34#uscalar =>
+          ok (have_positional, named_params.ParserState.InStringLiteral 34#u8
+            false)
+        | 63#uscalar => ok (true, named_params.ParserState.TopLevel)
+        | 96#uscalar =>
+          ok (have_positional, named_params.ParserState.InQuotedIdentifier)
+        | _ => ok (have_positional, named_params.ParserState.TopLevel)
+      ok (b, cur_param, params, ps, false)
+    | named_params.ParserState.InStringLiteral separator in_escape =>
+      do
+      let ps ←
+        if in_escape
+        then ok (named_params.ParserState.InStringLiteral separator false)
+        else
+          if c = separator
+          then ok named_params.ParserState.TopLevel
+          else
+            do
+            let b ← if c = 92#u8
+                      then ok true
+                      else ok false
+            ok (named_params.ParserState.InStringLiteral separator b)
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInNamedParam =>
+      do
+      let (v, ps, b) ←
+        if 97#u8 <= c
+        then
+          if c <= 122#u8
+          then
+            do
+            let i1 ← i - 1#usize
+            let params2 ← alloc.vec.Vec.push params (i1, i, 0#usize)
+            ok (params2, named_params.ParserState.InNamedParam, false)
+          else
+            match c with
+            | 95#uscalar =>
+              do
+              let i1 ← i - 1#usize
+              let params2 ← alloc.vec.Vec.push params (i1, i, 0#usize)
+              ok (params2, named_params.ParserState.InNamedParam, false)
+            | _ =>
+              ok (params, named_params.ParserState.MaybeInNamedParam, true)
+        else
+          match c with
+          | 95#uscalar =>
+            do
+            let i1 ← i - 1#usize
+            let params2 ← alloc.vec.Vec.push params (i1, i, 0#usize)
+            ok (params2, named_params.ParserState.InNamedParam, false)
+          | _ => ok (params, named_params.ParserState.MaybeInNamedParam, true)
+      ok (have_positional, cur_param, v, ps, b)
+    | named_params.ParserState.InNamedParam =>
+      do
+      let b ←
+        if 97#u8 <= c
+        then
+          if c <= 122#u8
+          then ok true
+          else
+            if 48#u8 <= c
+            then
+              if c <= 57#u8
+              then ok true
+              else match c with
+                   | 95#uscalar => ok true
+                   | _ => ok false
+            else match c with
+                 | 95#uscalar => ok true
+                 | _ => ok false
+        else
+          if 48#u8 <= c
+          then
+            if c <= 57#u8
+            then ok true
+            else match c with
+                 | 95#uscalar => ok true
+                 | _ => ok false
+          else match c with
+               | 95#uscalar => ok true
+               | _ => ok false
+      let (i1, v, b1) ←
+        if b
+        then ok (cur_param, params, false)
+        else
+          do
+          let ((i2, i3, _), index_mut_back) ←
+            alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+              (Std.Usize × Std.Usize × Std.Usize)) params cur_param
+          let cur_param2 ← cur_param + 1#usize
+          let params2 := index_mut_back (i2, i3, i)
+          ok (cur_param2, params2, true)
+      ok (have_positional, i1, v, named_params.ParserState.InNamedParam, b1)
+    | named_params.ParserState.InSharpComment =>
+      do
+      let ps ←
+        if c = 10#u8
+        then ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.InSharpComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInDoubleDashComment1 =>
+      do
+      let ps ←
+        match c with
+        | 45#uscalar => ok named_params.ParserState.MaybeInDoubleDashComment2
+        | _ => ok named_params.ParserState.TopLevel
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInDoubleDashComment2 =>
+      do
+      let b ←
+        match c with
+        | 9#uscalar => ok true
+        | 10#uscalar => ok true
+        | 12#uscalar => ok true
+        | 13#uscalar => ok true
+        | 32#uscalar => ok true
+        | _ => ok false
+      let ps ←
+        if b
+        then
+          if c != 10#u8
+          then ok named_params.ParserState.InDoubleDashComment
+          else ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.TopLevel
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.InDoubleDashComment =>
+      do
+      let ps ←
+        if c = 10#u8
+        then ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.InDoubleDashComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInCComment1 =>
+      do
+      let ps ←
+        match c with
+        | 42#uscalar => ok named_params.ParserState.MaybeInCComment2
+        | _ => ok named_params.ParserState.TopLevel
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeInCComment2 =>
+      do
+      let ps ←
+        match c with
+        | 33#uscalar => ok named_params.ParserState.TopLevel
+        | 43#uscalar => ok named_params.ParserState.TopLevel
+        | _ => ok named_params.ParserState.InCComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.InCComment =>
+      do
+      let ps ←
+        if c = 42#u8
+        then ok named_params.ParserState.MaybeExitCComment
+        else ok named_params.ParserState.InCComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.MaybeExitCComment =>
+      do
+      let ps ←
+        match c with
+        | 47#uscalar => ok named_params.ParserState.TopLevel
+        | _ => ok named_params.ParserState.InCComment
+      ok (have_positional, cur_param, params, ps, false)
+    | named_params.ParserState.InQuotedIdentifier =>
+      do
+      let ps ←
+        if c = 96#u8
+        then ok named_params.ParserState.TopLevel
+        else ok named_params.ParserState.InQuotedIdentifier
+      ok (have_positional, cur_param, params, ps, false)
+  if rematch
+  then
+    match c with
+    | 58#uscalar =>
+      ok (named_params.ParserState.MaybeInNamedParam, have_positional1,
+        cur_param1, params1)
+    | 39#uscalar =>
+      ok (named_params.ParserState.InStringLiteral 39#u8 false,
+        have_positional1, cur_param1, params1)
+    | 34#uscalar =>
+      ok (named_params.ParserState.InStringLiteral 34#u8 false,
+        have_positional1, cur_param1, params1)
+    | _ =>
+      ok (named_params.ParserState.TopLevel, have_positional1, cur_param1,
+        params1)
+  else ok (state1, have_positional1, cur_param1, params1)
+
+/-- [mysql_common::named_params::substitute_params]:
+    Source: 'src/named_params.rs', lines 135:0-153:1 -/
+def named_params.substitute_params
+  (query : Slice Std.U8) (params : Slice (Std.Usize × Std.Usize × Std.Usize))
+  (k : Std.Usize) (last : Std.Usize) (real_query : alloc.vec.Vec Std.U8)
+  (out_params : alloc.vec.Vec (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+  Std.U8))) :
+  Result ((alloc.vec.Vec Std.U8) × (alloc.vec.Vec (alloc.borrow.Cow (Slice
+    Std.U8) (alloc.vec.Vec Std.U8))))
+  := do
+  let i := Slice.len params
+  if k < i
+  then
+    let t ← Slice.index_usize params k
+    let (colon_offset, _, _) := t
+    let (_, start, _) := t
+    let (_, _, «end») := t
+    let s ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) query { start := last, «end» := colon_offset }
+    let real_query1 ←
+      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 real_query s
+    let real_query2 ← alloc.vec.Vec.push real_query1 63#u8
+    let s1 ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) query { start, «end» }
+    let out_params1 ←
+      alloc.vec.Vec.push out_params (alloc.borrow.Cow.Borrowed s1)
+    let i1 ← k + 1#usize
+    named_params.substitute_params query params i1 «end» real_query2
+      out_params1
+  else
+    let s ←
+      core.slice.index.Slice.index
+        (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) query
+        { start := last }
+    let real_query1 ←
+      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 real_query s
+    ok (real_query1, out_params)
+partial_fixpoint
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::parse]: loop body 0:
+    Source: 'src/named_params.rs', lines 176:8-186:9
+    Visibility: public -/
+@[rust_loop_body]
+def named_params.ParsedNamedParams.parse_loop.body
+  (query : Slice Std.U8) (state : named_params.ParserState)
+  (have_positional : Bool) (cur_param : Std.Usize)
+  (params : alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize))
+  (i : Std.Usize) :
+  Result (ControlFlow (named_params.ParserState × Bool × Std.Usize ×
+    (alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize)) × Std.Usize)
+    (named_params.ParserState × Bool × Std.Usize × (alloc.vec.Vec (Std.Usize
+    × Std.Usize × Std.Usize))))
+  := do
+  let i1 := Slice.len query
+  if i < i1
+  then
+    let i2 ← Slice.index_usize query i
+    let (state1, have_positional1, cur_param1, params1) ←
+      named_params.parse_step state i2 i have_positional cur_param params
+    let i3 ← i + 1#usize
+    ok (cont (state1, have_positional1, cur_param1, params1, i3))
+  else ok (done (state, have_positional, cur_param, params))
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::parse]: loop 0:
+    Source: 'src/named_params.rs', lines 176:8-186:9
+    Visibility: public -/
+@[rust_loop]
+def named_params.ParsedNamedParams.parse_loop
+  (query : Slice Std.U8) (state : named_params.ParserState)
+  (have_positional : Bool) (cur_param : Std.Usize)
+  (params : alloc.vec.Vec (Std.Usize × Std.Usize × Std.Usize))
+  (i : Std.Usize) :
+  Result (named_params.ParserState × Bool × Std.Usize × (alloc.vec.Vec
+    (Std.Usize × Std.Usize × Std.Usize)))
+  := do
+  loop
+    (fun (state1, have_positional1, cur_param1, params1, i1) =>
+      named_params.ParsedNamedParams.parse_loop.body query state1
+      have_positional1 cur_param1 params1 i1)
+    (state, have_positional, cur_param, params, i)
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::parse]:
+    Source: 'src/named_params.rs', lines 169:4-210:5
+    Visibility: public -/
+def named_params.ParsedNamedParams.parse
+  (query : Slice Std.U8) :
+  Result (core.result.Result named_params.ParsedNamedParams
+    named_params.MixedParamsError)
+  := do
+  let (state, have_positional, cur_param, params) ←
+    named_params.ParsedNamedParams.parse_loop query
+      named_params.ParserState.TopLevel false 0#usize (alloc.vec.Vec.new
+      (Std.Usize × Std.Usize × Std.Usize)) 0#usize
+  let params1 ←
+    match state with
+    | named_params.ParserState.TopLevel => ok params
+    | named_params.ParserState.InStringLiteral _ _ => ok params
+    | named_params.ParserState.MaybeInNamedParam => ok params
+    | named_params.ParserState.InNamedParam =>
+      do
+      let i := Slice.len query
+      let ((i1, i2, _), index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          (Std.Usize × Std.Usize × Std.Usize)) params cur_param
+      ok (index_mut_back (i1, i2, i))
+    | named_params.ParserState.InSharpComment => ok params
+    | named_params.ParserState.MaybeInDoubleDashComment1 => ok params
+    | named_params.ParserState.MaybeInDoubleDashComment2 => ok params
+    | named_params.ParserState.InDoubleDashComment => ok params
+    | named_params.ParserState.MaybeInCComment1 => ok params
+    | named_params.ParserState.MaybeInCComment2 => ok params
+    | named_params.ParserState.InCComment => ok params
+    | named_params.ParserState.MaybeExitCComment => ok params
+    | named_params.ParserState.InQuotedIdentifier => ok params
+  let b ← alloc.vec.Vec.is_empty params1
+  if b
+  then
+    ok (core.result.Result.Ok
+      {
+        query := (alloc.borrow.Cow.Borrowed query),
+        params :=
+          (alloc.vec.Vec.new
+            (alloc.borrow.Cow
+            (Slice
+            Std.U8)
+            (alloc.vec.Vec
+            Std.U8)))
+      })
+  else
+    if have_positional
+    then ok (core.result.Result.Err ())
+    else
+      let i := Slice.len query
+      let real_query := alloc.vec.Vec.with_capacity Std.U8 i
+      let i1 := alloc.vec.Vec.len params1
+      let out_params :=
+        alloc.vec.Vec.with_capacity (alloc.borrow.Cow (Slice Std.U8)
+          (alloc.vec.Vec Std.U8)) i1
+      let s := alloc.vec.Vec.deref params1
+      let (real_query1, out_params1) ←
+        named_params.substitute_params query s 0#usize 0#usize real_query
+          out_params
+      ok (core.result.Result.Ok
+        { query := (alloc.borrow.Cow.Owned real_query1), params := out_params1
+        })
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::query]:
+    Source: 'src/named_params.rs', lines 213:4-215:5
+    Visibility: public -/
+def named_params.ParsedNamedParams.impl.query
+  (self : named_params.ParsedNamedParams) : Result (Slice Std.U8) := do
+  alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+    (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) self.query
+
+/-- [mysql_common::named_params::{mysql_common::named_params::ParsedNamedParams<'a>}::params]:
+    Source: 'src/named_params.rs', lines 224:4-226:5
+    Visibility: public -/
+def named_params.ParsedNamedParams.impl.params
+  (self : named_params.ParsedNamedParams) :
+  Result (Slice (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  := do
+  ok (alloc.vec.Vec.deref self.params)
+
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidFixedLengthFieldsLen}::fmt]:
     Source: 'src/packets/mod.rs', lines 78:67-78:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
     Visibility: public -/
@@ -11219,7 +11749,7 @@ def packets.ComStmtExecuteRequestBuilder.new
   ok { stmt_id }
 
 /-- [mysql_common::value::{mysql_common::value::Value}::bin_len]:
-    Source: 'src/value/mod.rs', lines 231:4-247:5
+    Source: 'src/value/mod.rs', lines 241:4-257:5
     Visibility: public -/
 def value.Value.bin_len (self : value.Value) : Result Std.U64 := do
   match self with
@@ -13355,6 +13885,1239 @@ def packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize :
     packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
 }
 
+/-- [mysql_common::params::{impl core::convert::From<mysql_common::params::MissingNamedParameterError> for mysql_common::params::ParamsError}::from]:
+    Source: 'src/params.rs', lines 29:38-29:54
+    Visibility: public -/
+def params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from
+  (source : params.MissingNamedParameterError) :
+  Result params.ParamsError
+  := do
+  ok (params.ParamsError.Missing source)
+
+/-- [mysql_common::params::{impl core::convert::From<mysql_common::params::ParamsConfusionError> for mysql_common::params::ParamsError}::from]:
+    Source: 'src/params.rs', lines 29:38-29:54
+    Visibility: public -/
+def params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from
+  (source : params.ParamsConfusionError) : Result params.ParamsError := do
+  ok (params.ParamsError.Confusion source)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<mysql_common::params::MissingNamedParameterError> for mysql_common::params::ParamsError}]
+    Source: 'src/params.rs', lines 32:12-32:19 -/
+@[reducible]
+def params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError :
+  core.convert.From params.ParamsError params.MissingNamedParameterError := {
+  «from» :=
+    params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError.from
+}
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<mysql_common::params::ParamsConfusionError> for mysql_common::params::ParamsError}]
+    Source: 'src/params.rs', lines 34:14-34:21 -/
+@[reducible]
+def params.ParamsError.Insts.CoreConvertFromParamsConfusionError :
+  core.convert.From params.ParamsError params.ParamsConfusionError := {
+  «from» := params.ParamsError.Insts.CoreConvertFromParamsConfusionError.from
+}
+
+/-- [mysql_common::value::{impl core::clone::Clone for mysql_common::value::Value}::clone]:
+    Source: 'src/value/mod.rs', lines 61:9-61:14
+    Visibility: public -/
+def value.Value.Insts.CoreCloneClone.clone
+  (self : value.Value) : Result value.Value := do
+  match self with
+  | value.Value.NULL => ok value.Value.NULL
+  | value.Value.Bytes __self_0 =>
+    let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 __self_0
+    ok (value.Value.Bytes v)
+  | value.Value.Int __self_0 =>
+    let i ← lift (core.clone.impls.CloneI64.clone __self_0)
+    ok (value.Value.Int i)
+  | value.Value.UInt __self_0 =>
+    let i ← lift (core.clone.impls.CloneU64.clone __self_0)
+    ok (value.Value.UInt i)
+  | value.Value.Float __self_0 =>
+    let fl ← F32.Insts.CoreCloneClone.clone __self_0
+    ok (value.Value.Float fl)
+  | value.Value.Double __self_0 =>
+    let fl ← F64.Insts.CoreCloneClone.clone __self_0
+    ok (value.Value.Double fl)
+  | value.Value.Date __self_0 __self_1 __self_2 __self_3 __self_4 __self_5
+    __self_6 =>
+    let i ← lift (core.clone.impls.CloneU16.clone __self_0)
+    let i1 ← lift (core.clone.impls.CloneU8.clone __self_1)
+    let i2 ← lift (core.clone.impls.CloneU8.clone __self_2)
+    let i3 ← lift (core.clone.impls.CloneU8.clone __self_3)
+    let i4 ← lift (core.clone.impls.CloneU8.clone __self_4)
+    let i5 ← lift (core.clone.impls.CloneU8.clone __self_5)
+    let i6 ← lift (core.clone.impls.CloneU32.clone __self_6)
+    ok (value.Value.Date i i1 i2 i3 i4 i5 i6)
+  | value.Value.Time __self_0 __self_1 __self_2 __self_3 __self_4 __self_5 =>
+    let b ← lift (core.clone.impls.CloneBool.clone __self_0)
+    let i ← lift (core.clone.impls.CloneU32.clone __self_1)
+    let i1 ← lift (core.clone.impls.CloneU8.clone __self_2)
+    let i2 ← lift (core.clone.impls.CloneU8.clone __self_3)
+    let i3 ← lift (core.clone.impls.CloneU8.clone __self_4)
+    let i4 ← lift (core.clone.impls.CloneU32.clone __self_5)
+    ok (value.Value.Time b i i1 i2 i3 i4)
+
+/-- Trait implementation: [mysql_common::value::{impl core::clone::Clone for mysql_common::value::Value}]
+    Source: 'src/value/mod.rs', lines 61:9-61:14 -/
+@[reducible]
+def value.Value.Insts.CoreCloneClone : core.clone.Clone value.Value := {
+  clone := value.Value.Insts.CoreCloneClone.clone
+}
+
+/-- [mysql_common::params::sort_indexes]: loop body 1:
+    Source: 'src/params.rs', lines 178:8-181:9 -/
+@[rust_loop_body]
+def params.sort_indexes_loop0_loop0.body
+  (v : Slice Std.Usize) (j : Std.Usize) :
+  Result (ControlFlow ((Slice Std.Usize) × Std.Usize) (Slice Std.Usize))
+  := do
+  if j > 0#usize
+  then
+    let i ← j - 1#usize
+    let i1 ← Slice.index_usize v i
+    let i2 ← Slice.index_usize v j
+    if i1 > i2
+    then let v1 ← core.slice.Slice.swap v i j
+         ok (cont (v1, i))
+    else ok (done v)
+  else ok (done v)
+
+/-- [mysql_common::params::sort_indexes]: loop 1:
+    Source: 'src/params.rs', lines 178:8-181:9 -/
+@[rust_loop]
+def params.sort_indexes_loop0_loop0
+  (v : Slice Std.Usize) (j : Std.Usize) : Result (Slice Std.Usize) := do
+  loop
+    (fun (v1, j1) => params.sort_indexes_loop0_loop0.body v1 j1)
+    (v, j)
+
+/-- [mysql_common::params::sort_indexes]: loop body 0:
+    Source: 'src/params.rs', lines 176:4-183:5 -/
+@[rust_loop_body]
+def params.sort_indexes_loop0.body
+  (v : Slice Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow ((Slice Std.Usize) × Std.Usize) (Slice Std.Usize))
+  := do
+  let i1 := Slice.len v
+  if i < i1
+  then
+    let v1 ← params.sort_indexes_loop0_loop0 v i
+    let i2 ← i + 1#usize
+    ok (cont (v1, i2))
+  else ok (done v)
+
+/-- [mysql_common::params::sort_indexes]: loop 0:
+    Source: 'src/params.rs', lines 176:4-183:5 -/
+@[rust_loop]
+def params.sort_indexes_loop0
+  (v : Slice Std.Usize) (i : Std.Usize) : Result (Slice Std.Usize) := do
+  loop
+    (fun (v1, i1) => params.sort_indexes_loop0.body v1 i1)
+    (v, i)
+
+/-- [mysql_common::params::sort_indexes]:
+    Source: 'src/params.rs', lines 174:0-184:1 -/
+@[reducible]
+def params.sort_indexes (v : Slice Std.Usize) : Result (Slice Std.Usize) := do
+  params.sort_indexes_loop0 v 1#usize
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop body 1:
+    Source: 'src/params.rs', lines 91:24-100:25
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_values_loop0_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  («name» : alloc.vec.Vec Std.U8) (val : value.Value)
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize)
+  (first : Option Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize)
+    × (Option Std.Usize) × Std.Usize) ((alloc.vec.Vec value.Value) ×
+    (alloc.vec.Vec Std.Usize) × (Option Std.Usize)))
+  := do
+  let i1 := Slice.len named_params
+  if i < i1
+  then
+    let v ← Slice.index_usize named_params i
+    let s := alloc.vec.Vec.deref v
+    let s1 := alloc.vec.Vec.deref «name»
+    let b ← core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s s1
+    let (values1, indexes1, first1) ←
+      if b
+      then
+        do
+        let indexes2 ← alloc.vec.Vec.push indexes i
+        let (v1, i2) ←
+          match first with
+          | none => ok (values, i)
+          | some i3 =>
+            do
+            let v2 ← value.Value.Insts.CoreCloneClone.clone val
+            let (_, index_mut_back) ←
+              alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+                value.Value) values i
+            let values2 := index_mut_back v2
+            ok (values2, i3)
+        ok (v1, indexes2, some i2)
+      else ok (values, indexes, first)
+    let i2 ← i + 1#usize
+    ok (cont (values1, indexes1, first1, i2))
+  else ok (done (values, indexes, first))
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop 1:
+    Source: 'src/params.rs', lines 91:24-100:25
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_values_loop0_loop0
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize)
+  («name» : alloc.vec.Vec Std.U8) (val : value.Value)
+  (first : Option Std.Usize) (i : Std.Usize) :
+  Result ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize) × (Option
+    Std.Usize))
+  := do
+  loop
+    (fun (values1, indexes1, first1, i1) =>
+      params.Params.into_values_loop0_loop0.body named_params «name» val
+      values1 indexes1 first1 i1)
+    (values, indexes, first, i)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop body 0:
+    Source: 'src/params.rs', lines 88:20-104:21
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_values_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (iter : alloc.vec.into_iter.IntoIter ((alloc.vec.Vec Std.U8) × value.Value))
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize) :
+  Result (ControlFlow ((alloc.vec.into_iter.IntoIter ((alloc.vec.Vec Std.U8) ×
+    value.Value)) × (alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize))
+    ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize)))
+  := do
+  let (o, iter1) ← alloc.vec.into_iter.IteratorIntoIter.next iter
+  match o with
+  | none => ok (done (values, indexes))
+  | some p =>
+    let («name», val) := p
+    let (values1, indexes1, first) ←
+      params.Params.into_values_loop0_loop0 named_params values indexes
+        «name» val none 0#usize
+    match first with
+    | none => ok (cont (iter1, values1, indexes1))
+    | some first1 =>
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          value.Value) values1 first1
+      let values2 := index_mut_back val
+      ok (cont (iter1, values2, indexes1))
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop 0:
+    Source: 'src/params.rs', lines 88:20-104:21
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_values_loop0
+  (iter : alloc.vec.into_iter.IntoIter ((alloc.vec.Vec Std.U8) × value.Value))
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (values : alloc.vec.Vec value.Value) (indexes : alloc.vec.Vec Std.Usize) :
+  Result ((alloc.vec.Vec value.Value) × (alloc.vec.Vec Std.Usize))
+  := do
+  loop
+    (fun (iter1, values1, indexes1) => params.Params.into_values_loop0.body
+      named_params iter1 values1 indexes1)
+    (iter, values, indexes)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop body 2:
+    Source: 'src/params.rs', lines 108:24-110:25
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_values_loop1.body
+  (indexes : alloc.vec.Vec Std.Usize) (missing : Std.Usize) :
+  Result (ControlFlow Std.Usize Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len indexes
+  if missing < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize)
+        indexes missing
+    if i1 = missing
+    then let missing1 ← missing + 1#usize
+         ok (cont missing1)
+    else ok (done missing)
+  else ok (done missing)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]: loop 2:
+    Source: 'src/params.rs', lines 108:24-110:25
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_values_loop1
+  (indexes : alloc.vec.Vec Std.Usize) (missing : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun missing1 => params.Params.into_values_loop1.body indexes missing1)
+    missing
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_values]:
+    Source: 'src/params.rs', lines 66:4-129:5
+    Visibility: public -/
+def params.Params.into_values
+  (self : params.Params) (named_params : Option (Slice (alloc.vec.Vec Std.U8)))
+  :
+  Result (core.result.Result (alloc.vec.Vec value.Value) params.ParamsError)
+  := do
+  match self with
+  | params.Params.Empty =>
+    match named_params with
+    | none => ok (core.result.Result.Ok (alloc.vec.Vec.new value.Value))
+    | some names =>
+      let b ← core.slice.Slice.is_empty names
+      if b
+      then ok (core.result.Result.Ok (alloc.vec.Vec.new value.Value))
+      else
+        let v ← Slice.index_usize names 0#usize
+        let v1 ← alloc.vec.CloneVec.clone core.clone.CloneU8 v
+        let pe ←
+          core.convert.IntoFrom.into
+            params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError
+            v1
+        ok (core.result.Result.Err pe)
+  | params.Params.Named map =>
+    match named_params with
+    | none =>
+      let pe ←
+        core.convert.IntoFrom.into
+          params.ParamsError.Insts.CoreConvertFromParamsConfusionError
+          params.ParamsConfusionError.NamedParamsForPositionalQuery
+      ok (core.result.Result.Err pe)
+    | some named_params1 =>
+      let b ← core.slice.Slice.is_empty named_params1
+      if b
+      then
+        let pe ←
+          core.convert.IntoFrom.into
+            params.ParamsError.Insts.CoreConvertFromParamsConfusionError
+            params.ParamsConfusionError.NamedParamsForPositionalQuery
+        ok (core.result.Result.Err pe)
+      else
+        let i := Slice.len named_params1
+        let values ←
+          alloc.vec.from_elem value.Value.Insts.CoreCloneClone value.Value.NULL
+            i
+        let i1 := Slice.len named_params1
+        let indexes := alloc.vec.Vec.with_capacity Std.Usize i1
+        let v ← sql_trusted.params_map_into_entries map
+        let iter ← alloc.vec.IntoIteratorVec.into_iter v
+        let (values1, indexes1) ←
+          params.Params.into_values_loop0 iter named_params1 values indexes
+        let i2 := alloc.vec.Vec.len indexes1
+        let i3 := Slice.len named_params1
+        if i2 != i3
+        then
+          let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut indexes1)
+          let s1 ← params.sort_indexes s
+          let indexes2 := deref_mut_back s1
+          let missing ← params.Params.into_values_loop1 indexes2 0#usize
+          let i4 := alloc.vec.Vec.len indexes2
+          if missing < i4
+          then
+            let v1 ← Slice.index_usize named_params1 missing
+            let v2 ← alloc.vec.CloneVec.clone core.clone.CloneU8 v1
+            let pe ←
+              core.convert.IntoFrom.into
+                params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError
+                v2
+            ok (core.result.Result.Err pe)
+          else
+            let b1 ← core.slice.Slice.is_empty named_params1
+            if b1
+            then ok (core.result.Result.Ok values1)
+            else
+              let i5 := Slice.len named_params1
+              let i6 ← i5 - 1#usize
+              let v1 ← Slice.index_usize named_params1 i6
+              let v2 ← alloc.vec.CloneVec.clone core.clone.CloneU8 v1
+              let pe ←
+                core.convert.IntoFrom.into
+                  params.ParamsError.Insts.CoreConvertFromMissingNamedParameterError
+                  v2
+              ok (core.result.Result.Err pe)
+        else ok (core.result.Result.Ok values1)
+  | params.Params.Positional values =>
+    match named_params with
+    | none => ok (core.result.Result.Ok values)
+    | some named_params1 =>
+      let b ← core.slice.Slice.is_empty named_params1
+      if b
+      then ok (core.result.Result.Ok values)
+      else
+        let pe ←
+          core.convert.IntoFrom.into
+            params.ParamsError.Insts.CoreConvertFromParamsConfusionError
+            params.ParamsConfusionError.PositionalParamsForNamedQuery
+        ok (core.result.Result.Err pe)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop body 1:
+    Source: 'src/params.rs', lines 146:20-152:21
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_positional_loop0_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8)) (i : Std.Usize)
+  («name» : alloc.vec.Vec Std.U8) (repeated : Bool) (x : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if x > i
+  then
+    if repeated
+    then ok (done repeated)
+    else
+      let s := alloc.vec.Vec.deref «name»
+      let v ← Slice.index_usize named_params x
+      let s1 := alloc.vec.Vec.deref v
+      let b ← core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s s1
+      if b
+      then ok (cont (true, x))
+      else let x1 ← x - 1#usize
+           ok (cont (repeated, x1))
+  else ok (done repeated)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop 1:
+    Source: 'src/params.rs', lines 146:20-152:21
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_positional_loop0_loop0
+  (named_params : Slice (alloc.vec.Vec Std.U8)) (i : Std.Usize)
+  («name» : alloc.vec.Vec Std.U8) (repeated : Bool) (x : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (repeated1, x1) => params.Params.into_positional_loop0_loop0.body
+      named_params i «name» repeated1 x1)
+    (repeated, x)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop body 0:
+    Source: 'src/params.rs', lines 142:16-170:5
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.into_positional_loop0.body
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global)
+  (positional : alloc.vec.Vec value.Value) (i : Std.Usize) :
+  Result (ControlFlow ((std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8)
+    value.Value std.hash.random.RandomState alloc.alloc.Global) ×
+    (alloc.vec.Vec value.Value) × Std.Usize) (core.result.Result params.Params
+    params.MissingNamedParameterError))
+  := do
+  let i1 := Slice.len named_params
+  if i < i1
+  then
+    let «name» ← Slice.index_usize named_params i
+    let i2 := Slice.len named_params
+    let x ← i2 - 1#usize
+    let repeated ←
+      params.Params.into_positional_loop0_loop0 named_params i «name» false x
+    if repeated
+    then
+      let s := alloc.vec.Vec.deref «name»
+      let o ← sql_trusted.params_map_get map s
+      match o with
+      | none =>
+        let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 «name»
+        ok (done (core.result.Result.Err v))
+      | some val =>
+        let v ← value.Value.Insts.CoreCloneClone.clone val
+        let positional1 ← alloc.vec.Vec.push positional v
+        let i3 ← i + 1#usize
+        ok (cont (map, positional1, i3))
+    else
+      let s := alloc.vec.Vec.deref «name»
+      let (o, map1) ← sql_trusted.params_map_remove map s
+      match o with
+      | none =>
+        let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 «name»
+        ok (done (core.result.Result.Err v))
+      | some val =>
+        let positional1 ← alloc.vec.Vec.push positional val
+        let i3 ← i + 1#usize
+        ok (cont (map1, positional1, i3))
+  else ok (done (core.result.Result.Ok (params.Params.Positional positional)))
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]: loop 0:
+    Source: 'src/params.rs', lines 142:16-170:5
+    Visibility: public -/
+@[rust_loop]
+def params.Params.into_positional_loop0
+  (named_params : Slice (alloc.vec.Vec Std.U8))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global)
+  (positional : alloc.vec.Vec value.Value) (i : Std.Usize) :
+  Result (core.result.Result params.Params params.MissingNamedParameterError)
+  := do
+  loop
+    (fun (map1, positional1, i1) => params.Params.into_positional_loop0.body
+      named_params map1 positional1 i1)
+    (map, positional, i)
+
+/-- [mysql_common::params::{mysql_common::params::Params}::into_positional]:
+    Source: 'src/params.rs', lines 134:4-170:5
+    Visibility: public -/
+def params.Params.into_positional
+  (self : params.Params) (named_params : Slice (alloc.vec.Vec Std.U8)) :
+  Result (core.result.Result params.Params params.MissingNamedParameterError)
+  := do
+  match self with
+  | params.Params.Empty => ok (core.result.Result.Ok params.Params.Empty)
+  | params.Params.Named map =>
+    params.Params.into_positional_loop0 named_params map (alloc.vec.Vec.new
+      value.Value) 0#usize
+  | params.Params.Positional _ => ok (core.result.Result.Ok self)
+
+/-- [mysql_common::params::{impl core::convert::From<&'a T> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 188:4-190:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromSharedAT.from
+  {T : Type _} (coreconvertIntoTParamsInst : core.convert.Into T params.Params)
+  (corecloneCloneInst : core.clone.Clone T) (x : T) :
+  Result params.Params
+  := do
+  let t ← corecloneCloneInst.clone x
+  coreconvertIntoTParamsInst.into t
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<&'a T> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 187:0-191:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromSharedAT {T : Type _}
+  (coreconvertIntoTParamsInst : core.convert.Into T params.Params)
+  (corecloneCloneInst : core.clone.Clone T) : core.convert.From params.Params T
+  := {
+  «from» := params.Params.Insts.CoreConvertFromSharedAT.from
+    coreconvertIntoTParamsInst corecloneCloneInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}::from]: loop body 0:
+    Source: 'src/params.rs', lines 200:8-202:9
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.Insts.CoreConvertFromVec.from_loop.body
+  {T : Type _} (coreconvertFromValueTInst : core.convert.From value.Value T)
+  (iter : alloc.vec.into_iter.IntoIter T)
+  (raw_params : alloc.vec.Vec value.Value) :
+  Result (ControlFlow ((alloc.vec.into_iter.IntoIter T) × (alloc.vec.Vec
+    value.Value)) (alloc.vec.Vec value.Value))
+  := do
+  let (o, iter1) ← alloc.vec.into_iter.IteratorIntoIter.next iter
+  match o with
+  | none => ok (done raw_params)
+  | some v =>
+    let v1 ← coreconvertFromValueTInst.«from» v
+    let raw_params1 ← alloc.vec.Vec.push raw_params v1
+    ok (cont (iter1, raw_params1))
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}::from]: loop 0:
+    Source: 'src/params.rs', lines 200:8-202:9
+    Visibility: public -/
+@[rust_loop]
+def params.Params.Insts.CoreConvertFromVec.from_loop
+  {T : Type _} (coreconvertFromValueTInst : core.convert.From value.Value T)
+  (iter : alloc.vec.into_iter.IntoIter T)
+  (raw_params : alloc.vec.Vec value.Value) :
+  Result (alloc.vec.Vec value.Value)
+  := do
+  loop
+    (fun (iter1, raw_params1) =>
+      params.Params.Insts.CoreConvertFromVec.from_loop.body
+      coreconvertFromValueTInst iter1 raw_params1)
+    (iter, raw_params)
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 198:4-208:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromVec.from
+  {T : Type _} (coreconvertFromValueTInst : core.convert.From value.Value T)
+  (x : alloc.vec.Vec T) :
+  Result params.Params
+  := do
+  let iter ← alloc.vec.IntoIteratorVec.into_iter x
+  let raw_params ←
+    params.Params.Insts.CoreConvertFromVec.from_loop coreconvertFromValueTInst
+      iter (alloc.vec.Vec.new value.Value)
+  let b ← alloc.vec.Vec.is_empty raw_params
+  if b
+  then ok params.Params.Empty
+  else ok (params.Params.Positional raw_params)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<T>> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 194:0-209:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromVec {T : Type _}
+  (coreconvertFromValueTInst : core.convert.From value.Value T) :
+  core.convert.From params.Params (alloc.vec.Vec T) := {
+  «from» := params.Params.Insts.CoreConvertFromVec.from
+    coreconvertFromValueTInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}::from]: loop body 0:
+    Source: 'src/params.rs', lines 219:8-226:9
+    Visibility: public -/
+@[rust_loop_body]
+def params.Params.Insts.CoreConvertFromVecPair.from_loop.body
+  {N : Type _} {V : Type _} (coreconvertFromVecU8NInst : core.convert.From
+  (alloc.vec.Vec Std.U8) N) (coreconvertFromValueVInst : core.convert.From
+  value.Value V) (iter : alloc.vec.into_iter.IntoIter (N × V))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global) :
+  Result (ControlFlow ((alloc.vec.into_iter.IntoIter (N × V)) ×
+    (std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global))
+    (std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global))
+  := do
+  let (o, iter1) ← alloc.vec.into_iter.IteratorIntoIter.next iter
+  match o with
+  | none => ok (done map)
+  | some p =>
+    let («name», value) := p
+    let name1 ← core.convert.IntoFrom.into coreconvertFromVecU8NInst «name»
+    let s := alloc.vec.Vec.deref name1
+    let b ← sql_trusted.params_map_contains_key map s
+    massert (¬ b)
+    let v ← coreconvertFromValueVInst.«from» value
+    let (_, map1) ← sql_trusted.params_map_insert map name1 v
+    ok (cont (iter1, map1))
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}::from]: loop 0:
+    Source: 'src/params.rs', lines 219:8-226:9
+    Visibility: public -/
+@[rust_loop]
+def params.Params.Insts.CoreConvertFromVecPair.from_loop
+  {N : Type _} {V : Type _} (coreconvertFromVecU8NInst : core.convert.From
+  (alloc.vec.Vec Std.U8) N) (coreconvertFromValueVInst : core.convert.From
+  value.Value V) (iter : alloc.vec.into_iter.IntoIter (N × V))
+  (map : std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+  std.hash.random.RandomState alloc.alloc.Global) :
+  Result (std.collections.hash.map.HashMap (alloc.vec.Vec Std.U8) value.Value
+    std.hash.random.RandomState alloc.alloc.Global)
+  := do
+  loop
+    (fun (iter1, map1) =>
+      params.Params.Insts.CoreConvertFromVecPair.from_loop.body
+      coreconvertFromVecU8NInst coreconvertFromValueVInst iter1 map1)
+    (iter, map)
+
+/-- [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 217:4-228:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromVecPair.from
+  {N : Type _} {V : Type _} (coreconvertFromVecU8NInst : core.convert.From
+  (alloc.vec.Vec Std.U8) N) (coreconvertFromValueVInst : core.convert.From
+  value.Value V) (x : alloc.vec.Vec (N × V)) :
+  Result params.Params
+  := do
+  let map ← sql_trusted.params_map_new
+  let iter ← alloc.vec.IntoIteratorVec.into_iter x
+  let map1 ←
+    params.Params.Insts.CoreConvertFromVecPair.from_loop
+      coreconvertFromVecU8NInst coreconvertFromValueVInst iter map
+  ok (params.Params.Named map1)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<alloc::vec::Vec<(N, V)>> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 212:0-229:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromVecPair {N : Type _} {V : Type _}
+  (coreconvertFromVecU8NInst : core.convert.From (alloc.vec.Vec Std.U8) N)
+  (coreconvertFromValueVInst : core.convert.From value.Value V) :
+  core.convert.From params.Params (alloc.vec.Vec (N × V)) := {
+  «from» := params.Params.Insts.CoreConvertFromVecPair.from
+    coreconvertFromVecU8NInst coreconvertFromValueVInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<()> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 247:4-249:5
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTuple.from
+  (_ : Unit) : Result params.Params := do
+  ok params.Params.Empty
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<()> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 246:0-250:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTuple : core.convert.From params.Params
+  Unit := {
+  «from» := params.Params.Insts.CoreConvertFromTuple.from
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A,)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 266:0-266:25
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleA.from
+  {A : Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (x : A) :
+  Result params.Params
+  := do
+  let v ← coreconvertIntoAValueInst.into x
+  let y ←
+    lift (Std.Array.to_slice (Array.make 1#usize [ v ] : Array value.Value
+      1#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A,)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 266:0-266:25 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleA {A : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value) :
+  core.convert.From params.Params A := {
+  «from» := params.Params.Insts.CoreConvertFromTupleA.from
+    coreconvertIntoAValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 267:0-267:33
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromPair.from
+  {A : Type _} {B : Type _} (coreconvertIntoAValueInst : core.convert.Into A
+  value.Value) (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (x : (A × B)) :
+  Result params.Params
+  := do
+  let (a, b) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let y ←
+    lift (Std.Array.to_slice (Array.make 2#usize [ v, v1 ] : Array value.Value
+      2#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 267:0-267:33 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromPair {A : Type _} {B : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value) :
+  core.convert.From params.Params (A × B) := {
+  «from» := params.Params.Insts.CoreConvertFromPair.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 268:0-268:41
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABC.from
+  {A : Type _} {B : Type _} {C : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (x : (A × B × C)) :
+  Result params.Params
+  := do
+  let (a, b, c) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let y ←
+    lift (Std.Array.to_slice (Array.make 3#usize [ v, v1, v2 ] : Array
+      value.Value 3#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 268:0-268:41 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABC {A : Type _} {B : Type _} {C :
+  Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value) :
+  core.convert.From params.Params (A × B × C) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABC.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 269:0-269:49
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCD.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (x : (A × B × C × D)) :
+  Result params.Params
+  := do
+  let (a, b, c, d) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let y ←
+    lift (Std.Array.to_slice (Array.make 4#usize [ v, v1, v2, v3 ] : Array
+      value.Value 4#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 269:0-269:49 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCD {A : Type _} {B : Type _} {C :
+  Type _} {D : Type _} (coreconvertIntoAValueInst : core.convert.Into A
+  value.Value) (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value) :
+  core.convert.From params.Params (A × B × C × D) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCD.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 270:0-270:57
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDE.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (x : (A × B × C × D × E)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let y ←
+    lift (Std.Array.to_slice (Array.make 5#usize [ v, v1, v2, v3, v4 ] : Array
+      value.Value 5#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 270:0-270:57 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDE {A : Type _} {B : Type _} {C
+  : Type _} {D : Type _} {E : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDE.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 271:0-271:65
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEF.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (x : (A × B × C × D × E × F)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let y ←
+    lift (Std.Array.to_slice (Array.make 6#usize [ v, v1, v2, v3, v4, v5 ] :
+      Array value.Value 6#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 271:0-271:65 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEF {A : Type _} {B : Type _} {C
+  : Type _} {D : Type _} {E : Type _} {F : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E × F) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEF.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 272:0-272:73
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFG.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (x : (A × B × C × D × E × F × G)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let y ←
+    lift (Std.Array.to_slice (Array.make 7#usize [ v, v1, v2, v3, v4, v5, v6 ]
+      : Array value.Value 7#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 272:0-272:73 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFG {A : Type _} {B : Type _}
+  {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFG.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 273:0-282:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGH.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} (coreconvertIntoAValueInst : core.convert.Into A
+  value.Value) (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (x : (A × B × C × D × E × F × G × H)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 8#usize [ v, v1, v2, v3, v4, v5, v6, v7 ] : Array value.Value
+      8#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 273:0-282:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGH {A : Type _} {B : Type _}
+  {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G × H) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGH.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 283:0-293:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) (coreconvertIntoGValueInst :
+  core.convert.Into G value.Value) (coreconvertIntoHValueInst :
+  core.convert.Into H value.Value) (coreconvertIntoIValueInst :
+  core.convert.Into I value.Value)
+  (x : (A × B × C × D × E × F × G × H × I)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 9#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8 ] : Array
+      value.Value 9#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 283:0-293:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHI {A : Type _} {B : Type _}
+  {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H : Type _}
+  {I : Type _} (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G × H × I)
+  := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHI.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 294:0-305:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} {J : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (x : (A × B × C × D × E × F × G × H × I × J)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i, j) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let v9 ← coreconvertIntoJValueInst.into j
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 10#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8, v9 ] : Array
+      value.Value 10#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 294:0-305:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ {A : Type _} {B :
+  Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H :
+  Type _} {I : Type _} {J : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) (coreconvertIntoGValueInst :
+  core.convert.Into G value.Value) (coreconvertIntoHValueInst :
+  core.convert.Into H value.Value) (coreconvertIntoIValueInst :
+  core.convert.Into I value.Value) (coreconvertIntoJValueInst :
+  core.convert.Into J value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E × F × G × H × I × J) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHIJ.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst coreconvertIntoJValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 306:0-318:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} {J : Type _} {K : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (coreconvertIntoKValueInst : core.convert.Into K value.Value)
+  (x : (A × B × C × D × E × F × G × H × I × J × K)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i, j, k) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let v9 ← coreconvertIntoJValueInst.into j
+  let v10 ← coreconvertIntoKValueInst.into k
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 11#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10 ] :
+      Array value.Value 11#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 306:0-318:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK {A : Type _} {B :
+  Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H :
+  Type _} {I : Type _} {J : Type _} {K : Type _} (coreconvertIntoAValueInst :
+  core.convert.Into A value.Value) (coreconvertIntoBValueInst :
+  core.convert.Into B value.Value) (coreconvertIntoCValueInst :
+  core.convert.Into C value.Value) (coreconvertIntoDValueInst :
+  core.convert.Into D value.Value) (coreconvertIntoEValueInst :
+  core.convert.Into E value.Value) (coreconvertIntoFValueInst :
+  core.convert.Into F value.Value) (coreconvertIntoGValueInst :
+  core.convert.Into G value.Value) (coreconvertIntoHValueInst :
+  core.convert.Into H value.Value) (coreconvertIntoIValueInst :
+  core.convert.Into I value.Value) (coreconvertIntoJValueInst :
+  core.convert.Into J value.Value) (coreconvertIntoKValueInst :
+  core.convert.Into K value.Value) : core.convert.From params.Params (A × B ×
+  C × D × E × F × G × H × I × J × K) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHIJK.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst coreconvertIntoJValueInst
+    coreconvertIntoKValueInst
+}
+
+/-- [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K, L)> for mysql_common::params::Params}::from]:
+    Source: 'src/params.rs', lines 256:12-261:13; this code is generated from a macro invocation at: 'src/params.rs', lines 319:0-332:1
+    Visibility: public -/
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from
+  {A : Type _} {B : Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _}
+  {G : Type _} {H : Type _} {I : Type _} {J : Type _} {K : Type _} {L : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (coreconvertIntoKValueInst : core.convert.Into K value.Value)
+  (coreconvertIntoLValueInst : core.convert.Into L value.Value)
+  (x : (A × B × C × D × E × F × G × H × I × J × K × L)) :
+  Result params.Params
+  := do
+  let (a, b, c, d, e, f, g, h, i, j, k, l) := x
+  let v ← coreconvertIntoAValueInst.into a
+  let v1 ← coreconvertIntoBValueInst.into b
+  let v2 ← coreconvertIntoCValueInst.into c
+  let v3 ← coreconvertIntoDValueInst.into d
+  let v4 ← coreconvertIntoEValueInst.into e
+  let v5 ← coreconvertIntoFValueInst.into f
+  let v6 ← coreconvertIntoGValueInst.into g
+  let v7 ← coreconvertIntoHValueInst.into h
+  let v8 ← coreconvertIntoIValueInst.into i
+  let v9 ← coreconvertIntoJValueInst.into j
+  let v10 ← coreconvertIntoKValueInst.into k
+  let v11 ← coreconvertIntoLValueInst.into l
+  let y ←
+    lift (Std.Array.to_slice
+      (Array.make 12#usize [ v, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11 ]
+      : Array value.Value 12#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  ok (params.Params.Positional ret)
+
+/-- Trait implementation: [mysql_common::params::{impl core::convert::From<(A, B, C, D, E, F, G, H, I, J, K, L)> for mysql_common::params::Params}]
+    Source: 'src/params.rs', lines 255:8-262:9; this code is generated from a macro invocation at: 'src/params.rs', lines 319:0-332:1 -/
+@[reducible]
+def params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL {A : Type _} {B :
+  Type _} {C : Type _} {D : Type _} {E : Type _} {F : Type _} {G : Type _} {H :
+  Type _} {I : Type _} {J : Type _} {K : Type _} {L : Type _}
+  (coreconvertIntoAValueInst : core.convert.Into A value.Value)
+  (coreconvertIntoBValueInst : core.convert.Into B value.Value)
+  (coreconvertIntoCValueInst : core.convert.Into C value.Value)
+  (coreconvertIntoDValueInst : core.convert.Into D value.Value)
+  (coreconvertIntoEValueInst : core.convert.Into E value.Value)
+  (coreconvertIntoFValueInst : core.convert.Into F value.Value)
+  (coreconvertIntoGValueInst : core.convert.Into G value.Value)
+  (coreconvertIntoHValueInst : core.convert.Into H value.Value)
+  (coreconvertIntoIValueInst : core.convert.Into I value.Value)
+  (coreconvertIntoJValueInst : core.convert.Into J value.Value)
+  (coreconvertIntoKValueInst : core.convert.Into K value.Value)
+  (coreconvertIntoLValueInst : core.convert.Into L value.Value) :
+  core.convert.From params.Params (A × B × C × D × E × F × G × H × I ×
+  J × K × L) := {
+  «from» := params.Params.Insts.CoreConvertFromTupleABCDEFGHIJKL.from
+    coreconvertIntoAValueInst coreconvertIntoBValueInst
+    coreconvertIntoCValueInst coreconvertIntoDValueInst
+    coreconvertIntoEValueInst coreconvertIntoFValueInst
+    coreconvertIntoGValueInst coreconvertIntoHValueInst
+    coreconvertIntoIValueInst coreconvertIntoJValueInst
+    coreconvertIntoKValueInst coreconvertIntoLValueInst
+}
+
 /-- [mysql_common::proto::codec::buf_model::{mysql_common::proto::codec::buf_model::NonZeroUsize}::new]:
     Source: 'src/proto/codec/buf_model.rs', lines 23:4-25:5
     Visibility: public -/
@@ -13514,8 +15277,45 @@ def proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve :
     proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve.reserve
 }
 
+/-- [mysql_common::proto::codec::buf_model::{impl mysql_common::proto::codec::buf_model::Clear for mysql_common::proto::codec::buf_model::VecBuf}::clear]:
+    Source: 'src/proto/codec/buf_model.rs', lines 174:4-176:5
+    Visibility: public -/
+def
+  proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear.clear
+  (self : proto.codec.buf_model.VecBuf) :
+  Result proto.codec.buf_model.VecBuf
+  := do
+  ok (alloc.vec.Vec.new Std.U8)
+
+/-- Trait implementation: [mysql_common::proto::codec::buf_model::{impl mysql_common::proto::codec::buf_model::Clear for mysql_common::proto::codec::buf_model::VecBuf}]
+    Source: 'src/proto/codec/buf_model.rs', lines 172:0-177:1 -/
+@[reducible]
+def proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear :
+  proto.codec.buf_model.Clear proto.codec.buf_model.VecBuf := {
+  clear :=
+    proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear.clear
+}
+
+/-- [mysql_common::proto::codec::error::{impl core::convert::From<core::io::error::Error> for mysql_common::proto::codec::error::PacketCodecError}::from]:
+    Source: 'src/proto/codec/error.rs', lines 20:4-22:5
+    Visibility: public -/
+def proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from
+  (io_err : core.io.error.Error) :
+  Result proto.codec.error.PacketCodecError
+  := do
+  ok (proto.codec.error.PacketCodecError.Io io_err)
+
+/-- Trait implementation: [mysql_common::proto::codec::error::{impl core::convert::From<core::io::error::Error> for mysql_common::proto::codec::error::PacketCodecError}]
+    Source: 'src/proto/codec/error.rs', lines 19:0-23:1 -/
+@[reducible]
+def proto.codec.error.PacketCodecError.Insts.CoreConvertFromError :
+  core.convert.From proto.codec.error.PacketCodecError core.io.error.Error := {
+  «from» :=
+    proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from
+}
+
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop body 1:
-    Source: 'src/proto/codec/mod.rs', lines 49:8-55:9
+    Source: 'src/proto/codec/mod.rs', lines 53:8-59:9
     Visibility: public -/
 @[rust_loop_body]
 def proto.codec.packet_to_chunks_loop0_loop0.body
@@ -13541,7 +15341,7 @@ def proto.codec.packet_to_chunks_loop0_loop0.body
   else ok (done (packet, dst))
 
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop 1:
-    Source: 'src/proto/codec/mod.rs', lines 49:8-55:9
+    Source: 'src/proto/codec/mod.rs', lines 53:8-59:9
     Visibility: public -/
 @[rust_loop]
 def proto.codec.packet_to_chunks_loop0_loop0
@@ -13558,7 +15358,7 @@ def proto.codec.packet_to_chunks_loop0_loop0
     (packet, dst, chunk_len)
 
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop body 0:
-    Source: 'src/proto/codec/mod.rs', lines 46:4-57:5
+    Source: 'src/proto/codec/mod.rs', lines 50:4-61:5
     Visibility: public -/
 @[rust_loop_body]
 def proto.codec.packet_to_chunks_loop0.body
@@ -13587,7 +15387,7 @@ def proto.codec.packet_to_chunks_loop0.body
   else ok (done (seq_id, packet, dst))
 
 /-- [mysql_common::proto::codec::packet_to_chunks]: loop 0:
-    Source: 'src/proto/codec/mod.rs', lines 46:4-57:5
+    Source: 'src/proto/codec/mod.rs', lines 50:4-61:5
     Visibility: public -/
 @[rust_loop]
 def proto.codec.packet_to_chunks_loop0
@@ -13603,7 +15403,7 @@ def proto.codec.packet_to_chunks_loop0
     (seq_id, packet, dst)
 
 /-- [mysql_common::proto::codec::packet_to_chunks]:
-    Source: 'src/proto/codec/mod.rs', lines 35:0-65:1
+    Source: 'src/proto/codec/mod.rs', lines 39:0-69:1
     Visibility: public -/
 def proto.codec.packet_to_chunks
   {T : Type _} {D : Type _} (buf_modelPacketBufInst :
@@ -13632,16 +15432,258 @@ def proto.codec.packet_to_chunks
     ok (seq_id2, packet1, dst3)
   else ok (seq_id1, packet1, dst2)
 
+/-- [mysql_common::proto::codec::u24_le_bytes]:
+    Source: 'src/proto/codec/mod.rs', lines 155:0-157:1 -/
+def proto.codec.u24_le_bytes
+  (n : Std.Usize) : Result (Array Std.U8 3#usize) := do
+  let i ← lift (UScalar.cast .U8 n)
+  let i1 ← n >>> 8#i32
+  let i2 ← lift (UScalar.cast .U8 i1)
+  let i3 ← n >>> 16#i32
+  let i4 ← lift (UScalar.cast .U8 i3)
+  ok (Array.make 3#usize [ i, i2, i4 ])
+
+/-- [mysql_common::proto::codec::compress_with]: loop body 0:
+    Source: 'src/proto/codec/mod.rs', lines 108:4-151:1 -/
+@[rust_loop_body]
+def proto.codec.compress_with_loop.body
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (compression : flate2.Compression) 
+  (src : S) (chunk_size : Std.Usize) (seq_id : Std.U8)
+  (deflater : Option flate2.mem.Compress) (dst : D) (start : Std.Usize) :
+  Result (ControlFlow (Std.U8 × (Option flate2.mem.Compress) × D ×
+    Std.Usize) ((core.result.Result Std.U8 proto.codec.error.PacketCodecError)
+    × (Option flate2.mem.Compress) × S × D))
+  := do
+  let s ← coreopsderefDerefSSliceU8Inst.deref src
+  let i := Slice.len s
+  if start < i
+  then
+    let i1 := Slice.len s
+    let i2 ← i1 - start
+    let chunk_len ← core.cmp.min core.cmp.OrdUsize chunk_size i2
+    let i3 ← start + chunk_len
+    let chunk ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) s { start, «end» := i3 }
+    let i4 := Slice.len chunk
+    let i5 ← 7#usize + i4
+    let dst1 ← buf_modelReserveInst.reserve dst i5
+    let c ← proto.codec.trusted.compression_none
+    let b ← proto.codec.trusted.compression_eq compression c
+    if b
+    then
+      let i6 := Slice.len chunk
+      let a ← proto.codec.u24_le_bytes i6
+      let s1 ← lift (Array.to_slice a)
+      let dst2 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+      let s2 ← lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+      let dst3 ← buf_modelPacketBufMutInst.put_slice dst2 s2
+      let a1 := Array.repeat 3#usize 0#u8
+      let s3 ← lift (Array.to_slice a1)
+      let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s3
+      let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 chunk
+      let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+      ok (cont (seq_id1, deflater, dst5, i3))
+    else
+      let i6 := Slice.len chunk
+      if i6 >= constants.MIN_COMPRESS_LENGTH
+      then
+        match deflater with
+        | none =>
+          let new_deflater ← proto.codec.trusted.compress_new compression
+          let (compressed, new_deflater1) ←
+            proto.codec.trusted.deflate new_deflater chunk
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch compressed
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue val =>
+            let dst2 ←
+              match val with
+              | none =>
+                do
+                let i7 := Slice.len chunk
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let a1 := Array.repeat 3#usize 0#u8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                buf_modelPacketBufMutInst.put_slice dst5 chunk
+              | some compressed1 =>
+                do
+                let i7 := alloc.vec.Vec.len compressed1
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let i8 := Slice.len chunk
+                let a1 ← proto.codec.u24_le_bytes i8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                let s4 := alloc.vec.Vec.deref compressed1
+                buf_modelPacketBufMutInst.put_slice dst5 s4
+            let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+            ok (cont (seq_id1, some new_deflater1, dst2, i3))
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Std.U8
+                proto.codec.error.PacketCodecError.Insts.CoreConvertFromError
+                residual
+            ok (done (r, some new_deflater1, src, dst1))
+        | some deflater1 =>
+          let (r, deflater2) ← proto.codec.trusted.deflate deflater1 chunk
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue val =>
+            let dst2 ←
+              match val with
+              | none =>
+                do
+                let i7 := Slice.len chunk
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let a1 := Array.repeat 3#usize 0#u8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                buf_modelPacketBufMutInst.put_slice dst5 chunk
+              | some compressed =>
+                do
+                let i7 := alloc.vec.Vec.len compressed
+                let a ← proto.codec.u24_le_bytes i7
+                let s1 ← lift (Array.to_slice a)
+                let dst3 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+                let s2 ←
+                  lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+                let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s2
+                let i8 := Slice.len chunk
+                let a1 ← proto.codec.u24_le_bytes i8
+                let s3 ← lift (Array.to_slice a1)
+                let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 s3
+                let s4 := alloc.vec.Vec.deref compressed
+                buf_modelPacketBufMutInst.put_slice dst5 s4
+            let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+            ok (cont (seq_id1, some deflater2, dst2, i3))
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r1 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Std.U8
+                proto.codec.error.PacketCodecError.Insts.CoreConvertFromError
+                residual
+            ok (done (r1, some deflater2, src, dst1))
+      else
+        let i7 := Slice.len chunk
+        let a ← proto.codec.u24_le_bytes i7
+        let s1 ← lift (Array.to_slice a)
+        let dst2 ← buf_modelPacketBufMutInst.put_slice dst1 s1
+        let s2 ← lift (Array.to_slice (Array.make 1#usize [ seq_id ]))
+        let dst3 ← buf_modelPacketBufMutInst.put_slice dst2 s2
+        let a1 := Array.repeat 3#usize 0#u8
+        let s3 ← lift (Array.to_slice a1)
+        let dst4 ← buf_modelPacketBufMutInst.put_slice dst3 s3
+        let dst5 ← buf_modelPacketBufMutInst.put_slice dst4 chunk
+        let seq_id1 ← lift (core.num.U8.wrapping_add seq_id 1#u8)
+        ok (cont (seq_id1, deflater, dst5, i3))
+  else
+    let src1 ← buf_modelClearInst.clear src
+    ok (done (core.result.Result.Ok seq_id, deflater, src1, dst))
+
+/-- [mysql_common::proto::codec::compress_with]: loop 0:
+    Source: 'src/proto/codec/mod.rs', lines 108:4-151:1 -/
+@[rust_loop]
+def proto.codec.compress_with_loop
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (seq_id : Std.U8)
+  (compression : flate2.Compression) (deflater : Option flate2.mem.Compress)
+  (src : S) (dst : D) (chunk_size : Std.Usize) (start : Std.Usize) :
+  Result ((core.result.Result Std.U8 proto.codec.error.PacketCodecError) ×
+    (Option flate2.mem.Compress) × S × D)
+  := do
+  loop
+    (fun (seq_id1, deflater1, dst1, start1) =>
+      proto.codec.compress_with_loop.body coreopsderefDerefSSliceU8Inst
+      buf_modelClearInst buf_modelPacketBufMutInst buf_modelReserveInst
+      compression src chunk_size seq_id1 deflater1 dst1 start1)
+    (seq_id, deflater, dst, start)
+
+/-- [mysql_common::proto::codec::compress_with]:
+    Source: 'src/proto/codec/mod.rs', lines 90:0-151:1 -/
+def proto.codec.compress_with
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (seq_id : Std.U8)
+  (compression : flate2.Compression) (deflater : Option flate2.mem.Compress)
+  (max_allowed_packet : Std.Usize) (src : S) (dst : D) :
+  Result ((core.result.Result Std.U8 proto.codec.error.PacketCodecError) ×
+    (Option flate2.mem.Compress) × S × D)
+  := do
+  let s ← coreopsderefDerefSSliceU8Inst.deref src
+  let b ← core.slice.Slice.is_empty s
+  if b
+  then ok (core.result.Result.Ok 0#u8, deflater, src, dst)
+  else
+    let chunk_size ←
+      core.cmp.min core.cmp.OrdUsize constants.MAX_PAYLOAD_LEN
+        max_allowed_packet
+    massert (chunk_size != 0#usize)
+    proto.codec.compress_with_loop coreopsderefDerefSSliceU8Inst
+      buf_modelClearInst buf_modelPacketBufMutInst buf_modelReserveInst seq_id
+      compression deflater src dst chunk_size 0#usize
+
+/-- [mysql_common::proto::codec::compress]:
+    Source: 'src/proto/codec/mod.rs', lines 74:0-85:1
+    Visibility: public -/
+def proto.codec.compress
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelClearInst :
+  proto.codec.buf_model.Clear S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (seq_id : Std.U8)
+  (compression : flate2.Compression) (max_allowed_packet : Std.Usize) 
+  (src : S) (dst : D) :
+  Result ((core.result.Result Std.U8 proto.codec.error.PacketCodecError) × S
+    × D)
+  := do
+  let (r, _, src1, dst1) ←
+    proto.codec.compress_with coreopsderefDerefSSliceU8Inst buf_modelClearInst
+      buf_modelPacketBufMutInst buf_modelReserveInst seq_id compression none
+      max_allowed_packet src dst
+  ok (r, src1, dst1)
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::ChunkInfo}::seq_id]:
-    Source: 'src/proto/codec/mod.rs', lines 201:4-205:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 173:4-177:5 -/
 def proto.codec.ChunkInfo.seq_id
   (self : proto.codec.ChunkInfo) : Result Std.U8 := do
   match self with
   | proto.codec.ChunkInfo.Middle x => ok x
   | proto.codec.ChunkInfo.Last x => ok x
 
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::ChunkDecoder}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 181:44-181:51
+    Visibility: public -/
+def proto.codec.ChunkDecoder.Insts.CoreDefaultDefault.default
+  : Result proto.codec.ChunkDecoder := do
+  ok proto.codec.ChunkDecoder.Idle
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::ChunkDecoder}::decode]:
-    Source: 'src/proto/codec/mod.rs', lines 233:4-296:5
+    Source: 'src/proto/codec/mod.rs', lines 205:4-268:5
     Visibility: public -/
 def proto.codec.ChunkDecoder.decode
   {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
@@ -13724,16 +15766,342 @@ def proto.codec.ChunkDecoder.decode
     else ok (core.result.Result.Ok none, self, src, dst)
 partial_fixpoint
 
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompData}::new]:
+    Source: 'src/proto/codec/mod.rs', lines 282:4-305:5 -/
+def proto.codec.CompData.new
+  (compressed_len : Std.Usize) (uncompressed_len : Std.Usize)
+  (max_allowed_packet : Std.Usize) :
+  Result (core.result.Result (Option proto.codec.CompData)
+    proto.codec.error.PacketCodecError)
+  := do
+  let i ← core.cmp.max core.cmp.OrdUsize compressed_len uncompressed_len
+  if i > max_allowed_packet
+  then
+    ok (core.result.Result.Err
+      proto.codec.error.PacketCodecError.PacketTooLarge)
+  else
+    let compressed_len1 ←
+      proto.codec.buf_model.NonZeroUsize.new compressed_len
+    let uncompressed_len1 ←
+      proto.codec.buf_model.NonZeroUsize.new uncompressed_len
+    match compressed_len1 with
+    | none =>
+      match uncompressed_len1 with
+      | none => ok (core.result.Result.Ok none)
+      | some _ =>
+        ok (core.result.Result.Err
+          proto.codec.error.PacketCodecError.BadCompressedPacketHeader)
+    | some needed =>
+      match uncompressed_len1 with
+      | none =>
+        ok (core.result.Result.Ok (some (proto.codec.CompData.Uncompressed
+          needed)))
+      | some plain_len =>
+        ok (core.result.Result.Ok (some (proto.codec.CompData.Compressed needed
+          plain_len)))
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompData}::needed]:
+    Source: 'src/proto/codec/mod.rs', lines 308:4-312:5 -/
+def proto.codec.CompData.needed
+  (self : proto.codec.CompData) : Result Std.Usize := do
+  let needed ←
+    match self with
+    | proto.codec.CompData.Compressed needed1 _ => ok needed1
+    | proto.codec.CompData.Uncompressed needed1 => ok needed1
+  proto.codec.buf_model.NonZeroUsize.get needed
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompData}::write_payload]:
+    Source: 'src/proto/codec/mod.rs', lines 315:4-340:5 -/
+def proto.codec.CompData.write_payload
+  {D : Type _} (buf_modelPacketBufMutInst : proto.codec.buf_model.PacketBufMut
+  D) (self : proto.codec.CompData) (payload : Slice Std.U8) (dst : D)
+  (inflater : Option flate2.mem.Decompress) :
+  Result ((core.result.Result Unit core.io.error.Error) × D × (Option
+    flate2.mem.Decompress))
+  := do
+  match self with
+  | proto.codec.CompData.Compressed _ plain_len =>
+    match inflater with
+    | none =>
+      let new_inflater ← proto.codec.trusted.decompress_new
+      let i ← proto.codec.buf_model.NonZeroUsize.get plain_len
+      let (plain, new_inflater1) ←
+        proto.codec.trusted.inflate new_inflater payload i
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch plain
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let s := alloc.vec.Vec.deref val
+        let dst1 ← buf_modelPacketBufMutInst.put_slice dst s
+        ok (core.result.Result.Ok (), dst1, some new_inflater1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame core.io.error.Error) residual
+        ok (r, dst, some new_inflater1)
+    | some inflater1 =>
+      let i ← proto.codec.buf_model.NonZeroUsize.get plain_len
+      let (r, inflater2) ← proto.codec.trusted.inflate inflater1 payload i
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let s := alloc.vec.Vec.deref val
+        let dst1 ← buf_modelPacketBufMutInst.put_slice dst s
+        ok (core.result.Result.Ok (), dst1, some inflater2)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame core.io.error.Error) residual
+        ok (r1, dst, some inflater2)
+  | proto.codec.CompData.Uncompressed _ =>
+    let dst1 ← buf_modelPacketBufMutInst.put_slice dst payload
+    ok (core.result.Result.Ok (), dst1, inflater)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompDecoder}::decode_with]:
+    Source: 'src/proto/codec/mod.rs', lines 375:4-421:5 -/
+def proto.codec.CompDecoder.decode_with
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (self : proto.codec.CompDecoder)
+  (src : S) (dst : D) (max_allowed_packet : Std.Usize)
+  (inflater : Option flate2.mem.Decompress) :
+  Result ((core.result.Result (Option proto.codec.ChunkInfo)
+    proto.codec.error.PacketCodecError) × proto.codec.CompDecoder × S × D ×
+    (Option flate2.mem.Decompress))
+  := do
+  match self with
+  | proto.codec.CompDecoder.Idle =>
+    let s ← coreopsderefDerefSSliceU8Inst.deref src
+    let i := Slice.len s
+    if i < 7#usize
+    then
+      ok (core.result.Result.Ok none, proto.codec.CompDecoder.Idle, src, dst,
+        inflater)
+    else
+      let i1 ← Slice.index_usize s 0#usize
+      let i2 ← Slice.index_usize s 1#usize
+      let i3 ← Slice.index_usize s 2#usize
+      let i4 ←
+        lift (core.num.U32.from_le_bytes
+          (Array.make 4#usize [ i1, i2, i3, 0#u8 ]))
+      let compressed_len ← lift (UScalar.cast .Usize i4)
+      let seq_id ← Slice.index_usize s 3#usize
+      let i5 ← Slice.index_usize s 4#usize
+      let i6 ← Slice.index_usize s 5#usize
+      let i7 ← Slice.index_usize s 6#usize
+      let i8 ←
+        lift (core.num.U32.from_le_bytes
+          (Array.make 4#usize [ i5, i6, i7, 0#u8 ]))
+      let uncompressed_len ← lift (UScalar.cast .Usize i8)
+      let r ←
+        proto.codec.CompData.new compressed_len uncompressed_len
+          max_allowed_packet
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        match val with
+        | none =>
+          let src1 ← buf_modelPacketBufInst.advance src 7#usize
+          ok (core.result.Result.Ok (some (proto.codec.ChunkInfo.Last seq_id)),
+            proto.codec.CompDecoder.Idle, src1, dst, inflater)
+        | some needed =>
+          proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+            buf_modelPacketBufInst buf_modelPacketBufMutInst
+            (proto.codec.CompDecoder.Packet seq_id needed) src dst
+            max_allowed_packet inflater
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (Option proto.codec.ChunkInfo) (core.convert.FromSame
+            proto.codec.error.PacketCodecError) residual
+        ok (r1, proto.codec.CompDecoder.Idle, src, dst, inflater)
+  | proto.codec.CompDecoder.Packet seq_id needed =>
+    let s ← coreopsderefDerefSSliceU8Inst.deref src
+    let i := Slice.len s
+    let i1 ← proto.codec.CompData.needed needed
+    let i2 ← 7#usize + i1
+    if i >= i2
+    then
+      let src1 ← buf_modelPacketBufInst.advance src 7#usize
+      let s1 ← coreopsderefDerefSSliceU8Inst.deref src1
+      let s2 ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) s1
+          { «end» := i1 }
+      let (r, dst1, inflater1) ←
+        proto.codec.CompData.write_payload buf_modelPacketBufMutInst needed s2
+          dst inflater
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let src2 ← buf_modelPacketBufInst.advance src1 i1
+        ok (core.result.Result.Ok (some (proto.codec.ChunkInfo.Last seq_id)),
+          proto.codec.CompDecoder.Idle, src2, dst1, inflater1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (Option proto.codec.ChunkInfo)
+            proto.codec.error.PacketCodecError.Insts.CoreConvertFromError
+            residual
+        ok (r1, self, src1, dst1, inflater1)
+    else ok (core.result.Result.Ok none, self, src, dst, inflater)
+partial_fixpoint
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompDecoder}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 361:4-372:5
+    Visibility: public -/
+def proto.codec.CompDecoder.decode
+  {S : Type _} {D : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (self : proto.codec.CompDecoder)
+  (src : S) (dst : D) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result (Option proto.codec.ChunkInfo)
+    proto.codec.error.PacketCodecError) × proto.codec.CompDecoder × S × D)
+  := do
+  let (r, self1, src1, dst1, _) ←
+    proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+      buf_modelPacketBufInst buf_modelPacketBufMutInst self src dst
+      max_allowed_packet none
+  ok (r, self1, src1, dst1)
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::PlainPacketCodec}::reset_seq_id]:
-    Source: 'src/proto/codec/mod.rs', lines 594:4-596:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 586:4-588:5 -/
 def proto.codec.PlainPacketCodec.reset_seq_id
   (self : proto.codec.PlainPacketCodec) :
   Result proto.codec.PlainPacketCodec
   := do
   ok { self with seq_id := 0#u8 }
 
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::reset_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 684:4-687:5 -/
+def proto.codec.CompPacketCodec.reset_seq_id
+  (self : proto.codec.CompPacketCodec) :
+  Result proto.codec.CompPacketCodec
+  := do
+  let ppc ← proto.codec.PlainPacketCodec.reset_seq_id self.plain_codec
+  ok { self with comp_seq_id := 0#u8, plain_codec := ppc }
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::reset_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 496:4-501:5 -/
+def proto.codec.PacketCodecInner.reset_seq_id
+  (self : proto.codec.PacketCodecInner) :
+  Result proto.codec.PacketCodecInner
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain c =>
+    let c1 ← proto.codec.PlainPacketCodec.reset_seq_id c
+    ok (proto.codec.PacketCodecInner.Plain c1)
+  | proto.codec.PacketCodecInner.Comp c =>
+    let c1 ← proto.codec.CompPacketCodec.reset_seq_id c
+    ok (proto.codec.PacketCodecInner.Comp c1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::reset_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 437:4-439:5
+    Visibility: public -/
+def proto.codec.PacketCodec.reset_seq_id
+  (self : proto.codec.PacketCodec) : Result proto.codec.PacketCodec := do
+  let pci ← proto.codec.PacketCodecInner.reset_seq_id self.inner
+  ok { self with inner := pci }
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::sync_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 691:4-695:5 -/
+def proto.codec.CompPacketCodec.sync_seq_id
+  (self : proto.codec.CompPacketCodec) :
+  Result proto.codec.CompPacketCodec
+  := do
+  let s ←
+    proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref
+      self.in_buf
+  let b ← core.slice.Slice.is_empty s
+  if b
+  then
+    ok
+      {
+        self
+          with
+          plain_codec := { self.plain_codec with seq_id := self.comp_seq_id }
+      }
+  else ok self
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::sync_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 504:4-509:5 -/
+def proto.codec.PacketCodecInner.sync_seq_id
+  (self : proto.codec.PacketCodecInner) :
+  Result proto.codec.PacketCodecInner
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain _ => ok self
+  | proto.codec.PacketCodecInner.Comp c =>
+    let c1 ← proto.codec.CompPacketCodec.sync_seq_id c
+    ok (proto.codec.PacketCodecInner.Comp c1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::sync_seq_id]:
+    Source: 'src/proto/codec/mod.rs', lines 442:4-444:5
+    Visibility: public -/
+def proto.codec.PacketCodec.sync_seq_id
+  (self : proto.codec.PacketCodec) : Result proto.codec.PacketCodec := do
+  let pci ← proto.codec.PacketCodecInner.sync_seq_id self.inner
+  ok { self with inner := pci }
+
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PlainPacketCodec}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 576:38-576:45
+    Visibility: public -/
+def proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default
+  : Result proto.codec.PlainPacketCodec := do
+  let cd ← proto.codec.ChunkDecoder.Insts.CoreDefaultDefault.default
+  ok { seq_id := (core.default.DefaultU8.default), chunk_decoder := cd }
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::compress]:
+    Source: 'src/proto/codec/mod.rs', lines 512:4-533:5 -/
+def proto.codec.PacketCodecInner.compress
+  (self : proto.codec.PacketCodecInner) (level : flate2.Compression) :
+  Result proto.codec.PacketCodecInner
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain c =>
+    let i ← constants.DEFAULT_MAX_ALLOWED_PACKET
+    let v := alloc.vec.Vec.with_capacity Std.U8 i
+    let v1 := alloc.vec.Vec.with_capacity Std.U8 i
+    let ppc ← proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default
+    let (ppc1, _) := core.mem.replace c ppc
+    ok (proto.codec.PacketCodecInner.Comp
+      {
+        level,
+        comp_seq_id := 0#u8,
+        in_buf := v,
+        out_buf := v1,
+        comp_decoder := proto.codec.CompDecoder.Idle,
+        deflater := none,
+        inflater := none,
+        plain_codec := ppc1
+      })
+  | proto.codec.PacketCodecInner.Comp c =>
+    let b ← proto.codec.trusted.compression_eq c.level level
+    if b
+    then ok self
+    else
+      ok (proto.codec.PacketCodecInner.Comp { c with level, deflater := none })
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::compress]:
+    Source: 'src/proto/codec/mod.rs', lines 447:4-449:5
+    Visibility: public -/
+def proto.codec.PacketCodec.compress
+  (self : proto.codec.PacketCodec) (level : flate2.Compression) :
+  Result proto.codec.PacketCodec
+  := do
+  let pci ← proto.codec.PacketCodecInner.compress self.inner level
+  ok { self with inner := pci }
+
+/-- [mysql_common::proto::codec::COMP_CODEC_SHRINK_THRESHOLD]
+    Source: 'src/proto/codec/mod.rs', lines 659:0-659:59 -/
+@[global_simps, irreducible]
+def proto.codec.COMP_CODEC_SHRINK_THRESHOLD : Result Std.Usize := do
+  let i ← 4#usize * 1024#usize
+  i * 1024#usize
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::PlainPacketCodec}::decode]:
-    Source: 'src/proto/codec/mod.rs', lines 603:4-644:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 595:4-636:5 -/
 def proto.codec.PlainPacketCodec.decode
   {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
   core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
@@ -13816,8 +16184,216 @@ def proto.codec.PlainPacketCodec.decode
     ok (r1, { self with chunk_decoder := cd }, src1, dst1)
 partial_fixpoint
 
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 700:4-748:5 -/
+def proto.codec.CompPacketCodec.decode
+  {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (coreconvertAsRefTSliceU8Inst :
+  core.convert.AsRef T (Slice Std.U8)) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut T) (self : proto.codec.CompPacketCodec)
+  (src : S) (dst : T) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Bool proto.codec.error.PacketCodecError) ×
+    proto.codec.CompPacketCodec × S × T)
+  := do
+  let s ←
+    proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref
+      self.in_buf
+  let b ← core.slice.Slice.is_empty s
+  if b
+  then
+    let (r, cd, src1, vb, o) ←
+      proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+        buf_modelPacketBufInst
+        proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut
+        self.comp_decoder src self.in_buf max_allowed_packet self.inflater
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      match val with
+      | none =>
+        ok (core.result.Result.Ok false,
+          { self with in_buf := vb, comp_decoder := cd, inflater := o }, src1,
+          dst)
+      | some chunk_info =>
+        let i ← proto.codec.ChunkInfo.seq_id chunk_info
+        if self.comp_seq_id != i
+        then
+          ok (core.result.Result.Err
+            proto.codec.error.PacketCodecError.PacketsOutOfSync,
+            { self with in_buf := vb, comp_decoder := cd, inflater := o },
+            src1, dst)
+        else
+          let i1 ← lift (core.num.U8.wrapping_add self.comp_seq_id 1#u8)
+          proto.codec.CompPacketCodec.decode coreopsderefDerefSSliceU8Inst
+            buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+            buf_modelPacketBufMutInst
+            {
+              self
+                with
+                comp_seq_id := i1,
+                in_buf := vb,
+                comp_decoder := cd,
+                inflater := o
+            } src1 dst max_allowed_packet
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Bool (core.convert.FromSame proto.codec.error.PacketCodecError)
+          residual
+      ok (r1, { self with in_buf := vb, comp_decoder := cd, inflater := o },
+        src1, dst)
+  else
+    let i ← lift (core.num.U8.wrapping_sub self.comp_seq_id 1#u8)
+    let (r, ppc, vb, dst1) ←
+      proto.codec.PlainPacketCodec.decode
+        proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8
+        proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBuf
+        coreconvertAsRefTSliceU8Inst buf_modelPacketBufMutInst self.plain_codec
+        self.in_buf dst max_allowed_packet (some i)
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      if val
+      then
+        let s1 ←
+          proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8.deref vb
+        let b1 ← core.slice.Slice.is_empty s1
+        if b1
+        then
+          let i1 ← proto.codec.trusted.vec_capacity vb
+          let i2 ← proto.codec.COMP_CODEC_SHRINK_THRESHOLD
+          if i1 > i2
+          then
+            ok (core.result.Result.Ok true,
+              {
+                self
+                  with
+                  in_buf := (alloc.vec.Vec.new Std.U8), plain_codec := ppc
+              }, src, dst1)
+          else
+            ok (core.result.Result.Ok true,
+              { self with in_buf := vb, plain_codec := ppc }, src, dst1)
+        else
+          ok (core.result.Result.Ok true,
+            { self with in_buf := vb, plain_codec := ppc }, src, dst1)
+      else
+        let (r1, cd, src1, vb1, o) ←
+          proto.codec.CompDecoder.decode_with coreopsderefDerefSSliceU8Inst
+            buf_modelPacketBufInst
+            proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut
+            self.comp_decoder src vb max_allowed_packet self.inflater
+        let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+        match cf1 with
+        | core.ops.control_flow.ControlFlow.Continue val1 =>
+          match val1 with
+          | none =>
+            ok (core.result.Result.Ok false,
+              {
+                self
+                  with
+                  in_buf := vb1,
+                  comp_decoder := cd,
+                  inflater := o,
+                  plain_codec := ppc
+              }, src1, dst1)
+          | some chunk_info =>
+            let i1 ← proto.codec.ChunkInfo.seq_id chunk_info
+            if self.comp_seq_id != i1
+            then
+              ok (core.result.Result.Err
+                proto.codec.error.PacketCodecError.PacketsOutOfSync,
+                {
+                  self
+                    with
+                    in_buf := vb1,
+                    comp_decoder := cd,
+                    inflater := o,
+                    plain_codec := ppc
+                }, src1, dst1)
+            else
+              let i2 ← lift (core.num.U8.wrapping_add self.comp_seq_id 1#u8)
+              proto.codec.CompPacketCodec.decode coreopsderefDerefSSliceU8Inst
+                buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+                buf_modelPacketBufMutInst
+                {
+                  self
+                    with
+                    comp_seq_id := i2,
+                    in_buf := vb1,
+                    comp_decoder := cd,
+                    inflater := o,
+                    plain_codec := ppc
+                } src1 dst1 max_allowed_packet
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r2 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Bool (core.convert.FromSame proto.codec.error.PacketCodecError)
+              residual
+          ok (r2,
+            {
+              self
+                with
+                in_buf := vb1,
+                comp_decoder := cd,
+                inflater := o,
+                plain_codec := ppc
+            }, src1, dst1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Bool (core.convert.FromSame proto.codec.error.PacketCodecError)
+          residual
+      ok (r1, { self with in_buf := vb, plain_codec := ppc }, src, dst1)
+partial_fixpoint
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 538:4-553:5 -/
+def proto.codec.PacketCodecInner.decode
+  {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (coreconvertAsRefTSliceU8Inst :
+  core.convert.AsRef T (Slice Std.U8)) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut T) (self : proto.codec.PacketCodecInner)
+  (src : S) (dst : T) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Bool proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodecInner × S × T)
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain codec =>
+    let (r, codec1, src1, dst1) ←
+      proto.codec.PlainPacketCodec.decode coreopsderefDerefSSliceU8Inst
+        buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+        buf_modelPacketBufMutInst codec src dst max_allowed_packet none
+    ok (r, proto.codec.PacketCodecInner.Plain codec1, src1, dst1)
+  | proto.codec.PacketCodecInner.Comp codec =>
+    let (r, codec1, src1, dst1) ←
+      proto.codec.CompPacketCodec.decode coreopsderefDerefSSliceU8Inst
+        buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+        buf_modelPacketBufMutInst codec src dst max_allowed_packet
+    ok (r, proto.codec.PacketCodecInner.Comp codec1, src1, dst1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::decode]:
+    Source: 'src/proto/codec/mod.rs', lines 457:4-464:5
+    Visibility: public -/
+def proto.codec.PacketCodec.decode
+  {S : Type _} {T : Type _} (coreopsderefDerefSSliceU8Inst :
+  core.ops.deref.Deref S (Slice Std.U8)) (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf S) (coreconvertAsRefTSliceU8Inst :
+  core.convert.AsRef T (Slice Std.U8)) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut T) (self : proto.codec.PacketCodec)
+  (src : S) (dst : T) :
+  Result ((core.result.Result Bool proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodec × S × T)
+  := do
+  let (r, pci, src1, dst1) ←
+    proto.codec.PacketCodecInner.decode coreopsderefDerefSSliceU8Inst
+      buf_modelPacketBufInst coreconvertAsRefTSliceU8Inst
+      buf_modelPacketBufMutInst self.inner src dst self.max_allowed_packet
+  ok (r, { self with inner := pci }, src1, dst1)
+
 /-- [mysql_common::proto::codec::{mysql_common::proto::codec::PlainPacketCodec}::encode]:
-    Source: 'src/proto/codec/mod.rs', lines 647:4-660:5 -/
+    Source: 'src/proto/codec/mod.rs', lines 639:4-652:5 -/
 def proto.codec.PlainPacketCodec.encode
   {T : Type _} {D : Type _} (buf_modelPacketBufInst :
   proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
@@ -13838,8 +16414,4007 @@ def proto.codec.PlainPacketCodec.encode
         buf_modelPacketBufMutInst buf_modelReserveInst self.seq_id packet dst
     ok (core.result.Result.Ok (), { self with seq_id := i1 }, packet1, dst1)
 
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::CompPacketCodec}::encode]:
+    Source: 'src/proto/codec/mod.rs', lines 751:4-779:5 -/
+def proto.codec.CompPacketCodec.encode
+  {T : Type _} {D : Type _} (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (self : proto.codec.CompPacketCodec)
+  (packet : T) (dst : D) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Unit proto.codec.error.PacketCodecError) ×
+    proto.codec.CompPacketCodec × T × D)
+  := do
+  let (r, ppc, packet1, vb) ←
+    proto.codec.PlainPacketCodec.encode buf_modelPacketBufInst
+      proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelPacketBufMut
+      proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelReserve
+      self.plain_codec packet self.out_buf max_allowed_packet
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, o, vb1, dst1) ←
+      proto.codec.compress_with
+        proto.codec.buf_model.VecBuf.Insts.CoreOpsDerefDerefSliceU8
+        proto.codec.buf_model.VecBuf.Insts.Mysql_commonProtoCodecBuf_modelClear
+        buf_modelPacketBufMutInst buf_modelReserveInst self.comp_seq_id
+        self.level self.deflater max_allowed_packet vb dst
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let i ← proto.codec.trusted.vec_capacity vb1
+      let i1 ← proto.codec.COMP_CODEC_SHRINK_THRESHOLD
+      if i > i1
+      then
+        ok (core.result.Result.Ok (),
+          {
+            self
+              with
+              comp_seq_id := val,
+              out_buf := (alloc.vec.Vec.new Std.U8),
+              deflater := o,
+              plain_codec := { ppc with seq_id := val }
+          }, packet1, dst1)
+      else
+        ok (core.result.Result.Ok (),
+          {
+            self
+              with
+              comp_seq_id := val,
+              out_buf := vb1,
+              deflater := o,
+              plain_codec := { ppc with seq_id := val }
+          }, packet1, dst1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame proto.codec.error.PacketCodecError)
+          residual
+      ok (r2, { self with out_buf := vb1, deflater := o, plain_codec := ppc },
+        packet1, dst1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame proto.codec.error.PacketCodecError)
+        residual
+    ok (r1, { self with out_buf := vb, plain_codec := ppc }, packet1, dst)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodecInner}::encode]:
+    Source: 'src/proto/codec/mod.rs', lines 556:4-566:5 -/
+def proto.codec.PacketCodecInner.encode
+  {T : Type _} {D : Type _} (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (self : proto.codec.PacketCodecInner)
+  (packet : T) (dst : D) (max_allowed_packet : Std.Usize) :
+  Result ((core.result.Result Unit proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodecInner × T × D)
+  := do
+  match self with
+  | proto.codec.PacketCodecInner.Plain codec =>
+    let (r, codec1, packet1, dst1) ←
+      proto.codec.PlainPacketCodec.encode buf_modelPacketBufInst
+        buf_modelPacketBufMutInst buf_modelReserveInst codec packet dst
+        max_allowed_packet
+    ok (r, proto.codec.PacketCodecInner.Plain codec1, packet1, dst1)
+  | proto.codec.PacketCodecInner.Comp codec =>
+    let (r, codec1, packet1, dst1) ←
+      proto.codec.CompPacketCodec.encode buf_modelPacketBufInst
+        buf_modelPacketBufMutInst buf_modelReserveInst codec packet dst
+        max_allowed_packet
+    ok (r, proto.codec.PacketCodecInner.Comp codec1, packet1, dst1)
+
+/-- [mysql_common::proto::codec::{mysql_common::proto::codec::PacketCodec}::encode]:
+    Source: 'src/proto/codec/mod.rs', lines 467:4-473:5
+    Visibility: public -/
+def proto.codec.PacketCodec.encode
+  {T : Type _} {D : Type _} (buf_modelPacketBufInst :
+  proto.codec.buf_model.PacketBuf T) (buf_modelPacketBufMutInst :
+  proto.codec.buf_model.PacketBufMut D) (buf_modelReserveInst :
+  proto.codec.buf_model.Reserve D) (self : proto.codec.PacketCodec) (src : T)
+  (dst : D) :
+  Result ((core.result.Result Unit proto.codec.error.PacketCodecError) ×
+    proto.codec.PacketCodec × T × D)
+  := do
+  let (r, pci, src1, dst1) ←
+    proto.codec.PacketCodecInner.encode buf_modelPacketBufInst
+      buf_modelPacketBufMutInst buf_modelReserveInst self.inner src dst
+      self.max_allowed_packet
+  ok (r, { self with inner := pci }, src1, dst1)
+
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PacketCodecInner}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 570:4-572:5
+    Visibility: public -/
+def proto.codec.PacketCodecInner.Insts.CoreDefaultDefault.default
+  : Result proto.codec.PacketCodecInner := do
+  let ppc ← proto.codec.PlainPacketCodec.Insts.CoreDefaultDefault.default
+  ok (proto.codec.PacketCodecInner.Plain ppc)
+
+/-- [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PacketCodec}::default]:
+    Source: 'src/proto/codec/mod.rs', lines 477:4-482:5
+    Visibility: public -/
+def proto.codec.PacketCodec.Insts.CoreDefaultDefault.default
+  : Result proto.codec.PacketCodec := do
+  let i ← constants.DEFAULT_MAX_ALLOWED_PACKET
+  let pci ← proto.codec.PacketCodecInner.Insts.CoreDefaultDefault.default
+  ok { max_allowed_packet := i, inner := pci }
+
+/-- Trait implementation: [mysql_common::proto::codec::{impl core::default::Default for mysql_common::proto::codec::PacketCodec}]
+    Source: 'src/proto/codec/mod.rs', lines 476:0-483:1 -/
+@[reducible]
+def proto.codec.PacketCodec.Insts.CoreDefaultDefault : core.default.Default
+  proto.codec.PacketCodec := {
+  default := proto.codec.PacketCodec.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::row::convert::FromRow::from_row]:
+    Source: 'src/row/convert/mod.rs', lines 78:4-88:5
+    Visibility: public -/
+@[trait_default]
+def row.convert.FromRow.from_row.default
+  {Self : Type _} (FromRowInst : row.convert.FromRow Self) (r : row.Row) :
+  Result Self
+  := do
+  let r1 ← FromRowInst.from_row_opt r
+  match r1 with
+  | core.result.Result.Ok x => ok x
+  | core.result.Result.Err _ => fail panic
+
+/-- [mysql_common::row::{mysql_common::row::Row}::is_empty]:
+    Source: 'src/row/mod.rs', lines 85:4-87:5
+    Visibility: public -/
+def row.Row.is_empty (self : row.Row) : Result Bool := do
+  alloc.vec.Vec.is_empty self.values
+
+/-- [mysql_common::row::convert::frunk::{impl mysql_common::row::convert::FromRow for frunk_core::hlist::HNil}::from_row_opt]:
+    Source: 'src/row/convert/frunk.rs', lines 30:4-38:5
+    Visibility: public -/
+def frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  (r : row.Row) :
+  Result (core.result.Result frunk_core.hlist.HNil row.convert.FromRowError)
+  := do
+  let b ← row.Row.is_empty r
+  if b
+  then ok (core.result.Result.Ok ())
+  else ok (core.result.Result.Err r)
+
+/-- Trait implementation: [mysql_common::row::convert::frunk::{impl mysql_common::row::convert::FromRow for frunk_core::hlist::HNil}]
+    Source: 'src/row/convert/frunk.rs', lines 29:0-39:1 -/
+@[reducible]
+impl_def frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow :
+  row.convert.FromRow frunk_core.hlist.HNil := {
+  from_row := row.convert.FromRow.from_row.default
+    frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow
+  from_row_opt :=
+    frunk_core.hlist.HNil.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+}
+
+/-- [mysql_common::row::convert::from_row]:
+    Source: 'src/row/convert/mod.rs', lines 42:0-44:1
+    Visibility: public -/
+def row.convert.from_row
+  {T : Type _} (FromRowInst : row.convert.FromRow T) (r : row.Row) :
+  Result T
+  := do
+  FromRowInst.from_row r
+
+/-- [mysql_common::row::convert::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 47:0-49:1
+    Visibility: public -/
+def row.convert.from_row_opt
+  {T : Type _} (FromRowInst : row.convert.FromRow T) (r : row.Row) :
+  Result (core.result.Result T row.convert.FromRowError)
+  := do
+  FromRowInst.from_row_opt r
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for mysql_common::row::Row}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 132:4-137:5
+    Visibility: public -/
+def row.Row.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  (r : row.Row) :
+  Result (core.result.Result row.Row row.convert.FromRowError)
+  := do
+  ok (core.result.Result.Ok r)
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for mysql_common::row::Row}::from_row]:
+    Source: 'src/row/convert/mod.rs', lines 128:4-130:5
+    Visibility: public -/
+def row.Row.Insts.Mysql_commonRowConvertFromRow.from_row
+  (r : row.Row) : Result row.Row := do
+  ok r
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for mysql_common::row::Row}]
+    Source: 'src/row/convert/mod.rs', lines 127:0-138:1 -/
+@[reducible]
+def row.Row.Insts.Mysql_commonRowConvertFromRow : row.convert.FromRow row.Row
+  := {
+  from_row := row.Row.Insts.Mysql_commonRowConvertFromRow.from_row
+  from_row_opt := row.Row.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}::from]:
+    Source: 'src/value/convert/mod.rs', lines 573:4-575:5
+    Visibility: public -/
+def value.Value.Insts.CoreConvertFromValueIr.from
+  (ir : value.convert.ValueIr) : Result value.Value := do
+  ok ir
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 572:0-576:1 -/
+@[reducible]
+def value.Value.Insts.CoreConvertFromValueIr : core.convert.From value.Value
+  value.convert.ValueIr := {
+  «from» := value.Value.Insts.CoreConvertFromValueIr.from
+}
+
+/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ValueIr}::try_from]:
+    Source: 'src/value/convert/mod.rs', lines 567:4-569:5
+    Visibility: public -/
+def value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError.try_from
+  (v : value.Value) :
+  Result (core.result.Result value.convert.ValueIr
+    value.convert.FromValueError)
+  := do
+  ok (core.result.Result.Ok v)
+
+/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ValueIr}]
+    Source: 'src/value/convert/mod.rs', lines 564:0-570:1 -/
+@[reducible]
+def value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError :
+  core.convert.TryFrom value.convert.ValueIr value.Value
+  value.convert.FromValueError := {
+  try_from :=
+    value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError.try_from
+}
+
+/-- [mysql_common::value::convert::FromValue::get_intermediate]:
+    Source: 'src/value/convert/mod.rs', lines 113:4-115:5
+    Visibility: public -/
+@[trait_default]
+def value.convert.FromValue.get_intermediate.default
+  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
+  Result (core.result.Result Clause0_Intermediate value.convert.FromValueError)
+  := do
+  FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+    v
+
+/-- [mysql_common::value::convert::FromValue::from_value_opt]:
+    Source: 'src/value/convert/mod.rs', lines 105:4-110:5
+    Visibility: public -/
+@[trait_default]
+def value.convert.FromValue.from_value_opt.default
+  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
+  Result (core.result.Result Self value.convert.FromValueError)
+  := do
+  let r ←
+    FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
+      v
+  match r with
+  | core.result.Result.Ok x =>
+    let t ← FromValueInst.coreconvertIntoInst.into x
+    ok (core.result.Result.Ok t)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [mysql_common::value::convert::FromValue::from_value]:
+    Source: 'src/value/convert/mod.rs', lines 97:4-102:5
+    Visibility: public -/
+@[trait_default]
+def value.convert.FromValue.from_value.default
+  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
+  Result Self
+  := do
+  let r ← FromValueInst.from_value_opt v
+  match r with
+  | core.result.Result.Ok this => ok this
+  | core.result.Result.Err _ => fail panic
+
+/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}]
+    Source: 'src/value/convert/mod.rs', lines 578:0-580:1 -/
+@[reducible]
+impl_def value.Value.Insts.Mysql_commonValueConvertFromValueValueIr :
+  value.convert.FromValue value.Value value.convert.ValueIr := {
+  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
+    value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError
+  coreconvertIntoInst := core.convert.IntoFrom
+    value.Value.Insts.CoreConvertFromValueIr
+  from_value := value.convert.FromValue.from_value.default
+    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+  from_value_opt := value.convert.FromValue.from_value_opt.default
+    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+  get_intermediate := value.convert.FromValue.get_intermediate.default
+    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+}
+
+/-- [mysql_common::row::{impl mysql_common::row::ColumnIndex for usize}::idx]:
+    Source: 'src/row/mod.rs', lines 244:4-250:5
+    Visibility: public -/
+def Usize.Insts.Mysql_commonRowColumnIndex.idx
+  (self : Std.Usize) (columns : Slice packets.Column) :
+  Result (Option Std.Usize)
+  := do
+  let i := Slice.len columns
+  if self >= i
+  then ok none
+  else ok (some self)
+
+/-- Trait implementation: [mysql_common::row::{impl mysql_common::row::ColumnIndex for usize}]
+    Source: 'src/row/mod.rs', lines 243:0-251:1 -/
+@[reducible]
+def Usize.Insts.Mysql_commonRowColumnIndex : row.ColumnIndex Std.Usize := {
+  idx := Usize.Insts.Mysql_commonRowColumnIndex.idx
+}
+
+/-- [mysql_common::row::{mysql_common::row::Row}::place]:
+    Source: 'src/row/mod.rs', lines 211:4-213:5
+    Visibility: public -/
+def row.Row.place
+  (self : row.Row) (index : Std.Usize) (v : value.Value) : Result row.Row := do
+  let (_, index_mut_back) ←
+    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Option
+      value.Value)) self.values index
+  let v1 := index_mut_back (some v)
+  ok { self with values := v1 }
+
+/-- [mysql_common::value::convert::from_value]:
+    Source: 'src/value/convert/mod.rs', lines 583:0-585:1
+    Visibility: public -/
+def value.convert.from_value
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) (v : value.Value) :
+  Result T
+  := do
+  FromValueInst.from_value v
+
+/-- [mysql_common::row::{mysql_common::row::Row}::take]:
+    Source: 'src/row/mod.rs', lines 147:4-162:5
+    Visibility: public -/
+def row.Row.take
+  {T : Type _} {I : Type _} {Clause0_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T Clause0_Intermediate)
+  (ColumnIndexInst : row.ColumnIndex I) (self : row.Row) (index : I) :
+  Result ((Option T) × row.Row)
+  := do
+  let s ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global
+      self.columns
+  let o ← ColumnIndexInst.idx index s
+  match o with
+  | none => ok (none, self)
+  | some idx =>
+    let (s1, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut self.values)
+    let (o1, get_mut_back) ←
+      core.slice.Slice.get_mut (core.slice.index.SliceIndexUsizeSlice (Option
+        value.Value)) s1 idx
+    match o1 with
+    | none =>
+      let s2 := get_mut_back none
+      let v := deref_mut_back s2
+      ok (none, { self with values := v })
+    | some x =>
+      let (o2, x1) := core.option.Option.take x
+      match o2 with
+      | none =>
+        let s2 := get_mut_back (some x1)
+        let v := deref_mut_back s2
+        ok (none, { self with values := v })
+      | some v =>
+        let t ← value.convert.from_value valueconvertFromValueInst v
+        let s2 := get_mut_back (some x1)
+        let v1 := deref_mut_back s2
+        ok (some t, { self with values := v1 })
+
+/-- [mysql_common::row::{mysql_common::row::Row}::len]:
+    Source: 'src/row/mod.rs', lines 80:4-82:5
+    Visibility: public -/
+def row.Row.len (self : row.Row) : Result Std.Usize := do
+  ok (alloc.vec.Vec.len self.values)
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for T}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 145:4-151:5
+    Visibility: public -/
+def row.convert.FromRow.Blanket.from_row_opt
+  {T : Type _} {Clause0_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) (r : row.Row) :
+  Result (core.result.Result T row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i = 1#usize
+  then
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let t ← valueconvertFromValueInst.coreconvertIntoInst.into ir
+        ok (core.result.Result.Ok t)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+  else ok (core.result.Result.Err r)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for T}]
+    Source: 'src/row/convert/mod.rs', lines 141:0-152:1 -/
+@[reducible]
+impl_def row.convert.FromRow.Blanket {T : Type _} {Clause0_Intermediate :
+  Type _} (valueconvertFromValueInst : value.convert.FromValue T
+  Clause0_Intermediate) : row.convert.FromRow T := {
+  from_row := row.convert.FromRow.from_row.default (row.convert.FromRow.Blanket
+    valueconvertFromValueInst)
+  from_row_opt := row.convert.FromRow.Blanket.from_row_opt
+    valueconvertFromValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1,)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 158:4-164:5
+    Visibility: public -/
+def TupleT1.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {Clause0_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (r : row.Row) :
+  Result (core.result.Result T1 row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i = 1#usize
+  then
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let t ← valueconvertFromValueInst.coreconvertIntoInst.into ir
+        ok (core.result.Result.Ok t)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+  else ok (core.result.Result.Err r)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1,)}]
+    Source: 'src/row/convert/mod.rs', lines 154:0-165:1 -/
+@[reducible]
+impl_def TupleT1.Insts.Mysql_commonRowConvertFromRow {T1 : Type _}
+  {Clause0_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) : row.convert.FromRow T1
+  := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1.Insts.Mysql_commonRowConvertFromRow valueconvertFromValueInst)
+  from_row_opt := TupleT1.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 173:4-180:5
+    Visibility: public -/
+def Pair.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {Clause0_Intermediate : Type _}
+  {Clause1_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2) row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 2#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let t ← valueconvertFromValueInst.coreconvertIntoInst.into ir
+            let t1 ← valueconvertFromValueInst1.coreconvertIntoInst.into ir1
+            ok (core.result.Result.Ok (t, t1))
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2)}]
+    Source: 'src/row/convert/mod.rs', lines 167:0-181:1 -/
+@[reducible]
+impl_def Pair.Insts.Mysql_commonRowConvertFromRow {T1 : Type _} {T2 : Type _}
+  {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value) : row.convert.FromRow (T1
+  × T2) := {
+  from_row := row.convert.FromRow.from_row.default
+    (Pair.Insts.Mysql_commonRowConvertFromRow valueconvertFromValueInst
+    valueconvertFromValueInst1 coreconvertIntoClause0_IntermediateValueInst)
+  from_row_opt := Pair.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    coreconvertIntoClause0_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 191:4-199:5
+    Visibility: public -/
+def TupleT1T2T3.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {Clause0_Intermediate : Type _}
+  {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3) row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 3#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let t ← valueconvertFromValueInst.coreconvertIntoInst.into ir
+                let t1 ←
+                  valueconvertFromValueInst1.coreconvertIntoInst.into ir1
+                let t2 ←
+                  valueconvertFromValueInst2.coreconvertIntoInst.into ir2
+                ok (core.result.Result.Ok (t, t1, t2))
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3)}]
+    Source: 'src/row/convert/mod.rs', lines 183:0-200:1 -/
+@[reducible]
+impl_def TupleT1T2T3.Insts.Mysql_commonRowConvertFromRow {T1 : Type _} {T2 :
+  Type _} {T3 : Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate :
+  Type _} {Clause2_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3.Insts.Mysql_commonRowConvertFromRow valueconvertFromValueInst
+    valueconvertFromValueInst1 valueconvertFromValueInst2
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst)
+  from_row_opt := TupleT1T2T3.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 212:4-226:5
+    Visibility: public -/
+def TupleT1T2T3T4.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {Clause0_Intermediate
+  : Type _} {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  {Clause3_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4) row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 4#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let t ←
+                      valueconvertFromValueInst.coreconvertIntoInst.into ir
+                    let t1 ←
+                      valueconvertFromValueInst1.coreconvertIntoInst.into ir1
+                    let t2 ←
+                      valueconvertFromValueInst2.coreconvertIntoInst.into ir2
+                    let t3 ←
+                      valueconvertFromValueInst3.coreconvertIntoInst.into ir3
+                    ok (core.result.Result.Ok (t, t1, t2, t3))
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4)}]
+    Source: 'src/row/convert/mod.rs', lines 202:0-227:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4.Insts.Mysql_commonRowConvertFromRow {T1 : Type _} {T2 :
+  Type _} {T3 : Type _} {T4 : Type _} {Clause0_Intermediate : Type _}
+  {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  {Clause3_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 ×
+  T4) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 241:4-257:5
+    Visibility: public -/
+def TupleT1T2T3T4T5.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _}
+  {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (valueconvertFromValueInst4 :
+  value.convert.FromValue T5 Clause4_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5)
+    row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 5#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let t ←
+                          valueconvertFromValueInst.coreconvertIntoInst.into ir
+                        let t1 ←
+                          valueconvertFromValueInst1.coreconvertIntoInst.into
+                            ir1
+                        let t2 ←
+                          valueconvertFromValueInst2.coreconvertIntoInst.into
+                            ir2
+                        let t3 ←
+                          valueconvertFromValueInst3.coreconvertIntoInst.into
+                            ir3
+                        let t4 ←
+                          valueconvertFromValueInst4.coreconvertIntoInst.into
+                            ir4
+                        ok (core.result.Result.Ok (t, t1, t2, t3, t4))
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5)}]
+    Source: 'src/row/convert/mod.rs', lines 229:0-258:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5.Insts.Mysql_commonRowConvertFromRow {T1 : Type _} {T2
+  : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {Clause0_Intermediate :
+  Type _} {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  {Clause3_Intermediate : Type _} {Clause4_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 × T4
+  × T5) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 274:4-292:5
+    Visibility: public -/
+def TupleT1T2T3T4T5T6.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5 × T6)
+    row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 6#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let (o5, r11) ←
+                          row.Row.take
+                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                            Usize.Insts.Mysql_commonRowColumnIndex r9 5#usize
+                        match o5 with
+                        | none => ok (core.result.Result.Err r11)
+                        | some v5 =>
+                          let r12 ←
+                            valueconvertFromValueInst5.get_intermediate v5
+                          match r12 with
+                          | core.result.Result.Ok ir5 =>
+                            let t ←
+                              valueconvertFromValueInst.coreconvertIntoInst.into
+                                ir
+                            let t1 ←
+                              valueconvertFromValueInst1.coreconvertIntoInst.into
+                                ir1
+                            let t2 ←
+                              valueconvertFromValueInst2.coreconvertIntoInst.into
+                                ir2
+                            let t3 ←
+                              valueconvertFromValueInst3.coreconvertIntoInst.into
+                                ir3
+                            let t4 ←
+                              valueconvertFromValueInst4.coreconvertIntoInst.into
+                                ir4
+                            let t5 ←
+                              valueconvertFromValueInst5.coreconvertIntoInst.into
+                                ir5
+                            ok (core.result.Result.Ok (t, t1, t2, t3, t4, t5))
+                          | core.result.Result.Err fve =>
+                            let v6 ←
+                              coreconvertIntoClause0_IntermediateValueInst.into
+                                ir
+                            let r13 ← row.Row.place r11 0#usize v6
+                            let v7 ←
+                              coreconvertIntoClause1_IntermediateValueInst.into
+                                ir1
+                            let r14 ← row.Row.place r13 1#usize v7
+                            let v8 ←
+                              coreconvertIntoClause2_IntermediateValueInst.into
+                                ir2
+                            let r15 ← row.Row.place r14 2#usize v8
+                            let v9 ←
+                              coreconvertIntoClause3_IntermediateValueInst.into
+                                ir3
+                            let r16 ← row.Row.place r15 3#usize v9
+                            let v10 ←
+                              coreconvertIntoClause4_IntermediateValueInst.into
+                                ir4
+                            let r17 ← row.Row.place r16 4#usize v10
+                            let r18 ← row.Row.place r17 5#usize fve
+                            ok (core.result.Result.Err r18)
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6)}]
+    Source: 'src/row/convert/mod.rs', lines 260:0-293:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5T6.Insts.Mysql_commonRowConvertFromRow {T1 : Type _}
+  {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 : Type _}
+  {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 × T4
+  × T5 × T6) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5T6.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5T6.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 311:4-341:5
+    Visibility: public -/
+def TupleT1T2T3T4T5T6T7.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate :
+  Type _} {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (valueconvertFromValueInst4 :
+  value.convert.FromValue T5 Clause4_Intermediate) (valueconvertFromValueInst5
+  : value.convert.FromValue T6 Clause5_Intermediate)
+  (valueconvertFromValueInst6 : value.convert.FromValue T7
+  Clause6_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5 × T6 × T7)
+    row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 7#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let (o5, r11) ←
+                          row.Row.take
+                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                            Usize.Insts.Mysql_commonRowColumnIndex r9 5#usize
+                        match o5 with
+                        | none => ok (core.result.Result.Err r11)
+                        | some v5 =>
+                          let r12 ←
+                            valueconvertFromValueInst5.get_intermediate v5
+                          match r12 with
+                          | core.result.Result.Ok ir5 =>
+                            let (o6, r13) ←
+                              row.Row.take
+                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                Usize.Insts.Mysql_commonRowColumnIndex r11
+                                6#usize
+                            match o6 with
+                            | none => ok (core.result.Result.Err r13)
+                            | some v6 =>
+                              let r14 ←
+                                valueconvertFromValueInst6.get_intermediate v6
+                              match r14 with
+                              | core.result.Result.Ok ir6 =>
+                                let t ←
+                                  valueconvertFromValueInst.coreconvertIntoInst.into
+                                    ir
+                                let t1 ←
+                                  valueconvertFromValueInst1.coreconvertIntoInst.into
+                                    ir1
+                                let t2 ←
+                                  valueconvertFromValueInst2.coreconvertIntoInst.into
+                                    ir2
+                                let t3 ←
+                                  valueconvertFromValueInst3.coreconvertIntoInst.into
+                                    ir3
+                                let t4 ←
+                                  valueconvertFromValueInst4.coreconvertIntoInst.into
+                                    ir4
+                                let t5 ←
+                                  valueconvertFromValueInst5.coreconvertIntoInst.into
+                                    ir5
+                                let t6 ←
+                                  valueconvertFromValueInst6.coreconvertIntoInst.into
+                                    ir6
+                                ok (core.result.Result.Ok (t, t1, t2, t3, t4,
+                                  t5, t6))
+                              | core.result.Result.Err fve =>
+                                let v7 ←
+                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                    ir
+                                let r15 ← row.Row.place r13 0#usize v7
+                                let v8 ←
+                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                    ir1
+                                let r16 ← row.Row.place r15 1#usize v8
+                                let v9 ←
+                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                    ir2
+                                let r17 ← row.Row.place r16 2#usize v9
+                                let v10 ←
+                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                    ir3
+                                let r18 ← row.Row.place r17 3#usize v10
+                                let v11 ←
+                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                    ir4
+                                let r19 ← row.Row.place r18 4#usize v11
+                                let v12 ←
+                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                    ir5
+                                let r20 ← row.Row.place r19 5#usize v12
+                                let r21 ← row.Row.place r20 6#usize fve
+                                ok (core.result.Result.Err r21)
+                          | core.result.Result.Err fve =>
+                            let v6 ←
+                              coreconvertIntoClause0_IntermediateValueInst.into
+                                ir
+                            let r13 ← row.Row.place r11 0#usize v6
+                            let v7 ←
+                              coreconvertIntoClause1_IntermediateValueInst.into
+                                ir1
+                            let r14 ← row.Row.place r13 1#usize v7
+                            let v8 ←
+                              coreconvertIntoClause2_IntermediateValueInst.into
+                                ir2
+                            let r15 ← row.Row.place r14 2#usize v8
+                            let v9 ←
+                              coreconvertIntoClause3_IntermediateValueInst.into
+                                ir3
+                            let r16 ← row.Row.place r15 3#usize v9
+                            let v10 ←
+                              coreconvertIntoClause4_IntermediateValueInst.into
+                                ir4
+                            let r17 ← row.Row.place r16 4#usize v10
+                            let r18 ← row.Row.place r17 5#usize fve
+                            ok (core.result.Result.Err r18)
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7)}]
+    Source: 'src/row/convert/mod.rs', lines 295:0-342:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5T6T7.Insts.Mysql_commonRowConvertFromRow {T1 : Type _}
+  {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 : Type _} {T7 :
+  Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (valueconvertFromValueInst4 :
+  value.convert.FromValue T5 Clause4_Intermediate) (valueconvertFromValueInst5
+  : value.convert.FromValue T6 Clause5_Intermediate)
+  (valueconvertFromValueInst6 : value.convert.FromValue T7
+  Clause6_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 × T4
+  × T5 × T6 × T7) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5T6T7.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5T6T7.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 362:4-405:5
+    Visibility: public -/
+def TupleT1T2T3T4T5T6T7T8.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {T8 : Type _} {Clause0_Intermediate : Type _}
+  {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  {Clause3_Intermediate : Type _} {Clause4_Intermediate : Type _}
+  {Clause5_Intermediate : Type _} {Clause6_Intermediate : Type _}
+  {Clause7_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (valueconvertFromValueInst4 :
+  value.convert.FromValue T5 Clause4_Intermediate) (valueconvertFromValueInst5
+  : value.convert.FromValue T6 Clause5_Intermediate)
+  (valueconvertFromValueInst6 : value.convert.FromValue T7
+  Clause6_Intermediate) (valueconvertFromValueInst7 : value.convert.FromValue
+  T8 Clause7_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5 × T6 × T7 × T8)
+    row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 8#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let (o5, r11) ←
+                          row.Row.take
+                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                            Usize.Insts.Mysql_commonRowColumnIndex r9 5#usize
+                        match o5 with
+                        | none => ok (core.result.Result.Err r11)
+                        | some v5 =>
+                          let r12 ←
+                            valueconvertFromValueInst5.get_intermediate v5
+                          match r12 with
+                          | core.result.Result.Ok ir5 =>
+                            let (o6, r13) ←
+                              row.Row.take
+                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                Usize.Insts.Mysql_commonRowColumnIndex r11
+                                6#usize
+                            match o6 with
+                            | none => ok (core.result.Result.Err r13)
+                            | some v6 =>
+                              let r14 ←
+                                valueconvertFromValueInst6.get_intermediate v6
+                              match r14 with
+                              | core.result.Result.Ok ir6 =>
+                                let (o7, r15) ←
+                                  row.Row.take
+                                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                    Usize.Insts.Mysql_commonRowColumnIndex r13
+                                    7#usize
+                                match o7 with
+                                | none => ok (core.result.Result.Err r15)
+                                | some v7 =>
+                                  let r16 ←
+                                    valueconvertFromValueInst7.get_intermediate
+                                      v7
+                                  match r16 with
+                                  | core.result.Result.Ok ir7 =>
+                                    let t ←
+                                      valueconvertFromValueInst.coreconvertIntoInst.into
+                                        ir
+                                    let t1 ←
+                                      valueconvertFromValueInst1.coreconvertIntoInst.into
+                                        ir1
+                                    let t2 ←
+                                      valueconvertFromValueInst2.coreconvertIntoInst.into
+                                        ir2
+                                    let t3 ←
+                                      valueconvertFromValueInst3.coreconvertIntoInst.into
+                                        ir3
+                                    let t4 ←
+                                      valueconvertFromValueInst4.coreconvertIntoInst.into
+                                        ir4
+                                    let t5 ←
+                                      valueconvertFromValueInst5.coreconvertIntoInst.into
+                                        ir5
+                                    let t6 ←
+                                      valueconvertFromValueInst6.coreconvertIntoInst.into
+                                        ir6
+                                    let t7 ←
+                                      valueconvertFromValueInst7.coreconvertIntoInst.into
+                                        ir7
+                                    ok (core.result.Result.Ok (t, t1, t2, t3,
+                                      t4, t5, t6, t7))
+                                  | core.result.Result.Err fve =>
+                                    let v8 ←
+                                      coreconvertIntoClause0_IntermediateValueInst.into
+                                        ir
+                                    let r17 ← row.Row.place r15 0#usize v8
+                                    let v9 ←
+                                      coreconvertIntoClause1_IntermediateValueInst.into
+                                        ir1
+                                    let r18 ← row.Row.place r17 1#usize v9
+                                    let v10 ←
+                                      coreconvertIntoClause2_IntermediateValueInst.into
+                                        ir2
+                                    let r19 ← row.Row.place r18 2#usize v10
+                                    let v11 ←
+                                      coreconvertIntoClause3_IntermediateValueInst.into
+                                        ir3
+                                    let r20 ← row.Row.place r19 3#usize v11
+                                    let v12 ←
+                                      coreconvertIntoClause4_IntermediateValueInst.into
+                                        ir4
+                                    let r21 ← row.Row.place r20 4#usize v12
+                                    let v13 ←
+                                      coreconvertIntoClause5_IntermediateValueInst.into
+                                        ir5
+                                    let r22 ← row.Row.place r21 5#usize v13
+                                    let v14 ←
+                                      coreconvertIntoClause6_IntermediateValueInst.into
+                                        ir6
+                                    let r23 ← row.Row.place r22 6#usize v14
+                                    let r24 ← row.Row.place r23 7#usize fve
+                                    ok (core.result.Result.Err r24)
+                              | core.result.Result.Err fve =>
+                                let v7 ←
+                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                    ir
+                                let r15 ← row.Row.place r13 0#usize v7
+                                let v8 ←
+                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                    ir1
+                                let r16 ← row.Row.place r15 1#usize v8
+                                let v9 ←
+                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                    ir2
+                                let r17 ← row.Row.place r16 2#usize v9
+                                let v10 ←
+                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                    ir3
+                                let r18 ← row.Row.place r17 3#usize v10
+                                let v11 ←
+                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                    ir4
+                                let r19 ← row.Row.place r18 4#usize v11
+                                let v12 ←
+                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                    ir5
+                                let r20 ← row.Row.place r19 5#usize v12
+                                let r21 ← row.Row.place r20 6#usize fve
+                                ok (core.result.Result.Err r21)
+                          | core.result.Result.Err fve =>
+                            let v6 ←
+                              coreconvertIntoClause0_IntermediateValueInst.into
+                                ir
+                            let r13 ← row.Row.place r11 0#usize v6
+                            let v7 ←
+                              coreconvertIntoClause1_IntermediateValueInst.into
+                                ir1
+                            let r14 ← row.Row.place r13 1#usize v7
+                            let v8 ←
+                              coreconvertIntoClause2_IntermediateValueInst.into
+                                ir2
+                            let r15 ← row.Row.place r14 2#usize v8
+                            let v9 ←
+                              coreconvertIntoClause3_IntermediateValueInst.into
+                                ir3
+                            let r16 ← row.Row.place r15 3#usize v9
+                            let v10 ←
+                              coreconvertIntoClause4_IntermediateValueInst.into
+                                ir4
+                            let r17 ← row.Row.place r16 4#usize v10
+                            let r18 ← row.Row.place r17 5#usize fve
+                            ok (core.result.Result.Err r18)
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8)}]
+    Source: 'src/row/convert/mod.rs', lines 344:0-406:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5T6T7T8.Insts.Mysql_commonRowConvertFromRow {T1 :
+  Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 : Type _}
+  {T7 : Type _} {T8 : Type _} {Clause0_Intermediate : Type _}
+  {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  {Clause3_Intermediate : Type _} {Clause4_Intermediate : Type _}
+  {Clause5_Intermediate : Type _} {Clause6_Intermediate : Type _}
+  {Clause7_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (valueconvertFromValueInst4 :
+  value.convert.FromValue T5 Clause4_Intermediate) (valueconvertFromValueInst5
+  : value.convert.FromValue T6 Clause5_Intermediate)
+  (valueconvertFromValueInst6 : value.convert.FromValue T7
+  Clause6_Intermediate) (valueconvertFromValueInst7 : value.convert.FromValue
+  T8 Clause7_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 × T4
+  × T5 × T6 × T7 × T8) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5T6T7T8.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5T6T7T8.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 428:4-485:5
+    Visibility: public -/
+def TupleT1T2T3T4T5T6T7T8T9.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {T8 : Type _} {T9 : Type _} {Clause0_Intermediate :
+  Type _} {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  {Clause3_Intermediate : Type _} {Clause4_Intermediate : Type _}
+  {Clause5_Intermediate : Type _} {Clause6_Intermediate : Type _}
+  {Clause7_Intermediate : Type _} {Clause8_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (valueconvertFromValueInst6 : value.convert.FromValue
+  T7 Clause6_Intermediate) (valueconvertFromValueInst7 :
+  value.convert.FromValue T8 Clause7_Intermediate) (valueconvertFromValueInst8
+  : value.convert.FromValue T9 Clause8_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5 × T6 × T7 × T8 ×
+    T9) row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 9#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let (o5, r11) ←
+                          row.Row.take
+                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                            Usize.Insts.Mysql_commonRowColumnIndex r9 5#usize
+                        match o5 with
+                        | none => ok (core.result.Result.Err r11)
+                        | some v5 =>
+                          let r12 ←
+                            valueconvertFromValueInst5.get_intermediate v5
+                          match r12 with
+                          | core.result.Result.Ok ir5 =>
+                            let (o6, r13) ←
+                              row.Row.take
+                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                Usize.Insts.Mysql_commonRowColumnIndex r11
+                                6#usize
+                            match o6 with
+                            | none => ok (core.result.Result.Err r13)
+                            | some v6 =>
+                              let r14 ←
+                                valueconvertFromValueInst6.get_intermediate v6
+                              match r14 with
+                              | core.result.Result.Ok ir6 =>
+                                let (o7, r15) ←
+                                  row.Row.take
+                                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                    Usize.Insts.Mysql_commonRowColumnIndex r13
+                                    7#usize
+                                match o7 with
+                                | none => ok (core.result.Result.Err r15)
+                                | some v7 =>
+                                  let r16 ←
+                                    valueconvertFromValueInst7.get_intermediate
+                                      v7
+                                  match r16 with
+                                  | core.result.Result.Ok ir7 =>
+                                    let (o8, r17) ←
+                                      row.Row.take
+                                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                        Usize.Insts.Mysql_commonRowColumnIndex
+                                        r15 8#usize
+                                    match o8 with
+                                    | none => ok (core.result.Result.Err r17)
+                                    | some v8 =>
+                                      let r18 ←
+                                        valueconvertFromValueInst8.get_intermediate
+                                          v8
+                                      match r18 with
+                                      | core.result.Result.Ok ir8 =>
+                                        let t ←
+                                          valueconvertFromValueInst.coreconvertIntoInst.into
+                                            ir
+                                        let t1 ←
+                                          valueconvertFromValueInst1.coreconvertIntoInst.into
+                                            ir1
+                                        let t2 ←
+                                          valueconvertFromValueInst2.coreconvertIntoInst.into
+                                            ir2
+                                        let t3 ←
+                                          valueconvertFromValueInst3.coreconvertIntoInst.into
+                                            ir3
+                                        let t4 ←
+                                          valueconvertFromValueInst4.coreconvertIntoInst.into
+                                            ir4
+                                        let t5 ←
+                                          valueconvertFromValueInst5.coreconvertIntoInst.into
+                                            ir5
+                                        let t6 ←
+                                          valueconvertFromValueInst6.coreconvertIntoInst.into
+                                            ir6
+                                        let t7 ←
+                                          valueconvertFromValueInst7.coreconvertIntoInst.into
+                                            ir7
+                                        let t8 ←
+                                          valueconvertFromValueInst8.coreconvertIntoInst.into
+                                            ir8
+                                        ok (core.result.Result.Ok (t, t1, t2,
+                                          t3, t4, t5, t6, t7, t8))
+                                      | core.result.Result.Err fve =>
+                                        let v9 ←
+                                          coreconvertIntoClause0_IntermediateValueInst.into
+                                            ir
+                                        let r19 ←
+                                          row.Row.place r17 0#usize v9
+                                        let v10 ←
+                                          coreconvertIntoClause1_IntermediateValueInst.into
+                                            ir1
+                                        let r20 ←
+                                          row.Row.place r19 1#usize v10
+                                        let v11 ←
+                                          coreconvertIntoClause2_IntermediateValueInst.into
+                                            ir2
+                                        let r21 ←
+                                          row.Row.place r20 2#usize v11
+                                        let v12 ←
+                                          coreconvertIntoClause3_IntermediateValueInst.into
+                                            ir3
+                                        let r22 ←
+                                          row.Row.place r21 3#usize v12
+                                        let v13 ←
+                                          coreconvertIntoClause4_IntermediateValueInst.into
+                                            ir4
+                                        let r23 ←
+                                          row.Row.place r22 4#usize v13
+                                        let v14 ←
+                                          coreconvertIntoClause5_IntermediateValueInst.into
+                                            ir5
+                                        let r24 ←
+                                          row.Row.place r23 5#usize v14
+                                        let v15 ←
+                                          coreconvertIntoClause6_IntermediateValueInst.into
+                                            ir6
+                                        let r25 ←
+                                          row.Row.place r24 6#usize v15
+                                        let v16 ←
+                                          coreconvertIntoClause7_IntermediateValueInst.into
+                                            ir7
+                                        let r26 ←
+                                          row.Row.place r25 7#usize v16
+                                        let r27 ←
+                                          row.Row.place r26 8#usize fve
+                                        ok (core.result.Result.Err r27)
+                                  | core.result.Result.Err fve =>
+                                    let v8 ←
+                                      coreconvertIntoClause0_IntermediateValueInst.into
+                                        ir
+                                    let r17 ← row.Row.place r15 0#usize v8
+                                    let v9 ←
+                                      coreconvertIntoClause1_IntermediateValueInst.into
+                                        ir1
+                                    let r18 ← row.Row.place r17 1#usize v9
+                                    let v10 ←
+                                      coreconvertIntoClause2_IntermediateValueInst.into
+                                        ir2
+                                    let r19 ← row.Row.place r18 2#usize v10
+                                    let v11 ←
+                                      coreconvertIntoClause3_IntermediateValueInst.into
+                                        ir3
+                                    let r20 ← row.Row.place r19 3#usize v11
+                                    let v12 ←
+                                      coreconvertIntoClause4_IntermediateValueInst.into
+                                        ir4
+                                    let r21 ← row.Row.place r20 4#usize v12
+                                    let v13 ←
+                                      coreconvertIntoClause5_IntermediateValueInst.into
+                                        ir5
+                                    let r22 ← row.Row.place r21 5#usize v13
+                                    let v14 ←
+                                      coreconvertIntoClause6_IntermediateValueInst.into
+                                        ir6
+                                    let r23 ← row.Row.place r22 6#usize v14
+                                    let r24 ← row.Row.place r23 7#usize fve
+                                    ok (core.result.Result.Err r24)
+                              | core.result.Result.Err fve =>
+                                let v7 ←
+                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                    ir
+                                let r15 ← row.Row.place r13 0#usize v7
+                                let v8 ←
+                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                    ir1
+                                let r16 ← row.Row.place r15 1#usize v8
+                                let v9 ←
+                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                    ir2
+                                let r17 ← row.Row.place r16 2#usize v9
+                                let v10 ←
+                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                    ir3
+                                let r18 ← row.Row.place r17 3#usize v10
+                                let v11 ←
+                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                    ir4
+                                let r19 ← row.Row.place r18 4#usize v11
+                                let v12 ←
+                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                    ir5
+                                let r20 ← row.Row.place r19 5#usize v12
+                                let r21 ← row.Row.place r20 6#usize fve
+                                ok (core.result.Result.Err r21)
+                          | core.result.Result.Err fve =>
+                            let v6 ←
+                              coreconvertIntoClause0_IntermediateValueInst.into
+                                ir
+                            let r13 ← row.Row.place r11 0#usize v6
+                            let v7 ←
+                              coreconvertIntoClause1_IntermediateValueInst.into
+                                ir1
+                            let r14 ← row.Row.place r13 1#usize v7
+                            let v8 ←
+                              coreconvertIntoClause2_IntermediateValueInst.into
+                                ir2
+                            let r15 ← row.Row.place r14 2#usize v8
+                            let v9 ←
+                              coreconvertIntoClause3_IntermediateValueInst.into
+                                ir3
+                            let r16 ← row.Row.place r15 3#usize v9
+                            let v10 ←
+                              coreconvertIntoClause4_IntermediateValueInst.into
+                                ir4
+                            let r17 ← row.Row.place r16 4#usize v10
+                            let r18 ← row.Row.place r17 5#usize fve
+                            ok (core.result.Result.Err r18)
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9)}]
+    Source: 'src/row/convert/mod.rs', lines 408:0-486:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5T6T7T8T9.Insts.Mysql_commonRowConvertFromRow {T1 :
+  Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 : Type _}
+  {T7 : Type _} {T8 : Type _} {T9 : Type _} {Clause0_Intermediate : Type _}
+  {Clause1_Intermediate : Type _} {Clause2_Intermediate : Type _}
+  {Clause3_Intermediate : Type _} {Clause4_Intermediate : Type _}
+  {Clause5_Intermediate : Type _} {Clause6_Intermediate : Type _}
+  {Clause7_Intermediate : Type _} {Clause8_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (valueconvertFromValueInst6 : value.convert.FromValue
+  T7 Clause6_Intermediate) (valueconvertFromValueInst7 :
+  value.convert.FromValue T8 Clause7_Intermediate) (valueconvertFromValueInst8
+  : value.convert.FromValue T9 Clause8_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 × T4
+  × T5 × T6 × T7 × T8 × T9) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5T6T7T8T9.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5T6T7T8T9.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 510:4-584:5
+    Visibility: public -/
+def TupleT1T2T3T4T5T6T7T8T9T10.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {T8 : Type _} {T9 : Type _} {T10 : Type _}
+  {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} {Clause7_Intermediate : Type _}
+  {Clause8_Intermediate : Type _} {Clause9_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (valueconvertFromValueInst6 : value.convert.FromValue
+  T7 Clause6_Intermediate) (valueconvertFromValueInst7 :
+  value.convert.FromValue T8 Clause7_Intermediate) (valueconvertFromValueInst8
+  : value.convert.FromValue T9 Clause8_Intermediate)
+  (valueconvertFromValueInst9 : value.convert.FromValue T10
+  Clause9_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value)
+  (coreconvertIntoClause8_IntermediateValueInst : core.convert.Into
+  Clause8_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5 × T6 × T7 × T8 ×
+    T9 × T10) row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 10#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let (o5, r11) ←
+                          row.Row.take
+                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                            Usize.Insts.Mysql_commonRowColumnIndex r9 5#usize
+                        match o5 with
+                        | none => ok (core.result.Result.Err r11)
+                        | some v5 =>
+                          let r12 ←
+                            valueconvertFromValueInst5.get_intermediate v5
+                          match r12 with
+                          | core.result.Result.Ok ir5 =>
+                            let (o6, r13) ←
+                              row.Row.take
+                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                Usize.Insts.Mysql_commonRowColumnIndex r11
+                                6#usize
+                            match o6 with
+                            | none => ok (core.result.Result.Err r13)
+                            | some v6 =>
+                              let r14 ←
+                                valueconvertFromValueInst6.get_intermediate v6
+                              match r14 with
+                              | core.result.Result.Ok ir6 =>
+                                let (o7, r15) ←
+                                  row.Row.take
+                                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                    Usize.Insts.Mysql_commonRowColumnIndex r13
+                                    7#usize
+                                match o7 with
+                                | none => ok (core.result.Result.Err r15)
+                                | some v7 =>
+                                  let r16 ←
+                                    valueconvertFromValueInst7.get_intermediate
+                                      v7
+                                  match r16 with
+                                  | core.result.Result.Ok ir7 =>
+                                    let (o8, r17) ←
+                                      row.Row.take
+                                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                        Usize.Insts.Mysql_commonRowColumnIndex
+                                        r15 8#usize
+                                    match o8 with
+                                    | none => ok (core.result.Result.Err r17)
+                                    | some v8 =>
+                                      let r18 ←
+                                        valueconvertFromValueInst8.get_intermediate
+                                          v8
+                                      match r18 with
+                                      | core.result.Result.Ok ir8 =>
+                                        let (o9, r19) ←
+                                          row.Row.take
+                                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                            Usize.Insts.Mysql_commonRowColumnIndex
+                                            r17 9#usize
+                                        match o9 with
+                                        | none =>
+                                          ok (core.result.Result.Err r19)
+                                        | some v9 =>
+                                          let r20 ←
+                                            valueconvertFromValueInst9.get_intermediate
+                                              v9
+                                          match r20 with
+                                          | core.result.Result.Ok ir9 =>
+                                            let t ←
+                                              valueconvertFromValueInst.coreconvertIntoInst.into
+                                                ir
+                                            let t1 ←
+                                              valueconvertFromValueInst1.coreconvertIntoInst.into
+                                                ir1
+                                            let t2 ←
+                                              valueconvertFromValueInst2.coreconvertIntoInst.into
+                                                ir2
+                                            let t3 ←
+                                              valueconvertFromValueInst3.coreconvertIntoInst.into
+                                                ir3
+                                            let t4 ←
+                                              valueconvertFromValueInst4.coreconvertIntoInst.into
+                                                ir4
+                                            let t5 ←
+                                              valueconvertFromValueInst5.coreconvertIntoInst.into
+                                                ir5
+                                            let t6 ←
+                                              valueconvertFromValueInst6.coreconvertIntoInst.into
+                                                ir6
+                                            let t7 ←
+                                              valueconvertFromValueInst7.coreconvertIntoInst.into
+                                                ir7
+                                            let t8 ←
+                                              valueconvertFromValueInst8.coreconvertIntoInst.into
+                                                ir8
+                                            let t9 ←
+                                              valueconvertFromValueInst9.coreconvertIntoInst.into
+                                                ir9
+                                            ok (core.result.Result.Ok (t, t1,
+                                              t2, t3, t4, t5, t6, t7, t8, t9))
+                                          | core.result.Result.Err fve =>
+                                            let v10 ←
+                                              coreconvertIntoClause0_IntermediateValueInst.into
+                                                ir
+                                            let r21 ←
+                                              row.Row.place r19 0#usize v10
+                                            let v11 ←
+                                              coreconvertIntoClause1_IntermediateValueInst.into
+                                                ir1
+                                            let r22 ←
+                                              row.Row.place r21 1#usize v11
+                                            let v12 ←
+                                              coreconvertIntoClause2_IntermediateValueInst.into
+                                                ir2
+                                            let r23 ←
+                                              row.Row.place r22 2#usize v12
+                                            let v13 ←
+                                              coreconvertIntoClause3_IntermediateValueInst.into
+                                                ir3
+                                            let r24 ←
+                                              row.Row.place r23 3#usize v13
+                                            let v14 ←
+                                              coreconvertIntoClause4_IntermediateValueInst.into
+                                                ir4
+                                            let r25 ←
+                                              row.Row.place r24 4#usize v14
+                                            let v15 ←
+                                              coreconvertIntoClause5_IntermediateValueInst.into
+                                                ir5
+                                            let r26 ←
+                                              row.Row.place r25 5#usize v15
+                                            let v16 ←
+                                              coreconvertIntoClause6_IntermediateValueInst.into
+                                                ir6
+                                            let r27 ←
+                                              row.Row.place r26 6#usize v16
+                                            let v17 ←
+                                              coreconvertIntoClause7_IntermediateValueInst.into
+                                                ir7
+                                            let r28 ←
+                                              row.Row.place r27 7#usize v17
+                                            let v18 ←
+                                              coreconvertIntoClause8_IntermediateValueInst.into
+                                                ir8
+                                            let r29 ←
+                                              row.Row.place r28 8#usize v18
+                                            let r30 ←
+                                              row.Row.place r29 9#usize fve
+                                            ok (core.result.Result.Err r30)
+                                      | core.result.Result.Err fve =>
+                                        let v9 ←
+                                          coreconvertIntoClause0_IntermediateValueInst.into
+                                            ir
+                                        let r19 ←
+                                          row.Row.place r17 0#usize v9
+                                        let v10 ←
+                                          coreconvertIntoClause1_IntermediateValueInst.into
+                                            ir1
+                                        let r20 ←
+                                          row.Row.place r19 1#usize v10
+                                        let v11 ←
+                                          coreconvertIntoClause2_IntermediateValueInst.into
+                                            ir2
+                                        let r21 ←
+                                          row.Row.place r20 2#usize v11
+                                        let v12 ←
+                                          coreconvertIntoClause3_IntermediateValueInst.into
+                                            ir3
+                                        let r22 ←
+                                          row.Row.place r21 3#usize v12
+                                        let v13 ←
+                                          coreconvertIntoClause4_IntermediateValueInst.into
+                                            ir4
+                                        let r23 ←
+                                          row.Row.place r22 4#usize v13
+                                        let v14 ←
+                                          coreconvertIntoClause5_IntermediateValueInst.into
+                                            ir5
+                                        let r24 ←
+                                          row.Row.place r23 5#usize v14
+                                        let v15 ←
+                                          coreconvertIntoClause6_IntermediateValueInst.into
+                                            ir6
+                                        let r25 ←
+                                          row.Row.place r24 6#usize v15
+                                        let v16 ←
+                                          coreconvertIntoClause7_IntermediateValueInst.into
+                                            ir7
+                                        let r26 ←
+                                          row.Row.place r25 7#usize v16
+                                        let r27 ←
+                                          row.Row.place r26 8#usize fve
+                                        ok (core.result.Result.Err r27)
+                                  | core.result.Result.Err fve =>
+                                    let v8 ←
+                                      coreconvertIntoClause0_IntermediateValueInst.into
+                                        ir
+                                    let r17 ← row.Row.place r15 0#usize v8
+                                    let v9 ←
+                                      coreconvertIntoClause1_IntermediateValueInst.into
+                                        ir1
+                                    let r18 ← row.Row.place r17 1#usize v9
+                                    let v10 ←
+                                      coreconvertIntoClause2_IntermediateValueInst.into
+                                        ir2
+                                    let r19 ← row.Row.place r18 2#usize v10
+                                    let v11 ←
+                                      coreconvertIntoClause3_IntermediateValueInst.into
+                                        ir3
+                                    let r20 ← row.Row.place r19 3#usize v11
+                                    let v12 ←
+                                      coreconvertIntoClause4_IntermediateValueInst.into
+                                        ir4
+                                    let r21 ← row.Row.place r20 4#usize v12
+                                    let v13 ←
+                                      coreconvertIntoClause5_IntermediateValueInst.into
+                                        ir5
+                                    let r22 ← row.Row.place r21 5#usize v13
+                                    let v14 ←
+                                      coreconvertIntoClause6_IntermediateValueInst.into
+                                        ir6
+                                    let r23 ← row.Row.place r22 6#usize v14
+                                    let r24 ← row.Row.place r23 7#usize fve
+                                    ok (core.result.Result.Err r24)
+                              | core.result.Result.Err fve =>
+                                let v7 ←
+                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                    ir
+                                let r15 ← row.Row.place r13 0#usize v7
+                                let v8 ←
+                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                    ir1
+                                let r16 ← row.Row.place r15 1#usize v8
+                                let v9 ←
+                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                    ir2
+                                let r17 ← row.Row.place r16 2#usize v9
+                                let v10 ←
+                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                    ir3
+                                let r18 ← row.Row.place r17 3#usize v10
+                                let v11 ←
+                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                    ir4
+                                let r19 ← row.Row.place r18 4#usize v11
+                                let v12 ←
+                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                    ir5
+                                let r20 ← row.Row.place r19 5#usize v12
+                                let r21 ← row.Row.place r20 6#usize fve
+                                ok (core.result.Result.Err r21)
+                          | core.result.Result.Err fve =>
+                            let v6 ←
+                              coreconvertIntoClause0_IntermediateValueInst.into
+                                ir
+                            let r13 ← row.Row.place r11 0#usize v6
+                            let v7 ←
+                              coreconvertIntoClause1_IntermediateValueInst.into
+                                ir1
+                            let r14 ← row.Row.place r13 1#usize v7
+                            let v8 ←
+                              coreconvertIntoClause2_IntermediateValueInst.into
+                                ir2
+                            let r15 ← row.Row.place r14 2#usize v8
+                            let v9 ←
+                              coreconvertIntoClause3_IntermediateValueInst.into
+                                ir3
+                            let r16 ← row.Row.place r15 3#usize v9
+                            let v10 ←
+                              coreconvertIntoClause4_IntermediateValueInst.into
+                                ir4
+                            let r17 ← row.Row.place r16 4#usize v10
+                            let r18 ← row.Row.place r17 5#usize fve
+                            ok (core.result.Result.Err r18)
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)}]
+    Source: 'src/row/convert/mod.rs', lines 488:0-585:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5T6T7T8T9T10.Insts.Mysql_commonRowConvertFromRow {T1 :
+  Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 : Type _}
+  {T7 : Type _} {T8 : Type _} {T9 : Type _} {T10 : Type _}
+  {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} {Clause7_Intermediate : Type _}
+  {Clause8_Intermediate : Type _} {Clause9_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (valueconvertFromValueInst6 : value.convert.FromValue
+  T7 Clause6_Intermediate) (valueconvertFromValueInst7 :
+  value.convert.FromValue T8 Clause7_Intermediate) (valueconvertFromValueInst8
+  : value.convert.FromValue T9 Clause8_Intermediate)
+  (valueconvertFromValueInst9 : value.convert.FromValue T10
+  Clause9_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value)
+  (coreconvertIntoClause8_IntermediateValueInst : core.convert.Into
+  Clause8_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 × T4
+  × T5 × T6 × T7 × T8 × T9 × T10) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5T6T7T8T9T10.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 valueconvertFromValueInst9
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst
+    coreconvertIntoClause8_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5T6T7T8T9T10.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 valueconvertFromValueInst9
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst
+    coreconvertIntoClause8_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 612:4-702:5
+    Visibility: public -/
+def
+  TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {T8 : Type _} {T9 : Type _} {T10 : Type _} {T11 :
+  Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} {Clause7_Intermediate : Type _}
+  {Clause8_Intermediate : Type _} {Clause9_Intermediate : Type _}
+  {Clause10_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (valueconvertFromValueInst4 :
+  value.convert.FromValue T5 Clause4_Intermediate) (valueconvertFromValueInst5
+  : value.convert.FromValue T6 Clause5_Intermediate)
+  (valueconvertFromValueInst6 : value.convert.FromValue T7
+  Clause6_Intermediate) (valueconvertFromValueInst7 : value.convert.FromValue
+  T8 Clause7_Intermediate) (valueconvertFromValueInst8 :
+  value.convert.FromValue T9 Clause8_Intermediate) (valueconvertFromValueInst9
+  : value.convert.FromValue T10 Clause9_Intermediate)
+  (valueconvertFromValueInst10 : value.convert.FromValue T11
+  Clause10_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value)
+  (coreconvertIntoClause8_IntermediateValueInst : core.convert.Into
+  Clause8_Intermediate value.Value)
+  (coreconvertIntoClause9_IntermediateValueInst : core.convert.Into
+  Clause9_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5 × T6 × T7 × T8 ×
+    T9 × T10 × T11) row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 11#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let (o5, r11) ←
+                          row.Row.take
+                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                            Usize.Insts.Mysql_commonRowColumnIndex r9 5#usize
+                        match o5 with
+                        | none => ok (core.result.Result.Err r11)
+                        | some v5 =>
+                          let r12 ←
+                            valueconvertFromValueInst5.get_intermediate v5
+                          match r12 with
+                          | core.result.Result.Ok ir5 =>
+                            let (o6, r13) ←
+                              row.Row.take
+                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                Usize.Insts.Mysql_commonRowColumnIndex r11
+                                6#usize
+                            match o6 with
+                            | none => ok (core.result.Result.Err r13)
+                            | some v6 =>
+                              let r14 ←
+                                valueconvertFromValueInst6.get_intermediate v6
+                              match r14 with
+                              | core.result.Result.Ok ir6 =>
+                                let (o7, r15) ←
+                                  row.Row.take
+                                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                    Usize.Insts.Mysql_commonRowColumnIndex r13
+                                    7#usize
+                                match o7 with
+                                | none => ok (core.result.Result.Err r15)
+                                | some v7 =>
+                                  let r16 ←
+                                    valueconvertFromValueInst7.get_intermediate
+                                      v7
+                                  match r16 with
+                                  | core.result.Result.Ok ir7 =>
+                                    let (o8, r17) ←
+                                      row.Row.take
+                                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                        Usize.Insts.Mysql_commonRowColumnIndex
+                                        r15 8#usize
+                                    match o8 with
+                                    | none => ok (core.result.Result.Err r17)
+                                    | some v8 =>
+                                      let r18 ←
+                                        valueconvertFromValueInst8.get_intermediate
+                                          v8
+                                      match r18 with
+                                      | core.result.Result.Ok ir8 =>
+                                        let (o9, r19) ←
+                                          row.Row.take
+                                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                            Usize.Insts.Mysql_commonRowColumnIndex
+                                            r17 9#usize
+                                        match o9 with
+                                        | none =>
+                                          ok (core.result.Result.Err r19)
+                                        | some v9 =>
+                                          let r20 ←
+                                            valueconvertFromValueInst9.get_intermediate
+                                              v9
+                                          match r20 with
+                                          | core.result.Result.Ok ir9 =>
+                                            let (o10, r21) ←
+                                              row.Row.take
+                                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                                Usize.Insts.Mysql_commonRowColumnIndex
+                                                r19 10#usize
+                                            match o10 with
+                                            | none =>
+                                              ok (core.result.Result.Err r21)
+                                            | some v10 =>
+                                              let r22 ←
+                                                valueconvertFromValueInst10.get_intermediate
+                                                  v10
+                                              match r22 with
+                                              | core.result.Result.Ok ir10 =>
+                                                let t ←
+                                                  valueconvertFromValueInst.coreconvertIntoInst.into
+                                                    ir
+                                                let t1 ←
+                                                  valueconvertFromValueInst1.coreconvertIntoInst.into
+                                                    ir1
+                                                let t2 ←
+                                                  valueconvertFromValueInst2.coreconvertIntoInst.into
+                                                    ir2
+                                                let t3 ←
+                                                  valueconvertFromValueInst3.coreconvertIntoInst.into
+                                                    ir3
+                                                let t4 ←
+                                                  valueconvertFromValueInst4.coreconvertIntoInst.into
+                                                    ir4
+                                                let t5 ←
+                                                  valueconvertFromValueInst5.coreconvertIntoInst.into
+                                                    ir5
+                                                let t6 ←
+                                                  valueconvertFromValueInst6.coreconvertIntoInst.into
+                                                    ir6
+                                                let t7 ←
+                                                  valueconvertFromValueInst7.coreconvertIntoInst.into
+                                                    ir7
+                                                let t8 ←
+                                                  valueconvertFromValueInst8.coreconvertIntoInst.into
+                                                    ir8
+                                                let t9 ←
+                                                  valueconvertFromValueInst9.coreconvertIntoInst.into
+                                                    ir9
+                                                let t10 ←
+                                                  valueconvertFromValueInst10.coreconvertIntoInst.into
+                                                    ir10
+                                                ok (core.result.Result.Ok (t,
+                                                  t1, t2, t3, t4, t5, t6, t7,
+                                                  t8, t9, t10))
+                                              | core.result.Result.Err fve =>
+                                                let v11 ←
+                                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                                    ir
+                                                let r23 ←
+                                                  row.Row.place r21 0#usize v11
+                                                let v12 ←
+                                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                                    ir1
+                                                let r24 ←
+                                                  row.Row.place r23 1#usize v12
+                                                let v13 ←
+                                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                                    ir2
+                                                let r25 ←
+                                                  row.Row.place r24 2#usize v13
+                                                let v14 ←
+                                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                                    ir3
+                                                let r26 ←
+                                                  row.Row.place r25 3#usize v14
+                                                let v15 ←
+                                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                                    ir4
+                                                let r27 ←
+                                                  row.Row.place r26 4#usize v15
+                                                let v16 ←
+                                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                                    ir5
+                                                let r28 ←
+                                                  row.Row.place r27 5#usize v16
+                                                let v17 ←
+                                                  coreconvertIntoClause6_IntermediateValueInst.into
+                                                    ir6
+                                                let r29 ←
+                                                  row.Row.place r28 6#usize v17
+                                                let v18 ←
+                                                  coreconvertIntoClause7_IntermediateValueInst.into
+                                                    ir7
+                                                let r30 ←
+                                                  row.Row.place r29 7#usize v18
+                                                let v19 ←
+                                                  coreconvertIntoClause8_IntermediateValueInst.into
+                                                    ir8
+                                                let r31 ←
+                                                  row.Row.place r30 8#usize v19
+                                                let v20 ←
+                                                  coreconvertIntoClause9_IntermediateValueInst.into
+                                                    ir9
+                                                let r32 ←
+                                                  row.Row.place r31 9#usize v20
+                                                let r33 ←
+                                                  row.Row.place r32 10#usize
+                                                    fve
+                                                ok (core.result.Result.Err r33)
+                                          | core.result.Result.Err fve =>
+                                            let v10 ←
+                                              coreconvertIntoClause0_IntermediateValueInst.into
+                                                ir
+                                            let r21 ←
+                                              row.Row.place r19 0#usize v10
+                                            let v11 ←
+                                              coreconvertIntoClause1_IntermediateValueInst.into
+                                                ir1
+                                            let r22 ←
+                                              row.Row.place r21 1#usize v11
+                                            let v12 ←
+                                              coreconvertIntoClause2_IntermediateValueInst.into
+                                                ir2
+                                            let r23 ←
+                                              row.Row.place r22 2#usize v12
+                                            let v13 ←
+                                              coreconvertIntoClause3_IntermediateValueInst.into
+                                                ir3
+                                            let r24 ←
+                                              row.Row.place r23 3#usize v13
+                                            let v14 ←
+                                              coreconvertIntoClause4_IntermediateValueInst.into
+                                                ir4
+                                            let r25 ←
+                                              row.Row.place r24 4#usize v14
+                                            let v15 ←
+                                              coreconvertIntoClause5_IntermediateValueInst.into
+                                                ir5
+                                            let r26 ←
+                                              row.Row.place r25 5#usize v15
+                                            let v16 ←
+                                              coreconvertIntoClause6_IntermediateValueInst.into
+                                                ir6
+                                            let r27 ←
+                                              row.Row.place r26 6#usize v16
+                                            let v17 ←
+                                              coreconvertIntoClause7_IntermediateValueInst.into
+                                                ir7
+                                            let r28 ←
+                                              row.Row.place r27 7#usize v17
+                                            let v18 ←
+                                              coreconvertIntoClause8_IntermediateValueInst.into
+                                                ir8
+                                            let r29 ←
+                                              row.Row.place r28 8#usize v18
+                                            let r30 ←
+                                              row.Row.place r29 9#usize fve
+                                            ok (core.result.Result.Err r30)
+                                      | core.result.Result.Err fve =>
+                                        let v9 ←
+                                          coreconvertIntoClause0_IntermediateValueInst.into
+                                            ir
+                                        let r19 ←
+                                          row.Row.place r17 0#usize v9
+                                        let v10 ←
+                                          coreconvertIntoClause1_IntermediateValueInst.into
+                                            ir1
+                                        let r20 ←
+                                          row.Row.place r19 1#usize v10
+                                        let v11 ←
+                                          coreconvertIntoClause2_IntermediateValueInst.into
+                                            ir2
+                                        let r21 ←
+                                          row.Row.place r20 2#usize v11
+                                        let v12 ←
+                                          coreconvertIntoClause3_IntermediateValueInst.into
+                                            ir3
+                                        let r22 ←
+                                          row.Row.place r21 3#usize v12
+                                        let v13 ←
+                                          coreconvertIntoClause4_IntermediateValueInst.into
+                                            ir4
+                                        let r23 ←
+                                          row.Row.place r22 4#usize v13
+                                        let v14 ←
+                                          coreconvertIntoClause5_IntermediateValueInst.into
+                                            ir5
+                                        let r24 ←
+                                          row.Row.place r23 5#usize v14
+                                        let v15 ←
+                                          coreconvertIntoClause6_IntermediateValueInst.into
+                                            ir6
+                                        let r25 ←
+                                          row.Row.place r24 6#usize v15
+                                        let v16 ←
+                                          coreconvertIntoClause7_IntermediateValueInst.into
+                                            ir7
+                                        let r26 ←
+                                          row.Row.place r25 7#usize v16
+                                        let r27 ←
+                                          row.Row.place r26 8#usize fve
+                                        ok (core.result.Result.Err r27)
+                                  | core.result.Result.Err fve =>
+                                    let v8 ←
+                                      coreconvertIntoClause0_IntermediateValueInst.into
+                                        ir
+                                    let r17 ← row.Row.place r15 0#usize v8
+                                    let v9 ←
+                                      coreconvertIntoClause1_IntermediateValueInst.into
+                                        ir1
+                                    let r18 ← row.Row.place r17 1#usize v9
+                                    let v10 ←
+                                      coreconvertIntoClause2_IntermediateValueInst.into
+                                        ir2
+                                    let r19 ← row.Row.place r18 2#usize v10
+                                    let v11 ←
+                                      coreconvertIntoClause3_IntermediateValueInst.into
+                                        ir3
+                                    let r20 ← row.Row.place r19 3#usize v11
+                                    let v12 ←
+                                      coreconvertIntoClause4_IntermediateValueInst.into
+                                        ir4
+                                    let r21 ← row.Row.place r20 4#usize v12
+                                    let v13 ←
+                                      coreconvertIntoClause5_IntermediateValueInst.into
+                                        ir5
+                                    let r22 ← row.Row.place r21 5#usize v13
+                                    let v14 ←
+                                      coreconvertIntoClause6_IntermediateValueInst.into
+                                        ir6
+                                    let r23 ← row.Row.place r22 6#usize v14
+                                    let r24 ← row.Row.place r23 7#usize fve
+                                    ok (core.result.Result.Err r24)
+                              | core.result.Result.Err fve =>
+                                let v7 ←
+                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                    ir
+                                let r15 ← row.Row.place r13 0#usize v7
+                                let v8 ←
+                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                    ir1
+                                let r16 ← row.Row.place r15 1#usize v8
+                                let v9 ←
+                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                    ir2
+                                let r17 ← row.Row.place r16 2#usize v9
+                                let v10 ←
+                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                    ir3
+                                let r18 ← row.Row.place r17 3#usize v10
+                                let v11 ←
+                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                    ir4
+                                let r19 ← row.Row.place r18 4#usize v11
+                                let v12 ←
+                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                    ir5
+                                let r20 ← row.Row.place r19 5#usize v12
+                                let r21 ← row.Row.place r20 6#usize fve
+                                ok (core.result.Result.Err r21)
+                          | core.result.Result.Err fve =>
+                            let v6 ←
+                              coreconvertIntoClause0_IntermediateValueInst.into
+                                ir
+                            let r13 ← row.Row.place r11 0#usize v6
+                            let v7 ←
+                              coreconvertIntoClause1_IntermediateValueInst.into
+                                ir1
+                            let r14 ← row.Row.place r13 1#usize v7
+                            let v8 ←
+                              coreconvertIntoClause2_IntermediateValueInst.into
+                                ir2
+                            let r15 ← row.Row.place r14 2#usize v8
+                            let v9 ←
+                              coreconvertIntoClause3_IntermediateValueInst.into
+                                ir3
+                            let r16 ← row.Row.place r15 3#usize v9
+                            let v10 ←
+                              coreconvertIntoClause4_IntermediateValueInst.into
+                                ir4
+                            let r17 ← row.Row.place r16 4#usize v10
+                            let r18 ← row.Row.place r17 5#usize fve
+                            ok (core.result.Result.Err r18)
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)}]
+    Source: 'src/row/convert/mod.rs', lines 587:0-703:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow {T1
+  : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {T8 : Type _} {T9 : Type _} {T10 : Type _} {T11 :
+  Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate : Type _}
+  {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} {Clause7_Intermediate : Type _}
+  {Clause8_Intermediate : Type _} {Clause9_Intermediate : Type _}
+  {Clause10_Intermediate : Type _} (valueconvertFromValueInst :
+  value.convert.FromValue T1 Clause0_Intermediate) (valueconvertFromValueInst1
+  : value.convert.FromValue T2 Clause1_Intermediate)
+  (valueconvertFromValueInst2 : value.convert.FromValue T3
+  Clause2_Intermediate) (valueconvertFromValueInst3 : value.convert.FromValue
+  T4 Clause3_Intermediate) (valueconvertFromValueInst4 :
+  value.convert.FromValue T5 Clause4_Intermediate) (valueconvertFromValueInst5
+  : value.convert.FromValue T6 Clause5_Intermediate)
+  (valueconvertFromValueInst6 : value.convert.FromValue T7
+  Clause6_Intermediate) (valueconvertFromValueInst7 : value.convert.FromValue
+  T8 Clause7_Intermediate) (valueconvertFromValueInst8 :
+  value.convert.FromValue T9 Clause8_Intermediate) (valueconvertFromValueInst9
+  : value.convert.FromValue T10 Clause9_Intermediate)
+  (valueconvertFromValueInst10 : value.convert.FromValue T11
+  Clause10_Intermediate) (coreconvertIntoClause0_IntermediateValueInst :
+  core.convert.Into Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value)
+  (coreconvertIntoClause8_IntermediateValueInst : core.convert.Into
+  Clause8_Intermediate value.Value)
+  (coreconvertIntoClause9_IntermediateValueInst : core.convert.Into
+  Clause9_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 × T4
+  × T5 × T6 × T7 × T8 × T9 × T10 × T11) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 valueconvertFromValueInst9
+    valueconvertFromValueInst10 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst
+    coreconvertIntoClause8_IntermediateValueInst
+    coreconvertIntoClause9_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5T6T7T8T9T10T11.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 valueconvertFromValueInst9
+    valueconvertFromValueInst10 coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst
+    coreconvertIntoClause8_IntermediateValueInst
+    coreconvertIntoClause9_IntermediateValueInst
+}
+
+/-- [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)}::from_row_opt]:
+    Source: 'src/row/convert/mod.rs', lines 732:4-839:5
+    Visibility: public -/
+def
+  TupleT1T2T3T4T5T6T7T8T9T10T11T12.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {T8 : Type _} {T9 : Type _} {T10 : Type _} {T11 :
+  Type _} {T12 : Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate
+  : Type _} {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} {Clause7_Intermediate : Type _}
+  {Clause8_Intermediate : Type _} {Clause9_Intermediate : Type _}
+  {Clause10_Intermediate : Type _} {Clause11_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (valueconvertFromValueInst6 : value.convert.FromValue
+  T7 Clause6_Intermediate) (valueconvertFromValueInst7 :
+  value.convert.FromValue T8 Clause7_Intermediate) (valueconvertFromValueInst8
+  : value.convert.FromValue T9 Clause8_Intermediate)
+  (valueconvertFromValueInst9 : value.convert.FromValue T10
+  Clause9_Intermediate) (valueconvertFromValueInst10 : value.convert.FromValue
+  T11 Clause10_Intermediate) (valueconvertFromValueInst11 :
+  value.convert.FromValue T12 Clause11_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value)
+  (coreconvertIntoClause8_IntermediateValueInst : core.convert.Into
+  Clause8_Intermediate value.Value)
+  (coreconvertIntoClause9_IntermediateValueInst : core.convert.Into
+  Clause9_Intermediate value.Value)
+  (coreconvertIntoClause10_IntermediateValueInst : core.convert.Into
+  Clause10_Intermediate value.Value) (r : row.Row) :
+  Result (core.result.Result (T1 × T2 × T3 × T4 × T5 × T6 × T7 × T8 ×
+    T9 × T10 × T11 × T12) row.convert.FromRowError)
+  := do
+  let i ← row.Row.len r
+  if i != 12#usize
+  then ok (core.result.Result.Err r)
+  else
+    let (o, r1) ←
+      row.Row.take value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+        Usize.Insts.Mysql_commonRowColumnIndex r 0#usize
+    match o with
+    | none => ok (core.result.Result.Err r1)
+    | some v =>
+      let r2 ← valueconvertFromValueInst.get_intermediate v
+      match r2 with
+      | core.result.Result.Ok ir =>
+        let (o1, r3) ←
+          row.Row.take
+            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+            Usize.Insts.Mysql_commonRowColumnIndex r1 1#usize
+        match o1 with
+        | none => ok (core.result.Result.Err r3)
+        | some v1 =>
+          let r4 ← valueconvertFromValueInst1.get_intermediate v1
+          match r4 with
+          | core.result.Result.Ok ir1 =>
+            let (o2, r5) ←
+              row.Row.take
+                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                Usize.Insts.Mysql_commonRowColumnIndex r3 2#usize
+            match o2 with
+            | none => ok (core.result.Result.Err r5)
+            | some v2 =>
+              let r6 ← valueconvertFromValueInst2.get_intermediate v2
+              match r6 with
+              | core.result.Result.Ok ir2 =>
+                let (o3, r7) ←
+                  row.Row.take
+                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                    Usize.Insts.Mysql_commonRowColumnIndex r5 3#usize
+                match o3 with
+                | none => ok (core.result.Result.Err r7)
+                | some v3 =>
+                  let r8 ← valueconvertFromValueInst3.get_intermediate v3
+                  match r8 with
+                  | core.result.Result.Ok ir3 =>
+                    let (o4, r9) ←
+                      row.Row.take
+                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                        Usize.Insts.Mysql_commonRowColumnIndex r7 4#usize
+                    match o4 with
+                    | none => ok (core.result.Result.Err r9)
+                    | some v4 =>
+                      let r10 ←
+                        valueconvertFromValueInst4.get_intermediate v4
+                      match r10 with
+                      | core.result.Result.Ok ir4 =>
+                        let (o5, r11) ←
+                          row.Row.take
+                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                            Usize.Insts.Mysql_commonRowColumnIndex r9 5#usize
+                        match o5 with
+                        | none => ok (core.result.Result.Err r11)
+                        | some v5 =>
+                          let r12 ←
+                            valueconvertFromValueInst5.get_intermediate v5
+                          match r12 with
+                          | core.result.Result.Ok ir5 =>
+                            let (o6, r13) ←
+                              row.Row.take
+                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                Usize.Insts.Mysql_commonRowColumnIndex r11
+                                6#usize
+                            match o6 with
+                            | none => ok (core.result.Result.Err r13)
+                            | some v6 =>
+                              let r14 ←
+                                valueconvertFromValueInst6.get_intermediate v6
+                              match r14 with
+                              | core.result.Result.Ok ir6 =>
+                                let (o7, r15) ←
+                                  row.Row.take
+                                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                    Usize.Insts.Mysql_commonRowColumnIndex r13
+                                    7#usize
+                                match o7 with
+                                | none => ok (core.result.Result.Err r15)
+                                | some v7 =>
+                                  let r16 ←
+                                    valueconvertFromValueInst7.get_intermediate
+                                      v7
+                                  match r16 with
+                                  | core.result.Result.Ok ir7 =>
+                                    let (o8, r17) ←
+                                      row.Row.take
+                                        value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                        Usize.Insts.Mysql_commonRowColumnIndex
+                                        r15 8#usize
+                                    match o8 with
+                                    | none => ok (core.result.Result.Err r17)
+                                    | some v8 =>
+                                      let r18 ←
+                                        valueconvertFromValueInst8.get_intermediate
+                                          v8
+                                      match r18 with
+                                      | core.result.Result.Ok ir8 =>
+                                        let (o9, r19) ←
+                                          row.Row.take
+                                            value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                            Usize.Insts.Mysql_commonRowColumnIndex
+                                            r17 9#usize
+                                        match o9 with
+                                        | none =>
+                                          ok (core.result.Result.Err r19)
+                                        | some v9 =>
+                                          let r20 ←
+                                            valueconvertFromValueInst9.get_intermediate
+                                              v9
+                                          match r20 with
+                                          | core.result.Result.Ok ir9 =>
+                                            let (o10, r21) ←
+                                              row.Row.take
+                                                value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                                Usize.Insts.Mysql_commonRowColumnIndex
+                                                r19 10#usize
+                                            match o10 with
+                                            | none =>
+                                              ok (core.result.Result.Err r21)
+                                            | some v10 =>
+                                              let r22 ←
+                                                valueconvertFromValueInst10.get_intermediate
+                                                  v10
+                                              match r22 with
+                                              | core.result.Result.Ok ir10 =>
+                                                let (o11, r23) ←
+                                                  row.Row.take
+                                                    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
+                                                    Usize.Insts.Mysql_commonRowColumnIndex
+                                                    r21 11#usize
+                                                match o11 with
+                                                | none =>
+                                                  ok (core.result.Result.Err
+                                                    r23)
+                                                | some v11 =>
+                                                  let r24 ←
+                                                    valueconvertFromValueInst11.get_intermediate
+                                                      v11
+                                                  match r24 with
+                                                  | core.result.Result.Ok ir11
+                                                    =>
+                                                    let t ←
+                                                      valueconvertFromValueInst.coreconvertIntoInst.into
+                                                        ir
+                                                    let t1 ←
+                                                      valueconvertFromValueInst1.coreconvertIntoInst.into
+                                                        ir1
+                                                    let t2 ←
+                                                      valueconvertFromValueInst2.coreconvertIntoInst.into
+                                                        ir2
+                                                    let t3 ←
+                                                      valueconvertFromValueInst3.coreconvertIntoInst.into
+                                                        ir3
+                                                    let t4 ←
+                                                      valueconvertFromValueInst4.coreconvertIntoInst.into
+                                                        ir4
+                                                    let t5 ←
+                                                      valueconvertFromValueInst5.coreconvertIntoInst.into
+                                                        ir5
+                                                    let t6 ←
+                                                      valueconvertFromValueInst6.coreconvertIntoInst.into
+                                                        ir6
+                                                    let t7 ←
+                                                      valueconvertFromValueInst7.coreconvertIntoInst.into
+                                                        ir7
+                                                    let t8 ←
+                                                      valueconvertFromValueInst8.coreconvertIntoInst.into
+                                                        ir8
+                                                    let t9 ←
+                                                      valueconvertFromValueInst9.coreconvertIntoInst.into
+                                                        ir9
+                                                    let t10 ←
+                                                      valueconvertFromValueInst10.coreconvertIntoInst.into
+                                                        ir10
+                                                    let t11 ←
+                                                      valueconvertFromValueInst11.coreconvertIntoInst.into
+                                                        ir11
+                                                    ok (core.result.Result.Ok
+                                                      (t, t1, t2, t3, t4, t5,
+                                                      t6, t7, t8, t9, t10,
+                                                      t11))
+                                                  | core.result.Result.Err fve
+                                                    =>
+                                                    let v12 ←
+                                                      coreconvertIntoClause0_IntermediateValueInst.into
+                                                        ir
+                                                    let r25 ←
+                                                      row.Row.place r23 0#usize
+                                                        v12
+                                                    let v13 ←
+                                                      coreconvertIntoClause1_IntermediateValueInst.into
+                                                        ir1
+                                                    let r26 ←
+                                                      row.Row.place r25 1#usize
+                                                        v13
+                                                    let v14 ←
+                                                      coreconvertIntoClause2_IntermediateValueInst.into
+                                                        ir2
+                                                    let r27 ←
+                                                      row.Row.place r26 2#usize
+                                                        v14
+                                                    let v15 ←
+                                                      coreconvertIntoClause3_IntermediateValueInst.into
+                                                        ir3
+                                                    let r28 ←
+                                                      row.Row.place r27 3#usize
+                                                        v15
+                                                    let v16 ←
+                                                      coreconvertIntoClause4_IntermediateValueInst.into
+                                                        ir4
+                                                    let r29 ←
+                                                      row.Row.place r28 4#usize
+                                                        v16
+                                                    let v17 ←
+                                                      coreconvertIntoClause5_IntermediateValueInst.into
+                                                        ir5
+                                                    let r30 ←
+                                                      row.Row.place r29 5#usize
+                                                        v17
+                                                    let v18 ←
+                                                      coreconvertIntoClause6_IntermediateValueInst.into
+                                                        ir6
+                                                    let r31 ←
+                                                      row.Row.place r30 6#usize
+                                                        v18
+                                                    let v19 ←
+                                                      coreconvertIntoClause7_IntermediateValueInst.into
+                                                        ir7
+                                                    let r32 ←
+                                                      row.Row.place r31 7#usize
+                                                        v19
+                                                    let v20 ←
+                                                      coreconvertIntoClause8_IntermediateValueInst.into
+                                                        ir8
+                                                    let r33 ←
+                                                      row.Row.place r32 8#usize
+                                                        v20
+                                                    let v21 ←
+                                                      coreconvertIntoClause9_IntermediateValueInst.into
+                                                        ir9
+                                                    let r34 ←
+                                                      row.Row.place r33 9#usize
+                                                        v21
+                                                    let v22 ←
+                                                      coreconvertIntoClause10_IntermediateValueInst.into
+                                                        ir10
+                                                    let r35 ←
+                                                      row.Row.place r34
+                                                        10#usize v22
+                                                    let r36 ←
+                                                      row.Row.place r35
+                                                        11#usize fve
+                                                    ok (core.result.Result.Err
+                                                      r36)
+                                              | core.result.Result.Err fve =>
+                                                let v11 ←
+                                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                                    ir
+                                                let r23 ←
+                                                  row.Row.place r21 0#usize v11
+                                                let v12 ←
+                                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                                    ir1
+                                                let r24 ←
+                                                  row.Row.place r23 1#usize v12
+                                                let v13 ←
+                                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                                    ir2
+                                                let r25 ←
+                                                  row.Row.place r24 2#usize v13
+                                                let v14 ←
+                                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                                    ir3
+                                                let r26 ←
+                                                  row.Row.place r25 3#usize v14
+                                                let v15 ←
+                                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                                    ir4
+                                                let r27 ←
+                                                  row.Row.place r26 4#usize v15
+                                                let v16 ←
+                                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                                    ir5
+                                                let r28 ←
+                                                  row.Row.place r27 5#usize v16
+                                                let v17 ←
+                                                  coreconvertIntoClause6_IntermediateValueInst.into
+                                                    ir6
+                                                let r29 ←
+                                                  row.Row.place r28 6#usize v17
+                                                let v18 ←
+                                                  coreconvertIntoClause7_IntermediateValueInst.into
+                                                    ir7
+                                                let r30 ←
+                                                  row.Row.place r29 7#usize v18
+                                                let v19 ←
+                                                  coreconvertIntoClause8_IntermediateValueInst.into
+                                                    ir8
+                                                let r31 ←
+                                                  row.Row.place r30 8#usize v19
+                                                let v20 ←
+                                                  coreconvertIntoClause9_IntermediateValueInst.into
+                                                    ir9
+                                                let r32 ←
+                                                  row.Row.place r31 9#usize v20
+                                                let r33 ←
+                                                  row.Row.place r32 10#usize
+                                                    fve
+                                                ok (core.result.Result.Err r33)
+                                          | core.result.Result.Err fve =>
+                                            let v10 ←
+                                              coreconvertIntoClause0_IntermediateValueInst.into
+                                                ir
+                                            let r21 ←
+                                              row.Row.place r19 0#usize v10
+                                            let v11 ←
+                                              coreconvertIntoClause1_IntermediateValueInst.into
+                                                ir1
+                                            let r22 ←
+                                              row.Row.place r21 1#usize v11
+                                            let v12 ←
+                                              coreconvertIntoClause2_IntermediateValueInst.into
+                                                ir2
+                                            let r23 ←
+                                              row.Row.place r22 2#usize v12
+                                            let v13 ←
+                                              coreconvertIntoClause3_IntermediateValueInst.into
+                                                ir3
+                                            let r24 ←
+                                              row.Row.place r23 3#usize v13
+                                            let v14 ←
+                                              coreconvertIntoClause4_IntermediateValueInst.into
+                                                ir4
+                                            let r25 ←
+                                              row.Row.place r24 4#usize v14
+                                            let v15 ←
+                                              coreconvertIntoClause5_IntermediateValueInst.into
+                                                ir5
+                                            let r26 ←
+                                              row.Row.place r25 5#usize v15
+                                            let v16 ←
+                                              coreconvertIntoClause6_IntermediateValueInst.into
+                                                ir6
+                                            let r27 ←
+                                              row.Row.place r26 6#usize v16
+                                            let v17 ←
+                                              coreconvertIntoClause7_IntermediateValueInst.into
+                                                ir7
+                                            let r28 ←
+                                              row.Row.place r27 7#usize v17
+                                            let v18 ←
+                                              coreconvertIntoClause8_IntermediateValueInst.into
+                                                ir8
+                                            let r29 ←
+                                              row.Row.place r28 8#usize v18
+                                            let r30 ←
+                                              row.Row.place r29 9#usize fve
+                                            ok (core.result.Result.Err r30)
+                                      | core.result.Result.Err fve =>
+                                        let v9 ←
+                                          coreconvertIntoClause0_IntermediateValueInst.into
+                                            ir
+                                        let r19 ←
+                                          row.Row.place r17 0#usize v9
+                                        let v10 ←
+                                          coreconvertIntoClause1_IntermediateValueInst.into
+                                            ir1
+                                        let r20 ←
+                                          row.Row.place r19 1#usize v10
+                                        let v11 ←
+                                          coreconvertIntoClause2_IntermediateValueInst.into
+                                            ir2
+                                        let r21 ←
+                                          row.Row.place r20 2#usize v11
+                                        let v12 ←
+                                          coreconvertIntoClause3_IntermediateValueInst.into
+                                            ir3
+                                        let r22 ←
+                                          row.Row.place r21 3#usize v12
+                                        let v13 ←
+                                          coreconvertIntoClause4_IntermediateValueInst.into
+                                            ir4
+                                        let r23 ←
+                                          row.Row.place r22 4#usize v13
+                                        let v14 ←
+                                          coreconvertIntoClause5_IntermediateValueInst.into
+                                            ir5
+                                        let r24 ←
+                                          row.Row.place r23 5#usize v14
+                                        let v15 ←
+                                          coreconvertIntoClause6_IntermediateValueInst.into
+                                            ir6
+                                        let r25 ←
+                                          row.Row.place r24 6#usize v15
+                                        let v16 ←
+                                          coreconvertIntoClause7_IntermediateValueInst.into
+                                            ir7
+                                        let r26 ←
+                                          row.Row.place r25 7#usize v16
+                                        let r27 ←
+                                          row.Row.place r26 8#usize fve
+                                        ok (core.result.Result.Err r27)
+                                  | core.result.Result.Err fve =>
+                                    let v8 ←
+                                      coreconvertIntoClause0_IntermediateValueInst.into
+                                        ir
+                                    let r17 ← row.Row.place r15 0#usize v8
+                                    let v9 ←
+                                      coreconvertIntoClause1_IntermediateValueInst.into
+                                        ir1
+                                    let r18 ← row.Row.place r17 1#usize v9
+                                    let v10 ←
+                                      coreconvertIntoClause2_IntermediateValueInst.into
+                                        ir2
+                                    let r19 ← row.Row.place r18 2#usize v10
+                                    let v11 ←
+                                      coreconvertIntoClause3_IntermediateValueInst.into
+                                        ir3
+                                    let r20 ← row.Row.place r19 3#usize v11
+                                    let v12 ←
+                                      coreconvertIntoClause4_IntermediateValueInst.into
+                                        ir4
+                                    let r21 ← row.Row.place r20 4#usize v12
+                                    let v13 ←
+                                      coreconvertIntoClause5_IntermediateValueInst.into
+                                        ir5
+                                    let r22 ← row.Row.place r21 5#usize v13
+                                    let v14 ←
+                                      coreconvertIntoClause6_IntermediateValueInst.into
+                                        ir6
+                                    let r23 ← row.Row.place r22 6#usize v14
+                                    let r24 ← row.Row.place r23 7#usize fve
+                                    ok (core.result.Result.Err r24)
+                              | core.result.Result.Err fve =>
+                                let v7 ←
+                                  coreconvertIntoClause0_IntermediateValueInst.into
+                                    ir
+                                let r15 ← row.Row.place r13 0#usize v7
+                                let v8 ←
+                                  coreconvertIntoClause1_IntermediateValueInst.into
+                                    ir1
+                                let r16 ← row.Row.place r15 1#usize v8
+                                let v9 ←
+                                  coreconvertIntoClause2_IntermediateValueInst.into
+                                    ir2
+                                let r17 ← row.Row.place r16 2#usize v9
+                                let v10 ←
+                                  coreconvertIntoClause3_IntermediateValueInst.into
+                                    ir3
+                                let r18 ← row.Row.place r17 3#usize v10
+                                let v11 ←
+                                  coreconvertIntoClause4_IntermediateValueInst.into
+                                    ir4
+                                let r19 ← row.Row.place r18 4#usize v11
+                                let v12 ←
+                                  coreconvertIntoClause5_IntermediateValueInst.into
+                                    ir5
+                                let r20 ← row.Row.place r19 5#usize v12
+                                let r21 ← row.Row.place r20 6#usize fve
+                                ok (core.result.Result.Err r21)
+                          | core.result.Result.Err fve =>
+                            let v6 ←
+                              coreconvertIntoClause0_IntermediateValueInst.into
+                                ir
+                            let r13 ← row.Row.place r11 0#usize v6
+                            let v7 ←
+                              coreconvertIntoClause1_IntermediateValueInst.into
+                                ir1
+                            let r14 ← row.Row.place r13 1#usize v7
+                            let v8 ←
+                              coreconvertIntoClause2_IntermediateValueInst.into
+                                ir2
+                            let r15 ← row.Row.place r14 2#usize v8
+                            let v9 ←
+                              coreconvertIntoClause3_IntermediateValueInst.into
+                                ir3
+                            let r16 ← row.Row.place r15 3#usize v9
+                            let v10 ←
+                              coreconvertIntoClause4_IntermediateValueInst.into
+                                ir4
+                            let r17 ← row.Row.place r16 4#usize v10
+                            let r18 ← row.Row.place r17 5#usize fve
+                            ok (core.result.Result.Err r18)
+                      | core.result.Result.Err fve =>
+                        let v5 ←
+                          coreconvertIntoClause0_IntermediateValueInst.into ir
+                        let r11 ← row.Row.place r9 0#usize v5
+                        let v6 ←
+                          coreconvertIntoClause1_IntermediateValueInst.into ir1
+                        let r12 ← row.Row.place r11 1#usize v6
+                        let v7 ←
+                          coreconvertIntoClause2_IntermediateValueInst.into ir2
+                        let r13 ← row.Row.place r12 2#usize v7
+                        let v8 ←
+                          coreconvertIntoClause3_IntermediateValueInst.into ir3
+                        let r14 ← row.Row.place r13 3#usize v8
+                        let r15 ← row.Row.place r14 4#usize fve
+                        ok (core.result.Result.Err r15)
+                  | core.result.Result.Err fve =>
+                    let v4 ←
+                      coreconvertIntoClause0_IntermediateValueInst.into ir
+                    let r9 ← row.Row.place r7 0#usize v4
+                    let v5 ←
+                      coreconvertIntoClause1_IntermediateValueInst.into ir1
+                    let r10 ← row.Row.place r9 1#usize v5
+                    let v6 ←
+                      coreconvertIntoClause2_IntermediateValueInst.into ir2
+                    let r11 ← row.Row.place r10 2#usize v6
+                    let r12 ← row.Row.place r11 3#usize fve
+                    ok (core.result.Result.Err r12)
+              | core.result.Result.Err fve =>
+                let v3 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+                let r7 ← row.Row.place r5 0#usize v3
+                let v4 ←
+                  coreconvertIntoClause1_IntermediateValueInst.into ir1
+                let r8 ← row.Row.place r7 1#usize v4
+                let r9 ← row.Row.place r8 2#usize fve
+                ok (core.result.Result.Err r9)
+          | core.result.Result.Err fve =>
+            let v2 ← coreconvertIntoClause0_IntermediateValueInst.into ir
+            let r5 ← row.Row.place r3 0#usize v2
+            let r6 ← row.Row.place r5 1#usize fve
+            ok (core.result.Result.Err r6)
+      | core.result.Result.Err fve =>
+        let r3 ← row.Row.place r1 0#usize fve
+        ok (core.result.Result.Err r3)
+
+/-- Trait implementation: [mysql_common::row::convert::{impl mysql_common::row::convert::FromRow for (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)}]
+    Source: 'src/row/convert/mod.rs', lines 705:0-840:1 -/
+@[reducible]
+impl_def TupleT1T2T3T4T5T6T7T8T9T10T11T12.Insts.Mysql_commonRowConvertFromRow
+  {T1 : Type _} {T2 : Type _} {T3 : Type _} {T4 : Type _} {T5 : Type _} {T6 :
+  Type _} {T7 : Type _} {T8 : Type _} {T9 : Type _} {T10 : Type _} {T11 :
+  Type _} {T12 : Type _} {Clause0_Intermediate : Type _} {Clause1_Intermediate
+  : Type _} {Clause2_Intermediate : Type _} {Clause3_Intermediate : Type _}
+  {Clause4_Intermediate : Type _} {Clause5_Intermediate : Type _}
+  {Clause6_Intermediate : Type _} {Clause7_Intermediate : Type _}
+  {Clause8_Intermediate : Type _} {Clause9_Intermediate : Type _}
+  {Clause10_Intermediate : Type _} {Clause11_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T1 Clause0_Intermediate)
+  (valueconvertFromValueInst1 : value.convert.FromValue T2
+  Clause1_Intermediate) (valueconvertFromValueInst2 : value.convert.FromValue
+  T3 Clause2_Intermediate) (valueconvertFromValueInst3 :
+  value.convert.FromValue T4 Clause3_Intermediate) (valueconvertFromValueInst4
+  : value.convert.FromValue T5 Clause4_Intermediate)
+  (valueconvertFromValueInst5 : value.convert.FromValue T6
+  Clause5_Intermediate) (valueconvertFromValueInst6 : value.convert.FromValue
+  T7 Clause6_Intermediate) (valueconvertFromValueInst7 :
+  value.convert.FromValue T8 Clause7_Intermediate) (valueconvertFromValueInst8
+  : value.convert.FromValue T9 Clause8_Intermediate)
+  (valueconvertFromValueInst9 : value.convert.FromValue T10
+  Clause9_Intermediate) (valueconvertFromValueInst10 : value.convert.FromValue
+  T11 Clause10_Intermediate) (valueconvertFromValueInst11 :
+  value.convert.FromValue T12 Clause11_Intermediate)
+  (coreconvertIntoClause0_IntermediateValueInst : core.convert.Into
+  Clause0_Intermediate value.Value)
+  (coreconvertIntoClause1_IntermediateValueInst : core.convert.Into
+  Clause1_Intermediate value.Value)
+  (coreconvertIntoClause2_IntermediateValueInst : core.convert.Into
+  Clause2_Intermediate value.Value)
+  (coreconvertIntoClause3_IntermediateValueInst : core.convert.Into
+  Clause3_Intermediate value.Value)
+  (coreconvertIntoClause4_IntermediateValueInst : core.convert.Into
+  Clause4_Intermediate value.Value)
+  (coreconvertIntoClause5_IntermediateValueInst : core.convert.Into
+  Clause5_Intermediate value.Value)
+  (coreconvertIntoClause6_IntermediateValueInst : core.convert.Into
+  Clause6_Intermediate value.Value)
+  (coreconvertIntoClause7_IntermediateValueInst : core.convert.Into
+  Clause7_Intermediate value.Value)
+  (coreconvertIntoClause8_IntermediateValueInst : core.convert.Into
+  Clause8_Intermediate value.Value)
+  (coreconvertIntoClause9_IntermediateValueInst : core.convert.Into
+  Clause9_Intermediate value.Value)
+  (coreconvertIntoClause10_IntermediateValueInst : core.convert.Into
+  Clause10_Intermediate value.Value) : row.convert.FromRow (T1 × T2 × T3 ×
+  T4 × T5 × T6 × T7 × T8 × T9 × T10 × T11 × T12) := {
+  from_row := row.convert.FromRow.from_row.default
+    (TupleT1T2T3T4T5T6T7T8T9T10T11T12.Insts.Mysql_commonRowConvertFromRow
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 valueconvertFromValueInst9
+    valueconvertFromValueInst10 valueconvertFromValueInst11
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst
+    coreconvertIntoClause8_IntermediateValueInst
+    coreconvertIntoClause9_IntermediateValueInst
+    coreconvertIntoClause10_IntermediateValueInst)
+  from_row_opt :=
+    TupleT1T2T3T4T5T6T7T8T9T10T11T12.Insts.Mysql_commonRowConvertFromRow.from_row_opt
+    valueconvertFromValueInst valueconvertFromValueInst1
+    valueconvertFromValueInst2 valueconvertFromValueInst3
+    valueconvertFromValueInst4 valueconvertFromValueInst5
+    valueconvertFromValueInst6 valueconvertFromValueInst7
+    valueconvertFromValueInst8 valueconvertFromValueInst9
+    valueconvertFromValueInst10 valueconvertFromValueInst11
+    coreconvertIntoClause0_IntermediateValueInst
+    coreconvertIntoClause1_IntermediateValueInst
+    coreconvertIntoClause2_IntermediateValueInst
+    coreconvertIntoClause3_IntermediateValueInst
+    coreconvertIntoClause4_IntermediateValueInst
+    coreconvertIntoClause5_IntermediateValueInst
+    coreconvertIntoClause6_IntermediateValueInst
+    coreconvertIntoClause7_IntermediateValueInst
+    coreconvertIntoClause8_IntermediateValueInst
+    coreconvertIntoClause9_IntermediateValueInst
+    coreconvertIntoClause10_IntermediateValueInst
+}
+
+/-- [mysql_common::row::values_to_cells]: loop body 0:
+    Source: 'src/row/mod.rs', lines 64:4-67:5 -/
+@[rust_loop_body]
+def row.values_to_cells_loop.body
+  (values : alloc.vec.Vec value.Value)
+  (cells : alloc.vec.Vec (Option value.Value)) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec value.Value) × (alloc.vec.Vec (Option
+    value.Value)) × Std.Usize) (alloc.vec.Vec (Option value.Value)))
+  := do
+  let i1 := alloc.vec.Vec.len values
+  if i < i1
+  then
+    let (v, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        value.Value) values i
+    let (v1, v2) := core.mem.replace v value.Value.NULL
+    let cells1 ← alloc.vec.Vec.push cells (some v1)
+    let i2 ← i + 1#usize
+    let values1 := index_mut_back v2
+    ok (cont (values1, cells1, i2))
+  else ok (done cells)
+
+/-- [mysql_common::row::values_to_cells]: loop 0:
+    Source: 'src/row/mod.rs', lines 64:4-67:5 -/
+@[rust_loop]
+def row.values_to_cells_loop
+  (values : alloc.vec.Vec value.Value)
+  (cells : alloc.vec.Vec (Option value.Value)) (i : Std.Usize) :
+  Result (alloc.vec.Vec (Option value.Value))
+  := do
+  loop
+    (fun (values1, cells1, i1) => row.values_to_cells_loop.body values1 cells1
+      i1)
+    (values, cells, i)
+
+/-- [mysql_common::row::values_to_cells]:
+    Source: 'src/row/mod.rs', lines 61:0-69:1 -/
+def row.values_to_cells
+  (values : alloc.vec.Vec value.Value) :
+  Result (alloc.vec.Vec (Option value.Value))
+  := do
+  let i := alloc.vec.Vec.len values
+  let cells := alloc.vec.Vec.with_capacity (Option value.Value) i
+  row.values_to_cells_loop values cells 0#usize
+
+/-- [mysql_common::row::new_row]:
+    Source: 'src/row/mod.rs', lines 52:0-58:1
+    Visibility: public -/
+def row.new_row
+  (values : alloc.vec.Vec value.Value)
+  (columns : alloc.sync.Arc (Slice packets.Column)) :
+  Result row.Row
+  := do
+  let i := alloc.vec.Vec.len values
+  let s ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global columns
+  let i1 := Slice.len s
+  massert (i = i1)
+  let v ← row.values_to_cells values
+  ok { values := v, columns }
+
 /-- [mysql_common::row::new_row_raw]:
-    Source: 'src/row/mod.rs', lines 62:0-65:1
+    Source: 'src/row/mod.rs', lines 73:0-76:1
     Visibility: public -/
 def row.new_row_raw
   (values : alloc.vec.Vec (Option value.Value))
@@ -13853,41 +20428,279 @@ def row.new_row_raw
   massert (i = i1)
   ok { values, columns }
 
-/-- [mysql_common::row::{mysql_common::row::Row}::len]:
-    Source: 'src/row/mod.rs', lines 69:4-71:5
-    Visibility: public -/
-def row.Row.len (self : row.Row) : Result Std.Usize := do
-  ok (alloc.vec.Vec.len self.values)
-
-/-- [mysql_common::row::{mysql_common::row::Row}::is_empty]:
-    Source: 'src/row/mod.rs', lines 74:4-76:5
-    Visibility: public -/
-def row.Row.is_empty (self : row.Row) : Result Bool := do
-  alloc.vec.Vec.is_empty self.values
-
 /-- [mysql_common::row::{mysql_common::row::Row}::columns_ref]:
-    Source: 'src/row/mod.rs', lines 79:4-81:5
+    Source: 'src/row/mod.rs', lines 90:4-92:5
     Visibility: public -/
 def row.Row.columns_ref (self : row.Row) : Result (Slice packets.Column) := do
   alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global self.columns
 
 /-- [mysql_common::row::{mysql_common::row::Row}::columns]:
-    Source: 'src/row/mod.rs', lines 84:4-86:5
+    Source: 'src/row/mod.rs', lines 95:4-97:5
     Visibility: public -/
 def row.Row.impl.columns
   (self : row.Row) : Result (alloc.sync.Arc (Slice packets.Column)) := do
   alloc.sync.Arc.Insts.CoreCloneClone.clone
     alloc.alloc.Global.Insts.CoreAllocAllocatorClone self.columns
 
+/-- [mysql_common::row::{mysql_common::row::Row}::as_ref]:
+    Source: 'src/row/mod.rs', lines 103:4-108:5
+    Visibility: public -/
+def row.Row.as_ref
+  (self : row.Row) (index : Std.Usize) : Result (Option value.Value) := do
+  let s := alloc.vec.Vec.deref self.values
+  let o ←
+    core.slice.Slice.get (core.slice.index.SliceIndexUsizeSlice (Option
+      value.Value)) s index
+  match o with
+  | none => ok none
+  | some x => core.option.Option.as_ref x
+
+/-- [mysql_common::row::{mysql_common::row::Row}::get]:
+    Source: 'src/row/mod.rs', lines 112:4-125:5
+    Visibility: public -/
+def row.Row.get
+  {T : Type _} {I : Type _} {Clause0_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T Clause0_Intermediate)
+  (ColumnIndexInst : row.ColumnIndex I) (self : row.Row) (index : I) :
+  Result (Option T)
+  := do
+  let s ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global
+      self.columns
+  let o ← ColumnIndexInst.idx index s
+  match o with
+  | none => ok none
+  | some idx =>
+    let s1 := alloc.vec.Vec.deref self.values
+    let o1 ←
+      core.slice.Slice.get (core.slice.index.SliceIndexUsizeSlice (Option
+        value.Value)) s1 idx
+    match o1 with
+    | none => ok none
+    | some o2 =>
+      match o2 with
+      | none => ok none
+      | some x =>
+        let v ← value.Value.Insts.CoreCloneClone.clone x
+        let t ← value.convert.from_value valueconvertFromValueInst v
+        ok (some t)
+
+/-- [mysql_common::value::convert::from_value_opt]:
+    Source: 'src/value/convert/mod.rs', lines 588:0-590:1
+    Visibility: public -/
+def value.convert.from_value_opt
+  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
+  value.convert.FromValue T Clause0_Intermediate) (v : value.Value) :
+  Result (core.result.Result T value.convert.FromValueError)
+  := do
+  FromValueInst.from_value_opt v
+
+/-- [mysql_common::row::{mysql_common::row::Row}::get_opt]:
+    Source: 'src/row/mod.rs', lines 130:4-143:5
+    Visibility: public -/
+def row.Row.get_opt
+  {T : Type _} {I : Type _} {Clause0_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T Clause0_Intermediate)
+  (ColumnIndexInst : row.ColumnIndex I) (self : row.Row) (index : I) :
+  Result (Option (core.result.Result T value.convert.FromValueError))
+  := do
+  let s ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global
+      self.columns
+  let o ← ColumnIndexInst.idx index s
+  match o with
+  | none => ok none
+  | some idx =>
+    let s1 := alloc.vec.Vec.deref self.values
+    let o1 ←
+      core.slice.Slice.get (core.slice.index.SliceIndexUsizeSlice (Option
+        value.Value)) s1 idx
+    match o1 with
+    | none => ok none
+    | some o2 =>
+      match o2 with
+      | none => ok none
+      | some x =>
+        let v ← value.Value.Insts.CoreCloneClone.clone x
+        let r ← value.convert.from_value_opt valueconvertFromValueInst v
+        ok (some r)
+
+/-- [mysql_common::row::{mysql_common::row::Row}::take_opt]:
+    Source: 'src/row/mod.rs', lines 167:4-182:5
+    Visibility: public -/
+def row.Row.take_opt
+  {T : Type _} {I : Type _} {Clause0_Intermediate : Type _}
+  (valueconvertFromValueInst : value.convert.FromValue T Clause0_Intermediate)
+  (ColumnIndexInst : row.ColumnIndex I) (self : row.Row) (index : I) :
+  Result ((Option (core.result.Result T value.convert.FromValueError)) ×
+    row.Row)
+  := do
+  let s ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global
+      self.columns
+  let o ← ColumnIndexInst.idx index s
+  match o with
+  | none => ok (none, self)
+  | some idx =>
+    let (s1, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut self.values)
+    let (o1, get_mut_back) ←
+      core.slice.Slice.get_mut (core.slice.index.SliceIndexUsizeSlice (Option
+        value.Value)) s1 idx
+    match o1 with
+    | none =>
+      let s2 := get_mut_back none
+      let v := deref_mut_back s2
+      ok (none, { self with values := v })
+    | some x =>
+      let (o2, x1) := core.option.Option.take x
+      match o2 with
+      | none =>
+        let s2 := get_mut_back (some x1)
+        let v := deref_mut_back s2
+        ok (none, { self with values := v })
+      | some v =>
+        let r ← value.convert.from_value_opt valueconvertFromValueInst v
+        let s2 := get_mut_back (some x1)
+        let v1 := deref_mut_back s2
+        ok (some r, { self with values := v1 })
+
+/-- [mysql_common::row::{mysql_common::row::Row}::unwrap]: loop body 0:
+    Source: 'src/row/mod.rs', lines 193:8-200:9
+    Visibility: public -/
+@[rust_loop_body]
+def row.Row.unwrap_loop.body
+  (values : alloc.vec.Vec (Option value.Value))
+  (out : alloc.vec.Vec value.Value) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Option value.Value)) × (alloc.vec.Vec
+    value.Value) × Std.Usize) (alloc.vec.Vec value.Value))
+  := do
+  let i1 := alloc.vec.Vec.len values
+  if i < i1
+  then
+    let (o, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Option
+        value.Value)) values i
+    let (o1, o2) := core.option.Option.take o
+    let v ←
+      core.option.Option.expect o1 (toStr
+        "Can\'t unwrap row if some of columns was taken")
+    let out1 ← alloc.vec.Vec.push out v
+    let i2 ← i + 1#usize
+    let values1 := index_mut_back o2
+    ok (cont (values1, out1, i2))
+  else ok (done out)
+
+/-- [mysql_common::row::{mysql_common::row::Row}::unwrap]: loop 0:
+    Source: 'src/row/mod.rs', lines 193:8-200:9
+    Visibility: public -/
+@[rust_loop]
+def row.Row.unwrap_loop
+  (values : alloc.vec.Vec (Option value.Value))
+  (out : alloc.vec.Vec value.Value) (i : Std.Usize) :
+  Result (alloc.vec.Vec value.Value)
+  := do
+  loop
+    (fun (values1, out1, i1) => row.Row.unwrap_loop.body values1 out1 i1)
+    (values, out, i)
+
+/-- [mysql_common::row::{mysql_common::row::Row}::unwrap]:
+    Source: 'src/row/mod.rs', lines 189:4-202:5
+    Visibility: public -/
+def row.Row.unwrap (self : row.Row) : Result (alloc.vec.Vec value.Value) := do
+  let i := alloc.vec.Vec.len self.values
+  let out := alloc.vec.Vec.with_capacity value.Value i
+  row.Row.unwrap_loop self.values out 0#usize
+
 /-- [mysql_common::row::{mysql_common::row::Row}::unwrap_raw]:
-    Source: 'src/row/mod.rs', lines 170:4-172:5
+    Source: 'src/row/mod.rs', lines 206:4-208:5
     Visibility: public -/
 def row.Row.unwrap_raw
   (self : row.Row) : Result (alloc.vec.Vec (Option value.Value)) := do
   ok self.values
 
+/-- [mysql_common::row::{impl core::ops::index::Index<usize, mysql_common::value::Value> for mysql_common::row::Row}::index]:
+    Source: 'src/row/mod.rs', lines 220:4-222:5
+    Visibility: public -/
+def row.Row.Insts.CoreOpsIndexIndexUsizeValue.index
+  (self : row.Row) (index : Std.Usize) : Result value.Value := do
+  let o ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Option
+      value.Value)) self.values index
+  let o1 ← core.option.Option.as_ref o
+  core.option.Option.unwrap o1
+
+/-- Trait implementation: [mysql_common::row::{impl core::ops::index::Index<usize, mysql_common::value::Value> for mysql_common::row::Row}]
+    Source: 'src/row/mod.rs', lines 217:0-223:1 -/
+@[reducible]
+def row.Row.Insts.CoreOpsIndexIndexUsizeValue : core.ops.index.Index row.Row
+  Std.Usize value.Value := {
+  index := row.Row.Insts.CoreOpsIndexIndexUsizeValue.index
+}
+
+/-- [mysql_common::row::column_idx_by_name]:
+    Source: 'src/row/mod.rs', lines 266:0-276:1 -/
+def row.column_idx_by_name
+  («name» : Slice Std.U8) (columns : Slice packets.Column) (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i1 := Slice.len columns
+  if i < i1
+  then
+    let c ← Slice.index_usize columns i
+    let s ← packets.Column.name_ref c
+    let b ← core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s «name»
+    if b
+    then ok (some i)
+    else let i2 ← i + 1#usize
+         row.column_idx_by_name «name» columns i2
+  else ok none
+partial_fixpoint
+
+/-- [mysql_common::row::{impl mysql_common::row::ColumnIndex for &'_0 str}::idx]:
+    Source: 'src/row/mod.rs', lines 255:4-261:5
+    Visibility: public -/
+def Shared0Str.Insts.Mysql_commonRowColumnIndex.idx
+  (self : Str) (columns : Slice packets.Column) :
+  Result (Option Std.Usize)
+  := do
+  let s ← value.convert.trusted.str_as_bytes self
+  row.column_idx_by_name s columns 0#usize
+
+/-- [mysql_common::row::{impl core::ops::index::Index<&'a str, mysql_common::value::Value> for mysql_common::row::Row}::index]:
+    Source: 'src/row/mod.rs', lines 229:4-234:5
+    Visibility: public -/
+def row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index
+  (self : row.Row) (index : Str) : Result value.Value := do
+  let s ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global
+      self.columns
+  let o ← Shared0Str.Insts.Mysql_commonRowColumnIndex.idx index s
+  match o with
+  | none => fail panic
+  | some i =>
+    let o1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Option
+        value.Value)) self.values i
+    let o2 ← core.option.Option.as_ref o1
+    core.option.Option.unwrap o2
+
+/-- Trait implementation: [mysql_common::row::{impl core::ops::index::Index<&'a str, mysql_common::value::Value> for mysql_common::row::Row}]
+    Source: 'src/row/mod.rs', lines 226:0-235:1 -/
+@[reducible]
+def row.Row.Insts.CoreOpsIndexIndexSharedAStrValue : core.ops.index.Index
+  row.Row Str value.Value := {
+  index := row.Row.Insts.CoreOpsIndexIndexSharedAStrValue.index
+}
+
+/-- Trait implementation: [mysql_common::row::{impl mysql_common::row::ColumnIndex for &'_0 str}]
+    Source: 'src/row/mod.rs', lines 254:0-262:1 -/
+@[reducible]
+def Shared0Str.Insts.Mysql_commonRowColumnIndex : row.ColumnIndex Str := {
+  idx := Shared0Str.Insts.Mysql_commonRowColumnIndex.idx
+}
+
 /-- [mysql_common::row::{mysql_common::row::RowDeserializer<S, P>}::into_inner]:
-    Source: 'src/row/mod.rs', lines 235:4-237:5
+    Source: 'src/row/mod.rs', lines 286:4-288:5
     Visibility: public -/
 def row.RowDeserializer.into_inner
   {S : Type _} {P : Type _} (self : row.RowDeserializer S P) :
@@ -13896,8 +20709,26 @@ def row.RowDeserializer.into_inner
   let (r, _) := self
   ok r
 
+/-- [mysql_common::row::{impl core::convert::From<mysql_common::row::RowDeserializer<S, P>> for mysql_common::row::Row}::from]:
+    Source: 'src/row/mod.rs', lines 293:4-295:5
+    Visibility: public -/
+def row.Row.Insts.CoreConvertFromRowDeserializer.from
+  {S : Type _} {P : Type _} (x : row.RowDeserializer S P) :
+  Result row.Row
+  := do
+  let (r, _) := x
+  ok r
+
+/-- Trait implementation: [mysql_common::row::{impl core::convert::From<mysql_common::row::RowDeserializer<S, P>> for mysql_common::row::Row}]
+    Source: 'src/row/mod.rs', lines 292:0-296:1 -/
+@[reducible]
+def row.Row.Insts.CoreConvertFromRowDeserializer (S : Type _) (P : Type _) :
+  core.convert.From row.Row (row.RowDeserializer S P) := {
+  «from» := row.Row.Insts.CoreConvertFromRowDeserializer.from
+}
+
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_text]:
-    Source: 'src/value/mod.rs', lines 304:4-319:5 -/
+    Source: 'src/value/mod.rs', lines 317:4-332:5 -/
 def value.Value.deserialize_text
   (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -13952,7 +20783,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::row::deserialize_text_values]: loop body 0:
-    Source: 'src/row/mod.rs', lines 263:4-270:1 -/
+    Source: 'src/row/mod.rs', lines 315:4-322:1 -/
 @[rust_loop_body]
 def row.deserialize_text_values_loop.body
   (iter : core.ops.range.Range Std.Usize) (buf : io.ParseBuf)
@@ -13983,7 +20814,7 @@ def row.deserialize_text_values_loop.body
       ok (done (r1, buf1))
 
 /-- [mysql_common::row::deserialize_text_values]: loop 0:
-    Source: 'src/row/mod.rs', lines 263:4-270:1 -/
+    Source: 'src/row/mod.rs', lines 315:4-322:1 -/
 @[rust_loop]
 def row.deserialize_text_values_loop
   (iter : core.ops.range.Range Std.Usize) (buf : io.ParseBuf)
@@ -13997,7 +20828,7 @@ def row.deserialize_text_values_loop
     (iter, buf, values)
 
 /-- [mysql_common::row::deserialize_text_values]:
-    Source: 'src/row/mod.rs', lines 257:0-270:1 -/
+    Source: 'src/row/mod.rs', lines 309:0-322:1 -/
 def row.deserialize_text_values
   (num_columns : Std.Usize) (buf : io.ParseBuf) :
   Result ((core.result.Result (alloc.vec.Vec (Option value.Value))
@@ -14010,7 +20841,7 @@ def row.deserialize_text_values
   ok (r, buf1)
 
 /-- [mysql_common::row::{impl mysql_common::proto::MyDeserialize<'de, alloc::sync::Arc<[mysql_common::packets::Column]>> for mysql_common::row::RowDeserializer<T, mysql_common::proto::Text>}::deserialize]:
-    Source: 'src/row/mod.rs', lines 250:4-253:5
+    Source: 'src/row/mod.rs', lines 302:4-305:5
     Visibility: public -/
 def
   row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize
@@ -14035,7 +20866,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::row::{impl mysql_common::proto::MyDeserialize<'de, alloc::sync::Arc<[mysql_common::packets::Column]>> for mysql_common::row::RowDeserializer<T, mysql_common::proto::Text>}::SIZE]
-    Source: 'src/row/mod.rs', lines 247:4-247:37
+    Source: 'src/row/mod.rs', lines 299:4-299:37
     Visibility: public -/
 @[global_simps, irreducible]
 def
@@ -14044,7 +20875,7 @@ def
   none
 
 /-- Trait implementation: [mysql_common::row::{impl mysql_common::proto::MyDeserialize<'de, alloc::sync::Arc<[mysql_common::packets::Column]>> for mysql_common::row::RowDeserializer<T, mysql_common::proto::Text>}]
-    Source: 'src/row/mod.rs', lines 246:0-254:1 -/
+    Source: 'src/row/mod.rs', lines 298:0-306:1 -/
 @[reducible]
 def
   row.RowDeserializerTText.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn
@@ -14059,7 +20890,7 @@ def
 }
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_time]:
-    Source: 'src/value/mod.rs', lines 377:4-404:5 -/
+    Source: 'src/value/mod.rs', lines 390:4-417:5 -/
 def value.Value.deserialize_time
   (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -14097,7 +20928,7 @@ def value.Value.deserialize_time
           0#u32), buf2)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_datetime]:
-    Source: 'src/value/mod.rs', lines 343:4-375:5 -/
+    Source: 'src/value/mod.rs', lines 356:4-388:5 -/
 def value.Value.deserialize_datetime
   (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -14141,7 +20972,7 @@ def value.Value.deserialize_datetime
           0#u8 0#u32), buf2)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_longlong]:
-    Source: 'src/value/mod.rs', lines 325:4-341:5 -/
+    Source: 'src/value/mod.rs', lines 338:4-354:5 -/
 def value.Value.deserialize_longlong
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -14169,7 +21000,7 @@ def value.Value.deserialize_longlong
     | some x => ok (core.result.Result.Ok (value.Value.Int x), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_long]:
-    Source: 'src/value/mod.rs', lines 213:8-225:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 323:4-323:69 -/
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 336:4-336:69 -/
 def value.Value.deserialize_long
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -14195,7 +21026,7 @@ def value.Value.deserialize_long
       ok (core.result.Result.Ok (value.Value.Int i), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_short]:
-    Source: 'src/value/mod.rs', lines 213:8-225:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 322:4-322:70 -/
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 335:4-335:70 -/
 def value.Value.deserialize_short
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -14221,7 +21052,7 @@ def value.Value.deserialize_short
       ok (core.result.Result.Ok (value.Value.Int i), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_tiny]:
-    Source: 'src/value/mod.rs', lines 213:8-225:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 321:4-321:61 -/
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 334:4-334:61 -/
 def value.Value.deserialize_tiny
   (unsigned : Bool) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -14247,7 +21078,7 @@ def value.Value.deserialize_tiny
       ok (core.result.Result.Ok (value.Value.Int i), buf1)
 
 /-- [mysql_common::value::{mysql_common::value::Value}::deserialize_bin]:
-    Source: 'src/value/mod.rs', lines 406:4-460:5 -/
+    Source: 'src/value/mod.rs', lines 419:4-473:5 -/
 def value.Value.deserialize_bin
   (p : (constants.ColumnType × constants.ColumnFlags)) (buf : io.ParseBuf) :
   Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
@@ -14537,7 +21368,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::row::deserialize_bin_values]:
-    Source: 'src/row/mod.rs', lines 291:0-318:1 -/
+    Source: 'src/row/mod.rs', lines 343:0-370:1 -/
 def row.deserialize_bin_values
   {S : Type _} (valueSerializationSideInst : value.SerializationSide S)
   (columns : Slice packets.Column)
@@ -14585,7 +21416,7 @@ def row.deserialize_bin_values
 partial_fixpoint
 
 /-- [mysql_common::row::{impl mysql_common::proto::MyDeserialize<'de, alloc::sync::Arc<[mysql_common::packets::Column]>> for mysql_common::row::RowDeserializer<S, mysql_common::proto::Binary>}::deserialize]:
-    Source: 'src/row/mod.rs', lines 276:4-286:5
+    Source: 'src/row/mod.rs', lines 328:4-338:5
     Visibility: public -/
 def
   row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize
@@ -14632,7 +21463,7 @@ def
       ok (r1, buf2)
 
 /-- [mysql_common::row::{impl mysql_common::proto::MyDeserialize<'de, alloc::sync::Arc<[mysql_common::packets::Column]>> for mysql_common::row::RowDeserializer<S, mysql_common::proto::Binary>}::SIZE]
-    Source: 'src/row/mod.rs', lines 273:4-273:37
+    Source: 'src/row/mod.rs', lines 325:4-325:37
     Visibility: public -/
 @[global_simps, irreducible]
 def
@@ -14642,7 +21473,7 @@ def
   none
 
 /-- Trait implementation: [mysql_common::row::{impl mysql_common::proto::MyDeserialize<'de, alloc::sync::Arc<[mysql_common::packets::Column]>> for mysql_common::row::RowDeserializer<S, mysql_common::proto::Binary>}]
-    Source: 'src/row/mod.rs', lines 272:0-287:1 -/
+    Source: 'src/row/mod.rs', lines 324:0-339:1 -/
 @[reducible]
 def
   row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn
@@ -14751,50 +21582,6 @@ def value.Value.Insts.CoreConvertFromParseIrBigDecimal : core.convert.From
   value.Value (value.convert.ParseIr bigdecimal.BigDecimal) := {
   «from» := value.Value.Insts.CoreConvertFromParseIrBigDecimal.from
 }
-
-/-- [mysql_common::value::convert::FromValue::get_intermediate]:
-    Source: 'src/value/convert/mod.rs', lines 113:4-115:5
-    Visibility: public -/
-@[trait_default]
-def value.convert.FromValue.get_intermediate.default
-  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
-  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
-  Result (core.result.Result Clause0_Intermediate value.convert.FromValueError)
-  := do
-  FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
-    v
-
-/-- [mysql_common::value::convert::FromValue::from_value_opt]:
-    Source: 'src/value/convert/mod.rs', lines 105:4-110:5
-    Visibility: public -/
-@[trait_default]
-def value.convert.FromValue.from_value_opt.default
-  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
-  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
-  Result (core.result.Result Self value.convert.FromValueError)
-  := do
-  let r ←
-    FromValueInst.coreconvertTryFromSelf_IntermediateValueFromValueErrorInst.try_from
-      v
-  match r with
-  | core.result.Result.Ok x =>
-    let t ← FromValueInst.coreconvertIntoInst.into x
-    ok (core.result.Result.Ok t)
-  | core.result.Result.Err e => ok (core.result.Result.Err e)
-
-/-- [mysql_common::value::convert::FromValue::from_value]:
-    Source: 'src/value/convert/mod.rs', lines 97:4-102:5
-    Visibility: public -/
-@[trait_default]
-def value.convert.FromValue.from_value.default
-  {Self : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
-  value.convert.FromValue Self Clause0_Intermediate) (v : value.Value) :
-  Result Self
-  := do
-  let r ← FromValueInst.from_value_opt v
-  match r with
-  | core.result.Result.Ok this => ok this
-  | core.result.Result.Err _ => fail panic
 
 /-- Trait implementation: [mysql_common::value::convert::bigdecimal::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ParseIr<bigdecimal::BigDecimal>> for bigdecimal::BigDecimal}]
     Source: 'src/value/convert/bigdecimal.rs', lines 59:0-61:1 -/
@@ -18997,78 +25784,6 @@ def value.convert.ValueIr.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq value.convert.ValueIr := {
 }
 
-/-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ValueIr}::try_from]:
-    Source: 'src/value/convert/mod.rs', lines 567:4-569:5
-    Visibility: public -/
-def value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError.try_from
-  (v : value.Value) :
-  Result (core.result.Result value.convert.ValueIr
-    value.convert.FromValueError)
-  := do
-  ok (core.result.Result.Ok v)
-
-/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for mysql_common::value::convert::ValueIr}]
-    Source: 'src/value/convert/mod.rs', lines 564:0-570:1 -/
-@[reducible]
-def value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError :
-  core.convert.TryFrom value.convert.ValueIr value.Value
-  value.convert.FromValueError := {
-  try_from :=
-    value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError.try_from
-}
-
-/-- [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}::from]:
-    Source: 'src/value/convert/mod.rs', lines 573:4-575:5
-    Visibility: public -/
-def value.Value.Insts.CoreConvertFromValueIr.from
-  (ir : value.convert.ValueIr) : Result value.Value := do
-  ok ir
-
-/-- Trait implementation: [mysql_common::value::convert::{impl core::convert::From<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}]
-    Source: 'src/value/convert/mod.rs', lines 572:0-576:1 -/
-@[reducible]
-def value.Value.Insts.CoreConvertFromValueIr : core.convert.From value.Value
-  value.convert.ValueIr := {
-  «from» := value.Value.Insts.CoreConvertFromValueIr.from
-}
-
-/-- Trait implementation: [mysql_common::value::convert::{impl mysql_common::value::convert::FromValue<mysql_common::value::convert::ValueIr> for mysql_common::value::Value}]
-    Source: 'src/value/convert/mod.rs', lines 578:0-580:1 -/
-@[reducible]
-impl_def value.Value.Insts.Mysql_commonValueConvertFromValueValueIr :
-  value.convert.FromValue value.Value value.convert.ValueIr := {
-  coreconvertTryFromSelf_IntermediateValueFromValueErrorInst :=
-    value.convert.ValueIr.Insts.CoreConvertTryFromValueFromValueError
-  coreconvertIntoInst := core.convert.IntoFrom
-    value.Value.Insts.CoreConvertFromValueIr
-  from_value := value.convert.FromValue.from_value.default
-    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
-  from_value_opt := value.convert.FromValue.from_value_opt.default
-    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
-  get_intermediate := value.convert.FromValue.get_intermediate.default
-    value.Value.Insts.Mysql_commonValueConvertFromValueValueIr
-}
-
-/-- [mysql_common::value::convert::from_value]:
-    Source: 'src/value/convert/mod.rs', lines 583:0-585:1
-    Visibility: public -/
-def value.convert.from_value
-  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
-  value.convert.FromValue T Clause0_Intermediate) (v : value.Value) :
-  Result T
-  := do
-  FromValueInst.from_value v
-
-/-- [mysql_common::value::convert::from_value_opt]:
-    Source: 'src/value/convert/mod.rs', lines 588:0-590:1
-    Visibility: public -/
-def value.convert.from_value_opt
-  {T : Type _} {Clause0_Intermediate : Type _} (FromValueInst :
-  value.convert.FromValue T Clause0_Intermediate) (v : value.Value) :
-  Result (core.result.Result T value.convert.FromValueError)
-  := do
-  FromValueInst.from_value_opt v
-
 /-- [mysql_common::value::convert::{impl core::convert::TryFrom<mysql_common::value::Value, mysql_common::value::convert::FromValueError> for alloc::borrow::Cow<'static, [u8], alloc::vec::Vec<u8>>}::try_from]:
     Source: 'src/value/convert/mod.rs', lines 613:4-618:5
     Visibility: public -/
@@ -20334,5 +27049,240 @@ def
   deserialize :=
     value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
 }
+
+/-- [mysql_common::value::escaped]: loop body 0:
+    Source: 'src/value/mod.rs', lines 179:8-188:9 -/
+@[rust_loop_body]
+def value.escaped_loop0.body
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U8) × Std.Usize) (alloc.vec.Vec
+    Std.U8))
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let c ← Slice.index_usize input i
+    let output1 ←
+      if c = 39#u8
+      then
+        do
+        let output2 ← alloc.vec.Vec.push output 39#u8
+        alloc.vec.Vec.push output2 39#u8
+      else alloc.vec.Vec.push output c
+    let i2 ← i + 1#usize
+    ok (cont (output1, i2))
+  else ok (done output)
+
+/-- [mysql_common::value::escaped]: loop 0:
+    Source: 'src/value/mod.rs', lines 179:8-188:9 -/
+@[rust_loop]
+def value.escaped_loop0
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  loop
+    (fun (output1, i1) => value.escaped_loop0.body input output1 i1)
+    (output, i)
+
+/-- [mysql_common::value::escaped]: loop body 1:
+    Source: 'src/value/mod.rs', lines 191:8-212:9 -/
+@[rust_loop_body]
+def value.escaped_loop1.body
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U8) × Std.Usize) (alloc.vec.Vec
+    Std.U8))
+  := do
+  let i1 := Slice.len input
+  if i < i1
+  then
+    let c ← Slice.index_usize input i
+    let output1 ←
+      if c = 0#u8
+      then
+        do
+        let output2 ← alloc.vec.Vec.push output 92#u8
+        alloc.vec.Vec.push output2 48#u8
+      else
+        if c = 10#u8
+        then
+          do
+          let output2 ← alloc.vec.Vec.push output 92#u8
+          alloc.vec.Vec.push output2 110#u8
+        else
+          if c = 13#u8
+          then
+            do
+            let output2 ← alloc.vec.Vec.push output 92#u8
+            alloc.vec.Vec.push output2 114#u8
+          else
+            if c = 92#u8
+            then
+              do
+              let output2 ← alloc.vec.Vec.push output 92#u8
+              alloc.vec.Vec.push output2 c
+            else
+              if c = 39#u8
+              then
+                do
+                let output2 ← alloc.vec.Vec.push output 92#u8
+                alloc.vec.Vec.push output2 c
+              else
+                if c = 34#u8
+                then
+                  do
+                  let output2 ← alloc.vec.Vec.push output 92#u8
+                  alloc.vec.Vec.push output2 c
+                else
+                  if c = 26#u8
+                  then
+                    do
+                    let output2 ← alloc.vec.Vec.push output 92#u8
+                    alloc.vec.Vec.push output2 90#u8
+                  else alloc.vec.Vec.push output c
+    let i2 ← i + 1#usize
+    ok (cont (output1, i2))
+  else ok (done output)
+
+/-- [mysql_common::value::escaped]: loop 1:
+    Source: 'src/value/mod.rs', lines 191:8-212:9 -/
+@[rust_loop]
+def value.escaped_loop1
+  (input : Slice Std.U8) (output : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  loop
+    (fun (output1, i1) => value.escaped_loop1.body input output1 i1)
+    (output, i)
+
+/-- [mysql_common::value::escaped]:
+    Source: 'src/value/mod.rs', lines 173:0-219:1 -/
+def value.escaped
+  (input : Str) (no_backslash_escape : Bool) : Result String := do
+  let input1 ← value.convert.trusted.str_as_bytes input
+  let i := Slice.len input1
+  let output := alloc.vec.Vec.with_capacity Std.U8 i
+  let output1 ← alloc.vec.Vec.push output 39#u8
+  if no_backslash_escape
+  then
+    let output2 ← value.escaped_loop0 input1 output1 0#usize
+    let output3 ← alloc.vec.Vec.push output2 39#u8
+    let r ← value.convert.trusted.string_from_utf8 output3
+    match r with
+    | core.result.Result.Ok output4 => ok output4
+    | core.result.Result.Err _ => fail panic
+  else
+    let output2 ← value.escaped_loop1 input1 output1 0#usize
+    let output3 ← alloc.vec.Vec.push output2 39#u8
+    let r ← value.convert.trusted.string_from_utf8 output3
+    match r with
+    | core.result.Result.Ok output4 => ok output4
+    | core.result.Result.Err _ => fail panic
+
+/-- [mysql_common::value::{mysql_common::value::Value}::as_sql]: loop body 0:
+    Source: 'src/value/mod.rs', lines 304:20-310:21
+    Visibility: public -/
+@[rust_loop_body]
+def value.Value.as_sql_loop.body
+  (bytes : alloc.vec.Vec Std.U8) (s : String) (k : Std.Usize) :
+  Result (ControlFlow (String × Std.Usize) String)
+  := do
+  let i := alloc.vec.Vec.len bytes
+  if k < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) bytes
+        k
+    let s1 ← sql_trusted.format_hex_upper_02 i1
+    let s2 ← sql_trusted.string_extend_chars s s1
+    let k1 ← k + 1#usize
+    ok (cont (s2, k1))
+  else ok (done s)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::as_sql]: loop 0:
+    Source: 'src/value/mod.rs', lines 304:20-310:21
+    Visibility: public -/
+@[rust_loop]
+def value.Value.as_sql_loop
+  (bytes : alloc.vec.Vec Std.U8) (s : String) (k : Std.Usize) :
+  Result String
+  := do
+  loop
+    (fun (s1, k1) => value.Value.as_sql_loop.body bytes s1 k1)
+    (s, k)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::as_sql]:
+    Source: 'src/value/mod.rs', lines 259:4-315:5
+    Visibility: public -/
+def value.Value.as_sql
+  (self : value.Value) (no_backslash_escape : Bool) : Result String := do
+  match self with
+  | value.Value.NULL => sql_trusted.string_from_str (toStr "NULL")
+  | value.Value.Bytes bytes =>
+    let s := alloc.vec.Vec.deref bytes
+    let o ← value.convert.trusted.str_from_utf8 s
+    match o with
+    | none =>
+      let s1 ← sql_trusted.string_from_str (toStr "0x")
+      value.Value.as_sql_loop bytes s1 0#usize
+    | some string => value.escaped string no_backslash_escape
+  | value.Value.Int x => sql_trusted.format_i64 x
+  | value.Value.UInt x => sql_trusted.format_u64 x
+  | value.Value.Float x => sql_trusted.format_f32 x
+  | value.Value.Double x => sql_trusted.format_f64 x
+  | value.Value.Date y m d hour minute second micros =>
+    match hour with
+    | 0#uscalar =>
+      match minute with
+      | 0#uscalar =>
+        match second with
+        | 0#uscalar =>
+          match micros with
+          | 0#uscalar => sql_trusted.format_date y m d
+          | _ =>
+            match micros with
+            | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+            | _ =>
+              sql_trusted.format_datetime_micros y m d hour minute second
+                micros
+        | _ =>
+          match micros with
+          | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+          | _ =>
+            sql_trusted.format_datetime_micros y m d hour minute second micros
+      | _ =>
+        match micros with
+        | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+        | _ =>
+          sql_trusted.format_datetime_micros y m d hour minute second micros
+    | _ =>
+      match micros with
+      | 0#uscalar => sql_trusted.format_datetime y m d hour minute second
+      | _ => sql_trusted.format_datetime_micros y m d hour minute second micros
+  | value.Value.Time neg d h i s micros =>
+    match micros with
+    | 0#uscalar =>
+      if neg
+      then
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time_neg i3 i s
+      else
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time i3 i s
+    | _ =>
+      if neg
+      then
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time_micros_neg i3 i s micros
+      else
+        let i1 ← d * 24#u32
+        let i2 ← lift (UScalar.cast .U32 h)
+        let i3 ← i1 + i2
+        sql_trusted.format_time_micros i3 i s micros
 
 end mysql_common

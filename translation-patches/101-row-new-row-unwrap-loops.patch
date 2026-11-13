@@ -1,0 +1,59 @@
+Translation patch: `new_row` and `Row::unwrap`
+
+Change:
+  - `new_row`: `values.into_iter().map(Some).collect::<Vec<_>>()` becomes a call to a new helper `values_to_cells(values)`, an index loop that pushes `Some(mem::replace(&mut values[i], Value::NULL))` for `i = 0..len` into a `Vec::with_capacity(len)`.
+  - `Row::unwrap`: `self.values.into_iter().map(|x| x.expect(MSG)).collect()` becomes an index loop that pushes `values[i].take().expect(MSG)` for `i = 0..len` into a `Vec::with_capacity(len)`.
+Why: Aeneas does not model `Vec::into_iter`, `Iterator::map`/`collect`, or closures. In `new_row` the loop is in a helper because Aeneas fails ("Could not match the contexts") on a loop whose result is used together with `columns` after it (as in patches 11, 30).
+Behaviour: Identical results: the same values in the same order (`new_row`); the same values, or a panic with the same message at the first taken (`None`) cell (`unwrap`). Only the left-over source vector differs (it holds `NULL`s / `None`s before it is dropped, which is not observable), and the result's capacity may differ from std's in-place `collect` specialisation (`collect` does not specify the capacity).
+
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index 137672d..5b69311 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -52,11 +52,22 @@ impl fmt::Debug for Row {
+ pub fn new_row(values: Vec<Value>, columns: Arc<[Column]>) -> Row {
+     assert!(values.len() == columns.len());
+     Row {
+-        values: values.into_iter().map(Some).collect::<Vec<_>>(),
++        values: values_to_cells(values),
+         columns,
+     }
+ }
+ 
++/// `values.into_iter().map(Some).collect::<Vec<_>>()` of `new_row`, as an index loop.
++fn values_to_cells(mut values: Vec<Value>) -> Vec<Option<Value>> {
++    let mut cells = Vec::with_capacity(values.len());
++    let mut i = 0;
++    while i < values.len() {
++        cells.push(Some(std::mem::replace(&mut values[i], Value::NULL)));
++        i += 1;
++    }
++    cells
++}
++
+ /// Creates `Row` from values (cells may be missing).
+ #[doc(hidden)]
+ pub fn new_row_raw(values: Vec<Option<Value>>, columns: Arc<[Column]>) -> Row {
+@@ -176,10 +187,18 @@ impl Row {
+     ///
+     /// Panics if any of columns was taken by `take` method.
+     pub fn unwrap(self) -> Vec<Value> {
+-        self.values
+-            .into_iter()
+-            .map(|x| x.expect("Can't unwrap row if some of columns was taken"))
+-            .collect()
++        let mut values = self.values;
++        let mut out = Vec::with_capacity(values.len());
++        let mut i = 0;
++        while i < values.len() {
++            out.push(
++                values[i]
++                    .take()
++                    .expect("Can't unwrap row if some of columns was taken"),
++            );
++            i += 1;
++        }
++        out
+     }
+ 
+     /// Unwraps values as is (taken cells will be `None`).

@@ -1,0 +1,34 @@
+Translation patch: `FromRow::from_row` (default method)
+
+Change: `panic!("Couldn't convert {:?} to type {}. (see FromRow documentation)", row, type_name::<Self>())` becomes `panic!("Couldn't convert the row to the requested type. (see FromRow documentation)")`, and the `type_name` import is dropped.
+Why: Formatting the row uses `Debug for Row` / `Debug for Value` (`str::pattern`, which Aeneas cannot translate), and `type_name` is an intrinsic Aeneas does not model; formatting is out of scope (as in patch 47).
+Behaviour: Identical except for the text of the panic message: it panics in exactly the same cases (`from_row_opt` returns `Err`). (As in patch 47's note, upstream formatting can itself overflow in `Debug for Value::Time`; the patched copy panics normally there.)
+
+diff --git a/src/row/convert/mod.rs b/src/row/convert/mod.rs
+index 6f544cf..0428efd 100644
+--- a/src/row/convert/mod.rs
++++ b/src/row/convert/mod.rs
+@@ -14,7 +14,7 @@ use crate::{
+     },
+ };
+ 
+-use std::{any::type_name, error::Error, fmt};
++use std::{error::Error, fmt};
+ 
+ pub mod frunk;
+ 
+@@ -81,11 +81,9 @@ pub trait FromRow {
+     {
+         match Self::from_row_opt(row) {
+             Ok(x) => x,
+-            Err(FromRowError(row)) => panic!(
+-                "Couldn't convert {:?} to type {}. (see FromRow documentation)",
+-                row,
+-                type_name::<Self>(),
+-            ),
++            Err(FromRowError(_)) => {
++                panic!("Couldn't convert the row to the requested type. (see FromRow documentation)")
++            }
+         }
+     }
+ 

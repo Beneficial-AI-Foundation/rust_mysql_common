@@ -1,0 +1,85 @@
+Translation patch: `escaped` (SQL string quoting, used by `Value::as_sql`)
+
+Change: The loops `for c in input.chars() { .. output.push(c) .. }` over a `String` output become index loops over the bytes `trusted::str_as_bytes(input)` pushing bytes into a `Vec<u8>` (`'\''` becomes `b'\''`, etc.), and the result is `trusted::string_from_utf8(output)` (patch 40), with `Err(_) => unreachable!()`. `String::with_capacity(input.len())` becomes `Vec::with_capacity(input.len())`.
+Why: Aeneas does not model `Chars::next` (opaque in its library) or `String::push`.
+Behaviour: Identical output. In UTF-8 a `char` below U+0080 is encoded as the single byte of the same value, and every byte of the encoding of any other `char` is >= 0x80. Every character the function compares against (`'\''`, `'\x00'`, `'\n'`, `'\r'`, `'\\'`, `'"'`, `'\x1a'`) and every character it inserts is ASCII, so a byte equals one of them exactly when it is that whole character; all other bytes (including all bytes of non-ASCII characters) are copied unchanged, in order. The output bytes are therefore exactly the UTF-8 encoding of the original output `String`; in particular they are valid UTF-8, so `string_from_utf8` returns `Ok` and the `unreachable!()` branch is never taken.
+
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index 6805517..c50db50 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -171,41 +171,51 @@ impl<'de> MyDeserialize<'de> for ValueDeserializer<BinValue> {
+ 
+ /// Will escape string for SQL depending on `no_backslash_escape` flag.
+ fn escaped(input: &str, no_backslash_escape: bool) -> String {
+-    let mut output = String::with_capacity(input.len());
+-    output.push('\'');
++    let input = crate::value::convert::trusted::str_as_bytes(input);
++    let mut output: Vec<u8> = Vec::with_capacity(input.len());
++    output.push(b'\'');
+     if no_backslash_escape {
+-        for c in input.chars() {
+-            if c == '\'' {
+-                output.push('\'');
+-                output.push('\'');
++        let mut i = 0;
++        while i < input.len() {
++            let c = input[i];
++            if c == b'\'' {
++                output.push(b'\'');
++                output.push(b'\'');
+             } else {
+                 output.push(c);
+             }
++            i += 1;
+         }
+     } else {
+-        for c in input.chars() {
+-            if c == '\x00' {
+-                output.push('\\');
+-                output.push('0');
+-            } else if c == '\n' {
+-                output.push('\\');
+-                output.push('n');
+-            } else if c == '\r' {
+-                output.push('\\');
+-                output.push('r');
+-            } else if c == '\\' || c == '\'' || c == '"' {
+-                output.push('\\');
++        let mut i = 0;
++        while i < input.len() {
++            let c = input[i];
++            if c == b'\x00' {
++                output.push(b'\\');
++                output.push(b'0');
++            } else if c == b'\n' {
++                output.push(b'\\');
++                output.push(b'n');
++            } else if c == b'\r' {
++                output.push(b'\\');
++                output.push(b'r');
++            } else if c == b'\\' || c == b'\'' || c == b'"' {
++                output.push(b'\\');
+                 output.push(c);
+-            } else if c == '\x1a' {
+-                output.push('\\');
+-                output.push('Z');
++            } else if c == b'\x1a' {
++                output.push(b'\\');
++                output.push(b'Z');
+             } else {
+                 output.push(c);
+             }
++            i += 1;
+         }
+     }
+-    output.push('\'');
+-    output
++    output.push(b'\'');
++    match crate::value::convert::trusted::string_from_utf8(output) {
++        Ok(output) => output,
++        Err(_) => unreachable!("escaping a `str` byte-wise keeps it valid UTF-8"),
++    }
+ }
+ 
+ macro_rules! de_num {

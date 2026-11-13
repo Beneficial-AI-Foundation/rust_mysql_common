@@ -1,0 +1,19 @@
+Translation patch: `PacketCodecInner::compress` (src/proto/codec): `mem::take` becomes `mem::replace`
+
+Change: `mem::take(c)` becomes `mem::replace(c, PlainPacketCodec::default())`.
+Why: Aeneas models `core::mem::replace` but not `core::mem::take`.
+Behaviour: Identical: std defines `mem::take(dest)` as `mem::replace(dest, T::default())`.
+
+diff --git a/src/proto/codec/mod.rs b/src/proto/codec/mod.rs
+index 4cac187..9d88fc5 100644
+--- a/src/proto/codec/mod.rs
++++ b/src/proto/codec/mod.rs
+@@ -520,7 +520,7 @@ impl PacketCodecInner {
+                     comp_decoder: CompDecoder::Idle,
+                     deflater: None,
+                     inflater: None,
+-                    plain_codec: mem::take(c),
++                    plain_codec: mem::replace(c, PlainPacketCodec::default()),
+                 })
+             }
+             PacketCodecInner::Comp(c) => {

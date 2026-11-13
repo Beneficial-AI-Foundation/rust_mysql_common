@@ -1,0 +1,37 @@
+Translation patch: `Value::as_sql` (integer widening)
+
+Change: `u32::from(h)` and `u32::from(hours)` (`u8` to `u32`) become `h as u32` and `hours as u32`.
+Why: These `From` impls between integer types are not modelled by Aeneas (as in patch 52).
+Behaviour: Identical: the conversion is a lossless widening, which `as` computes.
+
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index ca6d3df..a599269 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -274,22 +274,22 @@ impl Value {
+             }
+             Value::Time(neg, d, h, i, s, 0) => {
+                 if neg {
+-                    crate::sql_trusted::format_time_neg(d * 24 + u32::from(h), i, s)
++                    crate::sql_trusted::format_time_neg(d * 24 + h as u32, i, s)
+                 } else {
+-                    crate::sql_trusted::format_time(d * 24 + u32::from(h), i, s)
++                    crate::sql_trusted::format_time(d * 24 + h as u32, i, s)
+                 }
+             }
+             Value::Time(neg, days, hours, minutes, seconds, micros) => {
+                 if neg {
+                     crate::sql_trusted::format_time_micros_neg(
+-                        days * 24 + u32::from(hours),
++                        days * 24 + hours as u32,
+                         minutes,
+                         seconds,
+                         micros,
+                     )
+                 } else {
+                     crate::sql_trusted::format_time_micros(
+-                        days * 24 + u32::from(hours),
++                        days * 24 + hours as u32,
+                         minutes,
+                         seconds,
+                         micros,

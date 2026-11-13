@@ -155,8 +155,8 @@ The script:
 1. Checks that `.aeneas/` matches the `rev` in `lakefile.toml` (otherwise asks you to run the
    install script).
 2. Copies the crate into `.llbc/work/` with `rsync`, leaving out `target/` and `lean/`.
-3. Applies every `translation-patches/*.patch` to the copy **one after the other**, in file-name
-   order, with `git apply`. If any patch fails to apply, the script stops.
+3. Applies every `translation-patches/*.patch` to the copy **one after the other**, in the
+   numeric order of their number prefix (so `120-*` comes after `60-*`), with `git apply`. If any patch fails to apply, the script stops.
 4. Runs `charon cargo --preset=aeneas` on the patched copy for the single target and features we
    verify, writing `.llbc/<crate>.llbc`. Charon reads its settings from `Cargo.toml`.
 
