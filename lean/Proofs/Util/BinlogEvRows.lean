@@ -834,4 +834,106 @@ theorem pSkip1 (buf : io.ParseBuf) :
     simp only [WP.uncurry'] at ha hb ⊢
     simp [ha, takeExact]; simp at h1; omega
 
+theorem pSeq (len : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize constants.ColumnType
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8) buf len ⦃ r rest =>
+      takeExact len.val buf.val = (okPart r).map (fun s => (cowList s.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf len (by
+    simp [misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE_eq])]
+  apply WP.spec_mono (misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize_spec
+    constants.ColumnType U8.Insts.Mysql_commonMiscRawIntIntReprU8 len buf)
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry'] at h
+  exact take_form len.val (fun s => cowList s.1) (okPart r) rest buf h
+
+theorem pLEB (h64 : Target64) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      optFst (checkedLenencStr buf.val) = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf () (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  apply WP.spec_mono (PCSUtil.lenenc_raw_deserialize h64 buf)
+  rintro ⟨r, rest⟩ ⟨h1, h2⟩
+  show optFst (checkedLenencStr buf.val) = (okPart r).map (fun rb => (cowList rb.1, rest.val))
+  rcases hc : checkedLenencStr buf.val with ⟨o, t⟩
+  rw [hc] at h1 h2
+  rw [h2]
+  simp only at h1
+  rw [← h1]
+  cases okPart r <;> simp [optFst]
+
+theorem pEof (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      (okPart r).map (fun rb => (cowList rb.1, rest.val)) = some (buf.val, []) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf () (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple () buf
+    (fun o rest => o.map (fun c => (c, rest.val)) = some (buf.val, []))
+    (by
+      apply WP.spec_mono (misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
+      rintro ⟨r, rest⟩ ⟨h1, h2⟩
+      show (Option.map cowList (okPart r)).map (fun c => (c, rest.val)) = some (buf.val, [])
+      rw [h1, h2]; rfl))
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
+theorem dBM (len : Usize) (buf : io.ParseBuf) :
+    misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize len buf ⦃ r rest =>
+      if len.val ≤ buf.length then
+        (okPart r).map cowList = some (buf.val.take len.val) ∧ rest.val = buf.val.drop len.val
+      else okPart r = none ∧ rest = buf ⦄ := by
+  unfold misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize
+  step with PBUtil.checked_eat_ok as ⟨ o, b1, ho ⟩
+  split_ifs at ho with hl
+  · obtain ⟨h1, h2⟩ := ho
+    cases o with
+    | none => simp at h1
+    | some x => simp at h1; simp [okPart, hl, h1, h2]
+  · obtain ⟨h1, h2⟩ := ho
+    subst h1 h2
+    simp [okPart, misc.unexpected_buf_eof, misc.io_error_msg, hl]
+
+theorem pBM (len : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) buf len ⦃ r rest =>
+      takeExact len.val buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf len (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.SIZE])]
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize len buf
+    (fun o rest => takeExact len.val buf.val = o.map (fun c => (c, rest.val)))
+    (by
+      apply WP.spec_mono (dBM len buf)
+      rintro ⟨r, rest⟩ h
+      simp only [WP.uncurry', Option.map_map]
+      exact take_form len.val cowList (okPart r) rest buf h))
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
+theorem pBare (len : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) buf len ⦃ r rest =>
+      takeExact len.val buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf len (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.SIZE_eq])]
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) len buf
+    (fun o rest => takeExact len.val buf.val = o.map (fun c => (c, rest.val)))
+    (by
+      apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize_spec 65533#usize len buf)
+      rintro ⟨r, rest⟩ h
+      simp only [WP.uncurry', Option.map_map]
+      exact take_form len.val cowList (okPart r) rest buf h))
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
 end mysql_common.BERUtil
