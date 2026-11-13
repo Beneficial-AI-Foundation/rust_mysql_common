@@ -24,7 +24,143 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (buf : io.ParseBuf) (h : ¬ handshakePanics buf.val) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       ((okPart r).map Handshake.of, rest.val) = handshakeRead buf.val ⦄ := by
-  sorry
+  unfold packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  step with U8.Insts.Mysql_commonMiscRawIntIntReprU8.parse_rawint_spec as ⟨r, buf1, h1⟩
+  split_ifs at h1 with hl
+  swap
+  · obtain ⟨h1a, hb1⟩ := h1
+    have : buf.val = [] := by simp [Slice.length] at hl; exact hl
+    cases r with
+    | Ok _ => simp [okPart] at h1a
+    | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, this, hb1, handshakeRead]
+  obtain ⟨h1a, h1b⟩ := h1
+  obtain ⟨pv, r1, hbuf⟩ : ∃ pv r1, buf.val = pv :: r1 := by
+    cases hh : buf.val with
+    | nil => simp [Slice.length, hh] at hl
+    | cons pv r1 => exact ⟨pv, r1, rfl⟩
+  rw [hbuf] at h1a h1b h
+  simp only [List.drop_succ_cons, List.drop_zero] at h1b
+  rw [hbuf]
+  cases r with
+  | Err e => simp [okPart] at h1a
+  | Ok v0 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with CAUtil.parse_null_bytes_spec as ⟨r2, buf2, h2⟩
+  rw [h1b] at h2
+  unfold handshakeRead handshakePanics at *
+  rcases hn : nulStrRead r1 with ⟨_ | sv, r2v⟩ <;> rw [hn] at h2 <;> simp only [hn] at h ⊢ <;>
+    simp only [Prod.mk.injEq] at h2
+  · obtain ⟨h2a, h2b⟩ := h2
+    cases r2 with
+    | Ok _ => simp [okPart] at h2a
+    | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, h2b]
+  obtain ⟨h2a, h2b⟩ := h2
+  cases r2 with
+  | Err e => simp [okPart] at h2a
+  | Ok rb =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with parse_usize_spec as ⟨r3, buf3, h3⟩
+  rw [h2b] at h3
+  split_ifs at h3 with hl3
+  swap
+  · obtain ⟨h3a, rfl⟩ := h3
+    have hs : r2v.length < 31 := by simp [Slice.length, h2b] at hl3 ⊢; omega
+    cases r3 with
+    | Ok _ => simp [okPart] at h3a
+    | Err e => simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, h2b, hs]
+  have hr2 : 31 ≤ r2v.length := by simp [Slice.length, h2b] at hl3; omega
+  have hr2' : ¬ r2v.length < 31 := by omega
+  obtain ⟨h3a, h3b⟩ := h3
+  cases r3 with
+  | Err e => simp [okPart] at h3a
+  | Ok pb =>
+  have hpb : pb.val = r2v.take 31 := Option.some.inj h3a
+  have hpl : pb.val.length = 31 := by rw [hpb]; simp; omega
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_rawint_leu32 as ⟨q1, s1, k1a, k1b⟩
+  cases q1 with
+  | Err e => simp [okPart] at k1a
+  | Ok w1 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_array as ⟨q2, s2, k2a, k2b⟩
+  cases q2 with
+  | Err e => simp [okPart] at k2a
+  | Ok w2 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_skip as ⟨q3, s3, k3a, k3b⟩
+  cases q3 with
+  | Err e => simp [okPart] at k3a
+  | Ok w3 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_rawconst_lower as ⟨q4, s4, k4a, k4b⟩
+  cases q4 with
+  | Err e => simp [okPart] at k4a
+  | Ok w4 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with parse_unchecked_u8_spec as ⟨q5, s5, k5a, k5b⟩
+  cases q5 with
+  | Err e => simp [okPart] at k5a
+  | Ok w5 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with parse_unchecked_status_spec as ⟨q6, s6, k6a, k6b⟩
+  have e1 : s1.val = (r2v.take 31).drop 4 := by rw [k1b, hpb]
+  have e2 : s2.val = (r2v.take 31).drop 12 := by rw [k2b, e1, List.drop_drop]
+  have e3 : s3.val = (r2v.take 31).drop 13 := by rw [k3b, e2, List.drop_drop]
+  have e4 : s4.val = (r2v.take 31).drop 15 := by rw [k4b, e3, List.drop_drop]
+  have e5 : s5.val = (r2v.take 31).drop 16 := by rw [k5b, e4, List.drop_drop]
+  have e6 : s6.val = (r2v.take 31).drop 18 := by rw [k6b, e5, List.drop_drop]
+  cases q6 with
+  | Err e =>
+    have hst : statusRead (leNat (((r2v.take 31).drop 16).take 2)) = none := by
+      rw [← e5]; simpa [okPart] using k6a.symm
+    simp [CoreOpsTry.branch, CoreOpsTry_traitFromResidualResult.from_residual, okPart, h3b, hr2', hst]
+  | Ok w6 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_rawconst_upper as ⟨q7, s7, k7a, k7b⟩
+  cases q7 with
+  | Err e => simp [okPart] at k7a
+  | Ok w7 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with parse_unchecked_u8_spec as ⟨q8, s8, k8a, k8b⟩
+  cases q8 with
+  | Err e => simp [okPart] at k8a
+  | Ok w8 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_skip as ⟨q9, s9, k9a, k9b⟩
+  cases q9 with
+  | Err e => simp [okPart] at k9a
+  | Ok w9 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  step with pu_rawconst_leu32 as ⟨q10, s10, k10a, k10b⟩
+  cases q10 with
+  | Err e => simp [okPart] at k10a
+  | Ok w10 =>
+  step as ⟨cfx, hcfx⟩
+  subst hcfx
+  have e7 : s7.val = (r2v.take 31).drop 20 := by rw [k7b, e6, List.drop_drop]
+  have e8 : s8.val = (r2v.take 31).drop 21 := by rw [k8b, e7, List.drop_drop]
+  have e9 : s9.val = (r2v.take 31).drop 27 := by rw [k9b, e8, List.drop_drop]
+  obtain ⟨i0, ph0⟩ := w4
+  obtain ⟨i7, ph7⟩ := w7
+  obtain ⟨i8, ph8⟩ := w8
+  obtain ⟨i10, ph10⟩ := w10
+  simp only [okPart, Option.map_some, Option.some.injEq] at k1a k2a k4a k5a k6a k7a k8a k10a
+  rw [e1] at k2a; rw [e3] at k4a; rw [e4] at k5a; rw [e5] at k6a; rw [e6] at k7a; rw [e7] at k8a; rw [e9] at k10a
+  rw [hpb] at k1a
+  step*
+  all_goals sorry
 
 /-- **Bug: `MyDeserialize for HandshakePacket` panics on a server-supplied length byte in `128..135`** (with `CLIENT_SECURE_CONNECTION`): `auth_plugin_data_len as i8 - 8` overflows (`handshakePanics`). A server, or anyone in the middle before TLS, can crash a client built with overflow checks (e.g. a debug build) with the first packet. (Without overflow checks the subtraction wraps to exactly `b - 8`, the protocol's value, and the packet is read correctly.) -/
 theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_panics (buf : io.ParseBuf) (h : handshakePanics buf.val) :

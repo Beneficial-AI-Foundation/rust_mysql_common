@@ -14,6 +14,8 @@ import Proofs.Misc.Raw.Bytes.U8Bytes
 import Proofs.Defs.LemmasG
 import Proofs.Util.ConvBytesTime
 import Proofs.Constants.CapabilityFlags
+import Proofs.Util.ConnAuth
+import Proofs.Misc.Raw.Int.U8
 
 /-! Helper lemmas for the handshake packet proofs (`Proofs/Packets/{HandshakePacket,
 HandshakeResponse,SslRequest}.lean`). -/
@@ -417,5 +419,22 @@ theorem handshake_auth_plugin_data_len_spec (b : Bool)
     · simp only [ite_true]
       step with barebytes_len as ⟨n, hn⟩
       step*
+
+@[step]
+theorem caps_bits_spec (x : constants.CapabilityFlags) :
+    constants.CapabilityFlags.bits x ⦃ r => r = x ⦄ := by
+  simp [constants.CapabilityFlags.bits]
+
+theorem and_pow_pos_iff (x : Nat) (k : Nat) : (x &&& 2 ^ k > 0) ↔ hasFlag x (2 ^ k) = true := by
+  rw [PCSUtil.and_two_pow, ConnHS.hasFlag_two_pow, Nat.testBit_eq_decide_div_mod_eq]
+  by_cases h : x / 2 ^ k % 2 = 1 <;> simp [h]
+
+theorem u32_and_pos_iff (x c : U32) (k : Nat) (hc : c.val = 2 ^ k) :
+    (x &&& c > 0#u32) ↔ hasFlag x.val (2 ^ k) = true := by
+  rw [← and_pow_pos_iff, ← hc]
+  have : (x &&& c).val = x.val &&& c.val := by simp
+  constructor
+  · intro h; have : (0#u32).val < (x &&& c).val := h; simp_all
+  · intro h; show (0#u32).val < (x &&& c).val; simp_all
 
 end mysql_common.ConnHSUtil
