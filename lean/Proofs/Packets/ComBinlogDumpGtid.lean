@@ -235,6 +235,106 @@ theorem sid_tagged_len_spec (x : packets.Sid) (h : (sidTaggedEnc (SidV.of x)).le
   rw [sat_add_val _ _ (by rw [hm, f3, f2, f1, e7]; omega)]
   omega
 
+/-- The SID encoder of a format. -/
+def encOf (tagged : Bool) : SidV → List U8 := if tagged then sidTaggedEnc else sidEnc
+
+theorem any_sid_tagged_spec (sids : Slice packets.Sid) (k : Nat) : ∀ (i : Usize), sids.length = i.val + k →
+    packets.any_sid_tagged sids i ⦃ b => b = (sids.val.drop i.val).any (fun s => s.tag.isSome) ⦄ := by
+  induction k with
+  | zero =>
+    intro i hi
+    unfold packets.any_sid_tagged
+    have : ¬ i < Slice.len sids := by simp [Slice.len] at *; scalar_tac
+    simp only [this, ↓reduceIte]
+    apply (WP.spec_ok _).mpr
+    simp only [Slice.length] at hi
+    rw [List.drop_of_length_le (by omega)]; rfl
+  | succ k ih =>
+    intro i hi
+    unfold packets.any_sid_tagged
+    have : i < Slice.len sids := by simp [Slice.len] at *; scalar_tac
+    simp only [this, ↓reduceIte]
+    step as ⟨x, hx⟩
+    rw [packets.Sid.impl.tag_eq]
+    apply spec_bind_ok
+    have hlt : i.val < sids.val.length := by simp [Slice.length] at hi; omega
+    have hd : sids.val.drop i.val = x :: sids.val.drop (i.val + 1) := by
+      rw [List.drop_eq_getElem_cons hlt, hx]
+    rw [hd]
+    by_cases ht : x.tag.isSome = true
+    · simp only [ht, ↓reduceIte]
+      apply (WP.spec_ok _).mpr
+      simp [ht]
+    · simp only [ht, Bool.false_eq_true, ↓reduceIte]
+      step as ⟨i2, hi2⟩
+      apply WP.spec_mono (ih i2 (by simp [Slice.length] at hi ⊢; omega))
+      intro b hb
+      simp at ht
+      simp [hb, hi2, ht]
+
+theorem sid_block_len_from_spec (sids : Slice packets.Sid) (tagged : Bool) (k : Nat) :
+    ∀ (i : Usize) (len : U32), sids.length = i.val + k →
+    len.val + (((sids.val.drop i.val).map SidV.of).flatMap (encOf tagged)).length < 2 ^ 32 →
+    packets.sid_block_len_from sids tagged i len ⦃ r =>
+      r.val = len.val + (((sids.val.drop i.val).map SidV.of).flatMap (encOf tagged)).length ⦄ := by
+  induction k with
+  | zero =>
+    intro i len hi _
+    unfold packets.sid_block_len_from
+    have : ¬ i < Slice.len sids := by simp [Slice.len] at *; scalar_tac
+    simp only [this, ↓reduceIte]
+    apply (WP.spec_ok _).mpr
+    simp only [Slice.length] at hi
+    rw [List.drop_of_length_le (by omega)]; simp
+  | succ k ih =>
+    intro i len hi hb
+    unfold packets.sid_block_len_from
+    have : i < Slice.len sids := by simp [Slice.len] at *; scalar_tac
+    simp only [this, ↓reduceIte]
+    have hlt : i.val < sids.val.length := by simp [Slice.length] at hi; omega
+    have hm : UScalar.max .U32 = 2 ^ 32 - 1 := by simp [UScalar.max_def]
+    split
+    · rename_i htg
+      subst htg
+      step as ⟨i2, hi2⟩
+      step as ⟨x, hx⟩
+      have hd : sids.val.drop i.val = x :: sids.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt, hx]
+      rw [hd] at hb ⊢
+      simp only [List.map_cons, List.flatMap_cons, List.length_append, encOf, ↓reduceIte] at hb ⊢
+      step with sid_tagged_len_spec x (by omega) as ⟨i3, hi3⟩
+      step as ⟨i4, hi4⟩
+      have e4 : i4.val = (sidTaggedEnc (SidV.of x)).length := by
+        rw [hi4]; simp only [UScalar.cast_val_eq, hi3]; apply Nat.mod_eq_of_lt; simp; omega
+      step as ⟨i5, hi5⟩
+      have e5 : i5.val = len.val + (sidTaggedEnc (SidV.of x)).length := by
+        rw [hi5, core.num.U32.saturating_add, sat_add_val _ _ (by rw [hm, e4]; omega), e4]
+      apply WP.spec_mono (ih i2 i5 (by simp [Slice.length] at hi ⊢; omega)
+        (by rw [hi2, e5]; simp only [encOf, ↓reduceIte] at hb ⊢; omega))
+      intro r hr
+      rw [hr, e5, hi2]; simp only [encOf, ↓reduceIte]; omega
+    · step as ⟨i2, hi2⟩
+      step as ⟨x, hx⟩
+      have hd : sids.val.drop i.val = x :: sids.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt, hx]
+      rename_i htg
+      have htf : tagged = false := by simpa using htg
+      subst htf
+      rw [hd] at hb ⊢
+      simp only [List.map_cons, List.flatMap_cons, List.length_append, encOf, Bool.false_eq_true,
+        ↓reduceIte] at hb ⊢
+      step with sid_len_spec x (by omega) as ⟨i3, hi3⟩
+      step as ⟨i4, hi4⟩
+      have e4 : i4.val = (sidEnc (SidV.of x)).length := by
+        rw [hi4]; simp only [UScalar.cast_val_eq, hi3]; apply Nat.mod_eq_of_lt; simp; omega
+      step as ⟨i5, hi5⟩
+      have e5 : i5.val = len.val + (sidEnc (SidV.of x)).length := by
+        rw [hi5, core.num.U32.saturating_add, sat_add_val _ _ (by rw [hm, e4]; omega), e4]
+      apply WP.spec_mono (ih i2 i5 (by simp [Slice.length] at hi ⊢; omega)
+        (by rw [hi2, e5]; simp only [encOf, Bool.false_eq_true, ↓reduceIte] at hb ⊢; omega))
+      intro r hr
+      rw [hr, e5, hi2]; simp only [encOf, Bool.false_eq_true, ↓reduceIte] at hr ⊢; omega
+
 end GtidUtil
 
 open GtidUtil
