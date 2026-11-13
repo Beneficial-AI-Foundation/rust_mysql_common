@@ -25,6 +25,15 @@ noncomputable section
 
 namespace mysql_common
 
+/-- Trait implementation: [core::clone::{impl core::clone::CloneToUninit for T}]
+    Source: '/rustc/library/core/src/clone.rs', lines 648:0-648:41
+    Name pattern: [core::clone::CloneToUninit<@T>] -/
+@[reducible, rust_trait_impl "core::clone::CloneToUninit<@T>"]
+def core.clone.CloneToUninit.Blanket {T : Type _} (CloneInst : core.clone.Clone
+  T) : core.clone.CloneToUninit T := {
+  clone_to_uninit := core.clone.CloneToUninit.Blanket.clone_to_uninit CloneInst
+}
+
 /-- Trait implementation: [core::fmt::{impl core::fmt::Display for &'_0 T}]
     Source: '/rustc/library/core/src/fmt/mod.rs', lines 2871:8-2871:46; this code is generated from a macro invocation at: '/rustc/library/core/src/fmt/mod.rs', lines 2882:0-2882:83
     Name pattern: [core::fmt::Display<&'0 @T>] -/
@@ -54,10 +63,12 @@ def U8.Insts.CoreFmtDisplay : core.fmt.Display Std.U8 := {
     Source: '/rustc/library/core/src/slice/cmp.rs', lines 14:0-16:28
     Name pattern: [core::cmp::PartialEq<[@T], [@U]>] -/
 @[reducible, rust_trait_impl "core::cmp::PartialEq<[@T], [@U]>"]
-def Slice.Insts.CoreCmpPartialEqSlice {T : Type _} {U : Type _}
+impl_def Slice.Insts.CoreCmpPartialEqSlice {T : Type _} {U : Type _}
   (cmpPartialEqInst : core.cmp.PartialEq T U) : core.cmp.PartialEq (Slice T)
   (Slice U) := {
   eq := core.slice.cmp.PartialEqSlice.eq cmpPartialEqInst
+  ne := core.cmp.PartialEq.ne.trait_default (Slice.Insts.CoreCmpPartialEqSlice
+    cmpPartialEqInst)
 }
 
 /-- Trait implementation: [alloc::alloc::{impl core::alloc::AllocatorClone for alloc::alloc::Global}]
@@ -102,6 +113,79 @@ def Slice.Insts.AllocBorrowToOwnedVec {T : Type _} (corecloneCloneInst :
   to_owned := Slice.Insts.AllocBorrowToOwnedVec.to_owned corecloneCloneInst
 }
 
+/-- Trait implementation: [alloc::str::{impl core::borrow::Borrow<str> for alloc::string::String}]
+    Source: '/rustc/library/alloc/src/str.rs', lines 231:0-231:27
+    Name pattern: [core::borrow::Borrow<alloc::string::String, str>] -/
+@[reducible, rust_trait_impl
+  "core::borrow::Borrow<alloc::string::String, str>"]
+def alloc.string.String.Insts.CoreBorrowBorrowStr : core.borrow.Borrow String
+  Str := {
+  borrow := alloc.string.String.Insts.CoreBorrowBorrowStr.borrow
+}
+
+/-- Trait implementation: [alloc::str::{impl alloc::borrow::ToOwned<alloc::string::String> for str}]
+    Source: '/rustc/library/alloc/src/str.rs', lines 248:0-248:20
+    Name pattern: [alloc::borrow::ToOwned<str, alloc::string::String>] -/
+@[reducible, rust_trait_impl
+  "alloc::borrow::ToOwned<str, alloc::string::String>"]
+def Str.Insts.AllocBorrowToOwnedString : alloc.borrow.ToOwned Str String := {
+  coreborrowBorrowInst := alloc.string.String.Insts.CoreBorrowBorrowStr
+  to_owned := Str.Insts.AllocBorrowToOwnedString.to_owned
+}
+
+/-- Trait implementation: [alloc::string::{impl core::convert::From<&'a str> for alloc::borrow::Cow<'a, str, alloc::string::String>}]
+    Source: '/rustc/library/alloc/src/string.rs', lines 3279:0-3279:39
+    Name pattern: [core::convert::From<alloc::borrow::Cow<'a, str, alloc::string::String>, &'a str>] -/
+@[reducible, rust_trait_impl
+  "core::convert::From<alloc::borrow::Cow<'a, str, alloc::string::String>, &'a str>"]
+def alloc.borrow.CowAStrString.Insts.CoreConvertFromSharedAStr :
+  core.convert.From (alloc.borrow.Cow Str String) Str := {
+  «from» := alloc.borrow.CowAStrString.Insts.CoreConvertFromSharedAStr.from
+}
+
+/-- Trait implementation: [alloc::string::{impl core::convert::From<alloc::string::String> for alloc::borrow::Cow<'a, str, alloc::string::String>}]
+    Source: '/rustc/library/alloc/src/string.rs', lines 3300:0-3300:38
+    Name pattern: [core::convert::From<alloc::borrow::Cow<'a, str, alloc::string::String>, alloc::string::String>] -/
+@[reducible, rust_trait_impl
+  "core::convert::From<alloc::borrow::Cow<'a, str, alloc::string::String>, alloc::string::String>"]
+def alloc.borrow.CowAStrString.Insts.CoreConvertFromString : core.convert.From
+  (alloc.borrow.Cow Str String) String := {
+  «from» := alloc.borrow.CowAStrString.Insts.CoreConvertFromString.from
+}
+
+/-- Trait implementation: [alloc::vec::cow::{impl core::convert::From<&'a [T]> for alloc::borrow::Cow<'a, [T], alloc::vec::Vec<T>>}]
+    Source: '/rustc/library/alloc/src/vec/cow.rs', lines 5:0-5:49
+    Name pattern: [core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, &'a [@T]>] -/
+@[reducible, rust_trait_impl
+  "core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, &'a [@T]>"]
+def alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice {T : Type _}
+  (corecloneCloneInst : core.clone.Clone T) : core.convert.From
+  (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T)) (Slice T) := {
+  «from» := alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice.from
+    corecloneCloneInst
+}
+
+/-- Trait implementation: [alloc::vec::cow::{impl core::convert::From<alloc::vec::Vec<T>> for alloc::borrow::Cow<'a, [T], alloc::vec::Vec<T>>}]
+    Source: '/rustc/library/alloc/src/vec/cow.rs', lines 31:0-31:48
+    Name pattern: [core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, alloc::vec::Vec<@T>>] -/
+@[reducible, rust_trait_impl
+  "core::convert::From<alloc::borrow::Cow<'a, [@T], alloc::vec::Vec<@T>>, alloc::vec::Vec<@T>>"]
+def alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec {T : Type _}
+  (corecloneCloneInst : core.clone.Clone T) : core.convert.From
+  (alloc.borrow.Cow (Slice T) (alloc.vec.Vec T)) (alloc.vec.Vec T) := {
+  «from» := alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec.from
+    corecloneCloneInst
+}
+
+/-- Trait implementation: [alloc::vec::{impl core::default::Default for alloc::vec::Vec<T>}]
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 4413:0-4413:32
+    Name pattern: [core::default::Default<alloc::vec::Vec<@T>>] -/
+@[reducible, rust_trait_impl "core::default::Default<alloc::vec::Vec<@T>>"]
+def alloc.vec.Vec.Insts.CoreDefaultDefault (T : Type _) : core.default.Default
+  (alloc.vec.Vec T) := {
+  default := alloc.vec.Vec.Insts.CoreDefaultDefault.default T
+}
+
 /-- Trait implementation: [alloc::vec::{impl core::convert::AsRef<[T]> for alloc::vec::Vec<T>}]
     Source: '/rustc/library/alloc/src/vec/mod.rs', lines 4444:0-4444:46
     Name pattern: [core::convert::AsRef<alloc::vec::Vec<@T>, [@T]>] -/
@@ -128,6 +212,12 @@ def alloc.vec.Vec.Insts.CoreConvertAsMutSlice (T : Type _) (A : Type _) :
 def uuid.Uuid.as_bytes
   (self : uuid.Uuid) : Result (Array Std.U8 16#usize) := do
   ok self
+
+/-- [mysql_common::auth::plugins::mysql_native_password::SCRAMBLE_LENGTH]
+    Source: 'src/auth/plugins/mysql_native_password.rs', lines 7:0-7:38
+    Visibility: public -/
+@[global_simps, irreducible]
+def auth.plugins.mysql_native_password.SCRAMBLE_LENGTH : Std.Usize := 20#usize
 
 /-- [mysql_common::constants::MAX_PAYLOAD_LEN]
     Source: 'src/constants.rs', lines 11:0-11:47
@@ -249,18 +339,33 @@ def constants.UnknownStatusFlags.Insts.CoreErrorError : core.error.Error
   fmtDisplayInst := constants.UnknownStatusFlags.Insts.CoreFmtDisplay
 }
 
-/-- [mysql_common::constants::{mysql_common::constants::StatusFlags}::empty]:
-    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
-    Visibility: public -/
-def constants.StatusFlags.empty : Result constants.StatusFlags := do
-  ok 0#u16
-
 /-- [mysql_common::constants::{mysql_common::constants::StatusFlags}::bits]:
     Source: 'src/bitflags_ext.rs', lines 107:12-109:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
     Visibility: public -/
 def constants.StatusFlags.bits
   (self : constants.StatusFlags) : Result Std.U16 := do
   ok self
+
+/-- [mysql_common::constants::{impl core::convert::From<mysql_common::constants::StatusFlags> for u16}::from]:
+    Source: 'src/bitflags_ext.rs', lines 71:12-73:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
+    Visibility: public -/
+def U16.Insts.CoreConvertFromStatusFlags.from
+  (val : constants.StatusFlags) : Result Std.U16 := do
+  constants.StatusFlags.bits val
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::From<mysql_common::constants::StatusFlags> for u16}]
+    Source: 'src/bitflags_ext.rs', lines 70:8-74:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1 -/
+@[reducible]
+def U16.Insts.CoreConvertFromStatusFlags : core.convert.From Std.U16
+  constants.StatusFlags := {
+  «from» := U16.Insts.CoreConvertFromStatusFlags.from
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::StatusFlags}::empty]:
+    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
+    Visibility: public -/
+def constants.StatusFlags.empty : Result constants.StatusFlags := do
+  ok 0#u16
 
 /-- [mysql_common::constants::{mysql_common::constants::StatusFlags}::from_bits_retain]:
     Source: 'src/bitflags_ext.rs', lines 130:12-132:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 18:0-79:1
@@ -401,6 +506,29 @@ def constants.StatusFlags.SERVER_SESSION_STATE_CHANGED
   : constants.StatusFlags :=
   16384#u16
 
+/-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::StatusFlags}::clone]:
+    Source: 'src/constants.rs', lines 25:34-25:39
+    Visibility: public -/
+def constants.StatusFlags.Insts.CoreCloneClone.clone
+  (self : constants.StatusFlags) : Result constants.StatusFlags := do
+  ok self
+
+/-- Trait implementation: [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::StatusFlags}]
+    Source: 'src/constants.rs', lines 25:34-25:39 -/
+@[reducible]
+def constants.StatusFlags.Insts.CoreCloneClone : core.clone.Clone
+  constants.StatusFlags := {
+  clone := constants.StatusFlags.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::marker::Copy for mysql_common::constants::StatusFlags}]
+    Source: 'src/constants.rs', lines 25:41-25:45 -/
+@[reducible]
+def constants.StatusFlags.Insts.CoreMarkerCopy : core.marker.Copy
+  constants.StatusFlags := {
+  cloneInst := constants.StatusFlags.Insts.CoreCloneClone
+}
+
 /-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::all]:
     Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
     Visibility: public -/
@@ -482,18 +610,33 @@ def constants.CapabilityFlags.Insts.CoreConvertTryFromU32UnknownCapabilityFlags
     constants.CapabilityFlags.Insts.CoreConvertTryFromU32UnknownCapabilityFlags.try_from
 }
 
-/-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::empty]:
-    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
-    Visibility: public -/
-def constants.CapabilityFlags.empty : Result constants.CapabilityFlags := do
-  ok 0#u32
-
 /-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::bits]:
     Source: 'src/bitflags_ext.rs', lines 107:12-109:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
     Visibility: public -/
 def constants.CapabilityFlags.bits
   (self : constants.CapabilityFlags) : Result Std.U32 := do
   ok self
+
+/-- [mysql_common::constants::{impl core::convert::From<mysql_common::constants::CapabilityFlags> for u32}::from]:
+    Source: 'src/bitflags_ext.rs', lines 71:12-73:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+def U32.Insts.CoreConvertFromCapabilityFlags.from
+  (val : constants.CapabilityFlags) : Result Std.U32 := do
+  constants.CapabilityFlags.bits val
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::From<mysql_common::constants::CapabilityFlags> for u32}]
+    Source: 'src/bitflags_ext.rs', lines 70:8-74:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1 -/
+@[reducible]
+def U32.Insts.CoreConvertFromCapabilityFlags : core.convert.From Std.U32
+  constants.CapabilityFlags := {
+  «from» := U32.Insts.CoreConvertFromCapabilityFlags.from
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::empty]:
+    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+def constants.CapabilityFlags.empty : Result constants.CapabilityFlags := do
+  ok 0#u32
 
 /-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::from_bits_retain]:
     Source: 'src/bitflags_ext.rs', lines 130:12-132:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
@@ -626,6 +769,39 @@ def constants.CapabilityFlags.complement
   let i ← lift (~~~ self)
   constants.CapabilityFlags.from_bits_truncate i
 
+/-- [mysql_common::constants::{impl core::ops::bit::BitOr<mysql_common::constants::CapabilityFlags, mysql_common::constants::CapabilityFlags> for mysql_common::constants::CapabilityFlags}::bitor]:
+    Source: 'src/bitflags_ext.rs', lines 307:12-309:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+def
+  constants.CapabilityFlags.Insts.CoreOpsBitBitOrCapabilityFlagsCapabilityFlags.bitor
+  (self : constants.CapabilityFlags) (other : constants.CapabilityFlags) :
+  Result constants.CapabilityFlags
+  := do
+  constants.CapabilityFlags.union self other
+
+/-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::CLIENT_CONNECT_WITH_DB]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB
+  : constants.CapabilityFlags :=
+  8#u32
+
+/-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::CLIENT_PLUGIN_AUTH]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.CapabilityFlags.CLIENT_PLUGIN_AUTH : constants.CapabilityFlags :=
+  524288#u32
+
+/-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::CLIENT_CONNECT_ATTRS]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.CapabilityFlags.CLIENT_CONNECT_ATTRS
+  : constants.CapabilityFlags :=
+  1048576#u32
+
 /-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::CLIENT_SESSION_TRACK]
     Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
     Visibility: public -/
@@ -648,6 +824,121 @@ def constants.CapabilityFlags.CLIENT_PROGRESS_OBSOLETE
 @[global_simps, irreducible]
 def constants.CapabilityFlags.CLIENT_PROTOCOL_41 : constants.CapabilityFlags :=
   512#u32
+
+/-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.CapabilityFlags.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
+  : constants.CapabilityFlags :=
+  2097152#u32
+
+/-- [mysql_common::constants::{mysql_common::constants::CapabilityFlags}::CLIENT_SECURE_CONNECTION]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 81:0-361:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.CapabilityFlags.CLIENT_SECURE_CONNECTION
+  : constants.CapabilityFlags :=
+  32768#u32
+
+/-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::CapabilityFlags}::clone]:
+    Source: 'src/constants.rs', lines 88:34-88:39
+    Visibility: public -/
+def constants.CapabilityFlags.Insts.CoreCloneClone.clone
+  (self : constants.CapabilityFlags) : Result constants.CapabilityFlags := do
+  ok self
+
+/-- Trait implementation: [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::CapabilityFlags}]
+    Source: 'src/constants.rs', lines 88:34-88:39 -/
+@[reducible]
+def constants.CapabilityFlags.Insts.CoreCloneClone : core.clone.Clone
+  constants.CapabilityFlags := {
+  clone := constants.CapabilityFlags.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::marker::Copy for mysql_common::constants::CapabilityFlags}]
+    Source: 'src/constants.rs', lines 88:41-88:45 -/
+@[reducible]
+def constants.CapabilityFlags.Insts.CoreMarkerCopy : core.marker.Copy
+  constants.CapabilityFlags := {
+  cloneInst := constants.CapabilityFlags.Insts.CoreCloneClone
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::MariadbCapabilities}::bits]:
+    Source: 'src/bitflags_ext.rs', lines 107:12-109:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 363:0-390:1
+    Visibility: public -/
+def constants.MariadbCapabilities.bits
+  (self : constants.MariadbCapabilities) : Result Std.U32 := do
+  ok self
+
+/-- [mysql_common::constants::{impl core::convert::From<mysql_common::constants::MariadbCapabilities> for u32}::from]:
+    Source: 'src/bitflags_ext.rs', lines 71:12-73:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 363:0-390:1
+    Visibility: public -/
+def U32.Insts.CoreConvertFromMariadbCapabilities.from
+  (val : constants.MariadbCapabilities) : Result Std.U32 := do
+  constants.MariadbCapabilities.bits val
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::From<mysql_common::constants::MariadbCapabilities> for u32}]
+    Source: 'src/bitflags_ext.rs', lines 70:8-74:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 363:0-390:1 -/
+@[reducible]
+def U32.Insts.CoreConvertFromMariadbCapabilities : core.convert.From Std.U32
+  constants.MariadbCapabilities := {
+  «from» := U32.Insts.CoreConvertFromMariadbCapabilities.from
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::MariadbCapabilities}::empty]:
+    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 363:0-390:1
+    Visibility: public -/
+def constants.MariadbCapabilities.empty
+  : Result constants.MariadbCapabilities := do
+  ok 0#u32
+
+/-- [mysql_common::constants::{mysql_common::constants::MariadbCapabilities}::all]:
+    Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 363:0-390:1
+    Visibility: public -/
+def constants.MariadbCapabilities.all
+  : Result constants.MariadbCapabilities := do
+  let i ← lift (0#u32 ||| 1#u32)
+  let i1 ← lift (i ||| 2#u32)
+  let i2 ← lift (i1 ||| 4#u32)
+  let i3 ← lift (i2 ||| 8#u32)
+  let i4 ← lift (i3 ||| 16#u32)
+  let i5 ← lift (i4 ||| 32#u32)
+  ok i5
+
+/-- [mysql_common::constants::{mysql_common::constants::MariadbCapabilities}::from_bits_truncate]:
+    Source: 'src/bitflags_ext.rs', lines 124:12-126:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 363:0-390:1
+    Visibility: public -/
+def constants.MariadbCapabilities.from_bits_truncate
+  (bits : Std.U32) : Result constants.MariadbCapabilities := do
+  let mc ← constants.MariadbCapabilities.all
+  let i ← lift (bits &&& mc)
+  ok i
+
+/-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::MariadbCapabilities}::clone]:
+    Source: 'src/constants.rs', lines 370:34-370:39
+    Visibility: public -/
+def constants.MariadbCapabilities.Insts.CoreCloneClone.clone
+  (self : constants.MariadbCapabilities) :
+  Result constants.MariadbCapabilities
+  := do
+  ok self
+
+/-- Trait implementation: [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::MariadbCapabilities}]
+    Source: 'src/constants.rs', lines 370:34-370:39 -/
+@[reducible]
+def constants.MariadbCapabilities.Insts.CoreCloneClone : core.clone.Clone
+  constants.MariadbCapabilities := {
+  clone := constants.MariadbCapabilities.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::marker::Copy for mysql_common::constants::MariadbCapabilities}]
+    Source: 'src/constants.rs', lines 370:41-370:45 -/
+@[reducible]
+def constants.MariadbCapabilities.Insts.CoreMarkerCopy : core.marker.Copy
+  constants.MariadbCapabilities := {
+  cloneInst := constants.MariadbCapabilities.Insts.CoreCloneClone
+}
 
 /-- [mysql_common::constants::{mysql_common::constants::CursorType}::bits]:
     Source: 'src/bitflags_ext.rs', lines 107:12-109:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 392:0-406:1
@@ -755,12 +1046,93 @@ def constants.StmtExecuteParamsFlags.Insts.CoreMarkerCopy : core.marker.Copy
   cloneInst := constants.StmtExecuteParamsFlags.Insts.CoreCloneClone
 }
 
-/-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::empty]:
-    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+/-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::all]:
+    Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
     Visibility: public -/
-def constants.StmtExecuteParamFlags.empty
+def constants.StmtExecuteParamFlags.all
   : Result constants.StmtExecuteParamFlags := do
-  ok 0#u8
+  let i ← lift (0#u8 ||| 128#u8)
+  ok i
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::from_bits_truncate]:
+    Source: 'src/bitflags_ext.rs', lines 124:12-126:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def constants.StmtExecuteParamFlags.from_bits_truncate
+  (bits : Std.U8) : Result constants.StmtExecuteParamFlags := do
+  let sepf ← constants.StmtExecuteParamFlags.all
+  let i ← lift (bits &&& sepf)
+  ok i
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::from_bits]:
+    Source: 'src/bitflags_ext.rs', lines 113:12-120:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def constants.StmtExecuteParamFlags.from_bits
+  (bits : Std.U8) : Result (Option constants.StmtExecuteParamFlags) := do
+  let sepf ← constants.StmtExecuteParamFlags.from_bits_truncate bits
+  if sepf = bits
+  then ok (some bits)
+  else ok none
+
+/-- [mysql_common::constants::{impl core::convert::TryFrom<u8, mysql_common::constants::UnknownStmtExecuteParamFlags> for mysql_common::constants::StmtExecuteParamFlags}::try_from]:
+    Source: 'src/bitflags_ext.rs', lines 62:12-67:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def
+  constants.StmtExecuteParamFlags.Insts.CoreConvertTryFromU8UnknownStmtExecuteParamFlags.try_from
+  (val : Std.U8) :
+  Result (core.result.Result constants.StmtExecuteParamFlags
+    constants.UnknownStmtExecuteParamFlags)
+  := do
+  let o ← constants.StmtExecuteParamFlags.from_bits val
+  match o with
+  | none => ok (core.result.Result.Err val)
+  | some flags => ok (core.result.Result.Ok flags)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::TryFrom<u8, mysql_common::constants::UnknownStmtExecuteParamFlags> for mysql_common::constants::StmtExecuteParamFlags}]
+    Source: 'src/bitflags_ext.rs', lines 59:8-68:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1 -/
+@[reducible]
+def
+  constants.StmtExecuteParamFlags.Insts.CoreConvertTryFromU8UnknownStmtExecuteParamFlags
+  : core.convert.TryFrom constants.StmtExecuteParamFlags Std.U8
+  constants.UnknownStmtExecuteParamFlags := {
+  try_from :=
+    constants.StmtExecuteParamFlags.Insts.CoreConvertTryFromU8UnknownStmtExecuteParamFlags.try_from
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Display for mysql_common::constants::UnknownStmtExecuteParamFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:58-55:74; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1 -/
+@[reducible]
+def constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDisplay :
+  core.fmt.Display constants.UnknownStmtExecuteParamFlags := {
+  fmt := constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownStmtExecuteParamFlags}::fmt]:
+    Source: 'src/bitflags_ext.rs', lines 55:17-55:22; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDebug.fmt
+  (self : constants.UnknownStmtExecuteParamFlags) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ (core.fmt.DebugShared core.fmt.DebugU8) self
+  core.fmt.Formatter.debug_tuple_field1_finish f (toStr
+    "UnknownStmtExecuteParamFlags") dyn
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownStmtExecuteParamFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:17-55:22; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1 -/
+@[reducible]
+def constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDebug : core.fmt.Debug
+  constants.UnknownStmtExecuteParamFlags := {
+  fmt := constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::error::Error for mysql_common::constants::UnknownStmtExecuteParamFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:58-55:74; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1 -/
+@[reducible]
+def constants.UnknownStmtExecuteParamFlags.Insts.CoreErrorError :
+  core.error.Error constants.UnknownStmtExecuteParamFlags := {
+  fmtDebugInst := constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDebug
+  fmtDisplayInst := constants.UnknownStmtExecuteParamFlags.Insts.CoreFmtDisplay
+}
 
 /-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::bits]:
     Source: 'src/bitflags_ext.rs', lines 107:12-109:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
@@ -769,6 +1141,50 @@ def constants.StmtExecuteParamFlags.bits
   (self : constants.StmtExecuteParamFlags) : Result Std.U8 := do
   ok self
 
+/-- [mysql_common::constants::{impl core::convert::From<mysql_common::constants::StmtExecuteParamFlags> for u8}::from]:
+    Source: 'src/bitflags_ext.rs', lines 71:12-73:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def U8.Insts.CoreConvertFromStmtExecuteParamFlags.from
+  (val : constants.StmtExecuteParamFlags) : Result Std.U8 := do
+  constants.StmtExecuteParamFlags.bits val
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::From<mysql_common::constants::StmtExecuteParamFlags> for u8}]
+    Source: 'src/bitflags_ext.rs', lines 70:8-74:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1 -/
+@[reducible]
+def U8.Insts.CoreConvertFromStmtExecuteParamFlags : core.convert.From Std.U8
+  constants.StmtExecuteParamFlags := {
+  «from» := U8.Insts.CoreConvertFromStmtExecuteParamFlags.from
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::empty]:
+    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def constants.StmtExecuteParamFlags.empty
+  : Result constants.StmtExecuteParamFlags := do
+  ok 0#u8
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::union]:
+    Source: 'src/bitflags_ext.rs', lines 197:12-199:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def constants.StmtExecuteParamFlags.union
+  (self : constants.StmtExecuteParamFlags)
+  (other : constants.StmtExecuteParamFlags) :
+  Result constants.StmtExecuteParamFlags
+  := do
+  let i ← lift (self ||| other)
+  ok i
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::contains]:
+    Source: 'src/bitflags_ext.rs', lines 154:12-156:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
+    Visibility: public -/
+def constants.StmtExecuteParamFlags.contains
+  (self : constants.StmtExecuteParamFlags)
+  (other : constants.StmtExecuteParamFlags) :
+  Result Bool
+  := do
+  let i ← lift (self &&& other)
+  ok (i = other)
+
 /-- [mysql_common::constants::{mysql_common::constants::StmtExecuteParamFlags}::UNSIGNED]
     Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 421:0-432:1
     Visibility: public -/
@@ -776,6 +1192,249 @@ def constants.StmtExecuteParamFlags.bits
 def constants.StmtExecuteParamFlags.UNSIGNED
   : constants.StmtExecuteParamFlags :=
   128#u8
+
+/-- [mysql_common::constants::{impl core::cmp::PartialEq<mysql_common::constants::StmtExecuteParamFlags> for mysql_common::constants::StmtExecuteParamFlags}::eq]:
+    Source: 'src/constants.rs', lines 428:13-428:22
+    Visibility: public -/
+def
+  constants.StmtExecuteParamFlags.Insts.CoreCmpPartialEqStmtExecuteParamFlags.eq
+  (self : constants.StmtExecuteParamFlags)
+  (other : constants.StmtExecuteParamFlags) :
+  Result Bool
+  := do
+  ok (self = other)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::cmp::PartialEq<mysql_common::constants::StmtExecuteParamFlags> for mysql_common::constants::StmtExecuteParamFlags}]
+    Source: 'src/constants.rs', lines 428:13-428:22 -/
+@[reducible]
+impl_def
+  constants.StmtExecuteParamFlags.Insts.CoreCmpPartialEqStmtExecuteParamFlags :
+  core.cmp.PartialEq constants.StmtExecuteParamFlags
+  constants.StmtExecuteParamFlags := {
+  eq :=
+    constants.StmtExecuteParamFlags.Insts.CoreCmpPartialEqStmtExecuteParamFlags.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    constants.StmtExecuteParamFlags.Insts.CoreCmpPartialEqStmtExecuteParamFlags
+}
+
+/-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::StmtExecuteParamFlags}::clone]:
+    Source: 'src/constants.rs', lines 428:34-428:39
+    Visibility: public -/
+def constants.StmtExecuteParamFlags.Insts.CoreCloneClone.clone
+  (self : constants.StmtExecuteParamFlags) :
+  Result constants.StmtExecuteParamFlags
+  := do
+  ok self
+
+/-- Trait implementation: [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::StmtExecuteParamFlags}]
+    Source: 'src/constants.rs', lines 428:34-428:39 -/
+@[reducible]
+def constants.StmtExecuteParamFlags.Insts.CoreCloneClone : core.clone.Clone
+  constants.StmtExecuteParamFlags := {
+  clone := constants.StmtExecuteParamFlags.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::marker::Copy for mysql_common::constants::StmtExecuteParamFlags}]
+    Source: 'src/constants.rs', lines 428:41-428:45 -/
+@[reducible]
+def constants.StmtExecuteParamFlags.Insts.CoreMarkerCopy : core.marker.Copy
+  constants.StmtExecuteParamFlags := {
+  cloneInst := constants.StmtExecuteParamFlags.Insts.CoreCloneClone
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::all]:
+    Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.all
+  : Result constants.StmtBulkExecuteFlags := do
+  let i ← lift (0#u16 ||| 64#u16)
+  let i1 ← lift (i ||| 128#u16)
+  ok i1
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::from_bits_truncate]:
+    Source: 'src/bitflags_ext.rs', lines 124:12-126:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.from_bits_truncate
+  (bits : Std.U16) : Result constants.StmtBulkExecuteFlags := do
+  let sbef ← constants.StmtBulkExecuteFlags.all
+  let i ← lift (bits &&& sbef)
+  ok i
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::from_bits]:
+    Source: 'src/bitflags_ext.rs', lines 113:12-120:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.from_bits
+  (bits : Std.U16) : Result (Option constants.StmtBulkExecuteFlags) := do
+  let sbef ← constants.StmtBulkExecuteFlags.from_bits_truncate bits
+  if sbef = bits
+  then ok (some bits)
+  else ok none
+
+/-- [mysql_common::constants::{impl core::convert::TryFrom<u16, mysql_common::constants::UnknownStmtBulkExecuteParamsFlags> for mysql_common::constants::StmtBulkExecuteFlags}::try_from]:
+    Source: 'src/bitflags_ext.rs', lines 62:12-67:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def
+  constants.StmtBulkExecuteFlags.Insts.CoreConvertTryFromU16UnknownStmtBulkExecuteParamsFlags.try_from
+  (val : Std.U16) :
+  Result (core.result.Result constants.StmtBulkExecuteFlags
+    constants.UnknownStmtBulkExecuteParamsFlags)
+  := do
+  let o ← constants.StmtBulkExecuteFlags.from_bits val
+  match o with
+  | none => ok (core.result.Result.Err val)
+  | some flags => ok (core.result.Result.Ok flags)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::TryFrom<u16, mysql_common::constants::UnknownStmtBulkExecuteParamsFlags> for mysql_common::constants::StmtBulkExecuteFlags}]
+    Source: 'src/bitflags_ext.rs', lines 59:8-68:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1 -/
+@[reducible]
+def
+  constants.StmtBulkExecuteFlags.Insts.CoreConvertTryFromU16UnknownStmtBulkExecuteParamsFlags
+  : core.convert.TryFrom constants.StmtBulkExecuteFlags Std.U16
+  constants.UnknownStmtBulkExecuteParamsFlags := {
+  try_from :=
+    constants.StmtBulkExecuteFlags.Insts.CoreConvertTryFromU16UnknownStmtBulkExecuteParamsFlags.try_from
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Display for mysql_common::constants::UnknownStmtBulkExecuteParamsFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:58-55:74; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1 -/
+@[reducible]
+def constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDisplay :
+  core.fmt.Display constants.UnknownStmtBulkExecuteParamsFlags := {
+  fmt := constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownStmtBulkExecuteParamsFlags}::fmt]:
+    Source: 'src/bitflags_ext.rs', lines 55:17-55:22; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDebug.fmt
+  (self : constants.UnknownStmtBulkExecuteParamsFlags) (f : core.fmt.Formatter)
+  :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ (core.fmt.DebugShared core.fmt.DebugU16) self
+  core.fmt.Formatter.debug_tuple_field1_finish f (toStr
+    "UnknownStmtBulkExecuteParamsFlags") dyn
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownStmtBulkExecuteParamsFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:17-55:22; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1 -/
+@[reducible]
+def constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDebug :
+  core.fmt.Debug constants.UnknownStmtBulkExecuteParamsFlags := {
+  fmt := constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::error::Error for mysql_common::constants::UnknownStmtBulkExecuteParamsFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:58-55:74; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1 -/
+@[reducible]
+def constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreErrorError :
+  core.error.Error constants.UnknownStmtBulkExecuteParamsFlags := {
+  fmtDebugInst :=
+    constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDebug
+  fmtDisplayInst :=
+    constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::bits]:
+    Source: 'src/bitflags_ext.rs', lines 107:12-109:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.bits
+  (self : constants.StmtBulkExecuteFlags) : Result Std.U16 := do
+  ok self
+
+/-- [mysql_common::constants::{impl core::convert::From<mysql_common::constants::StmtBulkExecuteFlags> for u16}::from]:
+    Source: 'src/bitflags_ext.rs', lines 71:12-73:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def U16.Insts.CoreConvertFromStmtBulkExecuteFlags.from
+  (val : constants.StmtBulkExecuteFlags) : Result Std.U16 := do
+  constants.StmtBulkExecuteFlags.bits val
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::From<mysql_common::constants::StmtBulkExecuteFlags> for u16}]
+    Source: 'src/bitflags_ext.rs', lines 70:8-74:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1 -/
+@[reducible]
+def U16.Insts.CoreConvertFromStmtBulkExecuteFlags : core.convert.From Std.U16
+  constants.StmtBulkExecuteFlags := {
+  «from» := U16.Insts.CoreConvertFromStmtBulkExecuteFlags.from
+}
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::contains]:
+    Source: 'src/bitflags_ext.rs', lines 154:12-156:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.contains
+  (self : constants.StmtBulkExecuteFlags)
+  (other : constants.StmtBulkExecuteFlags) :
+  Result Bool
+  := do
+  let i ← lift (self &&& other)
+  ok (i = other)
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::empty]:
+    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.empty
+  : Result constants.StmtBulkExecuteFlags := do
+  ok 0#u16
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::union]:
+    Source: 'src/bitflags_ext.rs', lines 197:12-199:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.union
+  (self : constants.StmtBulkExecuteFlags)
+  (other : constants.StmtBulkExecuteFlags) :
+  Result constants.StmtBulkExecuteFlags
+  := do
+  let i ← lift (self ||| other)
+  ok i
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::insert]:
+    Source: 'src/bitflags_ext.rs', lines 160:12-162:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.insert
+  (self : constants.StmtBulkExecuteFlags)
+  (other : constants.StmtBulkExecuteFlags) :
+  Result constants.StmtBulkExecuteFlags
+  := do
+  constants.StmtBulkExecuteFlags.union self other
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::SEND_TYPES_TO_SERVER]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.StmtBulkExecuteFlags.SEND_TYPES_TO_SERVER
+  : constants.StmtBulkExecuteFlags :=
+  128#u16
+
+/-- [mysql_common::constants::{mysql_common::constants::StmtBulkExecuteFlags}::SEND_UNIT_RESULTS]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/constants.rs', lines 434:0-446:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def constants.StmtBulkExecuteFlags.SEND_UNIT_RESULTS
+  : constants.StmtBulkExecuteFlags :=
+  64#u16
+
+/-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::StmtBulkExecuteFlags}::clone]:
+    Source: 'src/constants.rs', lines 441:34-441:39
+    Visibility: public -/
+def constants.StmtBulkExecuteFlags.Insts.CoreCloneClone.clone
+  (self : constants.StmtBulkExecuteFlags) :
+  Result constants.StmtBulkExecuteFlags
+  := do
+  ok self
+
+/-- Trait implementation: [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::StmtBulkExecuteFlags}]
+    Source: 'src/constants.rs', lines 441:34-441:39 -/
+@[reducible]
+def constants.StmtBulkExecuteFlags.Insts.CoreCloneClone : core.clone.Clone
+  constants.StmtBulkExecuteFlags := {
+  clone := constants.StmtBulkExecuteFlags.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::marker::Copy for mysql_common::constants::StmtBulkExecuteFlags}]
+    Source: 'src/constants.rs', lines 441:41-441:45 -/
+@[reducible]
+def constants.StmtBulkExecuteFlags.Insts.CoreMarkerCopy : core.marker.Copy
+  constants.StmtBulkExecuteFlags := {
+  cloneInst := constants.StmtBulkExecuteFlags.Insts.CoreCloneClone
+}
 
 /-- [mysql_common::constants::{mysql_common::constants::ColumnFlags}::all]:
     Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
@@ -842,6 +1501,27 @@ def constants.ColumnFlags.Insts.CoreConvertTryFromU16UnknownColumnFlags :
     constants.ColumnFlags.Insts.CoreConvertTryFromU16UnknownColumnFlags.try_from
 }
 
+/-- [mysql_common::constants::{mysql_common::constants::ColumnFlags}::empty]:
+    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
+    Visibility: public -/
+def constants.ColumnFlags.empty : Result constants.ColumnFlags := do
+  ok 0#u16
+
+/-- [mysql_common::constants::{impl core::default::Default for mysql_common::constants::ColumnFlags}::default]:
+    Source: 'src/bitflags_ext.rs', lines 77:12-79:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
+    Visibility: public -/
+def constants.ColumnFlags.Insts.CoreDefaultDefault.default
+  : Result constants.ColumnFlags := do
+  constants.ColumnFlags.empty
+
+/-- Trait implementation: [mysql_common::constants::{impl core::default::Default for mysql_common::constants::ColumnFlags}]
+    Source: 'src/bitflags_ext.rs', lines 76:8-80:9; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1 -/
+@[reducible]
+def constants.ColumnFlags.Insts.CoreDefaultDefault : core.default.Default
+  constants.ColumnFlags := {
+  default := constants.ColumnFlags.Insts.CoreDefaultDefault.default
+}
+
 /-- Trait implementation: [mysql_common::constants::{impl core::fmt::Display for mysql_common::constants::UnknownColumnFlags}]
     Source: 'src/bitflags_ext.rs', lines 55:58-55:74; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1 -/
 @[reducible]
@@ -899,12 +1579,6 @@ def U16.Insts.CoreConvertFromColumnFlags : core.convert.From Std.U16
   constants.ColumnFlags := {
   «from» := U16.Insts.CoreConvertFromColumnFlags.from
 }
-
-/-- [mysql_common::constants::{mysql_common::constants::ColumnFlags}::empty]:
-    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
-    Visibility: public -/
-def constants.ColumnFlags.empty : Result constants.ColumnFlags := do
-  ok 0#u16
 
 /-- [mysql_common::constants::{mysql_common::constants::ColumnFlags}::from_bits_retain]:
     Source: 'src/bitflags_ext.rs', lines 130:12-132:13; this code is generated from a macro invocation at: 'src/constants.rs', lines 448:0-505:1
@@ -1066,6 +1740,290 @@ def constants.ColumnFlags.Insts.CoreMarkerCopy : core.marker.Copy
   cloneInst := constants.ColumnFlags.Insts.CoreCloneClone
 }
 
+/-- [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownMariadbBulkIndicator}::fmt]:
+    Source: 'src/constants.rs', lines 548:9-548:14
+    Visibility: public -/
+def constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDebug.fmt
+  (self : constants.UnknownMariadbBulkIndicator) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ (core.fmt.DebugShared core.fmt.DebugU8) self
+  core.fmt.Formatter.debug_tuple_field1_finish f (toStr
+    "UnknownMariadbBulkIndicator") dyn
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownMariadbBulkIndicator}]
+    Source: 'src/constants.rs', lines 548:9-548:14 -/
+@[reducible]
+def constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDebug : core.fmt.Debug
+  constants.UnknownMariadbBulkIndicator := {
+  fmt := constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDebug.fmt
+}
+
+/-- [mysql_common::constants::{impl core::fmt::Display for mysql_common::constants::UnknownMariadbBulkIndicator}::fmt]:
+    Source: 'src/constants.rs', lines 548:44-548:60
+    Visibility: public -/
+def constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDisplay.fmt
+  (self : constants.UnknownMariadbBulkIndicator)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let a ←
+    core.fmt.rt.Argument.new_display (Shared0T.Insts.CoreFmtDisplay
+      U8.Insts.CoreFmtDisplay) self
+  let a1 ←
+    core.fmt.Arguments.new
+      (Array.make 58#usize [
+        55#u8, 85#u8, 110#u8, 107#u8, 110#u8, 111#u8, 119#u8, 110#u8, 32#u8,
+        77#u8, 97#u8, 114#u8, 105#u8, 97#u8, 68#u8, 66#u8, 32#u8, 98#u8,
+        117#u8, 108#u8, 107#u8, 32#u8, 101#u8, 120#u8, 101#u8, 99#u8, 117#u8,
+        116#u8, 101#u8, 32#u8, 112#u8, 97#u8, 114#u8, 97#u8, 109#u8, 101#u8,
+        116#u8, 101#u8, 114#u8, 32#u8, 118#u8, 97#u8, 108#u8, 117#u8, 101#u8,
+        32#u8, 105#u8, 110#u8, 100#u8, 105#u8, 99#u8, 97#u8, 116#u8, 111#u8,
+        114#u8, 32#u8, 192#u8, 0#u8
+        ]) (Array.make 1#usize [ a ])
+  core.fmt.Formatter.write_fmt __formatter a1
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Display for mysql_common::constants::UnknownMariadbBulkIndicator}]
+    Source: 'src/constants.rs', lines 548:44-548:60 -/
+@[reducible]
+def constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDisplay :
+  core.fmt.Display constants.UnknownMariadbBulkIndicator := {
+  fmt := constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDisplay.fmt
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::error::Error for mysql_common::constants::UnknownMariadbBulkIndicator}]
+    Source: 'src/constants.rs', lines 548:44-548:60 -/
+@[reducible]
+def constants.UnknownMariadbBulkIndicator.Insts.CoreErrorError :
+  core.error.Error constants.UnknownMariadbBulkIndicator := {
+  fmtDebugInst := constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDebug
+  fmtDisplayInst := constants.UnknownMariadbBulkIndicator.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::MariadbBulkIndicator}::clone]:
+    Source: 'src/constants.rs', lines 554:9-554:14
+    Visibility: public -/
+def constants.MariadbBulkIndicator.Insts.CoreCloneClone.clone
+  (self : constants.MariadbBulkIndicator) :
+  Result constants.MariadbBulkIndicator
+  := do
+  ok self
+
+/-- Trait implementation: [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::MariadbBulkIndicator}]
+    Source: 'src/constants.rs', lines 554:9-554:14 -/
+@[reducible]
+def constants.MariadbBulkIndicator.Insts.CoreCloneClone : core.clone.Clone
+  constants.MariadbBulkIndicator := {
+  clone := constants.MariadbBulkIndicator.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::marker::Copy for mysql_common::constants::MariadbBulkIndicator}]
+    Source: 'src/constants.rs', lines 554:16-554:20 -/
+@[reducible]
+def constants.MariadbBulkIndicator.Insts.CoreMarkerCopy : core.marker.Copy
+  constants.MariadbBulkIndicator := {
+  cloneInst := constants.MariadbBulkIndicator.Insts.CoreCloneClone
+}
+
+/-- [mysql_common::constants::{impl core::cmp::PartialEq<mysql_common::constants::MariadbBulkIndicator> for mysql_common::constants::MariadbBulkIndicator}::eq]:
+    Source: 'src/constants.rs', lines 554:26-554:35
+    Visibility: public -/
+def
+  constants.MariadbBulkIndicator.Insts.CoreCmpPartialEqMariadbBulkIndicator.eq
+  (self : constants.MariadbBulkIndicator)
+  (other : constants.MariadbBulkIndicator) :
+  Result Bool
+  := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (self1 = other1)
+
+/-- [mysql_common::constants::{impl core::convert::From<mysql_common::constants::MariadbBulkIndicator> for u8}::from]:
+    Source: 'src/constants.rs', lines 568:4-570:5
+    Visibility: public -/
+def U8.Insts.CoreConvertFromMariadbBulkIndicator.from
+  (x : constants.MariadbBulkIndicator) : Result Std.U8 := do
+  let x1 := read_discriminant x
+  ok (UScalar.cast .U8 x1)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::From<mysql_common::constants::MariadbBulkIndicator> for u8}]
+    Source: 'src/constants.rs', lines 567:0-571:1 -/
+@[reducible]
+def U8.Insts.CoreConvertFromMariadbBulkIndicator : core.convert.From Std.U8
+  constants.MariadbBulkIndicator := {
+  «from» := U8.Insts.CoreConvertFromMariadbBulkIndicator.from
+}
+
+/-- [mysql_common::constants::{impl core::convert::TryFrom<u8, mysql_common::constants::UnknownMariadbBulkIndicator> for mysql_common::constants::MariadbBulkIndicator}::try_from]:
+    Source: 'src/constants.rs', lines 576:4-584:5
+    Visibility: public -/
+def
+  constants.MariadbBulkIndicator.Insts.CoreConvertTryFromU8UnknownMariadbBulkIndicator.try_from
+  (value : Std.U8) :
+  Result (core.result.Result constants.MariadbBulkIndicator
+    constants.UnknownMariadbBulkIndicator)
+  := do
+  match value with
+  | 0#uscalar =>
+    ok (core.result.Result.Ok
+      constants.MariadbBulkIndicator.BULK_INDICATOR_NONE)
+  | 1#uscalar =>
+    ok (core.result.Result.Ok
+      constants.MariadbBulkIndicator.BULK_INDICATOR_NULL)
+  | 2#uscalar =>
+    ok (core.result.Result.Ok
+      constants.MariadbBulkIndicator.BULK_INDICATOR_DEFAULT)
+  | 3#uscalar =>
+    ok (core.result.Result.Ok
+      constants.MariadbBulkIndicator.BULK_INDICATOR_IGNORE)
+  | _ => ok (core.result.Result.Err value)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::TryFrom<u8, mysql_common::constants::UnknownMariadbBulkIndicator> for mysql_common::constants::MariadbBulkIndicator}]
+    Source: 'src/constants.rs', lines 573:0-585:1 -/
+@[reducible]
+def
+  constants.MariadbBulkIndicator.Insts.CoreConvertTryFromU8UnknownMariadbBulkIndicator
+  : core.convert.TryFrom constants.MariadbBulkIndicator Std.U8
+  constants.UnknownMariadbBulkIndicator := {
+  try_from :=
+    constants.MariadbBulkIndicator.Insts.CoreConvertTryFromU8UnknownMariadbBulkIndicator.try_from
+}
+
+/-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::SessionStateType}::clone]:
+    Source: 'src/constants.rs', lines 589:9-589:14
+    Visibility: public -/
+def constants.SessionStateType.Insts.CoreCloneClone.clone
+  (self : constants.SessionStateType) : Result constants.SessionStateType := do
+  ok self
+
+/-- Trait implementation: [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::SessionStateType}]
+    Source: 'src/constants.rs', lines 589:9-589:14 -/
+@[reducible]
+def constants.SessionStateType.Insts.CoreCloneClone : core.clone.Clone
+  constants.SessionStateType := {
+  clone := constants.SessionStateType.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::marker::Copy for mysql_common::constants::SessionStateType}]
+    Source: 'src/constants.rs', lines 589:16-589:20 -/
+@[reducible]
+def constants.SessionStateType.Insts.CoreMarkerCopy : core.marker.Copy
+  constants.SessionStateType := {
+  cloneInst := constants.SessionStateType.Insts.CoreCloneClone
+}
+
+/-- [mysql_common::constants::{impl core::convert::From<mysql_common::constants::SessionStateType> for u8}::from]:
+    Source: 'src/constants.rs', lines 607:4-609:5
+    Visibility: public -/
+def U8.Insts.CoreConvertFromSessionStateType.from
+  (x : constants.SessionStateType) : Result Std.U8 := do
+  let x1 := read_discriminant x
+  ok (UScalar.cast .U8 x1)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::From<mysql_common::constants::SessionStateType> for u8}]
+    Source: 'src/constants.rs', lines 606:0-610:1 -/
+@[reducible]
+def U8.Insts.CoreConvertFromSessionStateType : core.convert.From Std.U8
+  constants.SessionStateType := {
+  «from» := U8.Insts.CoreConvertFromSessionStateType.from
+}
+
+/-- [mysql_common::constants::{impl core::convert::TryFrom<u8, mysql_common::constants::UnknownSessionStateType> for mysql_common::constants::SessionStateType}::try_from]:
+    Source: 'src/constants.rs', lines 615:4-625:5
+    Visibility: public -/
+def
+  constants.SessionStateType.Insts.CoreConvertTryFromU8UnknownSessionStateType.try_from
+  (value : Std.U8) :
+  Result (core.result.Result constants.SessionStateType
+    constants.UnknownSessionStateType)
+  := do
+  match value with
+  | 0#uscalar =>
+    ok (core.result.Result.Ok
+      constants.SessionStateType.SESSION_TRACK_SYSTEM_VARIABLES)
+  | 1#uscalar =>
+    ok (core.result.Result.Ok constants.SessionStateType.SESSION_TRACK_SCHEMA)
+  | 2#uscalar =>
+    ok (core.result.Result.Ok
+      constants.SessionStateType.SESSION_TRACK_STATE_CHANGE)
+  | 3#uscalar =>
+    ok (core.result.Result.Ok constants.SessionStateType.SESSION_TRACK_GTIDS)
+  | 4#uscalar =>
+    ok (core.result.Result.Ok
+      constants.SessionStateType.SESSION_TRACK_TRANSACTION_CHARACTERISTICS)
+  | 5#uscalar =>
+    ok (core.result.Result.Ok
+      constants.SessionStateType.SESSION_TRACK_TRANSACTION_STATE)
+  | _ => ok (core.result.Result.Err value)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::convert::TryFrom<u8, mysql_common::constants::UnknownSessionStateType> for mysql_common::constants::SessionStateType}]
+    Source: 'src/constants.rs', lines 612:0-626:1 -/
+@[reducible]
+def
+  constants.SessionStateType.Insts.CoreConvertTryFromU8UnknownSessionStateType
+  : core.convert.TryFrom constants.SessionStateType Std.U8
+  constants.UnknownSessionStateType := {
+  try_from :=
+    constants.SessionStateType.Insts.CoreConvertTryFromU8UnknownSessionStateType.try_from
+}
+
+/-- [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownSessionStateType}::fmt]:
+    Source: 'src/constants.rs', lines 628:9-628:14
+    Visibility: public -/
+def constants.UnknownSessionStateType.Insts.CoreFmtDebug.fmt
+  (self : constants.UnknownSessionStateType) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ (core.fmt.DebugShared core.fmt.DebugU8) self
+  core.fmt.Formatter.debug_tuple_field1_finish f (toStr
+    "UnknownSessionStateType") dyn
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::UnknownSessionStateType}]
+    Source: 'src/constants.rs', lines 628:9-628:14 -/
+@[reducible]
+def constants.UnknownSessionStateType.Insts.CoreFmtDebug : core.fmt.Debug
+  constants.UnknownSessionStateType := {
+  fmt := constants.UnknownSessionStateType.Insts.CoreFmtDebug.fmt
+}
+
+/-- [mysql_common::constants::{impl core::fmt::Display for mysql_common::constants::UnknownSessionStateType}::fmt]:
+    Source: 'src/constants.rs', lines 628:44-628:60
+    Visibility: public -/
+def constants.UnknownSessionStateType.Insts.CoreFmtDisplay.fmt
+  (self : constants.UnknownSessionStateType) (__formatter : core.fmt.Formatter)
+  :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let a ←
+    core.fmt.rt.Argument.new_display (Shared0T.Insts.CoreFmtDisplay
+      U8.Insts.CoreFmtDisplay) self
+  let a1 ←
+    core.fmt.Arguments.new
+      (Array.make 30#usize [
+        27#u8, 85#u8, 110#u8, 107#u8, 110#u8, 111#u8, 119#u8, 110#u8, 32#u8,
+        115#u8, 101#u8, 115#u8, 115#u8, 105#u8, 111#u8, 110#u8, 32#u8, 115#u8,
+        116#u8, 97#u8, 116#u8, 101#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+        32#u8, 192#u8, 0#u8
+        ]) (Array.make 1#usize [ a ])
+  core.fmt.Formatter.write_fmt __formatter a1
+
+/-- Trait implementation: [mysql_common::constants::{impl core::fmt::Display for mysql_common::constants::UnknownSessionStateType}]
+    Source: 'src/constants.rs', lines 628:44-628:60 -/
+@[reducible]
+def constants.UnknownSessionStateType.Insts.CoreFmtDisplay : core.fmt.Display
+  constants.UnknownSessionStateType := {
+  fmt := constants.UnknownSessionStateType.Insts.CoreFmtDisplay.fmt
+}
+
+/-- Trait implementation: [mysql_common::constants::{impl core::error::Error for mysql_common::constants::UnknownSessionStateType}]
+    Source: 'src/constants.rs', lines 628:44-628:60 -/
+@[reducible]
+def constants.UnknownSessionStateType.Insts.CoreErrorError : core.error.Error
+  constants.UnknownSessionStateType := {
+  fmtDebugInst := constants.UnknownSessionStateType.Insts.CoreFmtDebug
+  fmtDisplayInst := constants.UnknownSessionStateType.Insts.CoreFmtDisplay
+}
+
 /-- [mysql_common::constants::{impl core::clone::Clone for mysql_common::constants::ColumnType}::clone]:
     Source: 'src/constants.rs', lines 677:9-677:14
     Visibility: public -/
@@ -1087,6 +2045,27 @@ def constants.ColumnType.Insts.CoreCloneClone : core.clone.Clone
 def constants.ColumnType.Insts.CoreMarkerCopy : core.marker.Copy
   constants.ColumnType := {
   cloneInst := constants.ColumnType.Insts.CoreCloneClone
+}
+
+/-- [mysql_common::constants::{impl core::cmp::PartialEq<mysql_common::constants::ColumnType> for mysql_common::constants::ColumnType}::eq]:
+    Source: 'src/constants.rs', lines 677:26-677:35
+    Visibility: public -/
+def constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq
+  (self : constants.ColumnType) (other : constants.ColumnType) :
+  Result Bool
+  := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (self1 = other1)
+
+/-- Trait implementation: [mysql_common::constants::{impl core::cmp::PartialEq<mysql_common::constants::ColumnType> for mysql_common::constants::ColumnType}]
+    Source: 'src/constants.rs', lines 677:26-677:35 -/
+@[reducible]
+impl_def constants.ColumnType.Insts.CoreCmpPartialEqColumnType :
+  core.cmp.PartialEq constants.ColumnType constants.ColumnType := {
+  eq := constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    constants.ColumnType.Insts.CoreCmpPartialEqColumnType
 }
 
 /-- [mysql_common::constants::{impl core::fmt::Debug for mysql_common::constants::ColumnType}::fmt]:
@@ -1985,7 +2964,7 @@ def io.ParseBuf.parse_unchecked
   protoMyDeserializeInst.deserialize ctx self
 
 /-- [mysql_common::misc::unexpected_buf_eof]:
-    Source: 'src/misc/mod.rs', lines 160:0-165:1 -/
+    Source: 'src/misc/mod.rs', lines 161:0-166:1 -/
 def misc.unexpected_buf_eof : Result core.io.error.Error := do
   misc.io_error_msg core.io.error.ErrorKind.UnexpectedEof (toStr
     "can\'t parse: buf doesn\'t have enough data")
@@ -3481,7 +4460,7 @@ def io.ParseBuf.eat_null_str
   else ok (x, self1)
 
 /-- [mysql_common::misc::lenenc_int_len]:
-    Source: 'src/misc/mod.rs', lines 16:0-26:1
+    Source: 'src/misc/mod.rs', lines 17:0-27:1
     Visibility: public -/
 def misc.lenenc_int_len (x : Std.U64) : Result Std.U64 := do
   if x < 251#u64
@@ -3494,7 +4473,7 @@ def misc.lenenc_int_len (x : Std.U64) : Result Std.U64 := do
          else ok 9#u64
 
 /-- [mysql_common::misc::lenenc_str_len]:
-    Source: 'src/misc/mod.rs', lines 29:0-32:1
+    Source: 'src/misc/mod.rs', lines 30:0-33:1
     Visibility: public -/
 def misc.lenenc_str_len (s : Slice Std.U8) : Result Std.U64 := do
   let i := Slice.len s
@@ -3503,7 +4482,7 @@ def misc.lenenc_str_len (s : Slice Std.U8) : Result Std.U64 := do
   i1 + len
 
 /-- [mysql_common::misc::read_varlen_uint]: loop body 0:
-    Source: 'src/misc/mod.rs', lines 62:4-64:5
+    Source: 'src/misc/mod.rs', lines 63:4-65:5
     Visibility: public -/
 @[rust_loop_body]
 def misc.read_varlen_uint_loop.body
@@ -3522,7 +4501,7 @@ def misc.read_varlen_uint_loop.body
   else ok (done trailing_ones)
 
 /-- [mysql_common::misc::read_varlen_uint]: loop 0:
-    Source: 'src/misc/mod.rs', lines 62:4-64:5
+    Source: 'src/misc/mod.rs', lines 63:4-65:5
     Visibility: public -/
 @[rust_loop]
 def misc.read_varlen_uint_loop
@@ -3533,7 +4512,7 @@ def misc.read_varlen_uint_loop
     trailing_ones
 
 /-- [mysql_common::misc::read_varlen_uint]:
-    Source: 'src/misc/mod.rs', lines 51:0-95:1
+    Source: 'src/misc/mod.rs', lines 52:0-96:1
     Visibility: public -/
 def misc.read_varlen_uint
   (buf : io.ParseBuf) :
@@ -3607,7 +4586,7 @@ def misc.read_varlen_uint
         ok (core.result.Result.Ok i1, s3)
 
 /-- [mysql_common::misc::varlen_uint_size]:
-    Source: 'src/misc/mod.rs', lines 126:0-143:1
+    Source: 'src/misc/mod.rs', lines 127:0-144:1
     Visibility: public -/
 def misc.varlen_uint_size (value : Std.U64) : Result Std.Usize := do
   let data_bits ←
@@ -5142,7 +6121,7 @@ def misc.varlen_uint_size (value : Std.U64) : Result Std.Usize := do
                 else ok 9#usize
 
 /-- [mysql_common::misc::write_varlen_uint]:
-    Source: 'src/misc/mod.rs', lines 102:0-120:1
+    Source: 'src/misc/mod.rs', lines 103:0-121:1
     Visibility: public -/
 def misc.write_varlen_uint
   (buf : alloc.vec.Vec Std.U8) (value : Std.U64) :
@@ -5169,7 +6148,7 @@ def misc.write_varlen_uint
     alloc.vec.Vec.extend_from_slice core.clone.CloneU8 buf s
 
 /-- [mysql_common::misc::digits_end]: loop body 0:
-    Source: 'src/misc/mod.rs', lines 223:4-230:1 -/
+    Source: 'src/misc/mod.rs', lines 224:4-231:1 -/
 @[rust_loop_body]
 def misc.digits_end_loop.body
   (input : Slice Std.U8) (i : Std.Usize) :
@@ -5190,7 +6169,7 @@ def misc.digits_end_loop.body
        ok (done i2)
 
 /-- [mysql_common::misc::digits_end]: loop 0:
-    Source: 'src/misc/mod.rs', lines 223:4-230:1 -/
+    Source: 'src/misc/mod.rs', lines 224:4-231:1 -/
 @[rust_loop]
 def misc.digits_end_loop
   (input : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
@@ -5199,13 +6178,13 @@ def misc.digits_end_loop
     i
 
 /-- [mysql_common::misc::digits_end]:
-    Source: 'src/misc/mod.rs', lines 221:0-230:1 -/
+    Source: 'src/misc/mod.rs', lines 222:0-231:1 -/
 @[reducible]
 def misc.digits_end (input : Slice Std.U8) : Result Std.Usize := do
   misc.digits_end_loop input 0#usize
 
 /-- [mysql_common::misc::dot_or_end]: loop body 0:
-    Source: 'src/misc/mod.rs', lines 211:4-218:1 -/
+    Source: 'src/misc/mod.rs', lines 212:4-219:1 -/
 @[rust_loop_body]
 def misc.dot_or_end_loop.body
   (input : Slice Std.U8) (i : Std.Usize) :
@@ -5223,7 +6202,7 @@ def misc.dot_or_end_loop.body
        ok (done i2)
 
 /-- [mysql_common::misc::dot_or_end]: loop 0:
-    Source: 'src/misc/mod.rs', lines 211:4-218:1 -/
+    Source: 'src/misc/mod.rs', lines 212:4-219:1 -/
 @[rust_loop]
 def misc.dot_or_end_loop
   (input : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
@@ -5232,14 +6211,14 @@ def misc.dot_or_end_loop
     i
 
 /-- [mysql_common::misc::dot_or_end]:
-    Source: 'src/misc/mod.rs', lines 209:0-218:1 -/
+    Source: 'src/misc/mod.rs', lines 210:0-219:1 -/
 @[reducible]
 def misc.dot_or_end
   (input : Slice Std.U8) (start : Std.Usize) : Result Std.Usize := do
   misc.dot_or_end_loop input start
 
 /-- [mysql_common::misc::split_version_inner]:
-    Source: 'src/misc/mod.rs', lines 178:0-206:1 -/
+    Source: 'src/misc/mod.rs', lines 179:0-207:1 -/
 def misc.split_version_inner
   (input : Slice Std.U8) : Result (Option (Std.U8 × Std.U8 × Std.U8)) := do
   let end0 ← misc.dot_or_end input 0#usize
@@ -5286,7 +6265,7 @@ def misc.split_version_inner
           | some x2 => ok (some (x, x1, x2))
 
 /-- [mysql_common::misc::split_version]:
-    Source: 'src/misc/mod.rs', lines 170:0-173:1
+    Source: 'src/misc/mod.rs', lines 171:0-174:1
     Visibility: public -/
 def misc.split_version
   {T : Type _} (coreconvertAsRefTSliceU8Inst : core.convert.AsRef T (Slice
@@ -5296,6 +6275,18 @@ def misc.split_version
   let bytes ← coreconvertAsRefTSliceU8Inst.as_ref version_str
   let o ← misc.split_version_inner bytes
   ok (core.option.Option.unwrap_or o (0#u8, 0#u8, 0#u8))
+
+/-- [mysql_common::misc::raw::_const::{impl core::default::Default for mysql_common::misc::raw::_const::Const<T, U>}::default]:
+    Source: 'src/misc/raw/_const.rs', lines 28:16-28:23
+    Visibility: public -/
+def misc.raw._const.Const.Insts.CoreDefaultDefault.default
+  {T : Type _} {U : Type _} (coredefaultDefaultInst : core.default.Default T)
+  (coredefaultDefaultInst1 : core.default.Default U) :
+  Result (misc.raw._const.Const T U)
+  := do
+  let t ← coredefaultDefaultInst.default
+  let pd ← core.marker.PhantomData.Insts.CoreDefaultDefault.default U
+  ok (t, pd)
 
 /-- [mysql_common::misc::raw::_const::{mysql_common::misc::raw::_const::Const<T, U>}::new]:
     Source: 'src/misc/raw/_const.rs', lines 34:4-36:5
@@ -5662,6 +6653,22 @@ def misc.raw._const.RawConst.Insts.Mysql_commonProtoMySerialize {T : Type _} (U
     intIntReprInst
 }
 
+/-- [mysql_common::misc::raw::bytes::{impl core::clone::Clone for mysql_common::misc::raw::bytes::RawBytes<'a, T, Clause1_Ctx>}::clone]:
+    Source: 'src/misc/raw/bytes.rs', lines 26:9-26:14
+    Visibility: public -/
+def misc.raw.bytes.RawBytes.Insts.CoreCloneClone.clone
+  {T : Type _} {Clause1_Ctx : Type _} (corecloneCloneInst : core.clone.Clone T)
+  (BytesReprInst : misc.raw.bytes.BytesRepr T Clause1_Ctx)
+  (self : misc.raw.bytes.RawBytes T Clause1_Ctx) :
+  Result (misc.raw.bytes.RawBytes T Clause1_Ctx)
+  := do
+  let (c, pd) := self
+  let c1 ←
+    alloc.borrow.Cow.Insts.CoreCloneClone.clone
+      (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) c
+  let pd1 ← core.marker.PhantomData.Insts.CoreCloneClone.clone pd
+  ok (c1, pd1)
+
 /-- [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::RawBytes<'_0, T, Clause0_Ctx>}::default]:
     Source: 'src/misc/raw/bytes.rs', lines 32:4-34:5
     Visibility: public -/
@@ -5751,6 +6758,17 @@ def misc.raw.bytes.RawBytes.as_bytes
       (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) c
   core.slice.index.Slice.index (core.slice.index.SliceIndexRangeToUsizeSlice
     Std.U8) s { «end» := len }
+
+/-- [mysql_common::misc::raw::bytes::{mysql_common::misc::raw::bytes::RawBytes<'a, T, Clause0_Ctx>}::as_str]:
+    Source: 'src/misc/raw/bytes.rs', lines 65:4-67:5
+    Visibility: public -/
+def misc.raw.bytes.RawBytes.as_str
+  {T : Type _} {Clause0_Ctx : Type _} (BytesReprInst : misc.raw.bytes.BytesRepr
+  T Clause0_Ctx) (self : misc.raw.bytes.RawBytes T Clause0_Ctx) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  let s ← misc.raw.bytes.RawBytes.as_bytes BytesReprInst self
+  misc.trusted.from_utf8_lossy s
 
 /-- [mysql_common::misc::raw::bytes::{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::bytes::RawBytes<'_0, T, Clause0_Ctx>}::serialize]:
     Source: 'src/misc/raw/bytes.rs', lines 83:4-85:5
@@ -5947,6 +6965,21 @@ def misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple :
     misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize
 }
 
+/-- [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::U8Bytes}::default]:
+    Source: 'src/misc/raw/bytes.rs', lines 149:16-149:23
+    Visibility: public -/
+def misc.raw.bytes.U8Bytes.Insts.CoreDefaultDefault.default
+  : Result misc.raw.bytes.U8Bytes := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::U8Bytes}]
+    Source: 'src/misc/raw/bytes.rs', lines 149:16-149:23 -/
+@[reducible]
+def misc.raw.bytes.U8Bytes.Insts.CoreDefaultDefault : core.default.Default
+  misc.raw.bytes.U8Bytes := {
+  default := misc.raw.bytes.U8Bytes.Insts.CoreDefaultDefault.default
+}
+
 /-- [mysql_common::misc::raw::int::{impl mysql_common::misc::raw::int::IntRepr<u8> for u8}::deserialize]:
     Source: 'src/misc/raw/int.rs', lines 94:4-96:5
     Visibility: public -/
@@ -6061,6 +7094,21 @@ def misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple :
     misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize
 }
 
+/-- [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::U32Bytes}::default]:
+    Source: 'src/misc/raw/bytes.rs', lines 173:16-173:23
+    Visibility: public -/
+def misc.raw.bytes.U32Bytes.Insts.CoreDefaultDefault.default
+  : Result misc.raw.bytes.U32Bytes := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::U32Bytes}]
+    Source: 'src/misc/raw/bytes.rs', lines 173:16-173:23 -/
+@[reducible]
+def misc.raw.bytes.U32Bytes.Insts.CoreDefaultDefault : core.default.Default
+  misc.raw.bytes.U32Bytes := {
+  default := misc.raw.bytes.U32Bytes.Insts.CoreDefaultDefault.default
+}
+
 /-- [mysql_common::misc::raw::bytes::{impl mysql_common::misc::raw::bytes::BytesRepr<()> for mysql_common::misc::raw::bytes::U32Bytes}::deserialize]:
     Source: 'src/misc/raw/bytes.rs', lines 185:4-190:5
     Visibility: public -/
@@ -6118,6 +7166,21 @@ def misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple :
     misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize
   deserialize :=
     misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize
+}
+
+/-- [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::NullBytes}::default]:
+    Source: 'src/misc/raw/bytes.rs', lines 196:16-196:23
+    Visibility: public -/
+def misc.raw.bytes.NullBytes.Insts.CoreDefaultDefault.default
+  : Result misc.raw.bytes.NullBytes := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::NullBytes}]
+    Source: 'src/misc/raw/bytes.rs', lines 196:16-196:23 -/
+@[reducible]
+def misc.raw.bytes.NullBytes.Insts.CoreDefaultDefault : core.default.Default
+  misc.raw.bytes.NullBytes := {
+  default := misc.raw.bytes.NullBytes.Insts.CoreDefaultDefault.default
 }
 
 /-- [mysql_common::misc::raw::bytes::{impl mysql_common::misc::raw::bytes::BytesRepr<()> for mysql_common::misc::raw::bytes::NullBytes}::deserialize]:
@@ -6189,6 +7252,21 @@ def misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple :
     misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize
   deserialize :=
     misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize
+}
+
+/-- [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::EofBytes}::default]:
+    Source: 'src/misc/raw/bytes.rs', lines 229:16-229:23
+    Visibility: public -/
+def misc.raw.bytes.EofBytes.Insts.CoreDefaultDefault.default
+  : Result misc.raw.bytes.EofBytes := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::misc::raw::bytes::{impl core::default::Default for mysql_common::misc::raw::bytes::EofBytes}]
+    Source: 'src/misc/raw/bytes.rs', lines 229:16-229:23 -/
+@[reducible]
+def misc.raw.bytes.EofBytes.Insts.CoreDefaultDefault : core.default.Default
+  misc.raw.bytes.EofBytes := {
+  default := misc.raw.bytes.EofBytes.Insts.CoreDefaultDefault.default
 }
 
 /-- [mysql_common::misc::raw::bytes::{impl mysql_common::misc::raw::bytes::BytesRepr<()> for mysql_common::misc::raw::bytes::EofBytes}::deserialize]:
@@ -6897,6 +7975,20 @@ def misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMySerialize {T : Type _} {U
     bitflagstraitsFlagsInst intIntReprInst
 }
 
+/-- [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::RawInt<T, Clause1_Primitive>}::default]:
+    Source: 'src/misc/raw/int.rs', lines 26:9-26:16
+    Visibility: public -/
+def misc.raw.int.RawInt.Insts.CoreDefaultDefault.default
+  {T : Type _} {Clause1_Primitive : Type _} (coredefaultDefaultInst :
+  core.default.Default T) (IntReprInst : misc.raw.int.IntRepr T
+  Clause1_Primitive) (coredefaultDefaultInst1 : core.default.Default
+  Clause1_Primitive) :
+  Result (misc.raw.int.RawInt T Clause1_Primitive)
+  := do
+  let t ← coredefaultDefaultInst1.default
+  let pd ← core.marker.PhantomData.Insts.CoreDefaultDefault.default T
+  ok (t, pd)
+
 /-- Trait implementation: [mysql_common::misc::raw::int::{impl core::ops::deref::Deref<Clause0_Primitive> for mysql_common::misc::raw::int::RawInt<T, Clause0_Primitive>}]
     Source: 'src/misc/raw/int.rs', lines 45:0-51:1 -/
 @[reducible]
@@ -7473,6 +8565,66 @@ def misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64 :
     misc.raw.int.LeI64.Insts.Mysql_commonMiscRawIntIntReprI64.deserialize
 }
 
+/-- [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::LeU32}::default]:
+    Source: 'src/misc/raw/int.rs', lines 120:28-120:35; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+def misc.raw.int.LeU32.Insts.CoreDefaultDefault.default
+  : Result misc.raw.int.LeU32 := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::LeU32}]
+    Source: 'src/misc/raw/int.rs', lines 120:28-120:35; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1 -/
+@[reducible]
+def misc.raw.int.LeU32.Insts.CoreDefaultDefault : core.default.Default
+  misc.raw.int.LeU32 := {
+  default := misc.raw.int.LeU32.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::LeU16}::default]:
+    Source: 'src/misc/raw/int.rs', lines 120:28-120:35; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+def misc.raw.int.LeU16.Insts.CoreDefaultDefault.default
+  : Result misc.raw.int.LeU16 := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::LeU16}]
+    Source: 'src/misc/raw/int.rs', lines 120:28-120:35; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1 -/
+@[reducible]
+def misc.raw.int.LeU16.Insts.CoreDefaultDefault : core.default.Default
+  misc.raw.int.LeU16 := {
+  default := misc.raw.int.LeU16.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::LeU64}::default]:
+    Source: 'src/misc/raw/int.rs', lines 120:28-120:35; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+def misc.raw.int.LeU64.Insts.CoreDefaultDefault.default
+  : Result misc.raw.int.LeU64 := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::LeU64}]
+    Source: 'src/misc/raw/int.rs', lines 120:28-120:35; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1 -/
+@[reducible]
+def misc.raw.int.LeU64.Insts.CoreDefaultDefault : core.default.Default
+  misc.raw.int.LeU64 := {
+  default := misc.raw.int.LeU64.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::misc::raw::int::{impl core::clone::Clone for mysql_common::misc::raw::int::LeU64}::clone]:
+    Source: 'src/misc/raw/int.rs', lines 120:37-120:42; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1
+    Visibility: public -/
+def misc.raw.int.LeU64.Insts.CoreCloneClone.clone
+  (self : misc.raw.int.LeU64) : Result misc.raw.int.LeU64 := do
+  ok self
+
+/-- Trait implementation: [mysql_common::misc::raw::int::{impl core::clone::Clone for mysql_common::misc::raw::int::LeU64}]
+    Source: 'src/misc/raw/int.rs', lines 120:37-120:42; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 162:0-185:1 -/
+@[reducible]
+def misc.raw.int.LeU64.Insts.CoreCloneClone : core.clone.Clone
+  misc.raw.int.LeU64 := {
+  clone := misc.raw.int.LeU64.Insts.CoreCloneClone.clone
+}
+
 /-- [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::LenEnc}::default]:
     Source: 'src/misc/raw/int.rs', lines 140:28-140:35; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 187:0-190:1
     Visibility: public -/
@@ -7486,6 +8638,21 @@ def misc.raw.int.LenEnc.Insts.CoreDefaultDefault.default
 def misc.raw.int.LenEnc.Insts.CoreDefaultDefault : core.default.Default
   misc.raw.int.LenEnc := {
   default := misc.raw.int.LenEnc.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::misc::raw::int::{impl core::clone::Clone for mysql_common::misc::raw::int::LenEnc}::clone]:
+    Source: 'src/misc/raw/int.rs', lines 140:37-140:42; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 187:0-190:1
+    Visibility: public -/
+def misc.raw.int.LenEnc.Insts.CoreCloneClone.clone
+  (self : misc.raw.int.LenEnc) : Result misc.raw.int.LenEnc := do
+  ok self
+
+/-- Trait implementation: [mysql_common::misc::raw::int::{impl core::clone::Clone for mysql_common::misc::raw::int::LenEnc}]
+    Source: 'src/misc/raw/int.rs', lines 140:37-140:42; this code is generated from a macro invocation at: 'src/misc/raw/int.rs', lines 187:0-190:1 -/
+@[reducible]
+def misc.raw.int.LenEnc.Insts.CoreCloneClone : core.clone.Clone
+  misc.raw.int.LenEnc := {
+  clone := misc.raw.int.LenEnc.Insts.CoreCloneClone.clone
 }
 
 /-- [mysql_common::misc::raw::int::{impl mysql_common::misc::raw::int::IntRepr<u32> for mysql_common::misc::raw::int::LeU32LowerHalf}::deserialize]:
@@ -7596,6 +8763,16 @@ def misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32 :
   deserialize :=
     misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32.deserialize
 }
+
+/-- [mysql_common::misc::raw::int::{impl core::default::Default for mysql_common::misc::raw::int::ConstU8<T, N>}::default]:
+    Source: 'src/misc/raw/int.rs', lines 235:16-235:23
+    Visibility: public -/
+def misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default
+  {T : Type _} (N : Std.U8) (coredefaultDefaultInst : core.default.Default T) :
+  Result (misc.raw.int.ConstU8 T N)
+  := do
+  let pd ← core.marker.PhantomData.Insts.CoreDefaultDefault.default T
+  ok pd
 
 /-- [mysql_common::misc::raw::int::{mysql_common::misc::raw::int::ConstU8<T, N>}::new]:
     Source: 'src/misc/raw/int.rs', lines 239:4-241:5
@@ -7990,6 +9167,22 @@ def F64.Insts.Mysql_commonProtoMySerialize : proto.MySerialize F64 := {
   serialize := F64.Insts.Mysql_commonProtoMySerialize.serialize
 }
 
+/-- [mysql_common::misc::raw::seq::{impl core::clone::Clone for mysql_common::misc::raw::seq::Seq<'a, T, U>}::clone]:
+    Source: 'src/misc/raw/seq.rs', lines 24:16-24:21
+    Visibility: public -/
+def misc.raw.seq.Seq.Insts.CoreCloneClone.clone
+  {T : Type _} {U : Type _} (corecloneCloneInst : core.clone.Clone T)
+  (corecloneCloneInst1 : core.clone.Clone T) (corecloneCloneInst2 :
+  core.clone.Clone U) (self : misc.raw.seq.Seq T U) :
+  Result (misc.raw.seq.Seq T U)
+  := do
+  let (c, pd) := self
+  let c1 ←
+    alloc.borrow.Cow.Insts.CoreCloneClone.clone
+      (Slice.Insts.AllocBorrowToOwnedVec corecloneCloneInst) c
+  let pd1 ← core.marker.PhantomData.Insts.CoreCloneClone.clone pd
+  ok (c1, pd1)
+
 /-- [mysql_common::misc::raw::seq::{impl core::ops::deref::Deref<[T]> for mysql_common::misc::raw::seq::Seq<'_0, T, U>}::deref]:
     Source: 'src/misc/raw/seq.rs', lines 31:4-33:5
     Visibility: public -/
@@ -8023,6 +9216,63 @@ def misc.raw.seq.Seq.new
   := do
   let c ← coreconvertIntoT3CowASliceVecInst.into s
   ok (c, ())
+
+/-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::Seq<'a, T, U>}::is_empty]:
+    Source: 'src/misc/raw/seq.rs', lines 48:4-50:5
+    Visibility: public -/
+def misc.raw.seq.Seq.is_empty
+  {T : Type _} {U : Type _} (corecloneCloneInst : core.clone.Clone T)
+  (self : misc.raw.seq.Seq T U) :
+  Result Bool
+  := do
+  let (c, _) := self
+  let s ←
+    alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+      (Slice.Insts.AllocBorrowToOwnedVec corecloneCloneInst) c
+  core.slice.Slice.is_empty s
+
+/-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::Seq<'a, T, U>}::len]:
+    Source: 'src/misc/raw/seq.rs', lines 53:4-55:5
+    Visibility: public -/
+def misc.raw.seq.Seq.len
+  {T : Type _} {U : Type _} (corecloneCloneInst : core.clone.Clone T)
+  (self : misc.raw.seq.Seq T U) :
+  Result Std.Usize
+  := do
+  let (c, _) := self
+  let s ←
+    alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+      (Slice.Insts.AllocBorrowToOwnedVec corecloneCloneInst) c
+  ok (Slice.len s)
+
+/-- [mysql_common::misc::raw::seq::{mysql_common::misc::raw::seq::Seq<'a, T, U>}::push]:
+    Source: 'src/misc/raw/seq.rs', lines 58:4-69:5
+    Visibility: public -/
+def misc.raw.seq.Seq.push
+  {T : Type _} {U : Type _} (corecloneCloneInst : core.clone.Clone T)
+  (self : misc.raw.seq.Seq T U) (element : T) :
+  Result (misc.raw.seq.Seq T U)
+  := do
+  let (c, pd) := self
+  match c with
+  | alloc.borrow.Cow.Borrowed seq =>
+    let seq1 ← alloc.slice.Slice.to_vec corecloneCloneInst seq
+    let seq2 ← alloc.vec.Vec.push seq1 element
+    ok (alloc.borrow.Cow.Owned seq2, pd)
+  | alloc.borrow.Cow.Owned seq =>
+    let seq1 ← alloc.vec.Vec.push seq element
+    ok (alloc.borrow.Cow.Owned seq1, pd)
+
+/-- [mysql_common::misc::raw::seq::{impl core::default::Default for mysql_common::misc::raw::seq::Seq<'_0, T, U>}::default]:
+    Source: 'src/misc/raw/seq.rs', lines 78:4-80:5
+    Visibility: public -/
+def misc.raw.seq.Seq.Insts.CoreDefaultDefault.default
+  {T : Type _} (U : Type _) (corecloneCloneInst : core.clone.Clone T) :
+  Result (misc.raw.seq.Seq T U)
+  := do
+  misc.raw.seq.Seq.new U corecloneCloneInst (core.convert.IntoFrom
+    (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec corecloneCloneInst))
+    (alloc.vec.Vec.new T)
 
 /-- [mysql_common::misc::raw::seq::{impl mysql_common::proto::MySerialize for mysql_common::misc::raw::seq::Seq<'_0, T, U>}::serialize]:
     Source: 'src/misc/raw/seq.rs', lines 88:4-90:5
@@ -9092,8 +10342,717 @@ def named_params.ParsedNamedParams.impl.params
   := do
   ok (alloc.vec.Vec.deref self.params)
 
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::empty]:
+    Source: 'src/bitflags_ext.rs', lines 95:12-97:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.empty : Result packets.BinlogDumpFlags := do
+  ok 0#u16
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::new]:
+    Source: 'src/packets/binlog_request.rs', lines 38:4-47:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.new
+  (server_id : Std.U32) : Result packets.binlog_request.BinlogRequest := do
+  let bdf ← packets.BinlogDumpFlags.empty
+  let c ←
+    alloc.borrow.Cow.Insts.CoreDefaultDefault.default
+      (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8)
+      (alloc.vec.Vec.Insts.CoreDefaultDefault Std.U8)
+  ok
+    {
+      server_id,
+      use_gtid := false,
+      flags := bdf,
+      filename := c,
+      pos := 4#u64,
+      sids := (alloc.vec.Vec.new packets.Sid)
+    }
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::server_id]:
+    Source: 'src/packets/binlog_request.rs', lines 50:4-52:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.impl.server_id
+  (self : packets.binlog_request.BinlogRequest) : Result Std.U32 := do
+  ok self.server_id
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::use_gtid]:
+    Source: 'src/packets/binlog_request.rs', lines 55:4-57:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.impl.use_gtid
+  (self : packets.binlog_request.BinlogRequest) : Result Bool := do
+  ok self.use_gtid
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::flags]:
+    Source: 'src/packets/binlog_request.rs', lines 61:4-63:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.impl.flags
+  (self : packets.binlog_request.BinlogRequest) :
+  Result packets.BinlogDumpFlags
+  := do
+  ok self.flags
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::filename_raw]:
+    Source: 'src/packets/binlog_request.rs', lines 66:4-68:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.filename_raw
+  (self : packets.binlog_request.BinlogRequest) : Result (Slice Std.U8) := do
+  alloc.borrow.Cow.Insts.CoreConvertAsRef.as_ref
+    (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) self.filename
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::filename]:
+    Source: 'src/packets/binlog_request.rs', lines 72:4-74:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.impl.filename
+  (self : packets.binlog_request.BinlogRequest) : Result (Slice Std.U8) := do
+  alloc.borrow.Cow.Insts.CoreConvertAsRef.as_ref
+    (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) self.filename
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::pos]:
+    Source: 'src/packets/binlog_request.rs', lines 79:4-81:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.impl.pos
+  (self : packets.binlog_request.BinlogRequest) : Result Std.U64 := do
+  ok self.pos
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::sids]:
+    Source: 'src/packets/binlog_request.rs', lines 84:4-86:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.impl.sids
+  (self : packets.binlog_request.BinlogRequest) :
+  Result (Slice packets.Sid)
+  := do
+  ok (alloc.vec.Vec.deref self.sids)
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::with_server_id]:
+    Source: 'src/packets/binlog_request.rs', lines 89:4-92:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.with_server_id
+  (self : packets.binlog_request.BinlogRequest) (server_id : Std.U32) :
+  Result packets.binlog_request.BinlogRequest
+  := do
+  ok { self with server_id }
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::with_use_gtid]:
+    Source: 'src/packets/binlog_request.rs', lines 95:4-98:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.with_use_gtid
+  (self : packets.binlog_request.BinlogRequest) (use_gtid : Bool) :
+  Result packets.binlog_request.BinlogRequest
+  := do
+  ok { self with use_gtid }
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::with_flags]:
+    Source: 'src/packets/binlog_request.rs', lines 101:4-104:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.with_flags
+  (self : packets.binlog_request.BinlogRequest)
+  (flags : packets.BinlogDumpFlags) :
+  Result packets.binlog_request.BinlogRequest
+  := do
+  ok { self with flags }
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::with_filename]:
+    Source: 'src/packets/binlog_request.rs', lines 107:4-110:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.with_filename
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.binlog_request.BinlogRequest) (filename : T1) :
+  Result packets.binlog_request.BinlogRequest
+  := do
+  let c ← coreconvertIntoT1CowASliceU8VecU8Inst.into filename
+  ok { self with filename := c }
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::with_pos]:
+    Source: 'src/packets/binlog_request.rs', lines 113:4-116:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.with_pos
+  {T : Type _} (coreconvertIntoTU64Inst : core.convert.Into T Std.U64)
+  (self : packets.binlog_request.BinlogRequest) (pos : T) :
+  Result packets.binlog_request.BinlogRequest
+  := do
+  let i ← coreconvertIntoTU64Inst.into pos
+  ok { self with pos := i }
+
+/-- [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::Tag<'a>}::clone]:
+    Source: 'src/packets/mod.rs', lines 4206:16-4206:21
+    Visibility: public -/
+def packets.Tag.Insts.CoreCloneClone.clone
+  (self : packets.Tag) : Result packets.Tag := do
+  let c ←
+    alloc.borrow.Cow.Insts.CoreCloneClone.clone
+      Str.Insts.AllocBorrowToOwnedString self
+  ok c
+
+/-- Trait implementation: [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::Tag<'a>}]
+    Source: 'src/packets/mod.rs', lines 4206:16-4206:21 -/
+@[reducible]
+def packets.Tag.Insts.CoreCloneClone : core.clone.Clone packets.Tag := {
+  clone := packets.Tag.Insts.CoreCloneClone.clone
+}
+
+/-- [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::GnoInterval}::clone]:
+    Source: 'src/packets/mod.rs', lines 4138:22-4138:27
+    Visibility: public -/
+def packets.GnoInterval.Insts.CoreCloneClone.clone
+  (self : packets.GnoInterval) : Result packets.GnoInterval := do
+  ok self
+
+/-- Trait implementation: [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::GnoInterval}]
+    Source: 'src/packets/mod.rs', lines 4138:22-4138:27 -/
+@[reducible]
+def packets.GnoInterval.Insts.CoreCloneClone : core.clone.Clone
+  packets.GnoInterval := {
+  clone := packets.GnoInterval.Insts.CoreCloneClone.clone
+}
+
+/-- [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::Sid<'a>}::clone]:
+    Source: 'src/packets/mod.rs', lines 4313:16-4313:21
+    Visibility: public -/
+def packets.Sid.Insts.CoreCloneClone.clone
+  (self : packets.Sid) : Result packets.Sid := do
+  let a ← core.array.CloneArray.clone core.clone.CloneU8 self.uuid
+  let o ←
+    core.option.Option.Insts.CoreCloneClone.clone
+      packets.Tag.Insts.CoreCloneClone self.tag
+  let s ←
+    misc.raw.seq.Seq.Insts.CoreCloneClone.clone
+      packets.GnoInterval.Insts.CoreCloneClone
+      packets.GnoInterval.Insts.CoreCloneClone
+      misc.raw.int.LeU64.Insts.CoreCloneClone self.intervals
+  ok { uuid := a, tag := o, intervals := s }
+
+/-- Trait implementation: [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::Sid<'a>}]
+    Source: 'src/packets/mod.rs', lines 4313:16-4313:21 -/
+@[reducible]
+def packets.Sid.Insts.CoreCloneClone : core.clone.Clone packets.Sid := {
+  clone := packets.Sid.Insts.CoreCloneClone.clone
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::BINLOG_THROUGH_GTID]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.BinlogDumpFlags.BINLOG_THROUGH_GTID : packets.BinlogDumpFlags :=
+  4#u16
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::union]:
+    Source: 'src/bitflags_ext.rs', lines 197:12-199:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.union
+  (self : packets.BinlogDumpFlags) (other : packets.BinlogDumpFlags) :
+  Result packets.BinlogDumpFlags
+  := do
+  let i ← lift (self ||| other)
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::insert]:
+    Source: 'src/bitflags_ext.rs', lines 160:12-162:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.insert
+  (self : packets.BinlogDumpFlags) (other : packets.BinlogDumpFlags) :
+  Result packets.BinlogDumpFlags
+  := do
+  packets.BinlogDumpFlags.union self other
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::difference]:
+    Source: 'src/bitflags_ext.rs', lines 205:12-207:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.difference
+  (self : packets.BinlogDumpFlags) (other : packets.BinlogDumpFlags) :
+  Result packets.BinlogDumpFlags
+  := do
+  let i ← lift (~~~ other)
+  let i1 ← lift (self &&& i)
+  ok i1
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::remove]:
+    Source: 'src/bitflags_ext.rs', lines 167:12-169:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.remove
+  (self : packets.BinlogDumpFlags) (other : packets.BinlogDumpFlags) :
+  Result packets.BinlogDumpFlags
+  := do
+  packets.BinlogDumpFlags.difference self other
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_sids]:
+    Source: 'src/packets/mod.rs', lines 4716:4-4724:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.with_sids
+  {T1 : Type _} (coreconvertIntoT1CowASliceSidVecSidInst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice packets.Sid) (alloc.vec.Vec packets.Sid)))
+  (self : packets.ComBinlogDumpGtid) (sids : T1) :
+  Result packets.ComBinlogDumpGtid
+  := do
+  let s ←
+    misc.raw.seq.Seq.new misc.raw.int.LeU64 packets.Sid.Insts.CoreCloneClone
+      coreconvertIntoT1CowASliceSidVecSidInst sids
+  let b ← misc.raw.seq.Seq.is_empty packets.Sid.Insts.CoreCloneClone s
+  if b
+  then
+    let (bdf, pd) := self.flags
+    let bdf1 ←
+      packets.BinlogDumpFlags.remove bdf
+        packets.BinlogDumpFlags.BINLOG_THROUGH_GTID
+    ok { self with flags := (bdf1, pd), sid_block := s }
+  else
+    let (bdf, pd) := self.flags
+    let bdf1 ←
+      packets.BinlogDumpFlags.insert bdf
+        packets.BinlogDumpFlags.BINLOG_THROUGH_GTID
+    ok { self with flags := (bdf1, pd), sid_block := s }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_pos]:
+    Source: 'src/packets/mod.rs', lines 4703:4-4706:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.with_pos
+  (self : packets.ComBinlogDumpGtid) (pos : Std.U64) :
+  Result packets.ComBinlogDumpGtid
+  := do
+  let (_, pd) := self.pos
+  ok { self with pos := (pos, pd) }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_flags]:
+    Source: 'src/packets/mod.rs', lines 4692:4-4700:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.with_flags
+  (self : packets.ComBinlogDumpGtid) (flags : packets.BinlogDumpFlags) :
+  Result packets.ComBinlogDumpGtid
+  := do
+  let b ←
+    misc.raw.seq.Seq.is_empty packets.Sid.Insts.CoreCloneClone self.sid_block
+  if b
+  then
+    let flags1 ←
+      packets.BinlogDumpFlags.remove flags
+        packets.BinlogDumpFlags.BINLOG_THROUGH_GTID
+    let (_, pd) := self.flags
+    ok { self with flags := (flags1, pd) }
+  else
+    let flags1 ←
+      packets.BinlogDumpFlags.insert flags
+        packets.BinlogDumpFlags.BINLOG_THROUGH_GTID
+    let (_, pd) := self.flags
+    ok { self with flags := (flags1, pd) }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_filename]:
+    Source: 'src/packets/mod.rs', lines 4674:4-4683:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.with_filename
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComBinlogDumpGtid) (filename : T1) :
+  Result packets.ComBinlogDumpGtid
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst filename
+  ok { self with filename := rb }
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComBinlogDumpGtidHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Visibility: public -/
+def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidComBinlogDumpGtidHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidComBinlogDumpGtidHeader := {
+  default :=
+    packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::BinlogDumpFlags}::default]:
+    Source: 'src/bitflags_ext.rs', lines 77:12-79:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.Insts.CoreDefaultDefault.default
+  : Result packets.BinlogDumpFlags := do
+  packets.BinlogDumpFlags.empty
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::BinlogDumpFlags}]
+    Source: 'src/bitflags_ext.rs', lines 76:8-80:9; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1 -/
+@[reducible]
+def packets.BinlogDumpFlags.Insts.CoreDefaultDefault : core.default.Default
+  packets.BinlogDumpFlags := {
+  default := packets.BinlogDumpFlags.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 4632:4-4641:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.new
+  (server_id : Std.U32) : Result packets.ComBinlogDumpGtid := do
+  let cu ←
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default 30#u8
+      packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault
+  let ri ←
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default
+      misc.raw.int.LeU64.Insts.CoreDefaultDefault
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64
+      core.default.DefaultU64
+  let c ←
+    misc.raw._const.Const.Insts.CoreDefaultDefault.default
+      packets.BinlogDumpFlags.Insts.CoreDefaultDefault
+      misc.raw.int.LeU16.Insts.CoreDefaultDefault
+  let ri1 ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 server_id
+  let rb ←
+    misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+      misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      misc.raw.bytes.U32Bytes.Insts.CoreDefaultDefault
+  let s ←
+    misc.raw.seq.Seq.Insts.CoreDefaultDefault.default misc.raw.int.LeU64
+      packets.Sid.Insts.CoreCloneClone
+  ok
+    {
+      header := cu,
+      flags := c,
+      server_id := ri1,
+      filename := rb,
+      pos := ri,
+      sid_block := s
+    }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::with_filename]:
+    Source: 'src/packets/mod.rs', lines 4080:4-4083:5
+    Visibility: public -/
+def packets.ComBinlogDump.with_filename
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComBinlogDump) (filename : T1) :
+  Result packets.ComBinlogDump
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst filename
+  ok { self with filename := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::with_flags]:
+    Source: 'src/packets/mod.rs', lines 4074:4-4077:5
+    Visibility: public -/
+def packets.ComBinlogDump.with_flags
+  (self : packets.ComBinlogDump) (flags : packets.BinlogDumpFlags) :
+  Result packets.ComBinlogDump
+  := do
+  let c ← misc.raw._const.Const.new misc.raw.int.LeU16 flags
+  ok { self with flags := c }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::with_pos]:
+    Source: 'src/packets/mod.rs', lines 4068:4-4071:5
+    Visibility: public -/
+def packets.ComBinlogDump.with_pos
+  (self : packets.ComBinlogDump) (pos : Std.U32) :
+  Result packets.ComBinlogDump
+  := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 pos
+  ok { self with pos := ri }
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComBinlogDumpHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1
+    Visibility: public -/
+def packets.InvalidComBinlogDumpHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidComBinlogDumpHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComBinlogDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidComBinlogDumpHeader := {
+  default :=
+    packets.InvalidComBinlogDumpHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 4057:4-4065:5
+    Visibility: public -/
+def packets.ComBinlogDump.new
+  (server_id : Std.U32) : Result packets.ComBinlogDump := do
+  let cu ←
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default 18#u8
+      packets.InvalidComBinlogDumpHeader.Insts.CoreDefaultDefault
+  let ri ←
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default
+      misc.raw.int.LeU32.Insts.CoreDefaultDefault
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      core.default.DefaultU32
+  let c ←
+    misc.raw._const.Const.Insts.CoreDefaultDefault.default
+      packets.BinlogDumpFlags.Insts.CoreDefaultDefault
+      misc.raw.int.LeU16.Insts.CoreDefaultDefault
+  let ri1 ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 server_id
+  let rb ←
+    misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      misc.raw.bytes.EofBytes.Insts.CoreDefaultDefault
+  ok { header := cu, pos := ri, flags := c, server_id := ri1, filename := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::BINLOG_DUMP_NON_BLOCK]
+    Source: 'src/bitflags_ext.rs', lines 90:16-90:53; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.BinlogDumpFlags.BINLOG_DUMP_NON_BLOCK : packets.BinlogDumpFlags :=
+  1#u16
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::intersection]:
+    Source: 'src/bitflags_ext.rs', lines 190:12-192:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.intersection
+  (self : packets.BinlogDumpFlags) (other : packets.BinlogDumpFlags) :
+  Result packets.BinlogDumpFlags
+  := do
+  let i ← lift (self &&& other)
+  ok i
+
+/-- [mysql_common::packets::{impl core::ops::bit::BitAnd<mysql_common::packets::BinlogDumpFlags, mysql_common::packets::BinlogDumpFlags> for mysql_common::packets::BinlogDumpFlags}::bitand]:
+    Source: 'src/bitflags_ext.rs', lines 337:12-339:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def
+  packets.BinlogDumpFlags.Insts.CoreOpsBitBitAndBinlogDumpFlagsBinlogDumpFlags.bitand
+  (self : packets.BinlogDumpFlags) (other : packets.BinlogDumpFlags) :
+  Result packets.BinlogDumpFlags
+  := do
+  packets.BinlogDumpFlags.intersection self other
+
+/-- [mysql_common::packets::binlog_request::{mysql_common::packets::binlog_request::BinlogRequest<'a>}::as_cmd]:
+    Source: 'src/packets/binlog_request.rs', lines 127:4-142:5
+    Visibility: public -/
+def packets.binlog_request.BinlogRequest.as_cmd
+  (self : packets.binlog_request.BinlogRequest) :
+  Result (misc.raw.Either packets.ComBinlogDump packets.ComBinlogDumpGtid)
+  := do
+  let b ← packets.binlog_request.BinlogRequest.impl.use_gtid self
+  if b
+  then
+    let cbdg ← packets.ComBinlogDumpGtid.new self.server_id
+    let cbdg1 ← packets.ComBinlogDumpGtid.with_pos cbdg self.pos
+    let cbdg2 ← packets.ComBinlogDumpGtid.with_flags cbdg1 self.flags
+    let s ←
+      alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+        (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) self.filename
+    let cbdg3 ←
+      packets.ComBinlogDumpGtid.with_filename (core.convert.IntoFrom
+        (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+        core.clone.CloneU8)) cbdg2 s
+    let s1 := alloc.vec.Vec.deref self.sids
+    let cmd ←
+      packets.ComBinlogDumpGtid.with_sids (core.convert.IntoFrom
+        (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+        packets.Sid.Insts.CoreCloneClone)) cbdg3 s1
+    ok (misc.raw.Either.Right cmd)
+  else
+    let cbd ← packets.ComBinlogDump.new self.server_id
+    let i ← lift (UScalar.cast .U32 self.pos)
+    let cbd1 ← packets.ComBinlogDump.with_pos cbd i
+    let s ←
+      alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+        (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) self.filename
+    let cbd2 ←
+      packets.ComBinlogDump.with_filename (core.convert.IntoFrom
+        (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+        core.clone.CloneU8)) cbd1 s
+    let bdf ←
+      packets.BinlogDumpFlags.Insts.CoreOpsBitBitAndBinlogDumpFlagsBinlogDumpFlags.bitand
+        self.flags packets.BinlogDumpFlags.BINLOG_DUMP_NON_BLOCK
+    let cmd ← packets.ComBinlogDump.with_flags cbd2 bdf
+    ok (misc.raw.Either.Left cmd)
+
+/-- [mysql_common::packets::caching_sha2_password::{impl core::fmt::Display for mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1
+    Visibility: public -/
+def
+  packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDisplay.fmt
+  (self : packets.caching_sha2_password.InvalidPublicKeyRequest)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid PublicKeyRequest header")
+
+/-- Trait implementation: [mysql_common::packets::caching_sha2_password::{impl core::fmt::Display for mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1 -/
+@[reducible]
+def packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDisplay
+  : core.fmt.Display packets.caching_sha2_password.InvalidPublicKeyRequest := {
+  fmt :=
+    packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::caching_sha2_password::{impl core::fmt::Debug for mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1
+    Visibility: public -/
+def
+  packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDebug.fmt
+  (self : packets.caching_sha2_password.InvalidPublicKeyRequest)
+  (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidPublicKeyRequest")
+
+/-- Trait implementation: [mysql_common::packets::caching_sha2_password::{impl core::fmt::Debug for mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest}]
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1 -/
+@[reducible]
+def packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDebug :
+  core.fmt.Debug packets.caching_sha2_password.InvalidPublicKeyRequest := {
+  fmt :=
+    packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::caching_sha2_password::{impl core::error::Error for mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1 -/
+@[reducible]
+def packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreErrorError
+  : core.error.Error packets.caching_sha2_password.InvalidPublicKeyRequest := {
+  fmtDebugInst :=
+    packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDebug
+  fmtDisplayInst :=
+    packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::caching_sha2_password::{impl core::default::Default for mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest}::default]:
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1
+    Visibility: public -/
+def
+  packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreDefaultDefault.default
+  : Result packets.caching_sha2_password.InvalidPublicKeyRequest := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::caching_sha2_password::{impl core::default::Default for mysql_common::packets::caching_sha2_password::InvalidPublicKeyRequest}]
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/caching_sha2_password.rs', lines 8:0-12:1 -/
+@[reducible]
+def
+  packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreDefaultDefault
+  : core.default.Default packets.caching_sha2_password.InvalidPublicKeyRequest
+  := {
+  default :=
+    packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::caching_sha2_password::{mysql_common::packets::caching_sha2_password::PublicKeyRequest}::new]:
+    Source: 'src/packets/caching_sha2_password.rs', lines 24:4-28:5
+    Visibility: public -/
+def packets.caching_sha2_password.PublicKeyRequest.new
+  : Result packets.caching_sha2_password.PublicKeyRequest := do
+  let cu ←
+    misc.raw.int.ConstU8.new
+      packets.caching_sha2_password.InvalidPublicKeyRequest 2#u8
+  ok { __header := cu }
+
+/-- [mysql_common::packets::caching_sha2_password::{impl core::default::Default for mysql_common::packets::caching_sha2_password::PublicKeyRequest}::default]:
+    Source: 'src/packets/caching_sha2_password.rs', lines 32:4-34:5
+    Visibility: public -/
+def
+  packets.caching_sha2_password.PublicKeyRequest.Insts.CoreDefaultDefault.default
+  : Result packets.caching_sha2_password.PublicKeyRequest := do
+  packets.caching_sha2_password.PublicKeyRequest.new
+
+/-- Trait implementation: [mysql_common::packets::caching_sha2_password::{impl core::default::Default for mysql_common::packets::caching_sha2_password::PublicKeyRequest}]
+    Source: 'src/packets/caching_sha2_password.rs', lines 31:0-35:1 -/
+@[reducible]
+def packets.caching_sha2_password.PublicKeyRequest.Insts.CoreDefaultDefault :
+  core.default.Default packets.caching_sha2_password.PublicKeyRequest := {
+  default :=
+    packets.caching_sha2_password.PublicKeyRequest.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::caching_sha2_password::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::caching_sha2_password::PublicKeyRequest}::deserialize]:
+    Source: 'src/packets/caching_sha2_password.rs', lines 41:4-45:5
+    Visibility: public -/
+def
+  packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.caching_sha2_password.PublicKeyRequest
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 2#u8
+      packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreErrorError
+      packets.caching_sha2_password.InvalidPublicKeyRequest.Insts.CoreDefaultDefault)
+      buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    ok (core.result.Result.Ok { __header := val }, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.caching_sha2_password.PublicKeyRequest (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::caching_sha2_password::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::caching_sha2_password::PublicKeyRequest}::SIZE]
+    Source: 'src/packets/caching_sha2_password.rs', lines 38:4-38:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::caching_sha2_password::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::caching_sha2_password::PublicKeyRequest}]
+    Source: 'src/packets/caching_sha2_password.rs', lines 37:0-46:1 -/
+@[reducible]
+def
+  packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.caching_sha2_password.PublicKeyRequest Unit
+  := {
+  SIZE := ok
+    packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::caching_sha2_password::{impl mysql_common::proto::MySerialize for mysql_common::packets::caching_sha2_password::PublicKeyRequest}::serialize]:
+    Source: 'src/packets/caching_sha2_password.rs', lines 49:4-51:5
+    Visibility: public -/
+def
+  packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.caching_sha2_password.PublicKeyRequest)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+    self.__header buf
+
+/-- Trait implementation: [mysql_common::packets::caching_sha2_password::{impl mysql_common::proto::MySerialize for mysql_common::packets::caching_sha2_password::PublicKeyRequest}]
+    Source: 'src/packets/caching_sha2_password.rs', lines 48:0-52:1 -/
+@[reducible]
+def
+  packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMySerialize
+  : proto.MySerialize packets.caching_sha2_password.PublicKeyRequest := {
+  serialize :=
+    packets.caching_sha2_password.PublicKeyRequest.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidFixedLengthFieldsLen}::default]:
+    Source: 'src/packets/mod.rs', lines 73:24-73:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1
+    Visibility: public -/
+def packets.InvalidFixedLengthFieldsLen.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidFixedLengthFieldsLen := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidFixedLengthFieldsLen}]
+    Source: 'src/packets/mod.rs', lines 73:24-73:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1 -/
+@[reducible]
+def packets.InvalidFixedLengthFieldsLen.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidFixedLengthFieldsLen := {
+  default :=
+    packets.InvalidFixedLengthFieldsLen.Insts.CoreDefaultDefault.default
+}
+
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidFixedLengthFieldsLen}::fmt]:
-    Source: 'src/packets/mod.rs', lines 78:67-78:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
+    Source: 'src/packets/mod.rs', lines 73:67-73:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1
     Visibility: public -/
 def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDisplay.fmt
   (self : packets.InvalidFixedLengthFieldsLen)
@@ -9104,7 +11063,7 @@ def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDisplay.fmt
     "Invalid fixed length field length in the column definition")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidFixedLengthFieldsLen}]
-    Source: 'src/packets/mod.rs', lines 78:67-78:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1 -/
+    Source: 'src/packets/mod.rs', lines 73:67-73:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1 -/
 @[reducible]
 def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDisplay : core.fmt.Display
   packets.InvalidFixedLengthFieldsLen := {
@@ -9112,7 +11071,7 @@ def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDisplay : core.fmt.Display
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidFixedLengthFieldsLen}::fmt]:
-    Source: 'src/packets/mod.rs', lines 78:17-78:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
+    Source: 'src/packets/mod.rs', lines 73:17-73:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1
     Visibility: public -/
 def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDebug.fmt
   (self : packets.InvalidFixedLengthFieldsLen) (f : core.fmt.Formatter) :
@@ -9121,7 +11080,7 @@ def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.write_str f (toStr "InvalidFixedLengthFieldsLen")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidFixedLengthFieldsLen}]
-    Source: 'src/packets/mod.rs', lines 78:17-78:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1 -/
+    Source: 'src/packets/mod.rs', lines 73:17-73:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1 -/
 @[reducible]
 def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDebug : core.fmt.Debug
   packets.InvalidFixedLengthFieldsLen := {
@@ -9129,7 +11088,7 @@ def packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidFixedLengthFieldsLen}]
-    Source: 'src/packets/mod.rs', lines 78:67-78:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1 -/
+    Source: 'src/packets/mod.rs', lines 73:67-73:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 110:0-115:1 -/
 @[reducible]
 def packets.InvalidFixedLengthFieldsLen.Insts.CoreErrorError : core.error.Error
   packets.InvalidFixedLengthFieldsLen := {
@@ -9137,24 +11096,100 @@ def packets.InvalidFixedLengthFieldsLen.Insts.CoreErrorError : core.error.Error
   fmtDisplayInst := packets.InvalidFixedLengthFieldsLen.Insts.CoreFmtDisplay
 }
 
-/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidFixedLengthFieldsLen}::default]:
-    Source: 'src/packets/mod.rs', lines 78:24-78:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1
+/-- [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::ColumnMeta<'a>}::clone]:
+    Source: 'src/packets/mod.rs', lines 118:16-118:21
     Visibility: public -/
-def packets.InvalidFixedLengthFieldsLen.Insts.CoreDefaultDefault.default
-  : Result packets.InvalidFixedLengthFieldsLen := do
-  ok ()
+def packets.ColumnMeta.Insts.CoreCloneClone.clone
+  (self : packets.ColumnMeta) : Result packets.ColumnMeta := do
+  let rb ←
+    misc.raw.bytes.RawBytes.Insts.CoreCloneClone.clone
+      misc.raw.int.LenEnc.Insts.CoreCloneClone
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.catalog
+  let rb1 ←
+    misc.raw.bytes.RawBytes.Insts.CoreCloneClone.clone
+      misc.raw.int.LenEnc.Insts.CoreCloneClone
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.schema
+  let rb2 ←
+    misc.raw.bytes.RawBytes.Insts.CoreCloneClone.clone
+      misc.raw.int.LenEnc.Insts.CoreCloneClone
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.table
+  let rb3 ←
+    misc.raw.bytes.RawBytes.Insts.CoreCloneClone.clone
+      misc.raw.int.LenEnc.Insts.CoreCloneClone
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.org_table
+  let rb4 ←
+    misc.raw.bytes.RawBytes.Insts.CoreCloneClone.clone
+      misc.raw.int.LenEnc.Insts.CoreCloneClone
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.name
+  let rb5 ←
+    misc.raw.bytes.RawBytes.Insts.CoreCloneClone.clone
+      misc.raw.int.LenEnc.Insts.CoreCloneClone
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.org_name
+  ok
+    {
+      catalog := rb,
+      schema := rb1,
+      table := rb2,
+      org_table := rb3,
+      «name» := rb4,
+      org_name := rb5
+    }
 
-/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidFixedLengthFieldsLen}]
-    Source: 'src/packets/mod.rs', lines 78:24-78:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 115:0-120:1 -/
+/-- Trait implementation: [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::ColumnMeta<'a>}]
+    Source: 'src/packets/mod.rs', lines 118:16-118:21 -/
 @[reducible]
-def packets.InvalidFixedLengthFieldsLen.Insts.CoreDefaultDefault :
-  core.default.Default packets.InvalidFixedLengthFieldsLen := {
-  default :=
-    packets.InvalidFixedLengthFieldsLen.Insts.CoreDefaultDefault.default
+def packets.ColumnMeta.Insts.CoreCloneClone : core.clone.Clone
+  packets.ColumnMeta := {
+  clone := packets.ColumnMeta.Insts.CoreCloneClone.clone
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::DEFAULT_CATALOG_NAME]
+    Source: 'src/packets/mod.rs', lines 142:4-142:57
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.ColumnMeta.DEFAULT_CATALOG_NAME : Str := toStr "def"
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::ColumnMeta<'a>}::default]:
+    Source: 'src/packets/mod.rs', lines 129:4-138:5
+    Visibility: public -/
+def packets.ColumnMeta.Insts.CoreDefaultDefault.default
+  : Result packets.ColumnMeta := do
+  let s ← core.str.Str.as_bytes packets.ColumnMeta.DEFAULT_CATALOG_NAME
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom (core.convert.FromSame (alloc.borrow.Cow (Slice
+      Std.U8) (alloc.vec.Vec Std.U8)))) (alloc.borrow.Cow.Borrowed s)
+  let rb1 ←
+    misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      misc.raw.int.LenEnc.Insts.CoreDefaultDefault
+  ok
+    {
+      catalog := rb,
+      schema := rb1,
+      table := rb1,
+      org_table := rb1,
+      «name» := rb1,
+      org_name := rb1
+    }
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::ColumnMeta<'a>}]
+    Source: 'src/packets/mod.rs', lines 128:0-139:1 -/
+@[reducible]
+def packets.ColumnMeta.Insts.CoreDefaultDefault : core.default.Default
+  packets.ColumnMeta := {
+  default := packets.ColumnMeta.Insts.CoreDefaultDefault.default
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::into_owned]:
-    Source: 'src/packets/mod.rs', lines 149:4-158:5
+    Source: 'src/packets/mod.rs', lines 144:4-153:5
     Visibility: public -/
 def packets.ColumnMeta.into_owned
   (self : packets.ColumnMeta) : Result packets.ColumnMeta := do
@@ -9193,7 +11228,7 @@ def packets.ColumnMeta.into_owned
     }
 
 /-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::catalog_ref]:
-    Source: 'src/packets/mod.rs', lines 161:4-163:5
+    Source: 'src/packets/mod.rs', lines 156:4-158:5
     Visibility: public -/
 def packets.ColumnMeta.catalog_ref
   (self : packets.ColumnMeta) : Result (Slice Std.U8) := do
@@ -9202,7 +11237,7 @@ def packets.ColumnMeta.catalog_ref
     self.schema
 
 /-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::schema_ref]:
-    Source: 'src/packets/mod.rs', lines 171:4-173:5
+    Source: 'src/packets/mod.rs', lines 166:4-168:5
     Visibility: public -/
 def packets.ColumnMeta.schema_ref
   (self : packets.ColumnMeta) : Result (Slice Std.U8) := do
@@ -9211,7 +11246,7 @@ def packets.ColumnMeta.schema_ref
     self.schema
 
 /-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::table_ref]:
-    Source: 'src/packets/mod.rs', lines 181:4-183:5
+    Source: 'src/packets/mod.rs', lines 176:4-178:5
     Visibility: public -/
 def packets.ColumnMeta.table_ref
   (self : packets.ColumnMeta) : Result (Slice Std.U8) := do
@@ -9220,7 +11255,7 @@ def packets.ColumnMeta.table_ref
     self.table
 
 /-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::org_table_ref]:
-    Source: 'src/packets/mod.rs', lines 193:4-195:5
+    Source: 'src/packets/mod.rs', lines 188:4-190:5
     Visibility: public -/
 def packets.ColumnMeta.org_table_ref
   (self : packets.ColumnMeta) : Result (Slice Std.U8) := do
@@ -9229,7 +11264,7 @@ def packets.ColumnMeta.org_table_ref
     self.org_table
 
 /-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::name_ref]:
-    Source: 'src/packets/mod.rs', lines 203:4-205:5
+    Source: 'src/packets/mod.rs', lines 198:4-200:5
     Visibility: public -/
 def packets.ColumnMeta.name_ref
   (self : packets.ColumnMeta) : Result (Slice Std.U8) := do
@@ -9238,7 +11273,7 @@ def packets.ColumnMeta.name_ref
     self.name
 
 /-- [mysql_common::packets::{mysql_common::packets::ColumnMeta<'_0>}::org_name_ref]:
-    Source: 'src/packets/mod.rs', lines 215:4-217:5
+    Source: 'src/packets/mod.rs', lines 210:4-212:5
     Visibility: public -/
 def packets.ColumnMeta.org_name_ref
   (self : packets.ColumnMeta) : Result (Slice Std.U8) := do
@@ -9247,7 +11282,7 @@ def packets.ColumnMeta.org_name_ref
     self.org_name
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ColumnMeta<'de>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 229:4-238:5
+    Source: 'src/packets/mod.rs', lines 224:4-233:5
     Visibility: public -/
 def packets.ColumnMeta.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
   (_ : Unit) (buf : io.ParseBuf) :
@@ -9347,7 +11382,7 @@ def packets.ColumnMeta.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ColumnMeta<'de>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 226:4-226:37
+    Source: 'src/packets/mod.rs', lines 221:4-221:37
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.ColumnMeta.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
@@ -9355,7 +11390,7 @@ def packets.ColumnMeta.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ColumnMeta<'de>}]
-    Source: 'src/packets/mod.rs', lines 225:0-239:1 -/
+    Source: 'src/packets/mod.rs', lines 220:0-234:1 -/
 @[reducible]
 def packets.ColumnMeta.Insts.Mysql_commonProtoMyDeserializeDeTuple :
   proto.MyDeserialize packets.ColumnMeta Unit := {
@@ -9366,7 +11401,7 @@ def packets.ColumnMeta.Insts.Mysql_commonProtoMyDeserializeDeTuple :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ColumnMeta<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 242:4-258:5
+    Source: 'src/packets/mod.rs', lines 237:4-253:5
     Visibility: public -/
 def packets.ColumnMeta.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.ColumnMeta) (buf : alloc.vec.Vec Std.U8) :
@@ -9397,7 +11432,7 @@ def packets.ColumnMeta.Insts.Mysql_commonProtoMySerialize.serialize
     self.org_name buf5
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ColumnMeta<'_0>}]
-    Source: 'src/packets/mod.rs', lines 241:0-259:1 -/
+    Source: 'src/packets/mod.rs', lines 236:0-254:1 -/
 @[reducible]
 def packets.ColumnMeta.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
   packets.ColumnMeta := {
@@ -9405,7 +11440,7 @@ def packets.ColumnMeta.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Column}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 279:4-293:5
+    Source: 'src/packets/mod.rs', lines 274:4-288:5
     Visibility: public -/
 def packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
   (_ : Unit) (buf : io.ParseBuf) :
@@ -9563,7 +11598,7 @@ def packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Column}::SIZE]
-    Source: 'src/packets/mod.rs', lines 276:4-276:37
+    Source: 'src/packets/mod.rs', lines 271:4-271:37
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
@@ -9571,7 +11606,7 @@ def packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Column}]
-    Source: 'src/packets/mod.rs', lines 275:0-294:1 -/
+    Source: 'src/packets/mod.rs', lines 270:0-289:1 -/
 @[reducible]
 def packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple :
   proto.MyDeserialize packets.Column Unit := {
@@ -9581,7 +11616,7 @@ def packets.Column.Insts.Mysql_commonProtoMyDeserializeDeTuple :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::Column}::serialize]:
-    Source: 'src/packets/mod.rs', lines 297:4-306:5
+    Source: 'src/packets/mod.rs', lines 292:4-301:5
     Visibility: public -/
 def packets.Column.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.Column) (buf : alloc.vec.Vec Std.U8) :
@@ -9626,15 +11661,287 @@ def packets.Column.Insts.Mysql_commonProtoMySerialize.serialize
   misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize self.__filler buf7
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::Column}]
-    Source: 'src/packets/mod.rs', lines 296:0-307:1 -/
+    Source: 'src/packets/mod.rs', lines 291:0-302:1 -/
 @[reducible]
 def packets.Column.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
   packets.Column := {
   serialize := packets.Column.Insts.Mysql_commonProtoMySerialize.serialize
 }
 
+/-- [mysql_common::packets::{mysql_common::packets::Column}::new]:
+    Source: 'src/packets/mod.rs', lines 305:4-316:5
+    Visibility: public -/
+def packets.Column.new
+  (column_type : constants.ColumnType) : Result packets.Column := do
+  let a ←
+    alloc.sync.Arc.Insts.CoreDefaultDefault.default
+      packets.ColumnMeta.Insts.CoreDefaultDefault
+  let cu ←
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default 12#u8
+      packets.InvalidFixedLengthFieldsLen.Insts.CoreDefaultDefault
+  let ri ←
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default
+      misc.raw.int.LeU32.Insts.CoreDefaultDefault
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      core.default.DefaultU32
+  let ri1 ←
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default
+      misc.raw.int.LeU16.Insts.CoreDefaultDefault
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      core.default.DefaultU16
+  let c ←
+    misc.raw._const.Const.Insts.CoreDefaultDefault.default
+      constants.ColumnFlags.Insts.CoreDefaultDefault
+      misc.raw.int.LeU16.Insts.CoreDefaultDefault
+  let c1 ← misc.raw._const.Const.new Std.U8 column_type
+  let ri2 ←
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default core.default.DefaultU8
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 core.default.DefaultU8
+  ok
+    {
+      «meta» := a,
+      fixed_length_fields_len := cu,
+      column_length := ri,
+      character_set := ri1,
+      column_type := c1,
+      flags := c,
+      decimals := ri2,
+      __filler := ()
+    }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_catalog]:
+    Source: 'src/packets/mod.rs', lines 319:4-322:5
+    Visibility: public -/
+def packets.Column.with_catalog
+  (self : packets.Column) (catalog : Slice Std.U8) :
+  Result packets.Column
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+      core.clone.CloneU8)) catalog
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+  let (cm, make_mut_back) ←
+    alloc.sync.Arc.make_mut (core.clone.CloneToUninit.Blanket
+      packets.ColumnMeta.Insts.CoreCloneClone)
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone self.meta
+  let a :=
+    make_mut_back
+      {
+        catalog := rb1,
+        schema := cm.schema,
+        table := cm.table,
+        org_table := cm.org_table,
+        «name» := cm.name,
+        org_name := cm.org_name
+      }
+  ok { self with «meta» := a }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_schema]:
+    Source: 'src/packets/mod.rs', lines 324:4-327:5
+    Visibility: public -/
+def packets.Column.with_schema
+  (self : packets.Column) (schema : Slice Std.U8) : Result packets.Column := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+      core.clone.CloneU8)) schema
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+  let (cm, make_mut_back) ←
+    alloc.sync.Arc.make_mut (core.clone.CloneToUninit.Blanket
+      packets.ColumnMeta.Insts.CoreCloneClone)
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone self.meta
+  let a :=
+    make_mut_back
+      {
+        catalog := cm.catalog,
+        schema := rb1,
+        table := cm.table,
+        org_table := cm.org_table,
+        «name» := cm.name,
+        org_name := cm.org_name
+      }
+  ok { self with «meta» := a }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_table]:
+    Source: 'src/packets/mod.rs', lines 329:4-332:5
+    Visibility: public -/
+def packets.Column.with_table
+  (self : packets.Column) (table : Slice Std.U8) : Result packets.Column := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+      core.clone.CloneU8)) table
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+  let (cm, make_mut_back) ←
+    alloc.sync.Arc.make_mut (core.clone.CloneToUninit.Blanket
+      packets.ColumnMeta.Insts.CoreCloneClone)
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone self.meta
+  let a :=
+    make_mut_back
+      {
+        catalog := cm.catalog,
+        schema := cm.schema,
+        table := rb1,
+        org_table := cm.org_table,
+        «name» := cm.name,
+        org_name := cm.org_name
+      }
+  ok { self with «meta» := a }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_org_table]:
+    Source: 'src/packets/mod.rs', lines 334:4-337:5
+    Visibility: public -/
+def packets.Column.with_org_table
+  (self : packets.Column) (org_table : Slice Std.U8) :
+  Result packets.Column
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+      core.clone.CloneU8)) org_table
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+  let (cm, make_mut_back) ←
+    alloc.sync.Arc.make_mut (core.clone.CloneToUninit.Blanket
+      packets.ColumnMeta.Insts.CoreCloneClone)
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone self.meta
+  let a :=
+    make_mut_back
+      {
+        catalog := cm.catalog,
+        schema := cm.schema,
+        table := cm.table,
+        org_table := rb1,
+        «name» := cm.name,
+        org_name := cm.org_name
+      }
+  ok { self with «meta» := a }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_name]:
+    Source: 'src/packets/mod.rs', lines 339:4-342:5
+    Visibility: public -/
+def packets.Column.with_name
+  (self : packets.Column) («name» : Slice Std.U8) :
+  Result packets.Column
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+      core.clone.CloneU8)) «name»
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+  let (cm, make_mut_back) ←
+    alloc.sync.Arc.make_mut (core.clone.CloneToUninit.Blanket
+      packets.ColumnMeta.Insts.CoreCloneClone)
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone self.meta
+  let a :=
+    make_mut_back
+      {
+        catalog := cm.catalog,
+        schema := cm.schema,
+        table := cm.table,
+        org_table := cm.org_table,
+        «name» := rb1,
+        org_name := cm.org_name
+      }
+  ok { self with «meta» := a }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_org_name]:
+    Source: 'src/packets/mod.rs', lines 344:4-347:5
+    Visibility: public -/
+def packets.Column.with_org_name
+  (self : packets.Column) (org_name : Slice Std.U8) :
+  Result packets.Column
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+      core.clone.CloneU8)) org_name
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+  let (cm, make_mut_back) ←
+    alloc.sync.Arc.make_mut (core.clone.CloneToUninit.Blanket
+      packets.ColumnMeta.Insts.CoreCloneClone)
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone self.meta
+  let a :=
+    make_mut_back
+      {
+        catalog := cm.catalog,
+        schema := cm.schema,
+        table := cm.table,
+        org_table := cm.org_table,
+        «name» := cm.name,
+        org_name := rb1
+      }
+  ok { self with «meta» := a }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_flags]:
+    Source: 'src/packets/mod.rs', lines 349:4-352:5
+    Visibility: public -/
+def packets.Column.with_flags
+  (self : packets.Column) (flags : constants.ColumnFlags) :
+  Result packets.Column
+  := do
+  let c ← misc.raw._const.Const.new misc.raw.int.LeU16 flags
+  ok { self with flags := c }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_column_length]:
+    Source: 'src/packets/mod.rs', lines 354:4-357:5
+    Visibility: public -/
+def packets.Column.with_column_length
+  (self : packets.Column) (column_length : Std.U32) :
+  Result packets.Column
+  := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 column_length
+  ok { self with column_length := ri }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_character_set]:
+    Source: 'src/packets/mod.rs', lines 359:4-362:5
+    Visibility: public -/
+def packets.Column.with_character_set
+  (self : packets.Column) (character_set : Std.U16) :
+  Result packets.Column
+  := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 character_set
+  ok { self with character_set := ri }
+
+/-- [mysql_common::packets::{mysql_common::packets::Column}::with_decimals]:
+    Source: 'src/packets/mod.rs', lines 364:4-367:5
+    Visibility: public -/
+def packets.Column.with_decimals
+  (self : packets.Column) (decimals : Std.U8) : Result packets.Column := do
+  let ri ←
+    misc.raw.int.RawInt.new U8.Insts.Mysql_commonMiscRawIntIntReprU8 decimals
+  ok { self with decimals := ri }
+
 /-- [mysql_common::packets::{mysql_common::packets::Column}::column_length]:
-    Source: 'src/packets/mod.rs', lines 377:4-379:5
+    Source: 'src/packets/mod.rs', lines 372:4-374:5
     Visibility: public -/
 def packets.Column.impl.column_length
   (self : packets.Column) : Result Std.U32 := do
@@ -9643,14 +11950,14 @@ def packets.Column.impl.column_length
     self.column_length
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::column_type]:
-    Source: 'src/packets/mod.rs', lines 382:4-384:5
+    Source: 'src/packets/mod.rs', lines 377:4-379:5
     Visibility: public -/
 def packets.Column.impl.column_type
   (self : packets.Column) : Result constants.ColumnType := do
   misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref self.column_type
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::character_set]:
-    Source: 'src/packets/mod.rs', lines 387:4-389:5
+    Source: 'src/packets/mod.rs', lines 382:4-384:5
     Visibility: public -/
 def packets.Column.impl.character_set
   (self : packets.Column) : Result Std.U16 := do
@@ -9659,21 +11966,21 @@ def packets.Column.impl.character_set
     self.character_set
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::flags]:
-    Source: 'src/packets/mod.rs', lines 392:4-394:5
+    Source: 'src/packets/mod.rs', lines 387:4-389:5
     Visibility: public -/
 def packets.Column.impl.flags
   (self : packets.Column) : Result constants.ColumnFlags := do
   misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref self.flags
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::decimals]:
-    Source: 'src/packets/mod.rs', lines 403:4-405:5
+    Source: 'src/packets/mod.rs', lines 398:4-400:5
     Visibility: public -/
 def packets.Column.impl.decimals (self : packets.Column) : Result Std.U8 := do
   misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
     U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.decimals
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::catalog_ref]:
-    Source: 'src/packets/mod.rs', lines 409:4-411:5
+    Source: 'src/packets/mod.rs', lines 404:4-406:5
     Visibility: public -/
 def packets.Column.catalog_ref
   (self : packets.Column) : Result (Slice Std.U8) := do
@@ -9690,7 +11997,7 @@ def packets.Column.catalog_ref
     }
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::schema_ref]:
-    Source: 'src/packets/mod.rs', lines 421:4-423:5
+    Source: 'src/packets/mod.rs', lines 416:4-418:5
     Visibility: public -/
 def packets.Column.schema_ref
   (self : packets.Column) : Result (Slice Std.U8) := do
@@ -9707,7 +12014,7 @@ def packets.Column.schema_ref
     }
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::table_ref]:
-    Source: 'src/packets/mod.rs', lines 433:4-435:5
+    Source: 'src/packets/mod.rs', lines 428:4-430:5
     Visibility: public -/
 def packets.Column.table_ref
   (self : packets.Column) : Result (Slice Std.U8) := do
@@ -9724,7 +12031,7 @@ def packets.Column.table_ref
     }
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::org_table_ref]:
-    Source: 'src/packets/mod.rs', lines 447:4-449:5
+    Source: 'src/packets/mod.rs', lines 442:4-444:5
     Visibility: public -/
 def packets.Column.org_table_ref
   (self : packets.Column) : Result (Slice Std.U8) := do
@@ -9741,7 +12048,7 @@ def packets.Column.org_table_ref
     }
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::name_ref]:
-    Source: 'src/packets/mod.rs', lines 459:4-461:5
+    Source: 'src/packets/mod.rs', lines 454:4-456:5
     Visibility: public -/
 def packets.Column.name_ref
   (self : packets.Column) : Result (Slice Std.U8) := do
@@ -9758,7 +12065,7 @@ def packets.Column.name_ref
     }
 
 /-- [mysql_common::packets::{mysql_common::packets::Column}::org_name_ref]:
-    Source: 'src/packets/mod.rs', lines 473:4-475:5
+    Source: 'src/packets/mod.rs', lines 468:4-470:5
     Visibility: public -/
 def packets.Column.org_name_ref
   (self : packets.Column) : Result (Slice Std.U8) := do
@@ -9774,8 +12081,506 @@ def packets.Column.org_name_ref
       org_name := cm.org_name
     }
 
+/-- [mysql_common::packets::{mysql_common::packets::SessionStateInfo<'_0>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 487:4-493:5
+    Visibility: public -/
+def packets.SessionStateInfo.into_owned
+  (self : packets.SessionStateInfo) : Result packets.SessionStateInfo := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.data
+  ok { self with data := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::SessionStateInfo<'_0>}::data_type]:
+    Source: 'src/packets/mod.rs', lines 495:4-497:5
+    Visibility: public -/
+def packets.SessionStateInfo.impl.data_type
+  (self : packets.SessionStateInfo) : Result constants.SessionStateType := do
+  misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref self.data_type
+
+/-- [mysql_common::packets::{mysql_common::packets::SessionStateInfo<'_0>}::data_ref]:
+    Source: 'src/packets/mod.rs', lines 500:4-502:5
+    Visibility: public -/
+def packets.SessionStateInfo.data_ref
+  (self : packets.SessionStateInfo) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple 
+    self.data
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::TransactionState<'de>}::deserialize]:
+    Source: 'src/packets/session_state_change.rs', lines 403:4-408:5
+    Visibility: public -/
+def
+  packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.session_state_change.TransactionState
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse_unchecked
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf ()
+  match r with
+  | core.result.Result.Ok rb => ok (core.result.Result.Ok rb, buf1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::TransactionState<'de>}::SIZE]
+    Source: 'src/packets/session_state_change.rs', lines 400:4-400:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::TransactionState<'de>}]
+    Source: 'src/packets/session_state_change.rs', lines 399:0-409:1 -/
+@[reducible]
+def
+  packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.session_state_change.TransactionState Unit := {
+  SIZE := ok
+    packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::TransactionCharacteristics<'de>}::deserialize]:
+    Source: 'src/packets/session_state_change.rs', lines 357:4-362:5
+    Visibility: public -/
+def
+  packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result
+    packets.session_state_change.TransactionCharacteristics
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse_unchecked
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf ()
+  match r with
+  | core.result.Result.Ok rb => ok (core.result.Result.Ok rb, buf1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::TransactionCharacteristics<'de>}::SIZE]
+    Source: 'src/packets/session_state_change.rs', lines 354:4-354:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::TransactionCharacteristics<'de>}]
+    Source: 'src/packets/session_state_change.rs', lines 353:0-363:1 -/
+@[reducible]
+def
+  packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.session_state_change.TransactionCharacteristics
+  Unit := {
+  SIZE := ok
+    packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Schema<'de>}::deserialize]:
+    Source: 'src/packets/session_state_change.rs', lines 239:4-244:5
+    Visibility: public -/
+def
+  packets.session_state_change.Schema.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.session_state_change.Schema
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse_unchecked
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf ()
+  match r with
+  | core.result.Result.Ok rb => ok (core.result.Result.Ok rb, buf1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Schema<'de>}::SIZE]
+    Source: 'src/packets/session_state_change.rs', lines 236:4-236:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.session_state_change.Schema.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Schema<'de>}]
+    Source: 'src/packets/session_state_change.rs', lines 235:0-245:1 -/
+@[reducible]
+def
+  packets.session_state_change.Schema.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.session_state_change.Schema Unit := {
+  SIZE := ok
+    packets.session_state_change.Schema.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.session_state_change.Schema.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Gtids<'de>}::deserialize]:
+    Source: 'src/packets/session_state_change.rs', lines 189:4-198:5
+    Visibility: public -/
+def
+  packets.session_state_change.Gtids.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.session_state_change.Gtids
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (b, buf1) ← io.ParseBuf.checked_skip buf 1#usize
+  if b
+  then
+    let (r, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf1
+        ()
+    match r with
+    | core.result.Result.Ok rb => ok (core.result.Result.Ok rb, buf2)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf2)
+  else let e ← misc.unexpected_buf_eof
+       ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Gtids<'de>}::SIZE]
+    Source: 'src/packets/session_state_change.rs', lines 186:4-186:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.session_state_change.Gtids.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Gtids<'de>}]
+    Source: 'src/packets/session_state_change.rs', lines 185:0-199:1 -/
+@[reducible]
+def
+  packets.session_state_change.Gtids.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.session_state_change.Gtids Unit := {
+  SIZE := ok
+    packets.session_state_change.Gtids.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.session_state_change.Gtids.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::SystemVariable<'de>}::deserialize]:
+    Source: 'src/packets/session_state_change.rs', lines 310:4-315:5
+    Visibility: public -/
+def
+  packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.session_state_change.SystemVariable
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse_unchecked
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue rb =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf1
+        ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb1 =>
+      ok (core.result.Result.Ok { «name» := rb, value := rb1 }, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.session_state_change.SystemVariable (core.convert.FromSame
+          core.io.error.Error) residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.session_state_change.SystemVariable (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::SystemVariable<'de>}::SIZE]
+    Source: 'src/packets/session_state_change.rs', lines 307:4-307:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::SystemVariable<'de>}]
+    Source: 'src/packets/session_state_change.rs', lines 306:0-316:1 -/
+@[reducible]
+def
+  packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.session_state_change.SystemVariable Unit := {
+  SIZE := ok
+    packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::session_state_change::deserialize_system_variables]:
+    Source: 'src/packets/session_state_change.rs', lines 130:0-145:1 -/
+def packets.session_state_change.deserialize_system_variables
+  (buf : io.ParseBuf)
+  (vars : alloc.vec.Vec packets.session_state_change.SystemVariable) :
+  Result ((core.result.Result (alloc.vec.Vec
+    packets.session_state_change.SystemVariable) core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let b ← io.ParseBuf.is_empty buf
+  if b
+  then ok (core.result.Result.Ok vars, buf)
+  else
+    let (r, buf1) ←
+      io.ParseBuf.parse_unchecked
+        packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        buf ()
+    match r with
+    | core.result.Result.Ok sv =>
+      let vars1 ←
+        alloc.vec.Vec.push vars ({ «name» := sv.name, value := sv.value } :
+          packets.session_state_change.SystemVariable)
+      packets.session_state_change.deserialize_system_variables buf1 vars1
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+partial_fixpoint
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::SessionStateType> for mysql_common::packets::session_state_change::SessionStateChange<'de>}::deserialize]:
+    Source: 'src/packets/session_state_change.rs', lines 65:4-92:5
+    Visibility: public -/
+def
+  packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMyDeserializeDeSessionStateType.deserialize
+  (ty : constants.SessionStateType) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.session_state_change.SessionStateChange
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  match ty with
+  | constants.SessionStateType.SESSION_TRACK_SYSTEM_VARIABLES =>
+    let (r, buf1) ←
+      packets.session_state_change.deserialize_system_variables buf
+        (alloc.vec.Vec.new packets.session_state_change.SystemVariable)
+    match r with
+    | core.result.Result.Ok vars =>
+      ok (core.result.Result.Ok
+        (packets.session_state_change.SessionStateChange.SystemVariables vars),
+        buf1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+  | constants.SessionStateType.SESSION_TRACK_SCHEMA =>
+    let (r, buf1) ←
+      io.ParseBuf.parse_unchecked
+        packets.session_state_change.Schema.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        buf ()
+    match r with
+    | core.result.Result.Ok s =>
+      ok (core.result.Result.Ok
+        (packets.session_state_change.SessionStateChange.Schema s), buf1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+  | constants.SessionStateType.SESSION_TRACK_STATE_CHANGE =>
+    let (r, buf1) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf
+        ()
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      let s ←
+        misc.raw.bytes.RawBytes.as_bytes
+          misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+      let s1 ←
+        core.array.Array.index (core.ops.index.IndexSlice
+          (core.slice.index.SliceIndexRangeFullSlice Std.U8))
+          (Array.make 1#usize [ 49#u8 ]) ()
+      let b ← core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s s1
+      ok (core.result.Result.Ok
+        (packets.session_state_change.SessionStateChange.IsTracked b), buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.session_state_change.SessionStateChange
+          (core.convert.FromSame core.io.error.Error) residual
+      ok (r1, buf1)
+  | constants.SessionStateType.SESSION_TRACK_GTIDS =>
+    let (r, buf1) ←
+      io.ParseBuf.parse_unchecked
+        packets.session_state_change.Gtids.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        buf ()
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue g =>
+      ok (core.result.Result.Ok
+        (packets.session_state_change.SessionStateChange.Gtids g), buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.session_state_change.SessionStateChange
+          (core.convert.FromSame core.io.error.Error) residual
+      ok (r1, buf1)
+  | constants.SessionStateType.SESSION_TRACK_TRANSACTION_CHARACTERISTICS =>
+    let (r, buf1) ←
+      io.ParseBuf.parse_unchecked
+        packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        buf ()
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue tc =>
+      ok (core.result.Result.Ok
+        (packets.session_state_change.SessionStateChange.TransactionCharacteristics
+        tc), buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.session_state_change.SessionStateChange
+          (core.convert.FromSame core.io.error.Error) residual
+      ok (r1, buf1)
+  | constants.SessionStateType.SESSION_TRACK_TRANSACTION_STATE =>
+    let (r, buf1) ←
+      io.ParseBuf.parse_unchecked
+        packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        buf ()
+    match r with
+    | core.result.Result.Ok ts =>
+      ok (core.result.Result.Ok
+        (packets.session_state_change.SessionStateChange.TransactionState ts),
+        buf1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::SessionStateType> for mysql_common::packets::session_state_change::SessionStateChange<'de>}::SIZE]
+    Source: 'src/packets/session_state_change.rs', lines 62:4-62:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMyDeserializeDeSessionStateType.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::SessionStateType> for mysql_common::packets::session_state_change::SessionStateChange<'de>}]
+    Source: 'src/packets/session_state_change.rs', lines 61:0-93:1 -/
+@[reducible]
+def
+  packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMyDeserializeDeSessionStateType
+  : proto.MyDeserialize packets.session_state_change.SessionStateChange
+  constants.SessionStateType := {
+  SIZE := ok
+    packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMyDeserializeDeSessionStateType.SIZE
+  deserialize :=
+    packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMyDeserializeDeSessionStateType.deserialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::SessionStateInfo<'_0>}::decode]:
+    Source: 'src/packets/mod.rs', lines 505:4-507:5
+    Visibility: public -/
+def packets.SessionStateInfo.decode
+  (self : packets.SessionStateInfo) :
+  Result (core.result.Result packets.session_state_change.SessionStateChange
+    core.io.error.Error)
+  := do
+  let s ←
+    misc.raw.bytes.RawBytes.as_bytes
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.data
+  let sst ←
+    misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref self.data_type
+  let (r, _) ←
+    io.ParseBuf.parse_unchecked
+      packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMyDeserializeDeSessionStateType
+      s sst
+  ok r
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SessionStateInfo<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 514:4-519:5
+    Visibility: public -/
+def
+  packets.SessionStateInfo.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.SessionStateInfo core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      constants.SessionStateType.Insts.CoreConvertTryFromU8UnknownSessionStateType
+      constants.UnknownSessionStateType.Insts.CoreErrorError) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf1
+        ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      ok (core.result.Result.Ok { data_type := val, data := rb }, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.SessionStateInfo (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.SessionStateInfo (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SessionStateInfo<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 511:4-511:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.SessionStateInfo.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SessionStateInfo<'de>}]
+    Source: 'src/packets/mod.rs', lines 510:0-520:1 -/
+@[reducible]
+def packets.SessionStateInfo.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.SessionStateInfo Unit := {
+  SIZE := ok
+    packets.SessionStateInfo.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.SessionStateInfo.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SessionStateInfo<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 523:4-526:5
+    Visibility: public -/
+def packets.SessionStateInfo.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.SessionStateInfo) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.SessionStateType.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U8.Insts.CoreConvertFromSessionStateType)
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.data_type buf
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple 
+    self.data buf1
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SessionStateInfo<'_0>}]
+    Source: 'src/packets/mod.rs', lines 522:0-527:1 -/
+@[reducible]
+def packets.SessionStateInfo.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.SessionStateInfo := {
+  serialize :=
+    packets.SessionStateInfo.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::ResultSetTerminator}::parse_body]:
-    Source: 'src/packets/mod.rs', lines 564:4-608:5
+    Source: 'src/packets/mod.rs', lines 559:4-603:5
     Visibility: public -/
 def
   packets.ResultSetTerminator.Insts.Mysql_commonPacketsOkPacketKind.parse_body
@@ -10073,7 +12878,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::ResultSetTerminator}::HEADER]
-    Source: 'src/packets/mod.rs', lines 562:4-562:28
+    Source: 'src/packets/mod.rs', lines 557:4-557:28
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.ResultSetTerminator.Insts.Mysql_commonPacketsOkPacketKind.HEADER
@@ -10081,7 +12886,7 @@ def packets.ResultSetTerminator.Insts.Mysql_commonPacketsOkPacketKind.HEADER
   254#u8
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::ResultSetTerminator}]
-    Source: 'src/packets/mod.rs', lines 561:0-609:1 -/
+    Source: 'src/packets/mod.rs', lines 556:0-604:1 -/
 @[reducible]
 def packets.ResultSetTerminator.Insts.Mysql_commonPacketsOkPacketKind :
   packets.OkPacketKind packets.ResultSetTerminator := {
@@ -10092,7 +12897,7 @@ def packets.ResultSetTerminator.Insts.Mysql_commonPacketsOkPacketKind :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::OldEofPacket}::parse_body]:
-    Source: 'src/packets/mod.rs', lines 618:4-635:5
+    Source: 'src/packets/mod.rs', lines 613:4-630:5
     Visibility: public -/
 def packets.OldEofPacket.Insts.Mysql_commonPacketsOkPacketKind.parse_body
   (cf : constants.CapabilityFlags) (buf : io.ParseBuf) :
@@ -10169,7 +12974,7 @@ def packets.OldEofPacket.Insts.Mysql_commonPacketsOkPacketKind.parse_body
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::OldEofPacket}::HEADER]
-    Source: 'src/packets/mod.rs', lines 616:4-616:28
+    Source: 'src/packets/mod.rs', lines 611:4-611:28
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.OldEofPacket.Insts.Mysql_commonPacketsOkPacketKind.HEADER
@@ -10177,7 +12982,7 @@ def packets.OldEofPacket.Insts.Mysql_commonPacketsOkPacketKind.HEADER
   254#u8
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::OldEofPacket}]
-    Source: 'src/packets/mod.rs', lines 615:0-636:1 -/
+    Source: 'src/packets/mod.rs', lines 610:0-631:1 -/
 @[reducible]
 def packets.OldEofPacket.Insts.Mysql_commonPacketsOkPacketKind :
   packets.OkPacketKind packets.OldEofPacket := {
@@ -10188,7 +12993,7 @@ def packets.OldEofPacket.Insts.Mysql_commonPacketsOkPacketKind :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::NetworkStreamTerminator}::parse_body]:
-    Source: 'src/packets/mod.rs', lines 645:4-650:5
+    Source: 'src/packets/mod.rs', lines 640:4-645:5
     Visibility: public -/
 def
   packets.NetworkStreamTerminator.Insts.Mysql_commonPacketsOkPacketKind.parse_body
@@ -10200,7 +13005,7 @@ def
     buf
 
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::NetworkStreamTerminator}::HEADER]
-    Source: 'src/packets/mod.rs', lines 643:4-643:28
+    Source: 'src/packets/mod.rs', lines 638:4-638:28
     Visibility: public -/
 @[global_simps, irreducible]
 def
@@ -10209,7 +13014,7 @@ def
   254#u8
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::NetworkStreamTerminator}]
-    Source: 'src/packets/mod.rs', lines 642:0-651:1 -/
+    Source: 'src/packets/mod.rs', lines 637:0-646:1 -/
 @[reducible]
 def packets.NetworkStreamTerminator.Insts.Mysql_commonPacketsOkPacketKind :
   packets.OkPacketKind packets.NetworkStreamTerminator := {
@@ -10220,7 +13025,7 @@ def packets.NetworkStreamTerminator.Insts.Mysql_commonPacketsOkPacketKind :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::CommonOkPacket}::parse_body]:
-    Source: 'src/packets/mod.rs', lines 660:4-700:5
+    Source: 'src/packets/mod.rs', lines 655:4-695:5
     Visibility: public -/
 def packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind.parse_body
   (capabilities : constants.CapabilityFlags) (buf : io.ParseBuf) :
@@ -10485,7 +13290,7 @@ def packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind.parse_body
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::CommonOkPacket}::HEADER]
-    Source: 'src/packets/mod.rs', lines 658:4-658:28
+    Source: 'src/packets/mod.rs', lines 653:4-653:28
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind.HEADER
@@ -10493,7 +13298,7 @@ def packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind.HEADER
   0#u8
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::packets::OkPacketKind for mysql_common::packets::CommonOkPacket}]
-    Source: 'src/packets/mod.rs', lines 657:0-701:1 -/
+    Source: 'src/packets/mod.rs', lines 652:0-696:1 -/
 @[reducible]
 def packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind :
   packets.OkPacketKind packets.CommonOkPacket := {
@@ -10504,7 +13309,7 @@ def packets.CommonOkPacket.Insts.Mysql_commonPacketsOkPacketKind :
 }
 
 /-- [mysql_common::packets::non_empty]:
-    Source: 'src/packets/mod.rs', lines 704:0-707:1 -/
+    Source: 'src/packets/mod.rs', lines 699:0-702:1 -/
 def packets.non_empty
   {T : Type _} {Clause0_Ctx : Type _} (miscrawbytesBytesReprInst :
   misc.raw.bytes.BytesRepr T Clause0_Ctx)
@@ -10517,7 +13322,7 @@ def packets.non_empty
   else ok (some x)
 
 /-- [mysql_common::packets::{impl core::convert::TryFrom<mysql_common::packets::OkPacketBody<'a>, core::io::error::Error> for mysql_common::packets::OkPacket<'a>}::try_from]:
-    Source: 'src/packets/mod.rs', lines 712:4-733:5
+    Source: 'src/packets/mod.rs', lines 707:4-728:5
     Visibility: public -/
 def packets.OkPacket.Insts.CoreConvertTryFromOkPacketBodyError.try_from
   (body : packets.OkPacketBody) :
@@ -10558,7 +13363,7 @@ def packets.OkPacket.Insts.CoreConvertTryFromOkPacketBodyError.try_from
     })
 
 /-- Trait implementation: [mysql_common::packets::{impl core::convert::TryFrom<mysql_common::packets::OkPacketBody<'a>, core::io::error::Error> for mysql_common::packets::OkPacket<'a>}]
-    Source: 'src/packets/mod.rs', lines 709:0-734:1 -/
+    Source: 'src/packets/mod.rs', lines 704:0-729:1 -/
 @[reducible]
 def packets.OkPacket.Insts.CoreConvertTryFromOkPacketBodyError :
   core.convert.TryFrom packets.OkPacket packets.OkPacketBody
@@ -10568,7 +13373,7 @@ def packets.OkPacket.Insts.CoreConvertTryFromOkPacketBodyError :
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::into_owned]:
-    Source: 'src/packets/mod.rs', lines 748:4-763:5
+    Source: 'src/packets/mod.rs', lines 743:4-758:5
     Visibility: public -/
 def packets.OkPacket.into_owned
   (self : packets.OkPacket) : Result packets.OkPacket := do
@@ -10590,35 +13395,35 @@ def packets.OkPacket.into_owned
     ok { self with info := o, session_state_info := (some rb1) }
 
 /-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::affected_rows]:
-    Source: 'src/packets/mod.rs', lines 766:4-768:5
+    Source: 'src/packets/mod.rs', lines 761:4-763:5
     Visibility: public -/
 def packets.OkPacket.impl.affected_rows
   (self : packets.OkPacket) : Result Std.U64 := do
   ok self.affected_rows
 
 /-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::last_insert_id]:
-    Source: 'src/packets/mod.rs', lines 771:4-773:5
+    Source: 'src/packets/mod.rs', lines 766:4-768:5
     Visibility: public -/
 def packets.OkPacket.impl.last_insert_id
   (self : packets.OkPacket) : Result (Option Std.U64) := do
   ok self.last_insert_id
 
 /-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::status_flags]:
-    Source: 'src/packets/mod.rs', lines 776:4-778:5
+    Source: 'src/packets/mod.rs', lines 771:4-773:5
     Visibility: public -/
 def packets.OkPacket.impl.status_flags
   (self : packets.OkPacket) : Result constants.StatusFlags := do
   ok self.status_flags
 
 /-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::warnings]:
-    Source: 'src/packets/mod.rs', lines 781:4-783:5
+    Source: 'src/packets/mod.rs', lines 776:4-778:5
     Visibility: public -/
 def packets.OkPacket.impl.warnings
   (self : packets.OkPacket) : Result Std.U16 := do
   ok self.warnings
 
 /-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::info_ref]:
-    Source: 'src/packets/mod.rs', lines 786:4-791:5
+    Source: 'src/packets/mod.rs', lines 781:4-786:5
     Visibility: public -/
 def packets.OkPacket.info_ref
   (self : packets.OkPacket) : Result (Option (Slice Std.U8)) := do
@@ -10631,7 +13436,7 @@ def packets.OkPacket.info_ref
     ok (some s)
 
 /-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::session_state_info_ref]:
-    Source: 'src/packets/mod.rs', lines 799:4-804:5
+    Source: 'src/packets/mod.rs', lines 794:4-799:5
     Visibility: public -/
 def packets.OkPacket.session_state_info_ref
   (self : packets.OkPacket) : Result (Option (Slice Std.U8)) := do
@@ -10643,8 +13448,48 @@ def packets.OkPacket.session_state_info_ref
         misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
     ok (some s)
 
+/-- [mysql_common::packets::parse_session_state_infos]:
+    Source: 'src/packets/mod.rs', lines 814:0-829:1 -/
+def packets.parse_session_state_infos
+  (data : io.ParseBuf) (entries : alloc.vec.Vec packets.SessionStateInfo) :
+  Result ((core.result.Result (alloc.vec.Vec packets.SessionStateInfo)
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let b ← io.ParseBuf.is_empty data
+  if b
+  then ok (core.result.Result.Ok entries, data)
+  else
+    let (r, data1) ←
+      io.ParseBuf.parse
+        packets.SessionStateInfo.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        data ()
+    match r with
+    | core.result.Result.Ok ssi =>
+      let entries1 ← alloc.vec.Vec.push entries ssi
+      packets.parse_session_state_infos data1 entries1
+    | core.result.Result.Err e => ok (core.result.Result.Err e, data1)
+partial_fixpoint
+
+/-- [mysql_common::packets::{mysql_common::packets::OkPacket<'_0>}::session_state_info]:
+    Source: 'src/packets/mod.rs', lines 802:4-810:5
+    Visibility: public -/
+def packets.OkPacket.impl.session_state_info
+  (self : packets.OkPacket) :
+  Result (core.result.Result (alloc.vec.Vec packets.SessionStateInfo)
+    core.io.error.Error)
+  := do
+  let o ← packets.OkPacket.session_state_info_ref self
+  match o with
+  | none =>
+    ok (core.result.Result.Ok (alloc.vec.Vec.new packets.SessionStateInfo))
+  | some data =>
+    let (r, _) ←
+      packets.parse_session_state_infos data (alloc.vec.Vec.new
+        packets.SessionStateInfo)
+    ok r
+
 /-- [mysql_common::packets::{mysql_common::packets::OkPacketDeserializer<'de, T>}::into_inner]:
-    Source: 'src/packets/mod.rs', lines 826:4-828:5
+    Source: 'src/packets/mod.rs', lines 835:4-837:5
     Visibility: public -/
 def packets.OkPacketDeserializer.into_inner
   {T : Type _} (self : packets.OkPacketDeserializer T) :
@@ -10654,7 +13499,7 @@ def packets.OkPacketDeserializer.into_inner
   ok op
 
 /-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidOkPacketHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 837:9-837:14
+    Source: 'src/packets/mod.rs', lines 846:9-846:14
     Visibility: public -/
 def packets.InvalidOkPacketHeader.Insts.CoreFmtDebug.fmt
   (self : packets.InvalidOkPacketHeader) (f : core.fmt.Formatter) :
@@ -10663,7 +13508,7 @@ def packets.InvalidOkPacketHeader.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.write_str f (toStr "InvalidOkPacketHeader")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidOkPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 837:9-837:14 -/
+    Source: 'src/packets/mod.rs', lines 846:9-846:14 -/
 @[reducible]
 def packets.InvalidOkPacketHeader.Insts.CoreFmtDebug : core.fmt.Debug
   packets.InvalidOkPacketHeader := {
@@ -10671,7 +13516,7 @@ def packets.InvalidOkPacketHeader.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidOkPacketHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 837:59-837:75
+    Source: 'src/packets/mod.rs', lines 846:59-846:75
     Visibility: public -/
 def packets.InvalidOkPacketHeader.Insts.CoreFmtDisplay.fmt
   (self : packets.InvalidOkPacketHeader) (__formatter : core.fmt.Formatter) :
@@ -10680,7 +13525,7 @@ def packets.InvalidOkPacketHeader.Insts.CoreFmtDisplay.fmt
   core.fmt.Formatter.write_str __formatter (toStr "Invalid OK packet header")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidOkPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 837:59-837:75 -/
+    Source: 'src/packets/mod.rs', lines 846:59-846:75 -/
 @[reducible]
 def packets.InvalidOkPacketHeader.Insts.CoreFmtDisplay : core.fmt.Display
   packets.InvalidOkPacketHeader := {
@@ -10688,7 +13533,7 @@ def packets.InvalidOkPacketHeader.Insts.CoreFmtDisplay : core.fmt.Display
 }
 
 /-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidOkPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 837:59-837:75 -/
+    Source: 'src/packets/mod.rs', lines 846:59-846:75 -/
 @[reducible]
 def packets.InvalidOkPacketHeader.Insts.CoreErrorError : core.error.Error
   packets.InvalidOkPacketHeader := {
@@ -10697,7 +13542,7 @@ def packets.InvalidOkPacketHeader.Insts.CoreErrorError : core.error.Error
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::OkPacketDeserializer<'de, T>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 845:4-856:5
+    Source: 'src/packets/mod.rs', lines 854:4-865:5
     Visibility: public -/
 def
   packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize
@@ -10755,7 +13600,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::OkPacketDeserializer<'de, T>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 842:4-842:37
+    Source: 'src/packets/mod.rs', lines 851:4-851:37
     Visibility: public -/
 @[global_simps, irreducible]
 def
@@ -10765,7 +13610,7 @@ def
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::OkPacketDeserializer<'de, T>}]
-    Source: 'src/packets/mod.rs', lines 841:0-857:1 -/
+    Source: 'src/packets/mod.rs', lines 850:0-866:1 -/
 @[reducible]
 def
   packets.OkPacketDeserializer.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags
@@ -10781,7 +13626,7 @@ def
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ProgressReport<'a>}::new]:
-    Source: 'src/packets/mod.rs', lines 869:4-881:5
+    Source: 'src/packets/mod.rs', lines 878:4-890:5
     Visibility: public -/
 def packets.ProgressReport.new
   {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
@@ -10803,7 +13648,7 @@ def packets.ProgressReport.new
   ok { stage := ri, max_stage := ri1, progress := ri2, stage_info := rb }
 
 /-- [mysql_common::packets::{mysql_common::packets::ProgressReport<'a>}::stage]:
-    Source: 'src/packets/mod.rs', lines 884:4-886:5
+    Source: 'src/packets/mod.rs', lines 893:4-895:5
     Visibility: public -/
 def packets.ProgressReport.impl.stage
   (self : packets.ProgressReport) : Result Std.U8 := do
@@ -10811,7 +13656,7 @@ def packets.ProgressReport.impl.stage
     U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.stage
 
 /-- [mysql_common::packets::{mysql_common::packets::ProgressReport<'a>}::max_stage]:
-    Source: 'src/packets/mod.rs', lines 888:4-890:5
+    Source: 'src/packets/mod.rs', lines 897:4-899:5
     Visibility: public -/
 def packets.ProgressReport.impl.max_stage
   (self : packets.ProgressReport) : Result Std.U8 := do
@@ -10819,7 +13664,7 @@ def packets.ProgressReport.impl.max_stage
     U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.max_stage
 
 /-- [mysql_common::packets::{mysql_common::packets::ProgressReport<'a>}::progress]:
-    Source: 'src/packets/mod.rs', lines 893:4-895:5
+    Source: 'src/packets/mod.rs', lines 902:4-904:5
     Visibility: public -/
 def packets.ProgressReport.impl.progress
   (self : packets.ProgressReport) : Result Std.U32 := do
@@ -10827,7 +13672,7 @@ def packets.ProgressReport.impl.progress
     misc.raw.int.LeU24.Insts.Mysql_commonMiscRawIntIntReprU32 self.progress
 
 /-- [mysql_common::packets::{mysql_common::packets::ProgressReport<'a>}::stage_info_ref]:
-    Source: 'src/packets/mod.rs', lines 898:4-900:5
+    Source: 'src/packets/mod.rs', lines 907:4-909:5
     Visibility: public -/
 def packets.ProgressReport.stage_info_ref
   (self : packets.ProgressReport) : Result (Slice Std.U8) := do
@@ -10836,7 +13681,7 @@ def packets.ProgressReport.stage_info_ref
     self.stage_info
 
 /-- [mysql_common::packets::{mysql_common::packets::ProgressReport<'a>}::into_owned]:
-    Source: 'src/packets/mod.rs', lines 907:4-914:5
+    Source: 'src/packets/mod.rs', lines 916:4-923:5
     Visibility: public -/
 def packets.ProgressReport.into_owned
   (self : packets.ProgressReport) : Result packets.ProgressReport := do
@@ -10847,7 +13692,7 @@ def packets.ProgressReport.into_owned
   ok { self with stage_info := rb }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ProgressReport<'de>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 921:4-932:5
+    Source: 'src/packets/mod.rs', lines 930:4-941:5
     Visibility: public -/
 def
   packets.ProgressReport.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
@@ -10930,7 +13775,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ProgressReport<'de>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 918:4-918:37
+    Source: 'src/packets/mod.rs', lines 927:4-927:37
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.ProgressReport.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
@@ -10938,7 +13783,7 @@ def packets.ProgressReport.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ProgressReport<'de>}]
-    Source: 'src/packets/mod.rs', lines 917:0-933:1 -/
+    Source: 'src/packets/mod.rs', lines 926:0-942:1 -/
 @[reducible]
 def packets.ProgressReport.Insts.Mysql_commonProtoMyDeserializeDeTuple :
   proto.MyDeserialize packets.ProgressReport Unit := {
@@ -10949,7 +13794,7 @@ def packets.ProgressReport.Insts.Mysql_commonProtoMyDeserializeDeTuple :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ProgressReport<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 936:4-942:5
+    Source: 'src/packets/mod.rs', lines 945:4-951:5
     Visibility: public -/
 def packets.ProgressReport.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.ProgressReport) (buf : alloc.vec.Vec Std.U8) :
@@ -10971,7 +13816,7 @@ def packets.ProgressReport.Insts.Mysql_commonProtoMySerialize.serialize
     self.stage_info buf4
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ProgressReport<'_0>}]
-    Source: 'src/packets/mod.rs', lines 935:0-943:1 -/
+    Source: 'src/packets/mod.rs', lines 944:0-952:1 -/
 @[reducible]
 def packets.ProgressReport.Insts.Mysql_commonProtoMySerialize :
   proto.MySerialize packets.ProgressReport := {
@@ -10980,7 +13825,7 @@ def packets.ProgressReport.Insts.Mysql_commonProtoMySerialize :
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidErrPacketHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 63:67-63:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1
     Visibility: public -/
 def packets.InvalidErrPacketHeader.Insts.CoreFmtDisplay.fmt
   (self : packets.InvalidErrPacketHeader) (__formatter : core.fmt.Formatter) :
@@ -10990,7 +13835,7 @@ def packets.InvalidErrPacketHeader.Insts.CoreFmtDisplay.fmt
     "Invalid error packet header")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidErrPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 63:67-63:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1 -/
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1 -/
 @[reducible]
 def packets.InvalidErrPacketHeader.Insts.CoreFmtDisplay : core.fmt.Display
   packets.InvalidErrPacketHeader := {
@@ -10998,7 +13843,7 @@ def packets.InvalidErrPacketHeader.Insts.CoreFmtDisplay : core.fmt.Display
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidErrPacketHeader}::fmt]:
-    Source: 'src/packets/mod.rs', lines 63:17-63:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1
     Visibility: public -/
 def packets.InvalidErrPacketHeader.Insts.CoreFmtDebug.fmt
   (self : packets.InvalidErrPacketHeader) (f : core.fmt.Formatter) :
@@ -11007,7 +13852,7 @@ def packets.InvalidErrPacketHeader.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.write_str f (toStr "InvalidErrPacketHeader")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidErrPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 63:17-63:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1 -/
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1 -/
 @[reducible]
 def packets.InvalidErrPacketHeader.Insts.CoreFmtDebug : core.fmt.Debug
   packets.InvalidErrPacketHeader := {
@@ -11015,7 +13860,7 @@ def packets.InvalidErrPacketHeader.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidErrPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 63:67-63:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1 -/
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1 -/
 @[reducible]
 def packets.InvalidErrPacketHeader.Insts.CoreErrorError : core.error.Error
   packets.InvalidErrPacketHeader := {
@@ -11024,14 +13869,14 @@ def packets.InvalidErrPacketHeader.Insts.CoreErrorError : core.error.Error
 }
 
 /-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidErrPacketHeader}::default]:
-    Source: 'src/packets/mod.rs', lines 63:24-63:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1
     Visibility: public -/
 def packets.InvalidErrPacketHeader.Insts.CoreDefaultDefault.default
   : Result packets.InvalidErrPacketHeader := do
   ok ()
 
 /-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidErrPacketHeader}]
-    Source: 'src/packets/mod.rs', lines 63:24-63:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 958:0-962:1 -/
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 967:0-971:1 -/
 @[reducible]
 def packets.InvalidErrPacketHeader.Insts.CoreDefaultDefault :
   core.default.Default packets.InvalidErrPacketHeader := {
@@ -11039,7 +13884,7 @@ def packets.InvalidErrPacketHeader.Insts.CoreDefaultDefault :
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ErrPacket<'_0>}::is_error]:
-    Source: 'src/packets/mod.rs', lines 975:4-977:5
+    Source: 'src/packets/mod.rs', lines 984:4-986:5
     Visibility: public -/
 def packets.ErrPacket.is_error (self : packets.ErrPacket) : Result Bool := do
   match self with
@@ -11047,7 +13892,7 @@ def packets.ErrPacket.is_error (self : packets.ErrPacket) : Result Bool := do
   | packets.ErrPacket.Progress _ => ok false
 
 /-- [mysql_common::packets::{mysql_common::packets::ErrPacket<'_0>}::is_progress_report]:
-    Source: 'src/packets/mod.rs', lines 980:4-982:5
+    Source: 'src/packets/mod.rs', lines 989:4-991:5
     Visibility: public -/
 def packets.ErrPacket.is_progress_report
   (self : packets.ErrPacket) : Result Bool := do
@@ -11055,7 +13900,7 @@ def packets.ErrPacket.is_progress_report
   ok (¬ b)
 
 /-- [mysql_common::packets::{mysql_common::packets::ErrPacket<'_0>}::progress_report]:
-    Source: 'src/packets/mod.rs', lines 985:4-990:5
+    Source: 'src/packets/mod.rs', lines 994:4-999:5
     Visibility: public -/
 def packets.ErrPacket.progress_report
   (self : packets.ErrPacket) : Result packets.ProgressReport := do
@@ -11064,7 +13909,7 @@ def packets.ErrPacket.progress_report
   | packets.ErrPacket.Progress pr => ok pr
 
 /-- [mysql_common::packets::{mysql_common::packets::ErrPacket<'_0>}::server_error]:
-    Source: 'src/packets/mod.rs', lines 993:4-998:5
+    Source: 'src/packets/mod.rs', lines 1002:4-1007:5
     Visibility: public -/
 def packets.ErrPacket.server_error
   (self : packets.ErrPacket) : Result packets.ServerError := do
@@ -11073,14 +13918,14 @@ def packets.ErrPacket.server_error
   | packets.ErrPacket.Progress _ => fail panic
 
 /-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidSqlStateMarker}::default]:
-    Source: 'src/packets/mod.rs', lines 63:24-63:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1
     Visibility: public -/
 def packets.InvalidSqlStateMarker.Insts.CoreDefaultDefault.default
   : Result packets.InvalidSqlStateMarker := do
   ok ()
 
 /-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidSqlStateMarker}]
-    Source: 'src/packets/mod.rs', lines 63:24-63:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1 -/
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1 -/
 @[reducible]
 def packets.InvalidSqlStateMarker.Insts.CoreDefaultDefault :
   core.default.Default packets.InvalidSqlStateMarker := {
@@ -11088,7 +13933,7 @@ def packets.InvalidSqlStateMarker.Insts.CoreDefaultDefault :
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidSqlStateMarker}::fmt]:
-    Source: 'src/packets/mod.rs', lines 63:67-63:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1
     Visibility: public -/
 def packets.InvalidSqlStateMarker.Insts.CoreFmtDisplay.fmt
   (self : packets.InvalidSqlStateMarker) (__formatter : core.fmt.Formatter) :
@@ -11098,7 +13943,7 @@ def packets.InvalidSqlStateMarker.Insts.CoreFmtDisplay.fmt
     "Invalid SqlStateMarker value")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidSqlStateMarker}]
-    Source: 'src/packets/mod.rs', lines 63:67-63:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1 -/
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1 -/
 @[reducible]
 def packets.InvalidSqlStateMarker.Insts.CoreFmtDisplay : core.fmt.Display
   packets.InvalidSqlStateMarker := {
@@ -11106,7 +13951,7 @@ def packets.InvalidSqlStateMarker.Insts.CoreFmtDisplay : core.fmt.Display
 }
 
 /-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidSqlStateMarker}::fmt]:
-    Source: 'src/packets/mod.rs', lines 63:17-63:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1
     Visibility: public -/
 def packets.InvalidSqlStateMarker.Insts.CoreFmtDebug.fmt
   (self : packets.InvalidSqlStateMarker) (f : core.fmt.Formatter) :
@@ -11115,7 +13960,7 @@ def packets.InvalidSqlStateMarker.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.write_str f (toStr "InvalidSqlStateMarker")
 
 /-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidSqlStateMarker}]
-    Source: 'src/packets/mod.rs', lines 63:17-63:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1 -/
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1 -/
 @[reducible]
 def packets.InvalidSqlStateMarker.Insts.CoreFmtDebug : core.fmt.Debug
   packets.InvalidSqlStateMarker := {
@@ -11123,7 +13968,7 @@ def packets.InvalidSqlStateMarker.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidSqlStateMarker}]
-    Source: 'src/packets/mod.rs', lines 63:67-63:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1052:0-1056:1 -/
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1061:0-1065:1 -/
 @[reducible]
 def packets.InvalidSqlStateMarker.Insts.CoreErrorError : core.error.Error
   packets.InvalidSqlStateMarker := {
@@ -11132,7 +13977,7 @@ def packets.InvalidSqlStateMarker.Insts.CoreErrorError : core.error.Error
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SqlState}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 1089:4-1094:5
+    Source: 'src/packets/mod.rs', lines 1098:4-1103:5
     Visibility: public -/
 def packets.SqlState.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
   (_ : Unit) (buf : io.ParseBuf) :
@@ -11166,7 +14011,7 @@ def packets.SqlState.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SqlState}::SIZE]
-    Source: 'src/packets/mod.rs', lines 1086:4-1086:40
+    Source: 'src/packets/mod.rs', lines 1095:4-1095:40
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.SqlState.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
@@ -11174,7 +14019,7 @@ def packets.SqlState.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
   some 6#usize
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SqlState}]
-    Source: 'src/packets/mod.rs', lines 1085:0-1095:1 -/
+    Source: 'src/packets/mod.rs', lines 1094:0-1104:1 -/
 @[reducible]
 def packets.SqlState.Insts.Mysql_commonProtoMyDeserializeDeTuple :
   proto.MyDeserialize packets.SqlState Unit := {
@@ -11184,7 +14029,7 @@ def packets.SqlState.Insts.Mysql_commonProtoMyDeserializeDeTuple :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, (u16, bool)> for mysql_common::packets::ServerError<'de>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 1160:4-1175:5
+    Source: 'src/packets/mod.rs', lines 1169:4-1184:5
     Visibility: public -/
 def
   packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.deserialize
@@ -11248,7 +14093,7 @@ def
       ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, (u16, bool)> for mysql_common::packets::ServerError<'de>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 1156:4-1156:37
+    Source: 'src/packets/mod.rs', lines 1165:4-1165:37
     Visibility: public -/
 @[global_simps, irreducible]
 def packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.SIZE
@@ -11256,7 +14101,7 @@ def packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool.SIZE
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, (u16, bool)> for mysql_common::packets::ServerError<'de>}]
-    Source: 'src/packets/mod.rs', lines 1155:0-1176:1 -/
+    Source: 'src/packets/mod.rs', lines 1164:0-1185:1 -/
 @[reducible]
 def packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool :
   proto.MyDeserialize packets.ServerError (Std.U16 × Bool) := {
@@ -11267,7 +14112,7 @@ def packets.ServerError.Insts.Mysql_commonProtoMyDeserializeDePairU16Bool :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ErrPacket<'de>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 1005:4-1024:5
+    Source: 'src/packets/mod.rs', lines 1014:4-1033:5
     Visibility: public -/
 def
   packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize
@@ -11357,7 +14202,7 @@ def
     ok (r1, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ErrPacket<'de>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 1002:4-1002:37
+    Source: 'src/packets/mod.rs', lines 1011:4-1011:37
     Visibility: public -/
 @[global_simps, irreducible]
 def
@@ -11366,7 +14211,7 @@ def
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ErrPacket<'de>}]
-    Source: 'src/packets/mod.rs', lines 1001:0-1025:1 -/
+    Source: 'src/packets/mod.rs', lines 1010:0-1034:1 -/
 @[reducible]
 def packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags :
   proto.MyDeserialize packets.ErrPacket constants.CapabilityFlags := {
@@ -11377,7 +14222,7 @@ def packets.ErrPacket.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags :
 }
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SqlState}::serialize]:
-    Source: 'src/packets/mod.rs', lines 1098:4-1101:5
+    Source: 'src/packets/mod.rs', lines 1107:4-1110:5
     Visibility: public -/
 def packets.SqlState.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.SqlState) (buf : alloc.vec.Vec Std.U8) :
@@ -11389,7 +14234,7 @@ def packets.SqlState.Insts.Mysql_commonProtoMySerialize.serialize
   ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize self.state buf1
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ServerError<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 1179:4-1187:5
+    Source: 'src/packets/mod.rs', lines 1188:4-1196:5
     Visibility: public -/
 def packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.ServerError) (buf : alloc.vec.Vec Std.U8) :
@@ -11408,7 +14253,7 @@ def packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize
       self.message buf1
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ErrPacket<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 1028:4-1040:5
+    Source: 'src/packets/mod.rs', lines 1037:4-1049:5
     Visibility: public -/
 def packets.ErrPacket.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.ErrPacket) (buf : alloc.vec.Vec Std.U8) :
@@ -11433,7 +14278,7 @@ def packets.ErrPacket.Insts.Mysql_commonProtoMySerialize.serialize
     packets.ProgressReport.Insts.Mysql_commonProtoMySerialize.serialize pr buf2
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ErrPacket<'_0>}]
-    Source: 'src/packets/mod.rs', lines 1027:0-1041:1 -/
+    Source: 'src/packets/mod.rs', lines 1036:0-1050:1 -/
 @[reducible]
 def packets.ErrPacket.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
   packets.ErrPacket := {
@@ -11441,7 +14286,7 @@ def packets.ErrPacket.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::SqlState}::new]:
-    Source: 'src/packets/mod.rs', lines 1067:4-1072:5
+    Source: 'src/packets/mod.rs', lines 1076:4-1081:5
     Visibility: public -/
 def packets.SqlState.new
   (state : Array Std.U8 5#usize) : Result packets.SqlState := do
@@ -11449,14 +14294,14 @@ def packets.SqlState.new
   ok { __state_marker := cu, state }
 
 /-- [mysql_common::packets::{mysql_common::packets::SqlState}::as_bytes]:
-    Source: 'src/packets/mod.rs', lines 1075:4-1077:5
+    Source: 'src/packets/mod.rs', lines 1084:4-1086:5
     Visibility: public -/
 def packets.SqlState.as_bytes
   (self : packets.SqlState) : Result (Array Std.U8 5#usize) := do
   ok self.state
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SqlState}]
-    Source: 'src/packets/mod.rs', lines 1097:0-1102:1 -/
+    Source: 'src/packets/mod.rs', lines 1106:0-1111:1 -/
 @[reducible]
 def packets.SqlState.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
   packets.SqlState := {
@@ -11464,7 +14309,7 @@ def packets.SqlState.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ServerError<'a>}::new]:
-    Source: 'src/packets/mod.rs', lines 1115:4-1121:5
+    Source: 'src/packets/mod.rs', lines 1124:4-1130:5
     Visibility: public -/
 def packets.ServerError.new
   {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
@@ -11482,7 +14327,7 @@ def packets.ServerError.new
   ok { code := ri, state, message := rb }
 
 /-- [mysql_common::packets::{mysql_common::packets::ServerError<'a>}::error_code]:
-    Source: 'src/packets/mod.rs', lines 1124:4-1126:5
+    Source: 'src/packets/mod.rs', lines 1133:4-1135:5
     Visibility: public -/
 def packets.ServerError.error_code
   (self : packets.ServerError) : Result Std.U16 := do
@@ -11490,7 +14335,7 @@ def packets.ServerError.error_code
     misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.code
 
 /-- [mysql_common::packets::{mysql_common::packets::ServerError<'a>}::sql_state_ref]:
-    Source: 'src/packets/mod.rs', lines 1129:4-1134:5
+    Source: 'src/packets/mod.rs', lines 1138:4-1143:5
     Visibility: public -/
 def packets.ServerError.sql_state_ref
   (self : packets.ServerError) : Result (Option packets.SqlState) := do
@@ -11499,7 +14344,7 @@ def packets.ServerError.sql_state_ref
   | some _ => ok self.state
 
 /-- [mysql_common::packets::{mysql_common::packets::ServerError<'a>}::message_ref]:
-    Source: 'src/packets/mod.rs', lines 1137:4-1139:5
+    Source: 'src/packets/mod.rs', lines 1146:4-1148:5
     Visibility: public -/
 def packets.ServerError.message_ref
   (self : packets.ServerError) : Result (Slice Std.U8) := do
@@ -11508,7 +14353,7 @@ def packets.ServerError.message_ref
     self.message
 
 /-- [mysql_common::packets::{mysql_common::packets::ServerError<'a>}::into_owned]:
-    Source: 'src/packets/mod.rs', lines 1146:4-1152:5
+    Source: 'src/packets/mod.rs', lines 1155:4-1161:5
     Visibility: public -/
 def packets.ServerError.into_owned
   (self : packets.ServerError) : Result packets.ServerError := do
@@ -11519,15 +14364,3993 @@ def packets.ServerError.into_owned
   ok { self with message := rb }
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ServerError<'_0>}]
-    Source: 'src/packets/mod.rs', lines 1178:0-1188:1 -/
+    Source: 'src/packets/mod.rs', lines 1187:0-1197:1 -/
 @[reducible]
 def packets.ServerError.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
   packets.ServerError := {
   serialize := packets.ServerError.Insts.Mysql_commonProtoMySerialize.serialize
 }
 
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidLocalInfileHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1
+    Visibility: public -/
+def packets.InvalidLocalInfileHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidLocalInfileHeader) (__formatter : core.fmt.Formatter)
+  :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid LOCAL_INFILE header")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidLocalInfileHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1 -/
+@[reducible]
+def packets.InvalidLocalInfileHeader.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidLocalInfileHeader := {
+  fmt := packets.InvalidLocalInfileHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidLocalInfileHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1
+    Visibility: public -/
+def packets.InvalidLocalInfileHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidLocalInfileHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidLocalInfileHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidLocalInfileHeader}]
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1 -/
+@[reducible]
+def packets.InvalidLocalInfileHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidLocalInfileHeader := {
+  fmt := packets.InvalidLocalInfileHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidLocalInfileHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1 -/
+@[reducible]
+def packets.InvalidLocalInfileHeader.Insts.CoreErrorError : core.error.Error
+  packets.InvalidLocalInfileHeader := {
+  fmtDebugInst := packets.InvalidLocalInfileHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidLocalInfileHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidLocalInfileHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1
+    Visibility: public -/
+def packets.InvalidLocalInfileHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidLocalInfileHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidLocalInfileHeader}]
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1216:0-1220:1 -/
+@[reducible]
+def packets.InvalidLocalInfileHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidLocalInfileHeader := {
+  default := packets.InvalidLocalInfileHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::LocalInfilePacket<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 1230:4-1235:5
+    Visibility: public -/
+def packets.LocalInfilePacket.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (file_name : T1) :
+  Result packets.LocalInfilePacket
+  := do
+  let cu ← misc.raw.int.ConstU8.new packets.InvalidLocalInfileHeader 251#u8
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst file_name
+  ok { __header := cu, file_name := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::LocalInfilePacket<'a>}::file_name_ref]:
+    Source: 'src/packets/mod.rs', lines 1238:4-1240:5
+    Visibility: public -/
+def packets.LocalInfilePacket.file_name_ref
+  (self : packets.LocalInfilePacket) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.file_name
+
+/-- [mysql_common::packets::{mysql_common::packets::LocalInfilePacket<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 1247:4-1252:5
+    Visibility: public -/
+def packets.LocalInfilePacket.into_owned
+  (self : packets.LocalInfilePacket) : Result packets.LocalInfilePacket := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.file_name
+  ok { self with file_name := rb }
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::LocalInfilePacket<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 1259:4-1264:5
+    Visibility: public -/
+def
+  packets.LocalInfilePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.LocalInfilePacket core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 251#u8
+      packets.InvalidLocalInfileHeader.Insts.CoreErrorError
+      packets.InvalidLocalInfileHeader.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      ok (core.result.Result.Ok { __header := val, file_name := rb }, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.LocalInfilePacket (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.LocalInfilePacket (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::LocalInfilePacket<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 1256:4-1256:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.LocalInfilePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::LocalInfilePacket<'de>}]
+    Source: 'src/packets/mod.rs', lines 1255:0-1265:1 -/
+@[reducible]
+def packets.LocalInfilePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.LocalInfilePacket Unit := {
+  SIZE := ok
+    packets.LocalInfilePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.LocalInfilePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::LocalInfilePacket<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 1268:4-1271:5
+    Visibility: public -/
+def packets.LocalInfilePacket.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.LocalInfilePacket) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.__header buf
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.file_name buf1
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::LocalInfilePacket<'_0>}]
+    Source: 'src/packets/mod.rs', lines 1267:0-1272:1 -/
+@[reducible]
+def packets.LocalInfilePacket.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.LocalInfilePacket := {
+  serialize :=
+    packets.LocalInfilePacket.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::MYSQL_OLD_PASSWORD_PLUGIN_NAME]
+    Source: 'src/packets/mod.rs', lines 1274:0-1274:68 -/
+@[global_simps, irreducible]
+def packets.MYSQL_OLD_PASSWORD_PLUGIN_NAME : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 18#usize [
+      109#u8, 121#u8, 115#u8, 113#u8, 108#u8, 95#u8, 111#u8, 108#u8, 100#u8,
+      95#u8, 112#u8, 97#u8, 115#u8, 115#u8, 119#u8, 111#u8, 114#u8, 100#u8
+      ])
+
+/-- [mysql_common::packets::MYSQL_NATIVE_PASSWORD_PLUGIN_NAME]
+    Source: 'src/packets/mod.rs', lines 1275:0-1275:74 -/
+@[global_simps, irreducible]
+def packets.MYSQL_NATIVE_PASSWORD_PLUGIN_NAME : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 21#usize [
+      109#u8, 121#u8, 115#u8, 113#u8, 108#u8, 95#u8, 110#u8, 97#u8, 116#u8,
+      105#u8, 118#u8, 101#u8, 95#u8, 112#u8, 97#u8, 115#u8, 115#u8, 119#u8,
+      111#u8, 114#u8, 100#u8
+      ])
+
+/-- [mysql_common::packets::SHA256_PASSWORD_PLUGIN_NAME]
+    Source: 'src/packets/mod.rs', lines 1276:0-1276:62 -/
+@[global_simps, irreducible]
+def packets.SHA256_PASSWORD_PLUGIN_NAME : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 15#usize [
+      115#u8, 104#u8, 97#u8, 50#u8, 53#u8, 54#u8, 95#u8, 112#u8, 97#u8, 115#u8,
+      115#u8, 119#u8, 111#u8, 114#u8, 100#u8
+      ])
+
+/-- [mysql_common::packets::CACHING_SHA2_PASSWORD_PLUGIN_NAME]
+    Source: 'src/packets/mod.rs', lines 1277:0-1277:74 -/
+@[global_simps, irreducible]
+def packets.CACHING_SHA2_PASSWORD_PLUGIN_NAME : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 21#usize [
+      99#u8, 97#u8, 99#u8, 104#u8, 105#u8, 110#u8, 103#u8, 95#u8, 115#u8,
+      104#u8, 97#u8, 50#u8, 95#u8, 112#u8, 97#u8, 115#u8, 115#u8, 119#u8,
+      111#u8, 114#u8, 100#u8
+      ])
+
+/-- [mysql_common::packets::MYSQL_CLEAR_PASSWORD_PLUGIN_NAME]
+    Source: 'src/packets/mod.rs', lines 1278:0-1278:72 -/
+@[global_simps, irreducible]
+def packets.MYSQL_CLEAR_PASSWORD_PLUGIN_NAME : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 20#usize [
+      109#u8, 121#u8, 115#u8, 113#u8, 108#u8, 95#u8, 99#u8, 108#u8, 101#u8,
+      97#u8, 114#u8, 95#u8, 112#u8, 97#u8, 115#u8, 115#u8, 119#u8, 111#u8,
+      114#u8, 100#u8
+      ])
+
+/-- [mysql_common::packets::ED25519_PLUGIN_NAME]
+    Source: 'src/packets/mod.rs', lines 1279:0-1279:53 -/
+@[global_simps, irreducible]
+def packets.ED25519_PLUGIN_NAME : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 14#usize [
+      99#u8, 108#u8, 105#u8, 101#u8, 110#u8, 116#u8, 95#u8, 101#u8, 100#u8,
+      50#u8, 53#u8, 53#u8, 49#u8, 57#u8
+      ])
+
+/-- [mysql_common::packets::PARSEC_PLUGIN_NAME]
+    Source: 'src/packets/mod.rs', lines 1280:0-1280:44 -/
+@[global_simps, irreducible]
+def packets.PARSEC_PLUGIN_NAME : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 6#usize [ 112#u8, 97#u8, 114#u8, 115#u8, 101#u8, 99#u8 ])
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthPlugin<'a>}::from_bytes]:
+    Source: 'src/packets/mod.rs', lines 1324:4-1348:5
+    Visibility: public -/
+def packets.AuthPlugin.from_bytes
+  («name» : Slice Std.U8) : Result packets.AuthPlugin := do
+  let len := Slice.len «name»
+  let name1 ←
+    if len > 0#usize
+    then
+      do
+      let i ← len - 1#usize
+      let i1 ← Slice.index_usize «name» i
+      if i1 = 0#u8
+      then
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) «name»
+          { «end» := i }
+      else ok «name»
+    else ok «name»
+  let b ←
+    core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+      packets.CACHING_SHA2_PASSWORD_PLUGIN_NAME
+  if b
+  then ok packets.AuthPlugin.CachingSha2Password
+  else
+    let b1 ←
+      core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+        packets.MYSQL_NATIVE_PASSWORD_PLUGIN_NAME
+    if b1
+    then ok packets.AuthPlugin.MysqlNativePassword
+    else
+      let b2 ←
+        core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+          packets.MYSQL_OLD_PASSWORD_PLUGIN_NAME
+      if b2
+      then ok packets.AuthPlugin.MysqlOldPassword
+      else
+        let b3 ←
+          core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+            packets.MYSQL_CLEAR_PASSWORD_PLUGIN_NAME
+        if b3
+        then ok packets.AuthPlugin.MysqlClearPassword
+        else
+          let b4 ←
+            core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+              packets.ED25519_PLUGIN_NAME
+          if b4
+          then ok packets.AuthPlugin.Ed25519
+          else
+            let b5 ←
+              core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+                packets.PARSEC_PLUGIN_NAME
+            if b5
+            then ok packets.AuthPlugin.Parsec
+            else
+              let b6 ←
+                core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+                  packets.SHA256_PASSWORD_PLUGIN_NAME
+              if b6
+              then ok packets.AuthPlugin.Sha256Password
+              else
+                ok (packets.AuthPlugin.Other (alloc.borrow.Cow.Borrowed name1))
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthPlugin<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 1311:4-1313:5
+    Visibility: public -/
+def packets.AuthPlugin.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.AuthPlugin core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (s, buf1) ← io.ParseBuf.eat_all buf
+  let ap ← packets.AuthPlugin.from_bytes s
+  ok (core.result.Result.Ok ap, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthPlugin<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 1308:4-1308:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.AuthPlugin.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthPlugin<'de>}]
+    Source: 'src/packets/mod.rs', lines 1307:0-1314:1 -/
+@[reducible]
+def packets.AuthPlugin.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.AuthPlugin Unit := {
+  SIZE := ok
+    packets.AuthPlugin.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.AuthPlugin.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthPlugin<'a>}::as_bytes]:
+    Source: 'src/packets/mod.rs', lines 1350:4-1361:5
+    Visibility: public -/
+def packets.AuthPlugin.as_bytes
+  (self : packets.AuthPlugin) : Result (Slice Std.U8) := do
+  match self with
+  | packets.AuthPlugin.MysqlOldPassword =>
+    ok packets.MYSQL_OLD_PASSWORD_PLUGIN_NAME
+  | packets.AuthPlugin.MysqlClearPassword =>
+    ok packets.MYSQL_CLEAR_PASSWORD_PLUGIN_NAME
+  | packets.AuthPlugin.MysqlNativePassword =>
+    ok packets.MYSQL_NATIVE_PASSWORD_PLUGIN_NAME
+  | packets.AuthPlugin.Sha256Password => ok packets.SHA256_PASSWORD_PLUGIN_NAME
+  | packets.AuthPlugin.CachingSha2Password =>
+    ok packets.CACHING_SHA2_PASSWORD_PLUGIN_NAME
+  | packets.AuthPlugin.Ed25519 => ok packets.ED25519_PLUGIN_NAME
+  | packets.AuthPlugin.Parsec => ok packets.PARSEC_PLUGIN_NAME
+  | packets.AuthPlugin.Other «name» =>
+    alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+      (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) «name»
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::AuthPlugin<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 1317:4-1320:5
+    Visibility: public -/
+def packets.AuthPlugin.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.AuthPlugin) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let s ← packets.AuthPlugin.as_bytes self
+  let buf1 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice buf s
+  alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 buf1 0#u8
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::AuthPlugin<'_0>}]
+    Source: 'src/packets/mod.rs', lines 1316:0-1321:1 -/
+@[reducible]
+def packets.AuthPlugin.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.AuthPlugin := {
+  serialize := packets.AuthPlugin.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthPlugin<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 1363:4-1376:5
+    Visibility: public -/
+def packets.AuthPlugin.into_owned
+  (self : packets.AuthPlugin) : Result packets.AuthPlugin := do
+  match self with
+  | packets.AuthPlugin.MysqlOldPassword =>
+    ok packets.AuthPlugin.MysqlOldPassword
+  | packets.AuthPlugin.MysqlClearPassword =>
+    ok packets.AuthPlugin.MysqlClearPassword
+  | packets.AuthPlugin.MysqlNativePassword =>
+    ok packets.AuthPlugin.MysqlNativePassword
+  | packets.AuthPlugin.Sha256Password => ok packets.AuthPlugin.Sha256Password
+  | packets.AuthPlugin.CachingSha2Password =>
+    ok packets.AuthPlugin.CachingSha2Password
+  | packets.AuthPlugin.Ed25519 => ok packets.AuthPlugin.Ed25519
+  | packets.AuthPlugin.Parsec => ok packets.AuthPlugin.Parsec
+  | packets.AuthPlugin.Other «name» =>
+    let v ← misc.raw.cow_into_vec core.clone.CloneU8 «name»
+    ok (packets.AuthPlugin.Other (alloc.borrow.Cow.Owned v))
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthPlugin<'a>}::borrow]:
+    Source: 'src/packets/mod.rs', lines 1378:4-1389:5
+    Visibility: public -/
+def packets.AuthPlugin.borrow
+  (self : packets.AuthPlugin) : Result packets.AuthPlugin := do
+  match self with
+  | packets.AuthPlugin.MysqlOldPassword =>
+    ok packets.AuthPlugin.MysqlOldPassword
+  | packets.AuthPlugin.MysqlClearPassword =>
+    ok packets.AuthPlugin.MysqlClearPassword
+  | packets.AuthPlugin.MysqlNativePassword =>
+    ok packets.AuthPlugin.MysqlNativePassword
+  | packets.AuthPlugin.Sha256Password => ok packets.AuthPlugin.Sha256Password
+  | packets.AuthPlugin.CachingSha2Password =>
+    ok packets.AuthPlugin.CachingSha2Password
+  | packets.AuthPlugin.Ed25519 => ok packets.AuthPlugin.Ed25519
+  | packets.AuthPlugin.Parsec => ok packets.AuthPlugin.Parsec
+  | packets.AuthPlugin.Other «name» =>
+    let s ←
+      alloc.borrow.Cow.Insts.CoreConvertAsRef.as_ref
+        (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8) «name»
+    ok (packets.AuthPlugin.Other (alloc.borrow.Cow.Borrowed s))
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthPlugin<'a>}::supports_password_hash]:
+    Source: 'src/packets/mod.rs', lines 1397:4-1402:5
+    Visibility: public -/
+def packets.AuthPlugin.supports_password_hash
+  (self : packets.AuthPlugin) : Result Bool := do
+  match self with
+  | packets.AuthPlugin.MysqlOldPassword => ok false
+  | packets.AuthPlugin.MysqlClearPassword => ok false
+  | packets.AuthPlugin.MysqlNativePassword => ok true
+  | packets.AuthPlugin.Sha256Password => ok false
+  | packets.AuthPlugin.CachingSha2Password => ok false
+  | packets.AuthPlugin.Ed25519 => ok true
+  | packets.AuthPlugin.Parsec => ok true
+  | packets.AuthPlugin.Other _ => ok false
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidAuthMoreDataHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1
+    Visibility: public -/
+def packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidAuthMoreDataHeader) (__formatter : core.fmt.Formatter)
+  :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid AuthMoreData header")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidAuthMoreDataHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1 -/
+@[reducible]
+def packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidAuthMoreDataHeader := {
+  fmt := packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidAuthMoreDataHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1
+    Visibility: public -/
+def packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidAuthMoreDataHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidAuthMoreDataHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidAuthMoreDataHeader}]
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1 -/
+@[reducible]
+def packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidAuthMoreDataHeader := {
+  fmt := packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidAuthMoreDataHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1 -/
+@[reducible]
+def packets.InvalidAuthMoreDataHeader.Insts.CoreErrorError : core.error.Error
+  packets.InvalidAuthMoreDataHeader := {
+  fmtDebugInst := packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidAuthMoreDataHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidAuthMoreDataHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1
+    Visibility: public -/
+def packets.InvalidAuthMoreDataHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidAuthMoreDataHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidAuthMoreDataHeader}]
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1405:0-1409:1 -/
+@[reducible]
+def packets.InvalidAuthMoreDataHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidAuthMoreDataHeader := {
+  default := packets.InvalidAuthMoreDataHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthMoreData<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 1419:4-1424:5
+    Visibility: public -/
+def packets.AuthMoreData.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (data : T1) :
+  Result packets.AuthMoreData
+  := do
+  let cu ← misc.raw.int.ConstU8.new packets.InvalidAuthMoreDataHeader 1#u8
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst data
+  ok { __header := cu, data := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthMoreData<'a>}::data]:
+    Source: 'src/packets/mod.rs', lines 1426:4-1428:5
+    Visibility: public -/
+def packets.AuthMoreData.impl.data
+  (self : packets.AuthMoreData) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.data
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthMoreData<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 1430:4-1435:5
+    Visibility: public -/
+def packets.AuthMoreData.into_owned
+  (self : packets.AuthMoreData) : Result packets.AuthMoreData := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.data
+  ok { self with data := rb }
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthMoreData<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 1442:4-1447:5
+    Visibility: public -/
+def
+  packets.AuthMoreData.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.AuthMoreData core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#u8
+      packets.InvalidAuthMoreDataHeader.Insts.CoreErrorError
+      packets.InvalidAuthMoreDataHeader.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      ok (core.result.Result.Ok { __header := val, data := rb }, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.AuthMoreData (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.AuthMoreData (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthMoreData<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 1439:4-1439:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.AuthMoreData.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthMoreData<'de>}]
+    Source: 'src/packets/mod.rs', lines 1438:0-1448:1 -/
+@[reducible]
+def packets.AuthMoreData.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.AuthMoreData Unit := {
+  SIZE := ok
+    packets.AuthMoreData.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.AuthMoreData.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::AuthMoreData<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 1451:4-1454:5
+    Visibility: public -/
+def packets.AuthMoreData.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.AuthMoreData) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.__header buf
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.data buf1
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::AuthMoreData<'_0>}]
+    Source: 'src/packets/mod.rs', lines 1450:0-1455:1 -/
+@[reducible]
+def packets.AuthMoreData.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.AuthMoreData := {
+  serialize :=
+    packets.AuthMoreData.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidPublicKeyResponse}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1
+    Visibility: public -/
+def packets.InvalidPublicKeyResponse.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidPublicKeyResponse) (__formatter : core.fmt.Formatter)
+  :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid PublicKeyResponse header")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidPublicKeyResponse}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1 -/
+@[reducible]
+def packets.InvalidPublicKeyResponse.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidPublicKeyResponse := {
+  fmt := packets.InvalidPublicKeyResponse.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidPublicKeyResponse}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1
+    Visibility: public -/
+def packets.InvalidPublicKeyResponse.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidPublicKeyResponse) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidPublicKeyResponse")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidPublicKeyResponse}]
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1 -/
+@[reducible]
+def packets.InvalidPublicKeyResponse.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidPublicKeyResponse := {
+  fmt := packets.InvalidPublicKeyResponse.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidPublicKeyResponse}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1 -/
+@[reducible]
+def packets.InvalidPublicKeyResponse.Insts.CoreErrorError : core.error.Error
+  packets.InvalidPublicKeyResponse := {
+  fmtDebugInst := packets.InvalidPublicKeyResponse.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidPublicKeyResponse.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidPublicKeyResponse}::default]:
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1
+    Visibility: public -/
+def packets.InvalidPublicKeyResponse.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidPublicKeyResponse := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidPublicKeyResponse}]
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1457:0-1461:1 -/
+@[reducible]
+def packets.InvalidPublicKeyResponse.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidPublicKeyResponse := {
+  default := packets.InvalidPublicKeyResponse.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::PublicKeyResponse<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 1473:4-1478:5
+    Visibility: public -/
+def packets.PublicKeyResponse.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (rsa_key : T1) :
+  Result packets.PublicKeyResponse
+  := do
+  let cu ← misc.raw.int.ConstU8.new packets.InvalidPublicKeyResponse 1#u8
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst rsa_key
+  ok { __header := cu, rsa_key := rb }
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::PublicKeyResponse<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 1490:4-1495:5
+    Visibility: public -/
+def
+  packets.PublicKeyResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.PublicKeyResponse core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#u8
+      packets.InvalidPublicKeyResponse.Insts.CoreErrorError
+      packets.InvalidPublicKeyResponse.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      ok (core.result.Result.Ok { __header := val, rsa_key := rb }, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.PublicKeyResponse (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.PublicKeyResponse (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::PublicKeyResponse<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 1487:4-1487:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.PublicKeyResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::PublicKeyResponse<'de>}]
+    Source: 'src/packets/mod.rs', lines 1486:0-1496:1 -/
+@[reducible]
+def packets.PublicKeyResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.PublicKeyResponse Unit := {
+  SIZE := ok
+    packets.PublicKeyResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.PublicKeyResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::PublicKeyResponse<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 1499:4-1502:5
+    Visibility: public -/
+def packets.PublicKeyResponse.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.PublicKeyResponse) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.__header buf
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.rsa_key buf1
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::PublicKeyResponse<'_0>}]
+    Source: 'src/packets/mod.rs', lines 1498:0-1503:1 -/
+@[reducible]
+def packets.PublicKeyResponse.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.PublicKeyResponse := {
+  serialize :=
+    packets.PublicKeyResponse.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidAuthSwitchRequestHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1
+    Visibility: public -/
+def packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidAuthSwitchRequestHeader)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid auth switch request header")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidAuthSwitchRequestHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1 -/
+@[reducible]
+def packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDisplay :
+  core.fmt.Display packets.InvalidAuthSwitchRequestHeader := {
+  fmt := packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidAuthSwitchRequestHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1
+    Visibility: public -/
+def packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidAuthSwitchRequestHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidAuthSwitchRequestHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidAuthSwitchRequestHeader}]
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1 -/
+@[reducible]
+def packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidAuthSwitchRequestHeader := {
+  fmt := packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidAuthSwitchRequestHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1 -/
+@[reducible]
+def packets.InvalidAuthSwitchRequestHeader.Insts.CoreErrorError :
+  core.error.Error packets.InvalidAuthSwitchRequestHeader := {
+  fmtDebugInst := packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidAuthSwitchRequestHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidAuthSwitchRequestHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1
+    Visibility: public -/
+def packets.InvalidAuthSwitchRequestHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidAuthSwitchRequestHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidAuthSwitchRequestHeader}]
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 1505:0-1509:1 -/
+@[reducible]
+def packets.InvalidAuthSwitchRequestHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidAuthSwitchRequestHeader := {
+  default :=
+    packets.InvalidAuthSwitchRequestHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::OldAuthSwitchRequest}::new]:
+    Source: 'src/packets/mod.rs', lines 1521:4-1525:5
+    Visibility: public -/
+def packets.OldAuthSwitchRequest.new
+  : Result packets.OldAuthSwitchRequest := do
+  let cu ←
+    misc.raw.int.ConstU8.new packets.InvalidAuthSwitchRequestHeader 254#u8
+  ok { __header := cu }
+
+/-- [mysql_common::packets::{mysql_common::packets::OldAuthSwitchRequest}::auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 1527:4-1529:5
+    Visibility: public -/
+def packets.OldAuthSwitchRequest.auth_plugin
+  (self : packets.OldAuthSwitchRequest) : Result packets.AuthPlugin := do
+  ok packets.AuthPlugin.MysqlOldPassword
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::OldAuthSwitchRequest}::default]:
+    Source: 'src/packets/mod.rs', lines 1533:4-1535:5
+    Visibility: public -/
+def packets.OldAuthSwitchRequest.Insts.CoreDefaultDefault.default
+  : Result packets.OldAuthSwitchRequest := do
+  packets.OldAuthSwitchRequest.new
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::OldAuthSwitchRequest}]
+    Source: 'src/packets/mod.rs', lines 1532:0-1536:1 -/
+@[reducible]
+def packets.OldAuthSwitchRequest.Insts.CoreDefaultDefault :
+  core.default.Default packets.OldAuthSwitchRequest := {
+  default := packets.OldAuthSwitchRequest.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::OldAuthSwitchRequest}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 1542:4-1546:5
+    Visibility: public -/
+def
+  packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.OldAuthSwitchRequest core.io.error.Error)
+    × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 254#u8
+      packets.InvalidAuthSwitchRequestHeader.Insts.CoreErrorError
+      packets.InvalidAuthSwitchRequestHeader.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    ok (core.result.Result.Ok { __header := val }, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.OldAuthSwitchRequest (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::OldAuthSwitchRequest}::SIZE]
+    Source: 'src/packets/mod.rs', lines 1539:4-1539:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  some 1#usize
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::OldAuthSwitchRequest}]
+    Source: 'src/packets/mod.rs', lines 1538:0-1547:1 -/
+@[reducible]
+def packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.OldAuthSwitchRequest Unit := {
+  SIZE := ok
+    packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::OldAuthSwitchRequest}::serialize]:
+    Source: 'src/packets/mod.rs', lines 1550:4-1552:5
+    Visibility: public -/
+def packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.OldAuthSwitchRequest) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+    self.__header buf
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::OldAuthSwitchRequest}]
+    Source: 'src/packets/mod.rs', lines 1549:0-1553:1 -/
+@[reducible]
+def packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.OldAuthSwitchRequest := {
+  serialize :=
+    packets.OldAuthSwitchRequest.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthSwitchRequest<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 1567:4-1576:5
+    Visibility: public -/
+def packets.AuthSwitchRequest.new
+  {T1 : Type _} {T2 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst :
+  core.convert.Into T1 (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+  Std.U8))) (coreconvertIntoT2CowASliceU8VecU8Inst : core.convert.Into T2
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (auth_plugin : T1)
+  (plugin_data : T2) :
+  Result packets.AuthSwitchRequest
+  := do
+  let cu ←
+    misc.raw.int.ConstU8.new packets.InvalidAuthSwitchRequestHeader 254#u8
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst auth_plugin
+  let rb1 ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT2CowASliceU8VecU8Inst plugin_data
+  ok { __header := cu, auth_plugin := rb, plugin_data := rb1 }
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthSwitchRequest<'a>}::auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 1578:4-1580:5
+    Visibility: public -/
+def packets.AuthSwitchRequest.impl.auth_plugin
+  (self : packets.AuthSwitchRequest) : Result packets.AuthPlugin := do
+  let s ←
+    misc.raw.bytes.RawBytes.as_bytes
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.auth_plugin
+  packets.AuthPlugin.from_bytes s
+
+/-- [mysql_common::packets::plugin_uses_c_string_scramble]:
+    Source: 'src/packets/mod.rs', lines 1629:0-1640:1 -/
+def packets.plugin_uses_c_string_scramble
+  («name» : Slice Std.U8) : Result Bool := do
+  let len := Slice.len «name»
+  let name1 ←
+    if len > 0#usize
+    then
+      do
+      let i ← len - 1#usize
+      let i1 ← Slice.index_usize «name» i
+      if i1 = 0#u8
+      then
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) «name»
+          { «end» := i }
+      else ok «name»
+    else ok «name»
+  let b ←
+    core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+      packets.MYSQL_NATIVE_PASSWORD_PLUGIN_NAME
+  if b
+  then ok true
+  else
+    let b1 ←
+      core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+        packets.CACHING_SHA2_PASSWORD_PLUGIN_NAME
+    if b1
+    then ok true
+    else
+      let b2 ←
+        core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+          packets.SHA256_PASSWORD_PLUGIN_NAME
+      if b2
+      then ok true
+      else
+        core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 name1
+          packets.MYSQL_OLD_PASSWORD_PLUGIN_NAME
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthSwitchRequest<'a>}::plugin_data]:
+    Source: 'src/packets/mod.rs', lines 1582:4-1595:5
+    Visibility: public -/
+def packets.AuthSwitchRequest.impl.plugin_data
+  (self : packets.AuthSwitchRequest) : Result (Slice Std.U8) := do
+  let data ←
+    misc.raw.bytes.RawBytes.as_bytes
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.plugin_data
+  let len := Slice.len data
+  let s ←
+    misc.raw.bytes.RawBytes.as_bytes
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.auth_plugin
+  let b ← packets.plugin_uses_c_string_scramble s
+  if b
+  then
+    if len > 0#usize
+    then
+      let i ← len - 1#usize
+      let i1 ← Slice.index_usize data i
+      if i1 = 0#u8
+      then
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) data
+          { «end» := i }
+      else ok data
+    else ok data
+  else ok data
+
+/-- [mysql_common::packets::{mysql_common::packets::AuthSwitchRequest<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 1597:4-1603:5
+    Visibility: public -/
+def packets.AuthSwitchRequest.into_owned
+  (self : packets.AuthSwitchRequest) : Result packets.AuthSwitchRequest := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.auth_plugin
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.plugin_data
+  ok { self with auth_plugin := rb, plugin_data := rb1 }
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthSwitchRequest<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 1610:4-1616:5
+    Visibility: public -/
+def
+  packets.AuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.AuthSwitchRequest core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 254#u8
+      packets.InvalidAuthSwitchRequestHeader.Insts.CoreErrorError
+      packets.InvalidAuthSwitchRequestHeader.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      let (r2, buf3) ←
+        io.ParseBuf.parse
+          (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+          misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+          buf2 ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue rb1 =>
+        ok (core.result.Result.Ok
+          { __header := val, auth_plugin := rb, plugin_data := rb1 }, buf3)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.AuthSwitchRequest (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r3, buf3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.AuthSwitchRequest (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.AuthSwitchRequest (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthSwitchRequest<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 1607:4-1607:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.AuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::AuthSwitchRequest<'de>}]
+    Source: 'src/packets/mod.rs', lines 1606:0-1617:1 -/
+@[reducible]
+def packets.AuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.AuthSwitchRequest Unit := {
+  SIZE := ok
+    packets.AuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.AuthSwitchRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::AuthSwitchRequest<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 1620:4-1624:5
+    Visibility: public -/
+def packets.AuthSwitchRequest.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.AuthSwitchRequest) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.__header buf
+  let buf2 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.auth_plugin buf1
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.plugin_data buf2
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::AuthSwitchRequest<'_0>}]
+    Source: 'src/packets/mod.rs', lines 1619:0-1625:1 -/
+@[reducible]
+def packets.AuthSwitchRequest.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.AuthSwitchRequest := {
+  serialize :=
+    packets.AuthSwitchRequest.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::parse_parsec_salt]:
+    Source: 'src/packets/mod.rs', lines 1644:0-1663:1
+    Visibility: public -/
+def packets.parse_parsec_salt
+  (data : Slice Std.U8) : Result (Option (Array Std.U8 20#usize)) := do
+  let i := Slice.len data
+  if i != 20#usize
+  then ok none
+  else
+    let r ← core.array.TryFromSharedArraySlice.try_from 20#usize data
+    match r with
+    | core.result.Result.Ok out =>
+      let algorithm ← Slice.index_usize data 0#usize
+      let factor ← Slice.index_usize data 1#usize
+      if algorithm != 80#u8
+      then ok none
+      else if factor > 20#u8
+           then ok none
+           else ok (some out)
+    | core.result.Result.Err _ => ok none
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::HandshakePacket<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 1691:4-1747:5
+    Visibility: public -/
+def
+  packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.HandshakePacket core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      let (r2, buf3) ←
+        io.ParseBuf.parse
+          io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize buf2 31#usize
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue pb =>
+        let (r3, sbuf) ←
+          io.ParseBuf.parse_unchecked
+            (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) pb ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val1 =>
+          let (r4, sbuf1) ←
+            io.ParseBuf.parse_unchecked
+              (ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple 8#usize)
+              sbuf ()
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue val2 =>
+            let (r5, sbuf2) ←
+              io.ParseBuf.parse_unchecked
+                (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                1#usize) sbuf1 ()
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val3 =>
+              let (r6, sbuf3) ←
+                io.ParseBuf.parse_unchecked
+                  (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                  constants.CapabilityFlags
+                  misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32)
+                  sbuf2 ()
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue val4 =>
+                let (r7, sbuf4) ←
+                  io.ParseBuf.parse_unchecked
+                    (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                    U8.Insts.Mysql_commonMiscRawIntIntReprU8) sbuf3 ()
+                let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
+                match cf7 with
+                | core.ops.control_flow.ControlFlow.Continue val5 =>
+                  let (r8, sbuf5) ←
+                    io.ParseBuf.parse_unchecked
+                      (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+                      constants.StatusFlags.Insts.CoreConvertTryFromU16UnknownStatusFlags
+                      constants.UnknownStatusFlags.Insts.CoreErrorError) sbuf4
+                      ()
+                  let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r8
+                  match cf8 with
+                  | core.ops.control_flow.ControlFlow.Continue val6 =>
+                    let (r9, sbuf6) ←
+                      io.ParseBuf.parse_unchecked
+                        (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                        constants.CapabilityFlags
+                        misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32)
+                        sbuf5 ()
+                    let cf9 ← core.result.Result.Insts.CoreOpsTry.branch r9
+                    match cf9 with
+                    | core.ops.control_flow.ControlFlow.Continue val7 =>
+                      let (r10, sbuf7) ←
+                        io.ParseBuf.parse_unchecked
+                          (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                          U8.Insts.Mysql_commonMiscRawIntIntReprU8) sbuf6 ()
+                      let cf10 ←
+                        core.result.Result.Insts.CoreOpsTry.branch r10
+                      match cf10 with
+                      | core.ops.control_flow.ControlFlow.Continue val8 =>
+                        let (r11, sbuf8) ←
+                          io.ParseBuf.parse_unchecked
+                            (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                            6#usize) sbuf7 ()
+                        let cf11 ←
+                          core.result.Result.Insts.CoreOpsTry.branch r11
+                        match cf11 with
+                        | core.ops.control_flow.ControlFlow.Continue val9 =>
+                          let (r12, _) ←
+                            io.ParseBuf.parse_unchecked
+                              (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                              constants.MariadbCapabilities
+                              misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32)
+                              sbuf8 ()
+                          let cf12 ←
+                            core.result.Result.Insts.CoreOpsTry.branch r12
+                          match cf12 with
+                          | core.ops.control_flow.ControlFlow.Continue val10 =>
+                            let (i, _) := val4
+                            let i1 ←
+                              constants.CapabilityFlags.bits
+                                constants.CapabilityFlags.CLIENT_SECURE_CONNECTION
+                            let i2 ← lift (i &&& i1)
+                            if i2 > 0#u32
+                            then
+                              let (i3, _) := val8
+                              let i4 ← lift (UScalar.hcast .I8 i3)
+                              let i5 ← i4 - 8#i8
+                              let i6 ← core.cmp.max core.cmp.OrdI8 13#i8 i5
+                              let len ← lift (IScalar.hcast .Usize i6)
+                              let (r13, buf4) ←
+                                io.ParseBuf.parse
+                                  (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+                                  (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize
+                                  247#usize)) buf3 len
+                              match r13 with
+                              | core.result.Result.Ok rb1 =>
+                                let (i7, _) := val7
+                                let i8 ←
+                                  constants.CapabilityFlags.bits
+                                    constants.CapabilityFlags.CLIENT_PLUGIN_AUTH
+                                let i9 ← lift (i7 &&& i8)
+                                let (buf5, auth_plugin_name) ←
+                                  if i9 > 0#u32
+                                  then
+                                    do
+                                    let (all, buf6) ←
+                                      io.ParseBuf.eat_all buf4
+                                    let len1 := Slice.len all
+                                    let (pb1, c, pd) ←
+                                      if len1 > 0#usize
+                                      then
+                                        do
+                                        let i10 ← len1 - 1#usize
+                                        let i11 ← Slice.index_usize all i10
+                                        let (c1, pd1) ←
+                                          if i11 = 0#u8
+                                          then
+                                            do
+                                            let s ←
+                                              core.slice.index.Slice.index
+                                                (core.slice.index.SliceIndexRangeToUsizeSlice
+                                                Std.U8) all { «end» := i10 }
+                                            let rb2 ←
+                                              misc.raw.bytes.RawBytes.new
+                                                misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                                                (core.convert.IntoFrom
+                                                (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+                                                core.clone.CloneU8)) s
+                                            let (c2, pd2) := rb2
+                                            ok (c2, pd2)
+                                          else
+                                            do
+                                            let rb2 ←
+                                              misc.raw.bytes.RawBytes.new
+                                                misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                                                (core.convert.IntoFrom
+                                                (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+                                                core.clone.CloneU8)) all
+                                            let (c2, pd2) := rb2
+                                            ok (c2, pd2)
+                                        ok (buf6, c1, pd1)
+                                      else
+                                        do
+                                        let rb2 ←
+                                          misc.raw.bytes.RawBytes.new
+                                            misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                                            (core.convert.IntoFrom
+                                            (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+                                            core.clone.CloneU8)) all
+                                        let (c1, pd1) := rb2
+                                        ok (buf6, c1, pd1)
+                                    ok (pb1, some (c, pd))
+                                  else ok (buf4, none)
+                                let cf13 ←
+                                  constants.CapabilityFlags.from_bits_truncate
+                                    i
+                                let c ←
+                                  misc.raw._const.Const.new
+                                    misc.raw.int.LeU32LowerHalf cf13
+                                let cf14 ←
+                                  constants.CapabilityFlags.from_bits_truncate
+                                    i7
+                                let c1 ←
+                                  misc.raw._const.Const.new
+                                    misc.raw.int.LeU32UpperHalf cf14
+                                let (i10, _) := val10
+                                let mc ←
+                                  constants.MariadbCapabilities.from_bits_truncate
+                                    i10
+                                let c2 ←
+                                  misc.raw._const.Const.new misc.raw.int.LeU32
+                                    mc
+                                ok (core.result.Result.Ok
+                                  {
+                                    protocol_version := val,
+                                    server_version := rb,
+                                    connection_id := val1,
+                                    scramble_1 := val2,
+                                    __filler := val3,
+                                    capabilities_1 := c,
+                                    default_collation := val5,
+                                    status_flags := val6,
+                                    capabilities_2 := c1,
+                                    auth_plugin_data_len := val8,
+                                    __reserved := val9,
+                                    mariadb_ext_capabilities := c2,
+                                    scramble_2 := (some rb1),
+                                    auth_plugin_name
+                                  }, buf5)
+                              | core.result.Result.Err e =>
+                                ok (core.result.Result.Err e, buf4)
+                            else
+                              let (i3, _) := val7
+                              let i4 ←
+                                constants.CapabilityFlags.bits
+                                  constants.CapabilityFlags.CLIENT_PLUGIN_AUTH
+                              let i5 ← lift (i3 &&& i4)
+                              let (buf4, auth_plugin_name) ←
+                                if i5 > 0#u32
+                                then
+                                  do
+                                  let (all, buf5) ← io.ParseBuf.eat_all buf3
+                                  let len := Slice.len all
+                                  let (pb1, c, pd) ←
+                                    if len > 0#usize
+                                    then
+                                      do
+                                      let i6 ← len - 1#usize
+                                      let i7 ← Slice.index_usize all i6
+                                      let (c1, pd1) ←
+                                        if i7 = 0#u8
+                                        then
+                                          do
+                                          let s ←
+                                            core.slice.index.Slice.index
+                                              (core.slice.index.SliceIndexRangeToUsizeSlice
+                                              Std.U8) all { «end» := i6 }
+                                          let rb1 ←
+                                            misc.raw.bytes.RawBytes.new
+                                              misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                                              (core.convert.IntoFrom
+                                              (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+                                              core.clone.CloneU8)) s
+                                          let (c2, pd2) := rb1
+                                          ok (c2, pd2)
+                                        else
+                                          do
+                                          let rb1 ←
+                                            misc.raw.bytes.RawBytes.new
+                                              misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                                              (core.convert.IntoFrom
+                                              (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+                                              core.clone.CloneU8)) all
+                                          let (c2, pd2) := rb1
+                                          ok (c2, pd2)
+                                      ok (buf5, c1, pd1)
+                                    else
+                                      do
+                                      let rb1 ←
+                                        misc.raw.bytes.RawBytes.new
+                                          misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+                                          (core.convert.IntoFrom
+                                          (alloc.borrow.CowASliceVec.Insts.CoreConvertFromSharedASlice
+                                          core.clone.CloneU8)) all
+                                      let (c1, pd1) := rb1
+                                      ok (buf5, c1, pd1)
+                                  ok (pb1, some (c, pd))
+                                else ok (buf3, none)
+                              let cf13 ←
+                                constants.CapabilityFlags.from_bits_truncate i
+                              let c ←
+                                misc.raw._const.Const.new
+                                  misc.raw.int.LeU32LowerHalf cf13
+                              let cf14 ←
+                                constants.CapabilityFlags.from_bits_truncate i3
+                              let c1 ←
+                                misc.raw._const.Const.new
+                                  misc.raw.int.LeU32UpperHalf cf14
+                              let (i6, _) := val10
+                              let mc ←
+                                constants.MariadbCapabilities.from_bits_truncate
+                                  i6
+                              let c2 ←
+                                misc.raw._const.Const.new misc.raw.int.LeU32 mc
+                              ok (core.result.Result.Ok
+                                {
+                                  protocol_version := val,
+                                  server_version := rb,
+                                  connection_id := val1,
+                                  scramble_1 := val2,
+                                  __filler := val3,
+                                  capabilities_1 := c,
+                                  default_collation := val5,
+                                  status_flags := val6,
+                                  capabilities_2 := c1,
+                                  auth_plugin_data_len := val8,
+                                  __reserved := val9,
+                                  mariadb_ext_capabilities := c2,
+                                  scramble_2 := none,
+                                  auth_plugin_name
+                                }, buf4)
+                          | core.ops.control_flow.ControlFlow.Break residual =>
+                            let r13 ←
+                              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                                packets.HandshakePacket (core.convert.FromSame
+                                core.io.error.Error) residual
+                            ok (r13, buf3)
+                        | core.ops.control_flow.ControlFlow.Break residual =>
+                          let r12 ←
+                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                              packets.HandshakePacket (core.convert.FromSame
+                              core.io.error.Error) residual
+                          ok (r12, buf3)
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        let r11 ←
+                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                            packets.HandshakePacket (core.convert.FromSame
+                            core.io.error.Error) residual
+                        ok (r11, buf3)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r10 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          packets.HandshakePacket (core.convert.FromSame
+                          core.io.error.Error) residual
+                      ok (r10, buf3)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r9 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        packets.HandshakePacket (core.convert.FromSame
+                        core.io.error.Error) residual
+                    ok (r9, buf3)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r8 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      packets.HandshakePacket (core.convert.FromSame
+                      core.io.error.Error) residual
+                  ok (r8, buf3)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r7 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    packets.HandshakePacket (core.convert.FromSame
+                    core.io.error.Error) residual
+                ok (r7, buf3)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.HandshakePacket (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r6, buf3)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.HandshakePacket (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r5, buf3)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.HandshakePacket (core.convert.FromSame
+              core.io.error.Error) residual
+          ok (r4, buf3)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.HandshakePacket (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r3, buf3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.HandshakePacket (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.HandshakePacket (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::HandshakePacket<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 1688:4-1688:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::HandshakePacket<'de>}]
+    Source: 'src/packets/mod.rs', lines 1687:0-1748:1 -/
+@[reducible]
+def packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.HandshakePacket Unit := {
+  SIZE := ok
+    packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::handshake_auth_plugin_data_len]:
+    Source: 'src/packets/mod.rs', lines 1751:0-1763:1 -/
+def packets.handshake_auth_plugin_data_len
+  (client_plugin_auth : Bool)
+  (scramble_2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes
+  247#usize) Std.Usize)) :
+  Result Std.U8
+  := do
+  if client_plugin_auth
+  then
+    match scramble_2 with
+    | none => ok 0#u8
+    | some rb =>
+      let i ←
+        misc.raw.bytes.RawBytes.len
+          (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize
+          247#usize) rb
+      let i1 ← i + 8#usize
+      ok (UScalar.cast .U8 i1)
+  else ok 0#u8
+
+/-- [mysql_common::packets::serialize_handshake_auth_plugin_name]:
+    Source: 'src/packets/mod.rs', lines 1780:0-1788:1 -/
+def packets.serialize_handshake_auth_plugin_name
+  (auth_plugin_name : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes
+  Unit)) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match auth_plugin_name with
+  | none => ok buf
+  | some rb =>
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+      buf
+
+/-- [mysql_common::packets::serialize_handshake_tail]:
+    Source: 'src/packets/mod.rs', lines 1766:0-1778:1 -/
+def packets.serialize_handshake_tail
+  (scramble_2 : Option (misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes
+  247#usize) Std.Usize))
+  (auth_plugin_name : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes
+  Unit)) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match scramble_2 with
+  | none => packets.serialize_handshake_auth_plugin_name auth_plugin_name buf
+  | some rb =>
+    let buf1 ←
+      misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+        (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize
+        247#usize) rb buf
+    packets.serialize_handshake_auth_plugin_name auth_plugin_name buf1
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::HandshakePacket<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 1791:4-1815:5
+    Visibility: public -/
+def packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.HandshakePacket) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.protocol_version buf
+  let buf2 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.server_version buf1
+  let buf3 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.connection_id buf2
+  let buf4 ←
+    ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize self.scramble_1
+      buf3
+  let buf5 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 buf4 0#u8
+  let buf6 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.CapabilityFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U32.Insts.CoreConvertFromCapabilityFlags)
+      misc.raw.int.LeU32LowerHalf.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.capabilities_1 buf5
+  let buf7 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.default_collation buf6
+  let buf8 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.StatusFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U16.Insts.CoreConvertFromStatusFlags)
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      self.status_flags buf7
+  let buf9 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.CapabilityFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U32.Insts.CoreConvertFromCapabilityFlags)
+      misc.raw.int.LeU32UpperHalf.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.capabilities_2 buf8
+  let cf ←
+    misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref self.capabilities_2
+  let b ←
+    constants.CapabilityFlags.contains cf
+      constants.CapabilityFlags.CLIENT_PLUGIN_AUTH
+  let i ← packets.handshake_auth_plugin_data_len b self.scramble_2
+  let buf10 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 buf9 i
+  let buf11 ←
+    misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize self.__reserved
+      buf10
+  let buf12 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.MariadbCapabilities.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U32.Insts.CoreConvertFromMariadbCapabilities)
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.mariadb_ext_capabilities buf11
+  packets.serialize_handshake_tail self.scramble_2 self.auth_plugin_name buf12
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::HandshakePacket<'_0>}]
+    Source: 'src/packets/mod.rs', lines 1790:0-1816:1 -/
+@[reducible]
+def packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.HandshakePacket := {
+  serialize :=
+    packets.HandshakePacket.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 1820:4-1867:5
+    Visibility: public -/
+def packets.HandshakePacket.new
+  {T1 : Type _} {T2 : Type _} {T3 : Type _}
+  (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (coreconvertIntoT2CowASliceU8VecU8Inst : core.convert.Into T2
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (coreconvertIntoT3CowASliceU8VecU8Inst : core.convert.Into T3
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (protocol_version : Std.U8) (server_version : T1) (connection_id : Std.U32)
+  (scramble_1 : Array Std.U8 8#usize) (scramble_2 : Option T2)
+  (capabilities : constants.CapabilityFlags) (default_collation : Std.U8)
+  (status_flags : constants.StatusFlags) (auth_plugin_name : Option T3) :
+  Result packets.HandshakePacket
+  := do
+  let i ← constants.CapabilityFlags.bits capabilities
+  let i1 ← lift (i &&& 65535#u32)
+  let capabilities_1 ← constants.CapabilityFlags.from_bits_retain i1
+  let i2 ← lift (i &&& 4294901760#u32)
+  let capabilities_2 ← constants.CapabilityFlags.from_bits_retain i2
+  let (scramble_21, auth_plugin_data_len) ←
+    match scramble_2 with
+    | none => ok (none, 0#u8)
+    | some x =>
+      do
+      let x1 ←
+        misc.raw.bytes.RawBytes.new
+          (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize
+          247#usize) coreconvertIntoT2CowASliceU8VecU8Inst x
+      let i3 ←
+        misc.raw.bytes.RawBytes.len
+          (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize
+          247#usize) x1
+      let len ← lift (UScalar.cast .U8 i3)
+      ok (some x1, len)
+  let ri ←
+    misc.raw.int.RawInt.new U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      protocol_version
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst server_version
+  let ri1 ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 connection_id
+  let c ←
+    misc.raw._const.Const.new misc.raw.int.LeU32LowerHalf capabilities_1
+  let ri2 ←
+    misc.raw.int.RawInt.new U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      default_collation
+  let c1 ← misc.raw._const.Const.new misc.raw.int.LeU16 status_flags
+  let c2 ←
+    misc.raw._const.Const.new misc.raw.int.LeU32UpperHalf capabilities_2
+  let ri3 ←
+    misc.raw.int.RawInt.new U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      auth_plugin_data_len
+  let mc ← constants.MariadbCapabilities.empty
+  let c3 ← misc.raw._const.Const.new misc.raw.int.LeU32 mc
+  match auth_plugin_name with
+  | none =>
+    ok
+      {
+        protocol_version := ri,
+        server_version := rb,
+        connection_id := ri1,
+        scramble_1,
+        __filler := (),
+        capabilities_1 := c,
+        default_collation := ri2,
+        status_flags := c1,
+        capabilities_2 := c2,
+        auth_plugin_data_len := ri3,
+        __reserved := (),
+        mariadb_ext_capabilities := c3,
+        scramble_2 := scramble_21,
+        auth_plugin_name := none
+      }
+  | some x =>
+    let rb1 ←
+      misc.raw.bytes.RawBytes.new
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        coreconvertIntoT3CowASliceU8VecU8Inst x
+    ok
+      {
+        protocol_version := ri,
+        server_version := rb,
+        connection_id := ri1,
+        scramble_1,
+        __filler := (),
+        capabilities_1 := c,
+        default_collation := ri2,
+        status_flags := c1,
+        capabilities_2 := c2,
+        auth_plugin_data_len := ri3,
+        __reserved := (),
+        mariadb_ext_capabilities := c3,
+        scramble_2 := scramble_21,
+        auth_plugin_name := (some rb1)
+      }
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::with_mariadb_ext_capabilities]:
+    Source: 'src/packets/mod.rs', lines 1869:4-1872:5
+    Visibility: public -/
+def packets.HandshakePacket.with_mariadb_ext_capabilities
+  (self : packets.HandshakePacket) (flags : constants.MariadbCapabilities) :
+  Result packets.HandshakePacket
+  := do
+  let c ← misc.raw._const.Const.new misc.raw.int.LeU32 flags
+  ok { self with mariadb_ext_capabilities := c }
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 1874:4-1897:5
+    Visibility: public -/
+def packets.HandshakePacket.into_owned
+  (self : packets.HandshakePacket) : Result packets.HandshakePacket := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.server_version
+  let o ←
+    match self.scramble_2 with
+    | none => ok none
+    | some rb1 =>
+      do
+      let rb2 ←
+        misc.raw.bytes.RawBytes.into_owned
+          (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize
+          247#usize) rb1
+      ok (some rb2)
+  match self.auth_plugin_name with
+  | none => ok { self with server_version := rb, scramble_2 := o }
+  | some rb1 =>
+    let rb2 ←
+      misc.raw.bytes.RawBytes.into_owned
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        rb1
+    ok
+      {
+        self
+          with
+          server_version := rb, scramble_2 := o, auth_plugin_name := (some rb2)
+      }
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::protocol_version]:
+    Source: 'src/packets/mod.rs', lines 1900:4-1902:5
+    Visibility: public -/
+def packets.HandshakePacket.impl.protocol_version
+  (self : packets.HandshakePacket) : Result Std.U8 := do
+  let (i, _) := self.protocol_version
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::server_version_ref]:
+    Source: 'src/packets/mod.rs', lines 1905:4-1907:5
+    Visibility: public -/
+def packets.HandshakePacket.server_version_ref
+  (self : packets.HandshakePacket) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.server_version
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::server_version_str]:
+    Source: 'src/packets/mod.rs', lines 1911:4-1913:5
+    Visibility: public -/
+def packets.HandshakePacket.server_version_str
+  (self : packets.HandshakePacket) : Result (alloc.borrow.Cow Str String) := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.server_version
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::server_version_parsed]:
+    Source: 'src/packets/mod.rs', lines 1918:4-1930:5
+    Visibility: public -/
+def packets.HandshakePacket.server_version_parsed
+  (self : packets.HandshakePacket) :
+  Result (Option (Std.U16 × Std.U16 × Std.U16))
+  := do
+  let s ← packets.HandshakePacket.server_version_ref self
+  let o ← misc.trusted.version_re_captures s
+  match o with
+  | none => ok none
+  | some t =>
+    let (major, minor, patch) := t
+    let o1 ← misc.trusted.btoi_u16 major
+    let i ← core.option.Option.unwrap o1
+    let o2 ← misc.trusted.btoi_u16 minor
+    let i1 ← core.option.Option.unwrap o2
+    let o3 ← misc.trusted.btoi_u16 patch
+    let i2 ← core.option.Option.unwrap o3
+    ok (some (i, i1, i2))
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::maria_db_server_version_parsed]:
+    Source: 'src/packets/mod.rs', lines 1933:4-1945:5
+    Visibility: public -/
+def packets.HandshakePacket.maria_db_server_version_parsed
+  (self : packets.HandshakePacket) :
+  Result (Option (Std.U16 × Std.U16 × Std.U16))
+  := do
+  let s ← packets.HandshakePacket.server_version_ref self
+  let o ← misc.trusted.mariadb_version_re_captures s
+  match o with
+  | none => ok none
+  | some t =>
+    let (major, minor, patch) := t
+    let o1 ← misc.trusted.btoi_u16 major
+    let i ← core.option.Option.unwrap o1
+    let o2 ← misc.trusted.btoi_u16 minor
+    let i1 ← core.option.Option.unwrap o2
+    let o3 ← misc.trusted.btoi_u16 patch
+    let i2 ← core.option.Option.unwrap o3
+    ok (some (i, i1, i2))
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::connection_id]:
+    Source: 'src/packets/mod.rs', lines 1948:4-1950:5
+    Visibility: public -/
+def packets.HandshakePacket.impl.connection_id
+  (self : packets.HandshakePacket) : Result Std.U32 := do
+  let (i, _) := self.connection_id
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::scramble_1_ref]:
+    Source: 'src/packets/mod.rs', lines 1953:4-1955:5
+    Visibility: public -/
+def packets.HandshakePacket.scramble_1_ref
+  (self : packets.HandshakePacket) : Result (Slice Std.U8) := do
+  core.array.Array.index (core.ops.index.IndexSlice
+    (core.slice.index.SliceIndexRangeFullSlice Std.U8)) self.scramble_1 ()
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::scramble_2_ref]:
+    Source: 'src/packets/mod.rs', lines 1960:4-1965:5
+    Visibility: public -/
+def packets.HandshakePacket.scramble_2_ref
+  (self : packets.HandshakePacket) : Result (Option (Slice Std.U8)) := do
+  match self.scramble_2 with
+  | none => ok none
+  | some rb =>
+    let s ←
+      misc.raw.bytes.RawBytes.as_bytes
+        (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize
+        247#usize) rb
+    ok (some s)
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::nonce_scramble_2]:
+    Source: 'src/packets/mod.rs', lines 1983:4-1996:5 -/
+def packets.HandshakePacket.nonce_scramble_2
+  (self : packets.HandshakePacket) : Result (Slice Std.U8) := do
+  let o ← packets.HandshakePacket.scramble_2_ref self
+  match o with
+  | none => ok (Array.to_slice (Std.Array.empty Std.U8))
+  | some scramble_2 =>
+    let len := Slice.len scramble_2
+    if len > 0#usize
+    then
+      let i ← len - 1#usize
+      let i1 ← Slice.index_usize scramble_2 i
+      if i1 = 0#u8
+      then
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) scramble_2
+          { «end» := i }
+      else ok scramble_2
+    else ok scramble_2
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::nonce]:
+    Source: 'src/packets/mod.rs', lines 1968:4-1978:5
+    Visibility: public -/
+def packets.HandshakePacket.nonce
+  (self : packets.HandshakePacket) : Result (alloc.vec.Vec Std.U8) := do
+  let s ← packets.HandshakePacket.scramble_1_ref self
+  let out ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+  let s1 ← packets.HandshakePacket.nonce_scramble_2 self
+  let out1 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out s1
+  let i := alloc.vec.Vec.len out1
+  if i < auth.plugins.mysql_native_password.SCRAMBLE_LENGTH
+  then alloc.vec.Vec.resize core.clone.CloneU8 out1 20#usize 0#u8
+  else ok out1
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::capabilities]:
+    Source: 'src/packets/mod.rs', lines 1999:4-2001:5
+    Visibility: public -/
+def packets.HandshakePacket.capabilities
+  (self : packets.HandshakePacket) : Result constants.CapabilityFlags := do
+  let (cf, _) := self.capabilities_1
+  let (cf1, _) := self.capabilities_2
+  constants.CapabilityFlags.Insts.CoreOpsBitBitOrCapabilityFlagsCapabilityFlags.bitor
+    cf cf1
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::mariadb_ext_capabilities]:
+    Source: 'src/packets/mod.rs', lines 2004:4-2006:5
+    Visibility: public -/
+def packets.HandshakePacket.impl.mariadb_ext_capabilities
+  (self : packets.HandshakePacket) : Result constants.MariadbCapabilities := do
+  let (mc, _) := self.mariadb_ext_capabilities
+  ok mc
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::default_collation]:
+    Source: 'src/packets/mod.rs', lines 2008:4-2010:5
+    Visibility: public -/
+def packets.HandshakePacket.impl.default_collation
+  (self : packets.HandshakePacket) : Result Std.U8 := do
+  let (i, _) := self.default_collation
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::status_flags]:
+    Source: 'src/packets/mod.rs', lines 2013:4-2015:5
+    Visibility: public -/
+def packets.HandshakePacket.impl.status_flags
+  (self : packets.HandshakePacket) : Result constants.StatusFlags := do
+  let (sf, _) := self.status_flags
+  ok sf
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::auth_plugin_name_ref]:
+    Source: 'src/packets/mod.rs', lines 2018:4-2023:5
+    Visibility: public -/
+def packets.HandshakePacket.auth_plugin_name_ref
+  (self : packets.HandshakePacket) : Result (Option (Slice Std.U8)) := do
+  match self.auth_plugin_name with
+  | none => ok none
+  | some rb =>
+    let s ←
+      misc.raw.bytes.RawBytes.as_bytes
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        rb
+    ok (some s)
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::auth_plugin_name_str]:
+    Source: 'src/packets/mod.rs', lines 2027:4-2032:5
+    Visibility: public -/
+def packets.HandshakePacket.auth_plugin_name_str
+  (self : packets.HandshakePacket) :
+  Result (Option (alloc.borrow.Cow Str String))
+  := do
+  match self.auth_plugin_name with
+  | none => ok none
+  | some rb =>
+    let c ←
+      misc.raw.bytes.RawBytes.as_str
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        rb
+    ok (some c)
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakePacket<'a>}::auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 2035:4-2048:5
+    Visibility: public -/
+def packets.HandshakePacket.auth_plugin
+  (self : packets.HandshakePacket) : Result (Option packets.AuthPlugin) := do
+  match self.auth_plugin_name with
+  | none => ok none
+  | some rb =>
+    let all ←
+      misc.raw.bytes.RawBytes.as_bytes
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        rb
+    let len := Slice.len all
+    if len > 0#usize
+    then
+      let i ← len - 1#usize
+      let i1 ← Slice.index_usize all i
+      if i1 = 0#u8
+      then
+        let s ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) all
+            { «end» := i }
+        let ap ← packets.AuthPlugin.from_bytes s
+        ok (some ap)
+      else let ap ← packets.AuthPlugin.from_bytes all
+           ok (some ap)
+    else let ap ← packets.AuthPlugin.from_bytes all
+         ok (some ap)
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComChangeUserHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1
+    Visibility: public -/
+def packets.InvalidComChangeUserHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidComChangeUserHeader)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid COM_CHANGE_USER header")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComChangeUserHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1 -/
+@[reducible]
+def packets.InvalidComChangeUserHeader.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidComChangeUserHeader := {
+  fmt := packets.InvalidComChangeUserHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComChangeUserHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1
+    Visibility: public -/
+def packets.InvalidComChangeUserHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidComChangeUserHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidComChangeUserHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComChangeUserHeader}]
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1 -/
+@[reducible]
+def packets.InvalidComChangeUserHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidComChangeUserHeader := {
+  fmt := packets.InvalidComChangeUserHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidComChangeUserHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1 -/
+@[reducible]
+def packets.InvalidComChangeUserHeader.Insts.CoreErrorError : core.error.Error
+  packets.InvalidComChangeUserHeader := {
+  fmtDebugInst := packets.InvalidComChangeUserHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidComChangeUserHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComChangeUserHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1
+    Visibility: public -/
+def packets.InvalidComChangeUserHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidComChangeUserHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComChangeUserHeader}]
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 2051:0-2055:1 -/
+@[reducible]
+def packets.InvalidComChangeUserHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidComChangeUserHeader := {
+  default :=
+    packets.InvalidComChangeUserHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUser<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 2068:4-2076:5
+    Visibility: public -/
+def packets.ComChangeUser.new : Result packets.ComChangeUser := do
+  let cu ← misc.raw.int.ConstU8.new packets.InvalidComChangeUserHeader 17#u8
+  let rb ←
+    misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      misc.raw.bytes.NullBytes.Insts.CoreDefaultDefault
+  let rb1 ←
+    misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      misc.raw.bytes.U8Bytes.Insts.CoreDefaultDefault
+  ok
+    {
+      __header := cu,
+      user := rb,
+      auth_plugin_data := rb1,
+      database := rb,
+      more_data := none
+    }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUser<'a>}::with_user]:
+    Source: 'src/packets/mod.rs', lines 2078:4-2084:5
+    Visibility: public -/
+def packets.ComChangeUser.with_user
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComChangeUser) (user : Option T1) :
+  Result packets.ComChangeUser
+  := do
+  match user with
+  | none =>
+    let rb ←
+      misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        misc.raw.bytes.NullBytes.Insts.CoreDefaultDefault
+    ok { self with user := rb }
+  | some x =>
+    let rb ←
+      misc.raw.bytes.RawBytes.new
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        coreconvertIntoT1CowASliceU8VecU8Inst x
+    ok { self with user := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUser<'a>}::with_database]:
+    Source: 'src/packets/mod.rs', lines 2086:4-2092:5
+    Visibility: public -/
+def packets.ComChangeUser.with_database
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComChangeUser) (database : Option T1) :
+  Result packets.ComChangeUser
+  := do
+  match database with
+  | none =>
+    let rb ←
+      misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        misc.raw.bytes.NullBytes.Insts.CoreDefaultDefault
+    ok { self with database := rb }
+  | some x =>
+    let rb ←
+      misc.raw.bytes.RawBytes.new
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        coreconvertIntoT1CowASliceU8VecU8Inst x
+    ok { self with database := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUser<'a>}::with_auth_plugin_data]:
+    Source: 'src/packets/mod.rs', lines 2094:4-2103:5
+    Visibility: public -/
+def packets.ComChangeUser.with_auth_plugin_data
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComChangeUser) (auth_plugin_data : Option T1) :
+  Result packets.ComChangeUser
+  := do
+  match auth_plugin_data with
+  | none =>
+    let rb ←
+      misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+        misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        misc.raw.bytes.U8Bytes.Insts.CoreDefaultDefault
+    ok { self with auth_plugin_data := rb }
+  | some x =>
+    let rb ←
+      misc.raw.bytes.RawBytes.new
+        misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        coreconvertIntoT1CowASliceU8VecU8Inst x
+    ok { self with auth_plugin_data := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUser<'a>}::with_more_data]:
+    Source: 'src/packets/mod.rs', lines 2105:4-2108:5
+    Visibility: public -/
+def packets.ComChangeUser.with_more_data
+  (self : packets.ComChangeUser)
+  (more_data : Option packets.ComChangeUserMoreData) :
+  Result packets.ComChangeUser
+  := do
+  ok { self with more_data }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUserMoreData<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 2211:4-2223:5
+    Visibility: public -/
+def packets.ComChangeUserMoreData.into_owned
+  (self : packets.ComChangeUserMoreData) :
+  Result packets.ComChangeUserMoreData
+  := do
+  let o ←
+    match self.auth_plugin with
+    | none => ok none
+    | some x => do
+                let ap ← packets.AuthPlugin.into_owned x
+                ok (some ap)
+  match self.connect_attributes with
+  | none => ok { self with auth_plugin := o }
+  | some x =>
+    let hm ← misc.trusted.connect_attrs_into_owned x
+    ok { self with auth_plugin := o, connect_attributes := (some hm) }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUser<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 2110:4-2121:5
+    Visibility: public -/
+def packets.ComChangeUser.into_owned
+  (self : packets.ComChangeUser) : Result packets.ComChangeUser := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.user
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.auth_plugin_data
+  let rb2 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.database
+  match self.more_data with
+  | none =>
+    ok { self with user := rb, auth_plugin_data := rb1, database := rb2 }
+  | some ccumd =>
+    let ccumd1 ← packets.ComChangeUserMoreData.into_owned ccumd
+    ok
+      {
+        self
+          with
+          user := rb,
+          auth_plugin_data := rb1,
+          database := rb2,
+          more_data := (some ccumd1)
+      }
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::ComChangeUser<'_0>}::default]:
+    Source: 'src/packets/mod.rs', lines 2125:4-2127:5
+    Visibility: public -/
+def packets.ComChangeUser.Insts.CoreDefaultDefault.default
+  : Result packets.ComChangeUser := do
+  packets.ComChangeUser.new
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::ComChangeUser<'_0>}]
+    Source: 'src/packets/mod.rs', lines 2124:0-2128:1 -/
+@[reducible]
+def packets.ComChangeUser.Insts.CoreDefaultDefault : core.default.Default
+  packets.ComChangeUser := {
+  default := packets.ComChangeUser.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::deserialize_connect_attrs_entries]:
+    Source: 'src/packets/mod.rs', lines 2236:0-2248:1 -/
+def packets.deserialize_connect_attrs_entries
+  (data : io.ParseBuf)
+  (attrs : std.collections.hash.map.HashMap (misc.raw.bytes.RawBytes
+  misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit)
+  std.hash.random.RandomState alloc.alloc.Global) :
+  Result ((core.result.Result (std.collections.hash.map.HashMap
+    (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+    misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global)
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let b ← io.ParseBuf.is_empty data
+  if b
+  then ok (core.result.Result.Ok attrs, data)
+  else
+    let (r, data1) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) data
+        ()
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      let (r1, data2) ←
+        io.ParseBuf.parse
+          (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+          misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+          data1 ()
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue rb1 =>
+        let attrs1 ← misc.trusted.connect_attrs_insert attrs rb rb1
+        packets.deserialize_connect_attrs_entries data2 attrs1
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r2 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (std.collections.hash.map.HashMap (misc.raw.bytes.RawBytes
+            misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+            misc.raw.int.LenEnc Unit) std.hash.random.RandomState
+            alloc.alloc.Global) (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r2, data2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (std.collections.hash.map.HashMap (misc.raw.bytes.RawBytes
+          misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+          misc.raw.int.LenEnc Unit) std.hash.random.RandomState
+          alloc.alloc.Global) (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r1, data1)
+partial_fixpoint
+
+/-- [mysql_common::packets::deserialize_connect_attrs]:
+    Source: 'src/packets/mod.rs', lines 2227:0-2233:1 -/
+def packets.deserialize_connect_attrs
+  (buf : io.ParseBuf) :
+  Result ((core.result.Result (std.collections.hash.map.HashMap
+    (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+    misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global)
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (i, _) := val
+    let i1 ← lift (UScalar.cast .Usize i)
+    let (r1, buf2) ←
+      io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+        buf1 i1
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue pb =>
+      let hm ← misc.trusted.connect_attrs_new
+      let (r2, _) ← packets.deserialize_connect_attrs_entries pb hm
+      ok (r2, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (std.collections.hash.map.HashMap (misc.raw.bytes.RawBytes
+          misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+          misc.raw.int.LenEnc Unit) std.hash.random.RandomState
+          alloc.alloc.Global) (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (std.collections.hash.map.HashMap (misc.raw.bytes.RawBytes
+        misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes misc.raw.int.LenEnc
+        Unit) std.hash.random.RandomState alloc.alloc.Global)
+        (core.convert.FromSame core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::parse_opt_connect_attrs]:
+    Source: 'src/packets/mod.rs', lines 2324:0-2336:1 -/
+def packets.parse_opt_connect_attrs
+  (flags : constants.CapabilityFlags) (buf : io.ParseBuf) :
+  Result ((core.result.Result (Option (std.collections.hash.map.HashMap
+    (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+    misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global))
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let b ←
+    constants.CapabilityFlags.contains flags
+      constants.CapabilityFlags.CLIENT_CONNECT_ATTRS
+  if b
+  then
+    let (r, buf1) ← packets.deserialize_connect_attrs buf
+    match r with
+    | core.result.Result.Ok x => ok (core.result.Result.Ok (some x), buf1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+  else ok (core.result.Result.Ok none, buf)
+
+/-- [mysql_common::packets::parse_change_user_auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 2301:0-2320:1 -/
+def packets.parse_change_user_auth_plugin
+  (flags : constants.CapabilityFlags) (buf : io.ParseBuf) :
+  Result ((core.result.Result (Option packets.AuthPlugin) core.io.error.Error)
+    × io.ParseBuf)
+  := do
+  let b ←
+    constants.CapabilityFlags.contains flags
+      constants.CapabilityFlags.CLIENT_PLUGIN_AUTH
+  if b
+  then
+    let (r, buf1) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf ()
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      let (c, _) := rb
+      match c with
+      | alloc.borrow.Cow.Borrowed bytes =>
+        let (r1, _) ←
+          io.ParseBuf.parse
+            packets.AuthPlugin.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            bytes ()
+        match r1 with
+        | core.result.Result.Ok x => ok (core.result.Result.Ok (some x), buf1)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+      | alloc.borrow.Cow.Owned _ => fail panic
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (Option packets.AuthPlugin) (core.convert.FromSame
+          core.io.error.Error) residual
+      ok (r1, buf1)
+  else ok (core.result.Result.Ok none, buf)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ComChangeUserMoreData<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 2286:4-2297:5
+    Visibility: public -/
+def
+  packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize
+  (flags : constants.CapabilityFlags) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.ComChangeUserMoreData
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ← packets.parse_change_user_auth_plugin flags buf1
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let (r2, buf3) ← packets.parse_opt_connect_attrs flags buf2
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        ok (core.result.Result.Ok
+          {
+            character_set := val,
+            auth_plugin := val1,
+            connect_attributes := val2
+          }, buf3)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.ComChangeUserMoreData (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r3, buf3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.ComChangeUserMoreData (core.convert.FromSame
+          core.io.error.Error) residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.ComChangeUserMoreData (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ComChangeUserMoreData<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 2283:4-2283:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ComChangeUserMoreData<'de>}]
+    Source: 'src/packets/mod.rs', lines 2282:0-2298:1 -/
+@[reducible]
+def
+  packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags
+  : proto.MyDeserialize packets.ComChangeUserMoreData constants.CapabilityFlags
+  := {
+  SIZE := ok
+    packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.SIZE
+  deserialize :=
+    packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize
+}
+
+/-- [mysql_common::packets::parse_change_user_more_data]:
+    Source: 'src/packets/mod.rs', lines 2152:0-2164:1 -/
+def packets.parse_change_user_more_data
+  (flags : constants.CapabilityFlags) (buf : io.ParseBuf) :
+  Result ((core.result.Result (Option packets.ComChangeUserMoreData)
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let b ← io.ParseBuf.is_empty buf
+  if b
+  then ok (core.result.Result.Ok none, buf)
+  else
+    let (r, buf1) ←
+      io.ParseBuf.parse
+        packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags
+        buf flags
+    match r with
+    | core.result.Result.Ok ccumd =>
+      ok (core.result.Result.Ok (some ccumd), buf1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ComChangeUser<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 2135:4-2148:5
+    Visibility: public -/
+def
+  packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize
+  (flags : constants.CapabilityFlags) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.ComChangeUser core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 17#u8
+      packets.InvalidComChangeUserHeader.Insts.CoreErrorError
+      packets.InvalidComChangeUserHeader.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      let (r2, buf3) ←
+        io.ParseBuf.parse
+          (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+          misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+          buf2 ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue rb1 =>
+        let (r3, buf4) ←
+          io.ParseBuf.parse
+            (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+            misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+            buf3 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue rb2 =>
+          let (r4, buf5) ← packets.parse_change_user_more_data flags buf4
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue val1 =>
+            ok (core.result.Result.Ok
+              {
+                __header := val,
+                user := rb,
+                auth_plugin_data := rb1,
+                database := rb2,
+                more_data := val1
+              }, buf5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.ComChangeUser (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r5, buf5)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.ComChangeUser (core.convert.FromSame core.io.error.Error)
+              residual
+          ok (r4, buf4)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.ComChangeUser (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r3, buf3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.ComChangeUser (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.ComChangeUser (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ComChangeUser<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 2131:4-2131:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, mysql_common::constants::CapabilityFlags> for mysql_common::packets::ComChangeUser<'de>}]
+    Source: 'src/packets/mod.rs', lines 2130:0-2149:1 -/
+@[reducible]
+def packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags
+  : proto.MyDeserialize packets.ComChangeUser constants.CapabilityFlags := {
+  SIZE := ok
+    packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.SIZE
+  deserialize :=
+    packets.ComChangeUser.Insts.Mysql_commonProtoMyDeserializeDeCapabilityFlags.deserialize
+}
+
+/-- [mysql_common::packets::serialize_connect_attrs_entries]:
+    Source: 'src/packets/mod.rs', lines 2273:0-2280:1 -/
+def packets.serialize_connect_attrs_entries
+  (entries : Slice ((Slice Std.U8) × (Slice Std.U8))) (i : Std.Usize)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 := Slice.len entries
+  if i < i1
+  then
+    let (s, s1) ← Slice.index_usize entries i
+    let buf1 ←
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize
+        s buf
+    let buf2 ←
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize
+        s1 buf1
+    let i2 ← i + 1#usize
+    packets.serialize_connect_attrs_entries entries i2 buf2
+  else ok buf
+partial_fixpoint
+
+/-- [mysql_common::packets::connect_attrs_len]:
+    Source: 'src/packets/mod.rs', lines 2263:0-2270:1 -/
+def packets.connect_attrs_len
+  (entries : Slice ((Slice Std.U8) × (Slice Std.U8))) (i : Std.Usize)
+  (acc : Std.U64) :
+  Result Std.U64
+  := do
+  let i1 := Slice.len entries
+  if i < i1
+  then
+    let (s, s1) ← Slice.index_usize entries i
+    let i2 ← i + 1#usize
+    let i3 ← misc.lenenc_str_len s
+    let i4 ← misc.lenenc_str_len s1
+    let i5 ← i3 + i4
+    let i6 ← acc + i5
+    packets.connect_attrs_len entries i2 i6
+  else ok acc
+partial_fixpoint
+
+/-- [mysql_common::packets::serialize_connect_attrs]:
+    Source: 'src/packets/mod.rs', lines 2251:0-2259:1 -/
+def packets.serialize_connect_attrs
+  (connect_attributes : std.collections.hash.map.HashMap
+  (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+  misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let entries ← misc.trusted.connect_attrs_entries connect_attributes
+  let s := alloc.vec.Vec.deref entries
+  let len ← packets.connect_attrs_len s 0#usize 0#u64
+  let buf1 ←
+    io.BufMutExt.put_lenenc_int.default (io.BufMutExt.Blanket
+      alloc.vec.VecU8.Insts.Mysql_commonIoBufMut) buf len
+  let s1 := alloc.vec.Vec.deref entries
+  packets.serialize_connect_attrs_entries s1 0#usize buf1
+
+/-- [mysql_common::packets::serialize_change_user_connect_attrs]:
+    Source: 'src/packets/mod.rs', lines 2352:0-2364:1 -/
+def packets.serialize_change_user_connect_attrs
+  (connect_attributes : Option (std.collections.hash.map.HashMap
+  (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+  misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global))
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match connect_attributes with
+  | none =>
+    let hm ← misc.trusted.connect_attrs_new
+    packets.serialize_connect_attrs hm buf
+  | some connect_attributes1 =>
+    packets.serialize_connect_attrs connect_attributes1 buf
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComChangeUserMoreData<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 2339:4-2348:5
+    Visibility: public -/
+def packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComChangeUserMoreData) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      self.character_set buf
+  match self.auth_plugin with
+  | none =>
+    packets.serialize_change_user_connect_attrs self.connect_attributes buf1
+  | some auth_plugin =>
+    let buf2 ←
+      packets.AuthPlugin.Insts.Mysql_commonProtoMySerialize.serialize
+        auth_plugin buf1
+    packets.serialize_change_user_connect_attrs self.connect_attributes buf2
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComChangeUser<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 2167:4-2176:5
+    Visibility: public -/
+def packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComChangeUser) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.__header buf
+  let buf2 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.user buf1
+  let buf3 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.auth_plugin_data buf2
+  let buf4 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.database buf3
+  match self.more_data with
+  | none => ok buf4
+  | some ccumd =>
+    packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize
+      ccumd buf4
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComChangeUser<'_0>}]
+    Source: 'src/packets/mod.rs', lines 2166:0-2177:1 -/
+@[reducible]
+def packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.ComChangeUser := {
+  serialize :=
+    packets.ComChangeUser.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUserMoreData<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 2187:4-2193:5
+    Visibility: public -/
+def packets.ComChangeUserMoreData.new
+  (character_set : Std.U16) : Result packets.ComChangeUserMoreData := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 character_set
+  ok { character_set := ri, auth_plugin := none, connect_attributes := none }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUserMoreData<'a>}::with_auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 2195:4-2198:5
+    Visibility: public -/
+def packets.ComChangeUserMoreData.with_auth_plugin
+  (self : packets.ComChangeUserMoreData)
+  (auth_plugin : Option packets.AuthPlugin) :
+  Result packets.ComChangeUserMoreData
+  := do
+  ok { self with auth_plugin }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComChangeUserMoreData<'a>}::with_connect_attributes]:
+    Source: 'src/packets/mod.rs', lines 2200:4-2209:5
+    Visibility: public -/
+def packets.ComChangeUserMoreData.with_connect_attributes
+  (self : packets.ComChangeUserMoreData)
+  (connect_attributes : Option (std.collections.hash.map.HashMap String String
+  std.hash.random.RandomState alloc.alloc.Global)) :
+  Result packets.ComChangeUserMoreData
+  := do
+  match connect_attributes with
+  | none => ok { self with connect_attributes := none }
+  | some attrs =>
+    let hm ← misc.trusted.connect_attrs_from_strings attrs
+    ok { self with connect_attributes := (some hm) }
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComChangeUserMoreData<'_0>}]
+    Source: 'src/packets/mod.rs', lines 2338:0-2349:1 -/
+@[reducible]
+def packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.ComChangeUserMoreData := {
+  serialize :=
+    packets.ComChangeUserMoreData.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::new_scramble_buf]:
+    Source: 'src/packets/mod.rs', lines 2550:0-2558:1 -/
+def packets.new_scramble_buf
+  (capabilities : constants.CapabilityFlags)
+  (scramble_buf : alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)) :
+  Result (misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit)
+    (misc.raw.Either (misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit)
+    (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit)))
+  := do
+  let b ←
+    constants.CapabilityFlags.contains capabilities
+      constants.CapabilityFlags.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
+  if b
+  then
+    let rb ←
+      misc.raw.bytes.RawBytes.new
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        (core.convert.IntoFrom (core.convert.FromSame (alloc.borrow.Cow (Slice
+        Std.U8) (alloc.vec.Vec Std.U8)))) scramble_buf
+    ok (misc.raw.Either.Left rb)
+  else
+    let b1 ←
+      constants.CapabilityFlags.contains capabilities
+        constants.CapabilityFlags.CLIENT_SECURE_CONNECTION
+    if b1
+    then
+      let rb ←
+        misc.raw.bytes.RawBytes.new
+          misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+          (core.convert.IntoFrom (core.convert.FromSame (alloc.borrow.Cow
+          (Slice Std.U8) (alloc.vec.Vec Std.U8)))) scramble_buf
+      ok (misc.raw.Either.Right (misc.raw.Either.Left rb))
+    else
+      let rb ←
+        misc.raw.bytes.RawBytes.new
+          misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+          (core.convert.IntoFrom (core.convert.FromSame (alloc.borrow.Cow
+          (Slice Std.U8) (alloc.vec.Vec Std.U8)))) scramble_buf
+      ok (misc.raw.Either.Right (misc.raw.Either.Right rb))
+
+/-- [mysql_common::packets::opt_connect_attrs_from_strings]:
+    Source: 'src/packets/mod.rs', lines 2540:0-2547:1 -/
+def packets.opt_connect_attrs_from_strings
+  (connect_attributes : Option (std.collections.hash.map.HashMap String String
+  std.hash.random.RandomState alloc.alloc.Global)) :
+  Result (Option (std.collections.hash.map.HashMap (misc.raw.bytes.RawBytes
+    misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes misc.raw.int.LenEnc
+    Unit) std.hash.random.RandomState alloc.alloc.Global))
+  := do
+  match connect_attributes with
+  | none => ok none
+  | some attrs =>
+    let hm ← misc.trusted.connect_attrs_from_strings attrs
+    ok (some hm)
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 2385:4-2445:5
+    Visibility: public -/
+def packets.HandshakeResponse.new
+  {T1 : Type _} {T2 : Type _} {T3 : Type _}
+  (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (coreconvertIntoT2CowASliceU8VecU8Inst : core.convert.Into T2
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (coreconvertIntoT3CowASliceU8VecU8Inst : core.convert.Into T3
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (scramble_buf : Option T1) (server_version : (Std.U16 × Std.U16 × Std.U16))
+  (user : Option T2) (db_name : Option T3)
+  (auth_plugin : Option packets.AuthPlugin)
+  (capabilities : constants.CapabilityFlags)
+  (connect_attributes : Option (std.collections.hash.map.HashMap String String
+  std.hash.random.RandomState alloc.alloc.Global)) (max_packet_size : Std.U32)
+  :
+  Result packets.HandshakeResponse
+  := do
+  let scramble_buf1 ←
+    match scramble_buf with
+    | none =>
+      alloc.borrow.Cow.Insts.CoreDefaultDefault.default
+        (Slice.Insts.AllocBorrowToOwnedVec core.clone.CloneU8)
+        (alloc.vec.Vec.Insts.CoreDefaultDefault Std.U8)
+    | some x => coreconvertIntoT1CowASliceU8VecU8Inst.into x
+  let scramble_buf2 ← packets.new_scramble_buf capabilities scramble_buf1
+  let b := core.option.Option.is_some db_name
+  let capabilities1 ←
+    if b
+    then
+      constants.CapabilityFlags.insert capabilities
+        constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB
+    else
+      constants.CapabilityFlags.remove capabilities
+        constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB
+  let b1 := core.option.Option.is_some auth_plugin
+  let capabilities2 ←
+    if b1
+    then
+      constants.CapabilityFlags.insert capabilities1
+        constants.CapabilityFlags.CLIENT_PLUGIN_AUTH
+    else
+      constants.CapabilityFlags.remove capabilities1
+        constants.CapabilityFlags.CLIENT_PLUGIN_AUTH
+  let b2 := core.option.Option.is_some connect_attributes
+  let capabilities3 ←
+    if b2
+    then
+      constants.CapabilityFlags.insert capabilities2
+        constants.CapabilityFlags.CLIENT_CONNECT_ATTRS
+    else
+      constants.CapabilityFlags.remove capabilities2
+        constants.CapabilityFlags.CLIENT_CONNECT_ATTRS
+  let connect_attributes1 ←
+    packets.opt_connect_attrs_from_strings connect_attributes
+  let (major, minor, patch) := server_version
+  let at_least_5_5_3 ←
+    if major > 5#u16
+    then ok true
+    else
+      if major = 5#u16
+      then
+        if minor > 5#u16
+        then ok true
+        else if minor = 5#u16
+             then ok (patch >= 3#u16)
+             else ok false
+      else ok false
+  let ri ←
+    if at_least_5_5_3
+    then
+      do
+      let i ← 45#u16 + 0#u16
+      let i1 ← lift (UScalar.cast .U8 i)
+      misc.raw.int.RawInt.new U8.Insts.Mysql_commonMiscRawIntIntReprU8 i1
+    else
+      do
+      let i ← 33#u16 + 0#u16
+      let i1 ← lift (UScalar.cast .U8 i)
+      misc.raw.int.RawInt.new U8.Insts.Mysql_commonMiscRawIntIntReprU8 i1
+  let rb ←
+    match user with
+    | none =>
+      misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        misc.raw.bytes.NullBytes.Insts.CoreDefaultDefault
+    | some x =>
+      misc.raw.bytes.RawBytes.new
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        coreconvertIntoT2CowASliceU8VecU8Inst x
+  let o ←
+    match db_name with
+    | none => ok none
+    | some x =>
+      do
+      let rb1 ←
+        misc.raw.bytes.RawBytes.new
+          misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+          coreconvertIntoT3CowASliceU8VecU8Inst x
+      ok (some rb1)
+  let c ← misc.raw._const.Const.new misc.raw.int.LeU32 capabilities3
+  let ri1 ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 max_packet_size
+  let mc ← constants.MariadbCapabilities.empty
+  let c1 ← misc.raw._const.Const.new misc.raw.int.LeU32 mc
+  ok
+    {
+      capabilities := c,
+      max_packet_size := ri1,
+      collation := ri,
+      scramble_buf := scramble_buf2,
+      user := rb,
+      db_name := o,
+      auth_plugin,
+      connect_attributes := connect_attributes1,
+      mariadb_ext_capabilities := c1
+    }
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::with_mariadb_ext_capabilities]:
+    Source: 'src/packets/mod.rs', lines 2447:4-2453:5
+    Visibility: public -/
+def packets.HandshakeResponse.with_mariadb_ext_capabilities
+  (self : packets.HandshakeResponse)
+  (mariadb_ext_capabilities : constants.MariadbCapabilities) :
+  Result packets.HandshakeResponse
+  := do
+  let c ←
+    misc.raw._const.Const.new misc.raw.int.LeU32 mariadb_ext_capabilities
+  ok { self with mariadb_ext_capabilities := c }
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::capabilities]:
+    Source: 'src/packets/mod.rs', lines 2455:4-2457:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.capabilities
+  (self : packets.HandshakeResponse) : Result constants.CapabilityFlags := do
+  let (cf, _) := self.capabilities
+  ok cf
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::mariadb_ext_capabilities]:
+    Source: 'src/packets/mod.rs', lines 2459:4-2461:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.mariadb_ext_capabilities
+  (self : packets.HandshakeResponse) :
+  Result constants.MariadbCapabilities
+  := do
+  let (mc, _) := self.mariadb_ext_capabilities
+  ok mc
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::collation]:
+    Source: 'src/packets/mod.rs', lines 2463:4-2465:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.collation
+  (self : packets.HandshakeResponse) : Result Std.U8 := do
+  let (i, _) := self.collation
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::scramble_buf]:
+    Source: 'src/packets/mod.rs', lines 2467:4-2475:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.scramble_buf
+  (self : packets.HandshakeResponse) : Result (Slice Std.U8) := do
+  match self.scramble_buf with
+  | misc.raw.Either.Left rb =>
+    misc.raw.bytes.RawBytes.as_bytes
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+  | misc.raw.Either.Right x =>
+    match x with
+    | misc.raw.Either.Left rb =>
+      misc.raw.bytes.RawBytes.as_bytes
+        misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+    | misc.raw.Either.Right rb =>
+      misc.raw.bytes.RawBytes.as_bytes
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        rb
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::user]:
+    Source: 'src/packets/mod.rs', lines 2477:4-2479:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.user
+  (self : packets.HandshakeResponse) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.user
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::db_name]:
+    Source: 'src/packets/mod.rs', lines 2481:4-2486:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.db_name
+  (self : packets.HandshakeResponse) : Result (Option (Slice Std.U8)) := do
+  match self.db_name with
+  | none => ok none
+  | some rb =>
+    let s ←
+      misc.raw.bytes.RawBytes.as_bytes
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        rb
+    ok (some s)
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 2488:4-2493:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.auth_plugin
+  (self : packets.HandshakeResponse) : Result (Option packets.AuthPlugin) := do
+  match self.auth_plugin with
+  | none => ok none
+  | some _ => ok self.auth_plugin
+
+/-- [mysql_common::packets::{mysql_common::packets::HandshakeResponse<'a>}::connect_attributes]:
+    Source: 'src/packets/mod.rs', lines 2496:4-2501:5
+    Visibility: public -/
+def packets.HandshakeResponse.impl.connect_attributes
+  (self : packets.HandshakeResponse) :
+  Result (Option (std.collections.hash.map.HashMap String String
+    std.hash.random.RandomState alloc.alloc.Global))
+  := do
+  match self.connect_attributes with
+  | none => ok none
+  | some attrs =>
+    let hm ← misc.trusted.connect_attrs_to_strings attrs
+    ok (some hm)
+
+/-- [mysql_common::packets::parse_handshake_response_auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 2596:0-2606:1 -/
+def packets.parse_handshake_response_auth_plugin
+  (client_flags : Std.U32) (buf : io.ParseBuf) :
+  Result ((Option packets.AuthPlugin) × io.ParseBuf)
+  := do
+  let i ←
+    constants.CapabilityFlags.bits constants.CapabilityFlags.CLIENT_PLUGIN_AUTH
+  let i1 ← lift (client_flags &&& i)
+  if i1 > 0#u32
+  then
+    let (auth_plugin_name, buf1) ← io.ParseBuf.eat_null_str buf
+    let ap ← packets.AuthPlugin.from_bytes auth_plugin_name
+    ok (some ap, buf1)
+  else ok (none, buf)
+
+/-- [mysql_common::packets::parse_handshake_response_db_name]:
+    Source: 'src/packets/mod.rs', lines 2581:0-2593:1 -/
+def packets.parse_handshake_response_db_name
+  (client_flags : Std.U32) (buf : io.ParseBuf) :
+  Result ((core.result.Result (Option (misc.raw.bytes.RawBytes
+    misc.raw.bytes.NullBytes Unit)) core.io.error.Error) × io.ParseBuf)
+  := do
+  let i ←
+    constants.CapabilityFlags.bits
+      constants.CapabilityFlags.CLIENT_CONNECT_WITH_DB
+  let i1 ← lift (client_flags &&& i)
+  if i1 > 0#u32
+  then
+    let (r, buf1) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf ()
+    match r with
+    | core.result.Result.Ok rb => ok (core.result.Result.Ok (some rb), buf1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+  else ok (core.result.Result.Ok none, buf)
+
+/-- [mysql_common::packets::parse_scramble_buf]:
+    Source: 'src/packets/mod.rs', lines 2561:0-2578:1 -/
+def packets.parse_scramble_buf
+  (client_flags : Std.U32) (buf : io.ParseBuf) :
+  Result ((core.result.Result (misc.raw.Either (misc.raw.bytes.RawBytes
+    misc.raw.int.LenEnc Unit) (misc.raw.Either (misc.raw.bytes.RawBytes
+    misc.raw.bytes.U8Bytes Unit) (misc.raw.bytes.RawBytes
+    misc.raw.bytes.NullBytes Unit))) core.io.error.Error) × io.ParseBuf)
+  := do
+  let i ←
+    constants.CapabilityFlags.bits
+      constants.CapabilityFlags.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
+  let i1 ← lift (client_flags &&& i)
+  if i1 > 0#u32
+  then
+    let (r, buf1) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf
+        ()
+    match r with
+    | core.result.Result.Ok rb =>
+      ok (core.result.Result.Ok (misc.raw.Either.Left rb), buf1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+  else
+    let i2 ←
+      constants.CapabilityFlags.bits
+        constants.CapabilityFlags.CLIENT_SECURE_CONNECTION
+    let i3 ← lift (client_flags &&& i2)
+    if i3 > 0#u32
+    then
+      let (r, buf1) ←
+        io.ParseBuf.parse
+          (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+          misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+          buf ()
+      match r with
+      | core.result.Result.Ok rb =>
+        ok (core.result.Result.Ok (misc.raw.Either.Right (misc.raw.Either.Left
+          rb)), buf1)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+    else
+      let (r, buf1) ←
+        io.ParseBuf.parse
+          (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+          misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+          buf ()
+      match r with
+      | core.result.Result.Ok rb =>
+        ok (core.result.Result.Ok (misc.raw.Either.Right (misc.raw.Either.Right
+          rb)), buf1)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::HandshakeResponse<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 2508:4-2536:5
+    Visibility: public -/
+def
+  packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.HandshakeResponse core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let i ← 4#usize + 4#usize
+  let i1 ← i + 1#usize
+  let i2 ← i1 + 23#usize
+  let (r, buf1) ←
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+      buf i2
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue pb =>
+    let (r1, sbuf) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        constants.CapabilityFlags
+        misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) pb ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (r2, sbuf1) ←
+        io.ParseBuf.parse_unchecked
+          (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) sbuf ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (r3, sbuf2) ←
+          io.ParseBuf.parse_unchecked
+            (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            U8.Insts.Mysql_commonMiscRawIntIntReprU8) sbuf1 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val2 =>
+          let (r4, sbuf3) ←
+            io.ParseBuf.parse_unchecked
+              (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple
+              19#usize) sbuf2 ()
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let (r5, _) ←
+              io.ParseBuf.parse_unchecked
+                (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                constants.MariadbCapabilities
+                misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32)
+                sbuf3 ()
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val3 =>
+              let (r6, buf2) ←
+                io.ParseBuf.parse
+                  (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+                  misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+                  buf1 ()
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue rb =>
+                let (i3, _) := val
+                let (r7, buf3) ← packets.parse_scramble_buf i3 buf2
+                let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
+                match cf7 with
+                | core.ops.control_flow.ControlFlow.Continue val4 =>
+                  let (r8, buf4) ←
+                    packets.parse_handshake_response_db_name i3 buf3
+                  let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r8
+                  match cf8 with
+                  | core.ops.control_flow.ControlFlow.Continue val5 =>
+                    let (auth_plugin, buf5) ←
+                      packets.parse_handshake_response_auth_plugin i3 buf4
+                    let cf9 ← constants.CapabilityFlags.from_bits_retain i3
+                    let (r9, buf6) ← packets.parse_opt_connect_attrs cf9 buf5
+                    let cf10 ← core.result.Result.Insts.CoreOpsTry.branch r9
+                    match cf10 with
+                    | core.ops.control_flow.ControlFlow.Continue val6 =>
+                      let cf11 ←
+                        constants.CapabilityFlags.from_bits_truncate i3
+                      let c ←
+                        misc.raw._const.Const.new misc.raw.int.LeU32 cf11
+                      let (i4, _) := val3
+                      let mc ←
+                        constants.MariadbCapabilities.from_bits_truncate i4
+                      let c1 ←
+                        misc.raw._const.Const.new misc.raw.int.LeU32 mc
+                      ok (core.result.Result.Ok
+                        {
+                          capabilities := c,
+                          max_packet_size := val1,
+                          collation := val2,
+                          scramble_buf := val4,
+                          user := rb,
+                          db_name := val5,
+                          auth_plugin,
+                          connect_attributes := val6,
+                          mariadb_ext_capabilities := c1
+                        }, buf6)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r10 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          packets.HandshakeResponse (core.convert.FromSame
+                          core.io.error.Error) residual
+                      ok (r10, buf6)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r9 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        packets.HandshakeResponse (core.convert.FromSame
+                        core.io.error.Error) residual
+                    ok (r9, buf4)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r8 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      packets.HandshakeResponse (core.convert.FromSame
+                      core.io.error.Error) residual
+                  ok (r8, buf3)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r7 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    packets.HandshakeResponse (core.convert.FromSame
+                    core.io.error.Error) residual
+                ok (r7, buf2)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.HandshakeResponse (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r6, buf1)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.HandshakeResponse (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r5, buf1)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.HandshakeResponse (core.convert.FromSame
+              core.io.error.Error) residual
+          ok (r4, buf1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.HandshakeResponse (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r3, buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.HandshakeResponse (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.HandshakeResponse (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::HandshakeResponse<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 2505:4-2505:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::HandshakeResponse<'de>}]
+    Source: 'src/packets/mod.rs', lines 2504:0-2537:1 -/
+@[reducible]
+def packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.HandshakeResponse Unit := {
+  SIZE := ok
+    packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::serialize_handshake_response_connect_attrs]:
+    Source: 'src/packets/mod.rs', lines 2656:0-2665:1 -/
+def packets.serialize_handshake_response_connect_attrs
+  (connect_attributes : Option (std.collections.hash.map.HashMap
+  (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+  misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global))
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match connect_attributes with
+  | none => ok buf
+  | some attrs => packets.serialize_connect_attrs attrs buf
+
+/-- [mysql_common::packets::serialize_handshake_response_auth_plugin]:
+    Source: 'src/packets/mod.rs', lines 2642:0-2654:1 -/
+def packets.serialize_handshake_response_auth_plugin
+  (auth_plugin : Option packets.AuthPlugin)
+  (connect_attributes : Option (std.collections.hash.map.HashMap
+  (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+  misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global))
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match auth_plugin with
+  | none =>
+    packets.serialize_handshake_response_connect_attrs connect_attributes buf
+  | some auth_plugin1 =>
+    let buf1 ←
+      packets.AuthPlugin.Insts.Mysql_commonProtoMySerialize.serialize
+        auth_plugin1 buf
+    packets.serialize_handshake_response_connect_attrs connect_attributes buf1
+
+/-- [mysql_common::packets::serialize_handshake_response_tail]:
+    Source: 'src/packets/mod.rs', lines 2627:0-2640:1 -/
+def packets.serialize_handshake_response_tail
+  (db_name : Option (misc.raw.bytes.RawBytes misc.raw.bytes.NullBytes Unit))
+  (auth_plugin : Option packets.AuthPlugin)
+  (connect_attributes : Option (std.collections.hash.map.HashMap
+  (misc.raw.bytes.RawBytes misc.raw.int.LenEnc Unit) (misc.raw.bytes.RawBytes
+  misc.raw.int.LenEnc Unit) std.hash.random.RandomState alloc.alloc.Global))
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match db_name with
+  | none =>
+    packets.serialize_handshake_response_auth_plugin auth_plugin
+      connect_attributes buf
+  | some rb =>
+    let buf1 ←
+      misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+        misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+        rb buf
+    packets.serialize_handshake_response_auth_plugin auth_plugin
+      connect_attributes buf1
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::HandshakeResponse<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 2609:4-2623:5
+    Visibility: public -/
+def packets.HandshakeResponse.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.HandshakeResponse) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.CapabilityFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U32.Insts.CoreConvertFromCapabilityFlags)
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.capabilities buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.max_packet_size buf1
+  let buf3 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.collation buf2
+  let a := Array.repeat 19#usize 0#u8
+  let s ← lift (Array.to_slice a)
+  let buf4 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_slice buf3 s
+  let buf5 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.MariadbCapabilities.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U32.Insts.CoreConvertFromMariadbCapabilities)
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.mariadb_ext_capabilities buf4
+  let buf6 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.user buf5
+  let buf7 ←
+    misc.raw.Either.Insts.Mysql_commonProtoMySerialize.serialize
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+      (misc.raw.Either.Insts.Mysql_commonProtoMySerialize
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize
+      misc.raw.bytes.NullBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple))
+      self.scramble_buf buf6
+  packets.serialize_handshake_response_tail self.db_name self.auth_plugin
+    self.connect_attributes buf7
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::HandshakeResponse<'_0>}]
+    Source: 'src/packets/mod.rs', lines 2608:0-2624:1 -/
+@[reducible]
+def packets.HandshakeResponse.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.HandshakeResponse := {
+  serialize :=
+    packets.HandshakeResponse.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::SslRequest}::new]:
+    Source: 'src/packets/mod.rs', lines 2677:4-2685:5
+    Visibility: public -/
+def packets.SslRequest.new
+  (capabilities : constants.CapabilityFlags) (max_packet_size : Std.U32)
+  (character_set : Std.U8) :
+  Result packets.SslRequest
+  := do
+  let c ← misc.raw._const.Const.new misc.raw.int.LeU32 capabilities
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 max_packet_size
+  let ri1 ←
+    misc.raw.int.RawInt.new U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      character_set
+  let mc ← constants.MariadbCapabilities.empty
+  let c1 ← misc.raw._const.Const.new misc.raw.int.LeU32 mc
+  ok
+    {
+      capabilities := c,
+      max_packet_size := ri,
+      character_set := ri1,
+      __skip := (),
+      mariadb_capabilities := c1
+    }
+
+/-- [mysql_common::packets::{mysql_common::packets::SslRequest}::with_mariadb_capabilities]:
+    Source: 'src/packets/mod.rs', lines 2690:4-2693:5
+    Visibility: public -/
+def packets.SslRequest.with_mariadb_capabilities
+  (self : packets.SslRequest)
+  (mariadb_capabilities : constants.MariadbCapabilities) :
+  Result packets.SslRequest
+  := do
+  let (_, pd) := self.mariadb_capabilities
+  ok { self with mariadb_capabilities := (mariadb_capabilities, pd) }
+
+/-- [mysql_common::packets::{mysql_common::packets::SslRequest}::capabilities]:
+    Source: 'src/packets/mod.rs', lines 2695:4-2697:5
+    Visibility: public -/
+def packets.SslRequest.impl.capabilities
+  (self : packets.SslRequest) : Result constants.CapabilityFlags := do
+  let (cf, _) := self.capabilities
+  ok cf
+
+/-- [mysql_common::packets::{mysql_common::packets::SslRequest}::max_packet_size]:
+    Source: 'src/packets/mod.rs', lines 2699:4-2701:5
+    Visibility: public -/
+def packets.SslRequest.impl.max_packet_size
+  (self : packets.SslRequest) : Result Std.U32 := do
+  let (i, _) := self.max_packet_size
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::SslRequest}::character_set]:
+    Source: 'src/packets/mod.rs', lines 2703:4-2705:5
+    Visibility: public -/
+def packets.SslRequest.impl.character_set
+  (self : packets.SslRequest) : Result Std.U8 := do
+  let (i, _) := self.character_set
+  ok i
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SslRequest}::SIZE]
+    Source: 'src/packets/mod.rs', lines 2709:4-2709:53
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.SslRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Result (Option Std.Usize) := do
+  let i ← 4#usize + 4#usize
+  let i1 ← i + 1#usize
+  let i2 ← i1 + 23#usize
+  ok (some i2)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SslRequest}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 2712:4-2733:5
+    Visibility: public -/
+def packets.SslRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.SslRequest core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let o ← packets.SslRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  let i ← core.option.Option.unwrap o
+  let (r, buf1) ←
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+      buf i
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue pb =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        constants.CapabilityFlags
+        misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) pb ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (i1, _) := val
+      let cf2 ← constants.CapabilityFlags.from_bits_truncate i1
+      let capabilities ← misc.raw._const.Const.new misc.raw.int.LeU32 cf2
+      let (r2, buf3) ←
+        io.ParseBuf.parse_unchecked
+          (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf2 ()
+      let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf3 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (r3, buf4) ←
+          io.ParseBuf.parse_unchecked
+            (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            U8.Insts.Mysql_commonMiscRawIntIntReprU8) buf3 ()
+        let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf4 with
+        | core.ops.control_flow.ControlFlow.Continue val2 =>
+          let (r4, buf5) ←
+            io.ParseBuf.parse_unchecked
+              (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple
+              19#usize) buf4 ()
+          let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf5 with
+          | core.ops.control_flow.ControlFlow.Continue val3 =>
+            let (r5, _) ←
+              io.ParseBuf.parse_unchecked
+                (misc.raw._const.RawConst.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                constants.MariadbCapabilities
+                misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf5
+                ()
+            let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf6 with
+            | core.ops.control_flow.ControlFlow.Continue val4 =>
+              let (i2, _) := val4
+              let mc ← constants.MariadbCapabilities.from_bits_truncate i2
+              let c ← misc.raw._const.Const.new misc.raw.int.LeU32 mc
+              ok (core.result.Result.Ok
+                {
+                  capabilities,
+                  max_packet_size := val1,
+                  character_set := val2,
+                  __skip := val3,
+                  mariadb_capabilities := c
+                }, buf1)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.SslRequest (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r6, buf1)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.SslRequest (core.convert.FromSame core.io.error.Error)
+                residual
+            ok (r5, buf1)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.SslRequest (core.convert.FromSame core.io.error.Error)
+              residual
+          ok (r4, buf1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.SslRequest (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r3, buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.SslRequest (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.SslRequest (core.convert.FromSame core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SslRequest}]
+    Source: 'src/packets/mod.rs', lines 2708:0-2734:1 -/
+@[reducible]
+def packets.SslRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.SslRequest Unit := {
+  SIZE := packets.SslRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.SslRequest.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SslRequest}::serialize]:
+    Source: 'src/packets/mod.rs', lines 2737:4-2743:5
+    Visibility: public -/
+def packets.SslRequest.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.SslRequest) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.CapabilityFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U32.Insts.CoreConvertFromCapabilityFlags)
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.capabilities buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.max_packet_size buf1
+  let buf3 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.character_set buf2
+  let buf4 ←
+    misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize self.__skip buf3
+  misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+    constants.MariadbCapabilities.Insts.CoreMarkerCopy (core.convert.IntoFrom
+    U32.Insts.CoreConvertFromMariadbCapabilities)
+    misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+    self.mariadb_capabilities buf4
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SslRequest}]
+    Source: 'src/packets/mod.rs', lines 2736:0-2744:1 -/
+@[reducible]
+def packets.SslRequest.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.SslRequest := {
+  serialize := packets.SslRequest.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidStmtPacketStatus}::fmt]:
+    Source: 'src/packets/mod.rs', lines 2746:9-2746:14
+    Visibility: public -/
+def packets.InvalidStmtPacketStatus.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidStmtPacketStatus) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidStmtPacketStatus")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidStmtPacketStatus}]
+    Source: 'src/packets/mod.rs', lines 2746:9-2746:14 -/
+@[reducible]
+def packets.InvalidStmtPacketStatus.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidStmtPacketStatus := {
+  fmt := packets.InvalidStmtPacketStatus.Insts.CoreFmtDebug.fmt
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidStmtPacketStatus}::default]:
+    Source: 'src/packets/mod.rs', lines 2746:16-2746:23
+    Visibility: public -/
+def packets.InvalidStmtPacketStatus.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidStmtPacketStatus := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidStmtPacketStatus}]
+    Source: 'src/packets/mod.rs', lines 2746:16-2746:23 -/
+@[reducible]
+def packets.InvalidStmtPacketStatus.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidStmtPacketStatus := {
+  default := packets.InvalidStmtPacketStatus.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidStmtPacketStatus}::fmt]:
+    Source: 'src/packets/mod.rs', lines 2746:59-2746:75
+    Visibility: public -/
+def packets.InvalidStmtPacketStatus.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidStmtPacketStatus) (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid statement packet status")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidStmtPacketStatus}]
+    Source: 'src/packets/mod.rs', lines 2746:59-2746:75 -/
+@[reducible]
+def packets.InvalidStmtPacketStatus.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidStmtPacketStatus := {
+  fmt := packets.InvalidStmtPacketStatus.Insts.CoreFmtDisplay.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidStmtPacketStatus}]
+    Source: 'src/packets/mod.rs', lines 2746:59-2746:75 -/
+@[reducible]
+def packets.InvalidStmtPacketStatus.Insts.CoreErrorError : core.error.Error
+  packets.InvalidStmtPacketStatus := {
+  fmtDebugInst := packets.InvalidStmtPacketStatus.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidStmtPacketStatus.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::StmtPacket}::SIZE]
+    Source: 'src/packets/mod.rs', lines 2762:4-2762:41
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.StmtPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  some 12#usize
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::StmtPacket}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 2765:4-2775:5
+    Visibility: public -/
+def packets.StmtPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.StmtPacket core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let i ←
+    core.option.Option.unwrap
+      packets.StmtPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  let (r, buf1) ←
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+      buf i
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue pb =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 0#u8
+        packets.InvalidStmtPacketStatus.Insts.CoreErrorError
+        packets.InvalidStmtPacketStatus.Insts.CoreDefaultDefault) pb ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (r2, buf3) ←
+        io.ParseBuf.parse_unchecked
+          (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf2 ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (r3, buf4) ←
+          io.ParseBuf.parse_unchecked
+            (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf3 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val2 =>
+          let (r4, buf5) ←
+            io.ParseBuf.parse_unchecked
+              (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+              misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf4
+              ()
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue val3 =>
+            let (r5, buf6) ←
+              io.ParseBuf.parse_unchecked
+                (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                1#usize) buf5 ()
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val4 =>
+              let (r6, _) ←
+                io.ParseBuf.parse_unchecked
+                  (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                  misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16)
+                  buf6 ()
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue val5 =>
+                ok (core.result.Result.Ok
+                  {
+                    status := val,
+                    statement_id := val1,
+                    num_columns := val2,
+                    num_params := val3,
+                    __skip := val4,
+                    warning_count := val5
+                  }, buf1)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r7 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    packets.StmtPacket (core.convert.FromSame
+                    core.io.error.Error) residual
+                ok (r7, buf1)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.StmtPacket (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r6, buf1)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.StmtPacket (core.convert.FromSame core.io.error.Error)
+                residual
+            ok (r5, buf1)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.StmtPacket (core.convert.FromSame core.io.error.Error)
+              residual
+          ok (r4, buf1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.StmtPacket (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r3, buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.StmtPacket (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.StmtPacket (core.convert.FromSame core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::StmtPacket}]
+    Source: 'src/packets/mod.rs', lines 2761:0-2776:1 -/
+@[reducible]
+def packets.StmtPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.StmtPacket Unit := {
+  SIZE := ok
+    packets.StmtPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.StmtPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtPacket}::serialize]:
+    Source: 'src/packets/mod.rs', lines 2779:4-2786:5
+    Visibility: public -/
+def packets.StmtPacket.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.StmtPacket) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.status buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.statement_id buf1
+  let buf3 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      self.num_columns buf2
+  let buf4 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.num_params
+      buf3
+  let buf5 ←
+    misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize self.__skip buf4
+  misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+    self.warning_count buf5
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtPacket}]
+    Source: 'src/packets/mod.rs', lines 2778:0-2787:1 -/
+@[reducible]
+def packets.StmtPacket.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.StmtPacket := {
+  serialize := packets.StmtPacket.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtPacket}::statement_id]:
+    Source: 'src/packets/mod.rs', lines 2791:4-2793:5
+    Visibility: public -/
+def packets.StmtPacket.impl.statement_id
+  (self : packets.StmtPacket) : Result Std.U32 := do
+  misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
+    misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.statement_id
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtPacket}::num_columns]:
+    Source: 'src/packets/mod.rs', lines 2796:4-2798:5
+    Visibility: public -/
+def packets.StmtPacket.impl.num_columns
+  (self : packets.StmtPacket) : Result Std.U16 := do
+  misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.num_columns
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtPacket}::num_params]:
+    Source: 'src/packets/mod.rs', lines 2801:4-2803:5
+    Visibility: public -/
+def packets.StmtPacket.impl.num_params
+  (self : packets.StmtPacket) : Result Std.U16 := do
+  misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.num_params
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtPacket}::warning_count]:
+    Source: 'src/packets/mod.rs', lines 2806:4-2808:5
+    Visibility: public -/
+def packets.StmtPacket.impl.warning_count
+  (self : packets.StmtPacket) : Result Std.U16 := do
+  misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+    self.warning_count
+
 /-- [mysql_common::packets::{mysql_common::packets::NullBitmap<T, U>}::from_bytes]:
-    Source: 'src/packets/mod.rs', lines 2596:4-2598:5
+    Source: 'src/packets/mod.rs', lines 2865:4-2867:5
     Visibility: public -/
 def packets.NullBitmap.from_bytes
   {T : Type _} {U : Type _} (valueSerializationSideInst :
@@ -11538,7 +18361,7 @@ def packets.NullBitmap.from_bytes
   ok (bytes, ())
 
 /-- [mysql_common::packets::{mysql_common::packets::NullBitmap<T, U>}::bitmap_len]:
-    Source: 'src/packets/mod.rs', lines 2581:4-2583:5
+    Source: 'src/packets/mod.rs', lines 2850:4-2852:5
     Visibility: public -/
 def packets.NullBitmap.bitmap_len
   {T : Type _} {U : Type _} (valueSerializationSideInst :
@@ -11552,7 +18375,7 @@ def packets.NullBitmap.bitmap_len
   i2 / 8#usize
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, usize> for mysql_common::packets::NullBitmap<T, alloc::borrow::Cow<'de, [u8], alloc::vec::Vec<u8>>>}::deserialize]:
-    Source: 'src/packets/mod.rs', lines 2552:4-2559:5
+    Source: 'src/packets/mod.rs', lines 2821:4-2828:5
     Visibility: public -/
 def
   packets.NullBitmapTCowDeSliceU8VecU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize
@@ -11579,7 +18402,7 @@ def
     ok (core.result.Result.Ok nb, buf1)
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, usize> for mysql_common::packets::NullBitmap<T, alloc::borrow::Cow<'de, [u8], alloc::vec::Vec<u8>>>}::SIZE]
-    Source: 'src/packets/mod.rs', lines 2549:4-2549:37
+    Source: 'src/packets/mod.rs', lines 2818:4-2818:37
     Visibility: public -/
 @[global_simps, irreducible]
 def
@@ -11589,7 +18412,7 @@ def
   none
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, usize> for mysql_common::packets::NullBitmap<T, alloc::borrow::Cow<'de, [u8], alloc::vec::Vec<u8>>>}]
-    Source: 'src/packets/mod.rs', lines 2548:0-2560:1 -/
+    Source: 'src/packets/mod.rs', lines 2817:0-2829:1 -/
 @[reducible]
 def
   packets.NullBitmapTCowDeSliceU8VecU8.Insts.Mysql_commonProtoMyDeserializeDeUsize
@@ -11605,7 +18428,7 @@ def
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::NullBitmap<T, alloc::vec::Vec<u8>>}::new]:
-    Source: 'src/packets/mod.rs', lines 2564:4-2566:5
+    Source: 'src/packets/mod.rs', lines 2833:4-2835:5
     Visibility: public -/
 def packets.NullBitmapTVecU8.new
   {T : Type _} (valueSerializationSideInst : value.SerializationSide T)
@@ -11621,7 +18444,7 @@ def packets.NullBitmapTVecU8.new
     (alloc.vec.Vec.Insts.CoreConvertAsRefSlice Std.U8 alloc.alloc.Global) v
 
 /-- [mysql_common::packets::{mysql_common::packets::NullBitmap<T, alloc::vec::Vec<u8>>}::read]:
-    Source: 'src/packets/mod.rs', lines 2569:4-2577:5
+    Source: 'src/packets/mod.rs', lines 2838:4-2846:5
     Visibility: public -/
 def packets.NullBitmapTVecU8.read
   {T : Type _} (valueSerializationSideInst : value.SerializationSide T)
@@ -11648,7 +18471,7 @@ def packets.NullBitmapTVecU8.read
   ok (bitmap, input1)
 
 /-- [mysql_common::packets::{mysql_common::packets::NullBitmap<T, U>}::byte_and_bit]:
-    Source: 'src/packets/mod.rs', lines 2585:4-2593:5 -/
+    Source: 'src/packets/mod.rs', lines 2854:4-2862:5 -/
 def packets.NullBitmap.byte_and_bit
   {T : Type _} {U : Type _} (valueSerializationSideInst :
   value.SerializationSide T) (coreconvertAsRefUSliceU8Inst : core.convert.AsRef
@@ -11669,7 +18492,7 @@ def packets.NullBitmap.byte_and_bit
   ok (byte, bit)
 
 /-- [mysql_common::packets::{mysql_common::packets::NullBitmap<T, U>}::is_null]:
-    Source: 'src/packets/mod.rs', lines 2601:4-2604:5
+    Source: 'src/packets/mod.rs', lines 2870:4-2873:5
     Visibility: public -/
 def packets.NullBitmap.is_null
   {T : Type _} {U : Type _} (valueSerializationSideInst :
@@ -11688,7 +18511,7 @@ def packets.NullBitmap.is_null
   ok (i1 > 0#u8)
 
 /-- [mysql_common::packets::{mysql_common::packets::NullBitmap<T, U>}::set]:
-    Source: 'src/packets/mod.rs', lines 2609:4-2616:5
+    Source: 'src/packets/mod.rs', lines 2878:4-2885:5
     Visibility: public -/
 def packets.NullBitmap.set
   {T : Type _} {U : Type _} (valueSerializationSideInst :
@@ -11721,7 +18544,7 @@ def packets.NullBitmap.set
     ok (t1, pd)
 
 /-- [mysql_common::packets::{impl core::convert::AsRef<[u8]> for mysql_common::packets::NullBitmap<T, U>}::as_ref]:
-    Source: 'src/packets/mod.rs', lines 2621:4-2623:5
+    Source: 'src/packets/mod.rs', lines 2890:4-2892:5
     Visibility: public -/
 def packets.NullBitmap.Insts.CoreConvertAsRefSliceU8.as_ref
   {T : Type _} {U : Type _} (coreconvertAsRefUSliceU8Inst : core.convert.AsRef
@@ -11732,7 +18555,7 @@ def packets.NullBitmap.Insts.CoreConvertAsRefSliceU8.as_ref
   coreconvertAsRefUSliceU8Inst.as_ref t
 
 /-- Trait implementation: [mysql_common::packets::{impl core::convert::AsRef<[u8]> for mysql_common::packets::NullBitmap<T, U>}]
-    Source: 'src/packets/mod.rs', lines 2620:0-2624:1 -/
+    Source: 'src/packets/mod.rs', lines 2889:0-2893:1 -/
 @[reducible]
 def packets.NullBitmap.Insts.CoreConvertAsRefSliceU8 (T : Type _) {U : Type _}
   (coreconvertAsRefUSliceU8Inst : core.convert.AsRef U (Slice Std.U8)) :
@@ -11742,7 +18565,7 @@ def packets.NullBitmap.Insts.CoreConvertAsRefSliceU8 (T : Type _) {U : Type _}
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequestBuilder}::new]:
-    Source: 'src/packets/mod.rs', lines 2634:4-2636:5
+    Source: 'src/packets/mod.rs', lines 2903:4-2905:5
     Visibility: public -/
 def packets.ComStmtExecuteRequestBuilder.new
   (stmt_id : Std.U32) : Result packets.ComStmtExecuteRequestBuilder := do
@@ -11973,7 +18796,7 @@ def value.ClientSide.Insts.Mysql_commonValueSerializationSide :
 }
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequestBuilder}::build]: loop body 0:
-    Source: 'src/packets/mod.rs', lines 2648:8-2653:9
+    Source: 'src/packets/mod.rs', lines 2917:8-2922:9
     Visibility: public -/
 @[rust_loop_body]
 def packets.ComStmtExecuteRequestBuilder.build_loop.body
@@ -12005,7 +18828,7 @@ def packets.ComStmtExecuteRequestBuilder.build_loop.body
            ok (cont (iter1, bitmap, data_len1))
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequestBuilder}::build]: loop 0:
-    Source: 'src/packets/mod.rs', lines 2648:8-2653:9
+    Source: 'src/packets/mod.rs', lines 2917:8-2922:9
     Visibility: public -/
 @[rust_loop]
 def packets.ComStmtExecuteRequestBuilder.build_loop
@@ -12022,7 +18845,7 @@ def packets.ComStmtExecuteRequestBuilder.build_loop
     (iter, bitmap, data_len)
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequestBuilder}::build]:
-    Source: 'src/packets/mod.rs', lines 2640:4-2673:5
+    Source: 'src/packets/mod.rs', lines 2909:4-2942:5
     Visibility: public -/
 def packets.ComStmtExecuteRequestBuilder.build
   (self : packets.ComStmtExecuteRequestBuilder) (params : Slice value.Value) :
@@ -12078,7 +18901,7 @@ def packets.ComStmtExecuteRequestBuilder.build
      }, total_len > constants.MAX_PAYLOAD_LEN)
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequest<'a>}::stmt_id]:
-    Source: 'src/packets/mod.rs', lines 2703:4-2705:5
+    Source: 'src/packets/mod.rs', lines 2972:4-2974:5
     Visibility: public -/
 def packets.ComStmtExecuteRequest.impl.stmt_id
   (self : packets.ComStmtExecuteRequest) : Result Std.U32 := do
@@ -12086,7 +18909,7 @@ def packets.ComStmtExecuteRequest.impl.stmt_id
   ok i
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequest<'a>}::flags]:
-    Source: 'src/packets/mod.rs', lines 2707:4-2709:5
+    Source: 'src/packets/mod.rs', lines 2976:4-2978:5
     Visibility: public -/
 def packets.ComStmtExecuteRequest.impl.flags
   (self : packets.ComStmtExecuteRequest) : Result constants.CursorType := do
@@ -12094,7 +18917,7 @@ def packets.ComStmtExecuteRequest.impl.flags
   ok ct
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequest<'a>}::bitmap]:
-    Source: 'src/packets/mod.rs', lines 2711:4-2713:5
+    Source: 'src/packets/mod.rs', lines 2980:4-2982:5
     Visibility: public -/
 def packets.ComStmtExecuteRequest.impl.bitmap
   (self : packets.ComStmtExecuteRequest) : Result (Slice Std.U8) := do
@@ -12103,7 +18926,7 @@ def packets.ComStmtExecuteRequest.impl.bitmap
     8192#usize) self.bitmap
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequest<'a>}::params_flags]:
-    Source: 'src/packets/mod.rs', lines 2715:4-2717:5
+    Source: 'src/packets/mod.rs', lines 2984:4-2986:5
     Visibility: public -/
 def packets.ComStmtExecuteRequest.impl.params_flags
   (self : packets.ComStmtExecuteRequest) :
@@ -12113,14 +18936,14 @@ def packets.ComStmtExecuteRequest.impl.params_flags
   ok sepf
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequest<'a>}::params]:
-    Source: 'src/packets/mod.rs', lines 2719:4-2721:5
+    Source: 'src/packets/mod.rs', lines 2988:4-2990:5
     Visibility: public -/
 def packets.ComStmtExecuteRequest.impl.params
   (self : packets.ComStmtExecuteRequest) : Result (Slice value.Value) := do
   ok self.params
 
 /-- [mysql_common::packets::{mysql_common::packets::ComStmtExecuteRequest<'a>}::as_long_data]:
-    Source: 'src/packets/mod.rs', lines 2723:4-2725:5
+    Source: 'src/packets/mod.rs', lines 2992:4-2994:5
     Visibility: public -/
 def packets.ComStmtExecuteRequest.impl.as_long_data
   (self : packets.ComStmtExecuteRequest) : Result Bool := do
@@ -13695,7 +20518,7 @@ def value.Value.Insts.Mysql_commonProtoMySerialize.serialize
           alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u32_le buf6 usecs
 
 /-- [mysql_common::packets::serialize_params]: loop body 0:
-    Source: 'src/packets/mod.rs', lines 2748:4-2777:5 -/
+    Source: 'src/packets/mod.rs', lines 3017:4-3046:5 -/
 @[rust_loop_body]
 def packets.serialize_params_loop0.body
   (params : Slice value.Value) (iter : core.ops.range.Range Std.Usize)
@@ -13750,7 +20573,7 @@ def packets.serialize_params_loop0.body
     ok (cont (iter1, buf1))
 
 /-- [mysql_common::packets::serialize_params]: loop 0:
-    Source: 'src/packets/mod.rs', lines 2748:4-2777:5 -/
+    Source: 'src/packets/mod.rs', lines 3017:4-3046:5 -/
 @[rust_loop]
 def packets.serialize_params_loop0
   (iter : core.ops.range.Range Std.Usize) (params : Slice value.Value)
@@ -13763,7 +20586,7 @@ def packets.serialize_params_loop0
     (iter, buf)
 
 /-- [mysql_common::packets::serialize_params]: loop body 1:
-    Source: 'src/packets/mod.rs', lines 2779:4-2795:5 -/
+    Source: 'src/packets/mod.rs', lines 3048:4-3064:5 -/
 @[rust_loop_body]
 def packets.serialize_params_loop1.body
   (params : Slice value.Value) (as_long_data : Bool)
@@ -13812,7 +20635,7 @@ def packets.serialize_params_loop1.body
       ok (cont (iter1, buf1))
 
 /-- [mysql_common::packets::serialize_params]: loop 1:
-    Source: 'src/packets/mod.rs', lines 2779:4-2795:5 -/
+    Source: 'src/packets/mod.rs', lines 3048:4-3064:5 -/
 @[rust_loop]
 def packets.serialize_params_loop1
   (iter : core.ops.range.Range Std.Usize) (params : Slice value.Value)
@@ -13825,7 +20648,7 @@ def packets.serialize_params_loop1
     (iter, buf)
 
 /-- [mysql_common::packets::serialize_params]:
-    Source: 'src/packets/mod.rs', lines 2747:0-2796:1 -/
+    Source: 'src/packets/mod.rs', lines 3016:0-3065:1 -/
 def packets.serialize_params
   (params : Slice value.Value) (as_long_data : Bool)
   (buf : alloc.vec.Vec Std.U8) :
@@ -13840,7 +20663,7 @@ def packets.serialize_params
     as_long_data buf1
 
 /-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtExecuteRequest<'_0>}::serialize]:
-    Source: 'src/packets/mod.rs', lines 2729:4-2742:5
+    Source: 'src/packets/mod.rs', lines 2998:4-3011:5
     Visibility: public -/
 def packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
   (self : packets.ComStmtExecuteRequest) (buf : alloc.vec.Vec Std.U8) :
@@ -13877,12 +20700,5222 @@ def packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
     packets.serialize_params self.params self.as_long_data buf6
 
 /-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtExecuteRequest<'_0>}]
-    Source: 'src/packets/mod.rs', lines 2728:0-2743:1 -/
+    Source: 'src/packets/mod.rs', lines 2997:0-3012:1 -/
 @[reducible]
 def packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize :
   proto.MySerialize packets.ComStmtExecuteRequest := {
   serialize :=
     packets.ComStmtExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtSendLongData<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 3082:4-3089:5
+    Visibility: public -/
+def packets.ComStmtSendLongData.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (stmt_id : Std.U32)
+  (param_index : Std.U16) (data : T1) :
+  Result packets.ComStmtSendLongData
+  := do
+  let cu ←
+    misc.raw.int.ConstU8.new packets.InvalidComStmtSendLongDataHeader 24#u8
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 stmt_id
+  let ri1 ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 param_index
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst data
+  ok { __header := cu, stmt_id := ri, param_index := ri1, data := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtSendLongData<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 3091:4-3098:5
+    Visibility: public -/
+def packets.ComStmtSendLongData.into_owned
+  (self : packets.ComStmtSendLongData) :
+  Result packets.ComStmtSendLongData
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.data
+  ok { self with data := rb }
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtSendLongData<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3102:4-3107:5
+    Visibility: public -/
+def packets.ComStmtSendLongData.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComStmtSendLongData) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.__header buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.stmt_id
+      buf1
+  let buf3 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      self.param_index buf2
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.data buf3
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtSendLongData<'_0>}]
+    Source: 'src/packets/mod.rs', lines 3101:0-3108:1 -/
+@[reducible]
+def packets.ComStmtSendLongData.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.ComStmtSendLongData := {
+  serialize :=
+    packets.ComStmtSendLongData.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtClose}::new]:
+    Source: 'src/packets/mod.rs', lines 3116:4-3118:5
+    Visibility: public -/
+def packets.ComStmtClose.new
+  (stmt_id : Std.U32) : Result packets.ComStmtClose := do
+  ok { stmt_id }
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtClose}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3122:4-3125:5
+    Visibility: public -/
+def packets.ComStmtClose.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComStmtClose) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i ← 0#u8 + 25#u8
+  let i1 ← lift (UScalar.cast .U8 i)
+  let buf1 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u8 buf i1
+  alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u32_le buf1 self.stmt_id
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtClose}]
+    Source: 'src/packets/mod.rs', lines 3121:0-3126:1 -/
+@[reducible]
+def packets.ComStmtClose.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.ComStmtClose := {
+  serialize :=
+    packets.ComStmtClose.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::new]:
+    Source: 'src/packets/mod.rs', lines 3144:4-3158:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequestBuilder.new
+  (stmt_id : Std.U32) (max_allowed_packet : Std.Usize) :
+  Result packets.ComStmtBulkExecuteRequestBuilder
+  := do
+  let i ← max_allowed_packet - 4#usize
+  ok
+    {
+      stmt_id,
+      with_types := true,
+      with_results := false,
+      params_set := (alloc.vec.Vec.new (alloc.vec.Vec value.Value)),
+      payload_len := 0#usize,
+      arity := none,
+      named_params := none,
+      max_payload_len := i
+    }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::with_named_params]:
+    Source: 'src/packets/mod.rs', lines 3161:4-3175:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequestBuilder.with_named_params
+  (self : packets.ComStmtBulkExecuteRequestBuilder)
+  (named_params : Option (Slice (alloc.vec.Vec Std.U8))) :
+  Result packets.ComStmtBulkExecuteRequestBuilder
+  := do
+  ok { self with named_params }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::with_results]:
+    Source: 'src/packets/mod.rs', lines 3181:4-3192:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequestBuilder.impl.with_results
+  (self : packets.ComStmtBulkExecuteRequestBuilder) :
+  Result packets.ComStmtBulkExecuteRequestBuilder
+  := do
+  ok { self with with_results := true }
+
+/-- [mysql_common::packets::{impl core::convert::From<mysql_common::packets::BulkExecuteRequestError> for mysql_common::packets::BulkExecuteRequestBuilderError}::from]:
+    Source: 'src/packets/mod.rs', lines 3610:34-3610:50
+    Visibility: public -/
+def
+  packets.BulkExecuteRequestBuilderError.Insts.CoreConvertFromBulkExecuteRequestError.from
+  (source : packets.BulkExecuteRequestError) :
+  Result packets.BulkExecuteRequestBuilderError
+  := do
+  ok (packets.BulkExecuteRequestBuilderError.Request source)
+
+/-- Trait implementation: [mysql_common::packets::{impl core::convert::From<mysql_common::packets::BulkExecuteRequestError> for mysql_common::packets::BulkExecuteRequestBuilderError}]
+    Source: 'src/packets/mod.rs', lines 3613:12-3613:19 -/
+@[reducible]
+def
+  packets.BulkExecuteRequestBuilderError.Insts.CoreConvertFromBulkExecuteRequestError
+  : core.convert.From packets.BulkExecuteRequestBuilderError
+  packets.BulkExecuteRequestError := {
+  «from» :=
+    packets.BulkExecuteRequestBuilderError.Insts.CoreConvertFromBulkExecuteRequestError.from
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::add_row]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3242:8-3248:9
+    Visibility: public -/
+@[rust_loop_body]
+def packets.ComStmtBulkExecuteRequestBuilder.add_row_loop.body
+  (params : alloc.vec.Vec value.Value) (iter : core.ops.range.Range Std.Usize)
+  (data_len : Std.Usize) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × Std.Usize)
+    Std.Usize)
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done data_len)
+  | some i =>
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice value.Value)
+        params i
+    let i1 ← value.Value.bin_len v
+    let x ← lift (UScalar.cast .Usize i1)
+    match x.val with
+    | 0 => let data_len1 ← data_len + 1#usize
+           ok (cont (iter1, data_len1))
+    | _ =>
+      let i2 ← x + 1#usize
+      let data_len1 ← data_len + i2
+      ok (cont (iter1, data_len1))
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::add_row]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3242:8-3248:9
+    Visibility: public -/
+@[rust_loop]
+def packets.ComStmtBulkExecuteRequestBuilder.add_row_loop
+  (iter : core.ops.range.Range Std.Usize) (params : alloc.vec.Vec value.Value)
+  (data_len : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun (iter1, data_len1) =>
+      packets.ComStmtBulkExecuteRequestBuilder.add_row_loop.body params iter1
+      data_len1)
+    (iter, data_len)
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::add_row]:
+    Source: 'src/packets/mod.rs', lines 3221:4-3263:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequestBuilder.add_row
+  (self : packets.ComStmtBulkExecuteRequestBuilder)
+  (params : alloc.vec.Vec value.Value) :
+  Result ((core.result.Result (Option (alloc.vec.Vec value.Value))
+    packets.BulkExecuteRequestBuilderError) ×
+    packets.ComStmtBulkExecuteRequestBuilder)
+  := do
+  let (i, arity) ←
+    match self.arity with
+    | none =>
+      let i1 := alloc.vec.Vec.len params
+      let arity1 := alloc.vec.Vec.len params
+      ok (i1, arity1)
+    | some arity1 => ok (arity1, arity1)
+  let i1 := alloc.vec.Vec.len params
+  if i1 != arity
+  then
+    let berbe ←
+      core.convert.IntoFrom.into
+        packets.BulkExecuteRequestBuilderError.Insts.CoreConvertFromBulkExecuteRequestError
+        packets.BulkExecuteRequestError.MixedArity
+    ok (core.result.Result.Err berbe, { self with arity := (some i) })
+  else
+    let i2 ←
+      if self.with_types
+      then
+        if self.payload_len = 0#usize
+        then let i3 := alloc.vec.Vec.len params
+             i3 * 2#usize
+        else ok self.payload_len
+      else ok self.payload_len
+    let i3 := alloc.vec.Vec.len params
+    let data_len ←
+      packets.ComStmtBulkExecuteRequestBuilder.add_row_loop
+        { start := 0#usize, «end» := i3 } params 0#usize
+    let i4 ← 7#usize + i2
+    let i5 ← i4 + data_len
+    if i5 > self.max_payload_len
+    then
+      let b ← alloc.vec.Vec.is_empty self.params_set
+      if b
+      then
+        let berbe ←
+          core.convert.IntoFrom.into
+            packets.BulkExecuteRequestBuilderError.Insts.CoreConvertFromBulkExecuteRequestError
+            (packets.BulkExecuteRequestError.RowTooLarge params)
+        ok (core.result.Result.Err berbe,
+          { self with payload_len := i2, arity := (some i) })
+      else
+        ok (core.result.Result.Ok (some params),
+          { self with payload_len := i2, arity := (some i) })
+    else
+      let v ← alloc.vec.Vec.push self.params_set params
+      let i6 ← i2 + data_len
+      ok (core.result.Result.Ok none,
+        { self with params_set := v, payload_len := i6, arity := (some i) })
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::has_rows]:
+    Source: 'src/packets/mod.rs', lines 3265:4-3267:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequestBuilder.has_rows
+  (self : packets.ComStmtBulkExecuteRequestBuilder) : Result Bool := do
+  let b ← alloc.vec.Vec.is_empty self.params_set
+  ok (¬ b)
+
+/-- [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::StmtBulkExecuteParamType}::clone]:
+    Source: 'src/packets/mod.rs', lines 3369:16-3369:21
+    Visibility: public -/
+def packets.StmtBulkExecuteParamType.Insts.CoreCloneClone.clone
+  (self : packets.StmtBulkExecuteParamType) :
+  Result packets.StmtBulkExecuteParamType
+  := do
+  ok self
+
+/-- Trait implementation: [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::StmtBulkExecuteParamType}]
+    Source: 'src/packets/mod.rs', lines 3369:16-3369:21 -/
+@[reducible]
+def packets.StmtBulkExecuteParamType.Insts.CoreCloneClone : core.clone.Clone
+  packets.StmtBulkExecuteParamType := {
+  clone := packets.StmtBulkExecuteParamType.Insts.CoreCloneClone.clone
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtBulkExecuteParamValue}::new]:
+    Source: 'src/packets/mod.rs', lines 3493:4-3503:5
+    Visibility: public -/
+def packets.StmtBulkExecuteParamValue.new
+  (v : value.Value) : Result packets.StmtBulkExecuteParamValue := do
+  let b ←
+    match v with
+    | value.Value.NULL => ok true
+    | value.Value.Bytes _ => ok false
+    | value.Value.Int _ => ok false
+    | value.Value.UInt _ => ok false
+    | value.Value.Float _ => ok false
+    | value.Value.Double _ => ok false
+    | value.Value.Date _ _ _ _ _ _ _ => ok false
+    | value.Value.Time _ _ _ _ _ _ => ok false
+  let indicator ←
+    if b
+    then ok constants.MariadbBulkIndicator.BULK_INDICATOR_NULL
+    else ok constants.MariadbBulkIndicator.BULK_INDICATOR_NONE
+  let c ← misc.raw._const.Const.new Std.U8 indicator
+  ok { indicator := c, value := v }
+
+/-- [mysql_common::packets::take_bulk_param_row]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3592:4-3597:5 -/
+@[rust_loop_body]
+def packets.take_bulk_param_row_loop.body
+  (iter : core.ops.range.Range Std.Usize) (row : Slice value.Value)
+  (out : alloc.vec.Vec packets.StmtBulkExecuteParamValue) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (Slice value.Value)
+    × (alloc.vec.Vec packets.StmtBulkExecuteParamValue)) ((Slice value.Value)
+    × (alloc.vec.Vec packets.StmtBulkExecuteParamValue)))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done (row, out))
+  | some j =>
+    let (v, index_mut_back) ← Slice.index_mut_usize row j
+    let (v1, v2) := core.mem.replace v value.Value.NULL
+    let sbepv ← packets.StmtBulkExecuteParamValue.new v1
+    let out1 ← alloc.vec.Vec.push out sbepv
+    let s := index_mut_back v2
+    ok (cont (iter1, s, out1))
+
+/-- [mysql_common::packets::take_bulk_param_row]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3592:4-3597:5 -/
+@[rust_loop]
+def packets.take_bulk_param_row_loop
+  (iter : core.ops.range.Range Std.Usize) (row : Slice value.Value)
+  (out : alloc.vec.Vec packets.StmtBulkExecuteParamValue) :
+  Result ((Slice value.Value) × (alloc.vec.Vec
+    packets.StmtBulkExecuteParamValue))
+  := do
+  loop
+    (fun (iter1, row1, out1) => packets.take_bulk_param_row_loop.body iter1
+      row1 out1)
+    (iter, row, out)
+
+/-- [mysql_common::packets::take_bulk_param_row]:
+    Source: 'src/packets/mod.rs', lines 3591:0-3598:1 -/
+def packets.take_bulk_param_row
+  (row : Slice value.Value)
+  (out : alloc.vec.Vec packets.StmtBulkExecuteParamValue) :
+  Result ((Slice value.Value) × (alloc.vec.Vec
+    packets.StmtBulkExecuteParamValue))
+  := do
+  let i := Slice.len row
+  packets.take_bulk_param_row_loop { start := 0#usize, «end» := i } row out
+
+/-- [mysql_common::packets::take_bulk_param_values]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3584:4-3586:5 -/
+@[rust_loop_body]
+def packets.take_bulk_param_values_loop.body
+  (iter : core.ops.range.Range Std.Usize)
+  (values : Slice (alloc.vec.Vec value.Value))
+  (out : alloc.vec.Vec packets.StmtBulkExecuteParamValue) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (Slice
+    (alloc.vec.Vec value.Value)) × (alloc.vec.Vec
+    packets.StmtBulkExecuteParamValue)) ((alloc.vec.Vec
+    packets.StmtBulkExecuteParamValue) × (Slice (alloc.vec.Vec value.Value))))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done (out, values))
+  | some i =>
+    let (v, index_mut_back) ← Slice.index_mut_usize values i
+    let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut v)
+    let (s1, out1) ← packets.take_bulk_param_row s out
+    let v1 := deref_mut_back s1
+    let s2 := index_mut_back v1
+    ok (cont (iter1, s2, out1))
+
+/-- [mysql_common::packets::take_bulk_param_values]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3584:4-3586:5 -/
+@[rust_loop]
+def packets.take_bulk_param_values_loop
+  (iter : core.ops.range.Range Std.Usize)
+  (values : Slice (alloc.vec.Vec value.Value))
+  (out : alloc.vec.Vec packets.StmtBulkExecuteParamValue) :
+  Result ((alloc.vec.Vec packets.StmtBulkExecuteParamValue) × (Slice
+    (alloc.vec.Vec value.Value)))
+  := do
+  loop
+    (fun (iter1, values1, out1) => packets.take_bulk_param_values_loop.body
+      iter1 values1 out1)
+    (iter, values, out)
+
+/-- [mysql_common::packets::take_bulk_param_values]:
+    Source: 'src/packets/mod.rs', lines 3582:0-3588:1 -/
+def packets.take_bulk_param_values
+  (values : Slice (alloc.vec.Vec value.Value)) :
+  Result ((alloc.vec.Vec packets.StmtBulkExecuteParamValue) × (Slice
+    (alloc.vec.Vec value.Value)))
+  := do
+  let i := Slice.len values
+  packets.take_bulk_param_values_loop { start := 0#usize, «end» := i } values
+    (alloc.vec.Vec.new packets.StmtBulkExecuteParamValue)
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtBulkExecuteParamType}::flags]:
+    Source: 'src/packets/mod.rs', lines 3420:4-3422:5
+    Visibility: public -/
+def packets.StmtBulkExecuteParamType.impl.flags
+  (self : packets.StmtBulkExecuteParamType) :
+  Result constants.StmtExecuteParamFlags
+  := do
+  let (sepf, _) := self.flags
+  ok sepf
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtBulkExecuteParamType}::column_type]:
+    Source: 'src/packets/mod.rs', lines 3416:4-3418:5
+    Visibility: public -/
+def packets.StmtBulkExecuteParamType.column_type
+  (self : packets.StmtBulkExecuteParamType) : Result constants.ColumnType := do
+  let (ct, _) := self.type
+  ok ct
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtBulkExecuteParamType}::new]:
+    Source: 'src/packets/mod.rs', lines 3376:4-3381:5
+    Visibility: public -/
+def packets.StmtBulkExecuteParamType.new
+  (type : constants.ColumnType) (flags : constants.StmtExecuteParamFlags) :
+  Result packets.StmtBulkExecuteParamType
+  := do
+  let c ← misc.raw._const.Const.new Std.U8 type
+  let c1 ← misc.raw._const.Const.new Std.U8 flags
+  ok { type := c, flags := c1 }
+
+/-- [mysql_common::packets::merge_bulk_param_types]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3557:4-3577:5 -/
+@[rust_loop_body]
+def packets.merge_bulk_param_types_loop.body
+  (row_types : Slice packets.StmtBulkExecuteParamType)
+  (iter : core.ops.range.Range Std.Usize)
+  (types : Slice packets.StmtBulkExecuteParamType) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (Slice
+    packets.StmtBulkExecuteParamType)) (Slice
+    packets.StmtBulkExecuteParamType))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done types)
+  | some i =>
+    let left ← Slice.index_usize types i
+    let right ← Slice.index_usize row_types i
+    let ct ← packets.StmtBulkExecuteParamType.column_type left
+    let ct1 ← packets.StmtBulkExecuteParamType.column_type right
+    let b ←
+      core.cmp.PartialEq.ne.trait_default
+        constants.ColumnType.Insts.CoreCmpPartialEqColumnType ct ct1
+    if b
+    then
+      let b1 ←
+        constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq ct
+          constants.ColumnType.MYSQL_TYPE_NULL
+      if b1
+      then let s ← Slice.update types i right
+           ok (cont (iter1, s))
+      else
+        let b2 ←
+          constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq ct ct1
+        if b2
+        then
+          let sepf ← packets.StmtBulkExecuteParamType.impl.flags left
+          let sepf1 ← packets.StmtBulkExecuteParamType.impl.flags right
+          let sepf2 ← constants.StmtExecuteParamFlags.union sepf sepf1
+          let sbept ← packets.StmtBulkExecuteParamType.new ct1 sepf2
+          let s ← Slice.update types i sbept
+          ok (cont (iter1, s))
+        else ok (cont (iter1, types))
+    else
+      let sepf ← packets.StmtBulkExecuteParamType.impl.flags left
+      let sepf1 ← packets.StmtBulkExecuteParamType.impl.flags right
+      let b1 ←
+        core.cmp.PartialEq.ne.trait_default
+          constants.StmtExecuteParamFlags.Insts.CoreCmpPartialEqStmtExecuteParamFlags
+          sepf sepf1
+      if b1
+      then
+        let b2 ←
+          constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq ct
+            constants.ColumnType.MYSQL_TYPE_NULL
+        if b2
+        then let s ← Slice.update types i right
+             ok (cont (iter1, s))
+        else
+          let b3 ←
+            constants.ColumnType.Insts.CoreCmpPartialEqColumnType.eq ct ct1
+          if b3
+          then
+            let sepf2 ← constants.StmtExecuteParamFlags.union sepf sepf1
+            let sbept ← packets.StmtBulkExecuteParamType.new ct1 sepf2
+            let s ← Slice.update types i sbept
+            ok (cont (iter1, s))
+          else ok (cont (iter1, types))
+      else ok (cont (iter1, types))
+
+/-- [mysql_common::packets::merge_bulk_param_types]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3557:4-3577:5 -/
+@[rust_loop]
+def packets.merge_bulk_param_types_loop
+  (iter : core.ops.range.Range Std.Usize)
+  (types : Slice packets.StmtBulkExecuteParamType)
+  (row_types : Slice packets.StmtBulkExecuteParamType) :
+  Result (Slice packets.StmtBulkExecuteParamType)
+  := do
+  loop
+    (fun (iter1, types1) => packets.merge_bulk_param_types_loop.body row_types
+      iter1 types1)
+    (iter, types)
+
+/-- [mysql_common::packets::merge_bulk_param_types]:
+    Source: 'src/packets/mod.rs', lines 3548:0-3578:1 -/
+def packets.merge_bulk_param_types
+  (types : Slice packets.StmtBulkExecuteParamType)
+  (row_types : Slice packets.StmtBulkExecuteParamType) :
+  Result (Slice packets.StmtBulkExecuteParamType)
+  := do
+  let i := Slice.len types
+  let i1 := Slice.len row_types
+  let n ← if i < i1
+            then ok (Slice.len types)
+            else ok (Slice.len row_types)
+  packets.merge_bulk_param_types_loop { start := 0#usize, «end» := n } types
+    row_types
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtBulkExecuteParamType}::from_value]:
+    Source: 'src/packets/mod.rs', lines 3383:4-3414:5
+    Visibility: public -/
+def packets.StmtBulkExecuteParamType.from_value
+  (v : value.Value) : Result packets.StmtBulkExecuteParamType := do
+  let (type, flags) ←
+    match v with
+    | value.Value.NULL =>
+      do
+      let sepf ← constants.StmtExecuteParamFlags.empty
+      ok (constants.ColumnType.MYSQL_TYPE_NULL, sepf)
+    | value.Value.Bytes _ =>
+      do
+      let sepf ← constants.StmtExecuteParamFlags.empty
+      ok (constants.ColumnType.MYSQL_TYPE_VAR_STRING, sepf)
+    | value.Value.Int _ =>
+      do
+      let sepf ← constants.StmtExecuteParamFlags.empty
+      ok (constants.ColumnType.MYSQL_TYPE_LONGLONG, sepf)
+    | value.Value.UInt _ =>
+      ok (constants.ColumnType.MYSQL_TYPE_LONGLONG,
+        constants.StmtExecuteParamFlags.UNSIGNED)
+    | value.Value.Float _ =>
+      do
+      let sepf ← constants.StmtExecuteParamFlags.empty
+      ok (constants.ColumnType.MYSQL_TYPE_FLOAT, sepf)
+    | value.Value.Double _ =>
+      do
+      let sepf ← constants.StmtExecuteParamFlags.empty
+      ok (constants.ColumnType.MYSQL_TYPE_DOUBLE, sepf)
+    | value.Value.Date _ _ _ _ _ _ _ =>
+      do
+      let sepf ← constants.StmtExecuteParamFlags.empty
+      ok (constants.ColumnType.MYSQL_TYPE_DATETIME, sepf)
+    | value.Value.Time _ _ _ _ _ _ =>
+      do
+      let sepf ← constants.StmtExecuteParamFlags.empty
+      ok (constants.ColumnType.MYSQL_TYPE_TIME, sepf)
+  let c ← misc.raw._const.Const.new Std.U8 type
+  let c1 ← misc.raw._const.Const.new Std.U8 flags
+  ok { type := c, flags := c1 }
+
+/-- [mysql_common::packets::bulk_param_types]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3540:4-3542:5 -/
+@[rust_loop_body]
+def packets.bulk_param_types_loop.body
+  (row : Slice value.Value) (iter : core.ops.range.Range Std.Usize)
+  (types : alloc.vec.Vec packets.StmtBulkExecuteParamType) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (alloc.vec.Vec
+    packets.StmtBulkExecuteParamType)) (alloc.vec.Vec
+    packets.StmtBulkExecuteParamType))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done types)
+  | some i =>
+    let v ← Slice.index_usize row i
+    let sbept ← packets.StmtBulkExecuteParamType.from_value v
+    let types1 ← alloc.vec.Vec.push types sbept
+    ok (cont (iter1, types1))
+
+/-- [mysql_common::packets::bulk_param_types]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3540:4-3542:5 -/
+@[rust_loop]
+def packets.bulk_param_types_loop
+  (iter : core.ops.range.Range Std.Usize) (row : Slice value.Value)
+  (types : alloc.vec.Vec packets.StmtBulkExecuteParamType) :
+  Result (alloc.vec.Vec packets.StmtBulkExecuteParamType)
+  := do
+  loop
+    (fun (iter1, types1) => packets.bulk_param_types_loop.body row iter1
+      types1)
+    (iter, types)
+
+/-- [mysql_common::packets::bulk_param_types]:
+    Source: 'src/packets/mod.rs', lines 3538:0-3544:1 -/
+def packets.bulk_param_types
+  (row : Slice value.Value) :
+  Result (alloc.vec.Vec packets.StmtBulkExecuteParamType)
+  := do
+  let i := Slice.len row
+  let types := alloc.vec.Vec.with_capacity packets.StmtBulkExecuteParamType i
+  let i1 := Slice.len row
+  packets.bulk_param_types_loop { start := 0#usize, «end» := i1 } row types
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::new]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3644:8-3665:5
+    Visibility: public -/
+@[rust_loop_body]
+def packets.ComStmtBulkExecuteRequest.new_loop.body
+  (stmt_id : Std.U32) (bulk_flags : constants.StmtBulkExecuteFlags)
+  (values : alloc.vec.Vec (alloc.vec.Vec value.Value)) (arity : Std.Usize)
+  (iter : core.ops.range.Range Std.Usize)
+  (types : alloc.vec.Vec packets.StmtBulkExecuteParamType) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (alloc.vec.Vec
+    packets.StmtBulkExecuteParamType)) (core.result.Result
+    packets.ComStmtBulkExecuteRequest packets.BulkExecuteRequestError))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none =>
+    let (s, _) ← lift (alloc.vec.Vec.deref_mut values)
+    let (values1, _) ← packets.take_bulk_param_values s
+    let cu ←
+      misc.raw.int.ConstU8.new packets.InvalidComStmtBulkExecuteHeader 250#u8
+    let ri ←
+      misc.raw.int.RawInt.new
+        misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 stmt_id
+    let c ← misc.raw._const.Const.new misc.raw.int.LeU16 bulk_flags
+    let s1 ←
+      misc.raw.seq.Seq.new misc.raw.seq.Unknown
+        packets.StmtBulkExecuteParamType.Insts.CoreCloneClone
+        (core.convert.IntoFrom
+        (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec
+        packets.StmtBulkExecuteParamType.Insts.CoreCloneClone)) types
+    ok (done (core.result.Result.Ok
+      {
+        header := cu,
+        stmt_id := ri,
+        bulk_flags := c,
+        types := s1,
+        values := { values := values1 }
+      }))
+  | some i =>
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        value.Value)) values i
+    let i1 := alloc.vec.Vec.len v
+    if i1 != arity
+    then
+      ok (done (core.result.Result.Err
+        packets.BulkExecuteRequestError.MixedArity))
+    else
+      let s := alloc.vec.Vec.deref v
+      let row_types ← packets.bulk_param_types s
+      let (s1, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut types)
+      let s2 := alloc.vec.Vec.deref row_types
+      let s3 ← packets.merge_bulk_param_types s1 s2
+      let types1 := deref_mut_back s3
+      ok (cont (iter1, types1))
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::new]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3644:8-3665:5
+    Visibility: public -/
+@[rust_loop]
+def packets.ComStmtBulkExecuteRequest.new_loop
+  (iter : core.ops.range.Range Std.Usize) (stmt_id : Std.U32)
+  (bulk_flags : constants.StmtBulkExecuteFlags)
+  (values : alloc.vec.Vec (alloc.vec.Vec value.Value)) (arity : Std.Usize)
+  (types : alloc.vec.Vec packets.StmtBulkExecuteParamType) :
+  Result (core.result.Result packets.ComStmtBulkExecuteRequest
+    packets.BulkExecuteRequestError)
+  := do
+  loop
+    (fun (iter1, types1) => packets.ComStmtBulkExecuteRequest.new_loop.body
+      stmt_id bulk_flags values arity iter1 types1)
+    (iter, types)
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 3628:4-3665:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequest.new
+  (stmt_id : Std.U32) (bulk_flags : constants.StmtBulkExecuteFlags)
+  (values : alloc.vec.Vec (alloc.vec.Vec value.Value)) :
+  Result (core.result.Result packets.ComStmtBulkExecuteRequest
+    packets.BulkExecuteRequestError)
+  := do
+  let b ← alloc.vec.Vec.is_empty values
+  if b
+  then ok (core.result.Result.Err packets.BulkExecuteRequestError.NoParams)
+  else
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        value.Value)) values 0#usize
+    let arity := alloc.vec.Vec.len v
+    let b1 ←
+      constants.StmtBulkExecuteFlags.contains bulk_flags
+        constants.StmtBulkExecuteFlags.SEND_TYPES_TO_SERVER
+    let types ←
+      if b1
+      then let s := alloc.vec.Vec.deref v
+           packets.bulk_param_types s
+      else ok (alloc.vec.Vec.new packets.StmtBulkExecuteParamType)
+    let i := alloc.vec.Vec.len values
+    packets.ComStmtBulkExecuteRequest.new_loop
+      { start := 0#usize, «end» := i } stmt_id bulk_flags values arity types
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequestBuilder<'_0>}::build]:
+    Source: 'src/packets/mod.rs', lines 3277:4-3295:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequestBuilder.build
+  (self : packets.ComStmtBulkExecuteRequestBuilder) :
+  Result ((core.result.Result packets.ComStmtBulkExecuteRequest
+    packets.BulkExecuteRequestError) ×
+    packets.ComStmtBulkExecuteRequestBuilder)
+  := do
+  let bulk_flags ← constants.StmtBulkExecuteFlags.empty
+  let bulk_flags1 ←
+    if self.with_results
+    then
+      constants.StmtBulkExecuteFlags.insert bulk_flags
+        constants.StmtBulkExecuteFlags.SEND_UNIT_RESULTS
+    else ok bulk_flags
+  let bulk_flags2 ←
+    if self.with_types
+    then
+      constants.StmtBulkExecuteFlags.insert bulk_flags1
+        constants.StmtBulkExecuteFlags.SEND_TYPES_TO_SERVER
+    else ok bulk_flags1
+  let (v, v1) :=
+    core.mem.replace self.params_set (alloc.vec.Vec.new (alloc.vec.Vec
+      value.Value))
+  let r ← packets.ComStmtBulkExecuteRequest.new self.stmt_id bulk_flags2 v
+  ok (r,
+    { self with with_types := false, params_set := v1, payload_len := 0#usize })
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComStmtBulkExecuteHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1
+    Visibility: public -/
+def packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidComStmtBulkExecuteHeader)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let a ←
+    core.fmt.Arguments.from_str_nonconst (toStr
+      "Invalid header for COM_STMT_BULK_EXECUTE")
+  core.fmt.Formatter.write_fmt __formatter a
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComStmtBulkExecuteHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1 -/
+@[reducible]
+def packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDisplay :
+  core.fmt.Display packets.InvalidComStmtBulkExecuteHeader := {
+  fmt := packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComStmtBulkExecuteHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1
+    Visibility: public -/
+def packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidComStmtBulkExecuteHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidComStmtBulkExecuteHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComStmtBulkExecuteHeader}]
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1 -/
+@[reducible]
+def packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidComStmtBulkExecuteHeader := {
+  fmt := packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidComStmtBulkExecuteHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1 -/
+@[reducible]
+def packets.InvalidComStmtBulkExecuteHeader.Insts.CoreErrorError :
+  core.error.Error packets.InvalidComStmtBulkExecuteHeader := {
+  fmtDebugInst := packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDebug
+  fmtDisplayInst :=
+    packets.InvalidComStmtBulkExecuteHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComStmtBulkExecuteHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1
+    Visibility: public -/
+def packets.InvalidComStmtBulkExecuteHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidComStmtBulkExecuteHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComStmtBulkExecuteHeader}]
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3363:0-3367:1 -/
+@[reducible]
+def packets.InvalidComStmtBulkExecuteHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidComStmtBulkExecuteHeader := {
+  default :=
+    packets.InvalidComStmtBulkExecuteHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::StmtBulkExecuteParamType}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 3429:4-3434:5
+    Visibility: public -/
+def
+  packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.StmtBulkExecuteParamType
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType
+      constants.UnknownColumnType.Insts.CoreErrorError) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        U8.Insts.Mysql_commonMiscRawIntIntReprU8
+        constants.StmtExecuteParamFlags.Insts.CoreConvertTryFromU8UnknownStmtExecuteParamFlags
+        constants.UnknownStmtExecuteParamFlags.Insts.CoreErrorError) buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      ok (core.result.Result.Ok { type := val, flags := val1 }, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.StmtBulkExecuteParamType (core.convert.FromSame
+          core.io.error.Error) residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.StmtBulkExecuteParamType (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::StmtBulkExecuteParamType}::SIZE]
+    Source: 'src/packets/mod.rs', lines 3426:4-3426:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  some 3#usize
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::StmtBulkExecuteParamType}]
+    Source: 'src/packets/mod.rs', lines 3425:0-3435:1 -/
+@[reducible]
+def
+  packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.StmtBulkExecuteParamType Unit := {
+  SIZE := ok
+    packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamType}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3438:4-3441:5
+    Visibility: public -/
+def
+  packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.StmtBulkExecuteParamType) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.ColumnType.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U8.Insts.CoreConvertFromColumnType)
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.type buf
+  misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+    constants.StmtExecuteParamFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+    U8.Insts.CoreConvertFromStmtExecuteParamFlags)
+    U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.flags buf1
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamType}]
+    Source: 'src/packets/mod.rs', lines 3437:0-3442:1 -/
+@[reducible]
+def packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.StmtBulkExecuteParamType := {
+  serialize :=
+    packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl core::convert::AsRef<[mysql_common::packets::StmtBulkExecuteParamValue]> for mysql_common::packets::StmtBulkExecuteParamValues}::as_ref]:
+    Source: 'src/packets/mod.rs', lines 3460:4-3462:5
+    Visibility: public -/
+def
+  packets.StmtBulkExecuteParamValues.Insts.CoreConvertAsRefSliceStmtBulkExecuteParamValue.as_ref
+  (self : packets.StmtBulkExecuteParamValues) :
+  Result (Slice packets.StmtBulkExecuteParamValue)
+  := do
+  ok (alloc.vec.Vec.deref self.values)
+
+/-- Trait implementation: [mysql_common::packets::{impl core::convert::AsRef<[mysql_common::packets::StmtBulkExecuteParamValue]> for mysql_common::packets::StmtBulkExecuteParamValues}]
+    Source: 'src/packets/mod.rs', lines 3459:0-3463:1 -/
+@[reducible]
+def
+  packets.StmtBulkExecuteParamValues.Insts.CoreConvertAsRefSliceStmtBulkExecuteParamValue
+  : core.convert.AsRef packets.StmtBulkExecuteParamValues (Slice
+  packets.StmtBulkExecuteParamValue) := {
+  as_ref :=
+    packets.StmtBulkExecuteParamValues.Insts.CoreConvertAsRefSliceStmtBulkExecuteParamValue.as_ref
+}
+
+/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_time]:
+    Source: 'src/value/mod.rs', lines 390:4-417:5 -/
+def value.Value.deserialize_time
+  (buf : io.ParseBuf) :
+  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
+  := do
+  let (o, buf1) ← io.ParseBuf.checked_eat_u8 buf
+  match o with
+  | none =>
+    let e ← misc.unexpected_buf_eof
+    ok (core.result.Result.Err e, buf1)
+  | some x =>
+    let i ← lift (UScalar.cast .Usize x)
+    let (o1, buf2) ← io.ParseBuf.checked_eat_buf buf1 i
+    match o1 with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf2)
+    | some pb =>
+      if x >= 8#u8
+      then
+        let (i1, buf3) ← io.ParseBuf.eat_u8 pb
+        let (days, buf4) ← io.ParseBuf.eat_u32_le buf3
+        let (hours, buf5) ← io.ParseBuf.eat_u8 buf4
+        let (minutes, buf6) ← io.ParseBuf.eat_u8 buf5
+        let (seconds, buf7) ← io.ParseBuf.eat_u8 buf6
+        if x = 12#u8
+        then
+          let (micro_seconds, _) ← io.ParseBuf.eat_u32_le buf7
+          ok (core.result.Result.Ok (value.Value.Time (i1 = 1#u8) days hours
+            minutes seconds micro_seconds), buf2)
+        else
+          ok (core.result.Result.Ok (value.Value.Time (i1 = 1#u8) days hours
+            minutes seconds 0#u32), buf2)
+      else
+        ok (core.result.Result.Ok (value.Value.Time false 0#u32 0#u8 0#u8 0#u8
+          0#u32), buf2)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_datetime]:
+    Source: 'src/value/mod.rs', lines 356:4-388:5 -/
+def value.Value.deserialize_datetime
+  (buf : io.ParseBuf) :
+  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
+  := do
+  let (o, buf1) ← io.ParseBuf.checked_eat_u8 buf
+  match o with
+  | none =>
+    let e ← misc.unexpected_buf_eof
+    ok (core.result.Result.Err e, buf1)
+  | some x =>
+    let i ← lift (UScalar.cast .Usize x)
+    let (o1, buf2) ← io.ParseBuf.checked_eat_buf buf1 i
+    match o1 with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf2)
+    | some pb =>
+      if x >= 4#u8
+      then
+        let (year, buf3) ← io.ParseBuf.eat_u16_le pb
+        let (month, buf4) ← io.ParseBuf.eat_u8 buf3
+        let (day, buf5) ← io.ParseBuf.eat_u8 buf4
+        if x >= 7#u8
+        then
+          let (hour, buf6) ← io.ParseBuf.eat_u8 buf5
+          let (minute, buf7) ← io.ParseBuf.eat_u8 buf6
+          let (second, buf8) ← io.ParseBuf.eat_u8 buf7
+          if x = 11#u8
+          then
+            let (micro_second, _) ← io.ParseBuf.eat_u32_le buf8
+            ok (core.result.Result.Ok (value.Value.Date year month day hour
+              minute second micro_second), buf2)
+          else
+            ok (core.result.Result.Ok (value.Value.Date year month day hour
+              minute second 0#u32), buf2)
+        else
+          ok (core.result.Result.Ok (value.Value.Date year month day 0#u8 0#u8
+            0#u8 0#u32), buf2)
+      else
+        ok (core.result.Result.Ok (value.Value.Date 0#u16 0#u8 0#u8 0#u8 0#u8
+          0#u8 0#u32), buf2)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_longlong]:
+    Source: 'src/value/mod.rs', lines 338:4-354:5 -/
+def value.Value.deserialize_longlong
+  (unsigned : Bool) (buf : io.ParseBuf) :
+  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
+  := do
+  if unsigned
+  then
+    let (o, buf1) ← io.ParseBuf.checked_eat_u64_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let i ← lift (IScalar.hcast .U64 core.num.I64.MAX)
+      if x <= i
+      then
+        let i1 ← lift (UScalar.hcast .I64 x)
+        ok (core.result.Result.Ok (value.Value.Int i1), buf1)
+      else ok (core.result.Result.Ok (value.Value.UInt x), buf1)
+  else
+    let (o, buf1) ← io.ParseBuf.checked_eat_i64_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x => ok (core.result.Result.Ok (value.Value.Int x), buf1)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_long]:
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 336:4-336:69 -/
+def value.Value.deserialize_long
+  (unsigned : Bool) (buf : io.ParseBuf) :
+  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
+  := do
+  if unsigned
+  then
+    let (o, buf1) ← io.ParseBuf.checked_eat_u32_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let i ← lift (UScalar.hcast .I64 x)
+      ok (core.result.Result.Ok (value.Value.Int i), buf1)
+  else
+    let (o, buf1) ← io.ParseBuf.checked_eat_i32_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let i ← lift (IScalar.cast .I64 x)
+      ok (core.result.Result.Ok (value.Value.Int i), buf1)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_short]:
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 335:4-335:70 -/
+def value.Value.deserialize_short
+  (unsigned : Bool) (buf : io.ParseBuf) :
+  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
+  := do
+  if unsigned
+  then
+    let (o, buf1) ← io.ParseBuf.checked_eat_u16_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let i ← lift (UScalar.hcast .I64 x)
+      ok (core.result.Result.Ok (value.Value.Int i), buf1)
+  else
+    let (o, buf1) ← io.ParseBuf.checked_eat_i16_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let i ← lift (IScalar.cast .I64 x)
+      ok (core.result.Result.Ok (value.Value.Int i), buf1)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_tiny]:
+    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 334:4-334:61 -/
+def value.Value.deserialize_tiny
+  (unsigned : Bool) (buf : io.ParseBuf) :
+  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
+  := do
+  if unsigned
+  then
+    let (o, buf1) ← io.ParseBuf.checked_eat_u8 buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let i ← lift (UScalar.hcast .I64 x)
+      ok (core.result.Result.Ok (value.Value.Int i), buf1)
+  else
+    let (o, buf1) ← io.ParseBuf.checked_eat_i8 buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let i ← lift (IScalar.cast .I64 x)
+      ok (core.result.Result.Ok (value.Value.Int i), buf1)
+
+/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_bin]:
+    Source: 'src/value/mod.rs', lines 419:4-473:5 -/
+def value.Value.deserialize_bin
+  (p : (constants.ColumnType × constants.ColumnFlags)) (buf : io.ParseBuf) :
+  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
+  := do
+  let (column_type, column_flags) := p
+  match column_type with
+  | constants.ColumnType.MYSQL_TYPE_DECIMAL =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_TINY =>
+    let b ←
+      constants.ColumnFlags.contains column_flags
+        constants.ColumnFlags.UNSIGNED_FLAG
+    value.Value.deserialize_tiny b buf
+  | constants.ColumnType.MYSQL_TYPE_SHORT =>
+    let b ←
+      constants.ColumnFlags.contains column_flags
+        constants.ColumnFlags.UNSIGNED_FLAG
+    value.Value.deserialize_short b buf
+  | constants.ColumnType.MYSQL_TYPE_LONG =>
+    let b ←
+      constants.ColumnFlags.contains column_flags
+        constants.ColumnFlags.UNSIGNED_FLAG
+    value.Value.deserialize_long b buf
+  | constants.ColumnType.MYSQL_TYPE_FLOAT =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_f32_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x => ok (core.result.Result.Ok (value.Value.Float x), buf1)
+  | constants.ColumnType.MYSQL_TYPE_DOUBLE =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_f64_le buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x => ok (core.result.Result.Ok (value.Value.Double x), buf1)
+  | constants.ColumnType.MYSQL_TYPE_NULL =>
+    ok (core.result.Result.Ok value.Value.NULL, buf)
+  | constants.ColumnType.MYSQL_TYPE_TIMESTAMP =>
+    value.Value.deserialize_datetime buf
+  | constants.ColumnType.MYSQL_TYPE_LONGLONG =>
+    let b ←
+      constants.ColumnFlags.contains column_flags
+        constants.ColumnFlags.UNSIGNED_FLAG
+    value.Value.deserialize_longlong b buf
+  | constants.ColumnType.MYSQL_TYPE_INT24 =>
+    let b ←
+      constants.ColumnFlags.contains column_flags
+        constants.ColumnFlags.UNSIGNED_FLAG
+    value.Value.deserialize_long b buf
+  | constants.ColumnType.MYSQL_TYPE_DATE =>
+    value.Value.deserialize_datetime buf
+  | constants.ColumnType.MYSQL_TYPE_TIME => value.Value.deserialize_time buf
+  | constants.ColumnType.MYSQL_TYPE_DATETIME =>
+    value.Value.deserialize_datetime buf
+  | constants.ColumnType.MYSQL_TYPE_YEAR =>
+    let b ←
+      constants.ColumnFlags.contains column_flags
+        constants.ColumnFlags.UNSIGNED_FLAG
+    value.Value.deserialize_short b buf
+  | constants.ColumnType.MYSQL_TYPE_NEWDATE =>
+    value.Value.deserialize_datetime buf
+  | constants.ColumnType.MYSQL_TYPE_VARCHAR =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_BIT =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_TIMESTAMP2 =>
+    let a ←
+      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
+        constants.ColumnType.MYSQL_TYPE_TIMESTAMP2
+    let _ ←
+      core.fmt.Arguments.new
+        (Array.make 44#usize [
+          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
+          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
+          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
+          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
+          ]) (Array.make 1#usize [ a ])
+    fail panic
+  | constants.ColumnType.MYSQL_TYPE_DATETIME2 =>
+    let a ←
+      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
+        constants.ColumnType.MYSQL_TYPE_DATETIME2
+    let _ ←
+      core.fmt.Arguments.new
+        (Array.make 44#usize [
+          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
+          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
+          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
+          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
+          ]) (Array.make 1#usize [ a ])
+    fail panic
+  | constants.ColumnType.MYSQL_TYPE_TIME2 =>
+    let a ←
+      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
+        constants.ColumnType.MYSQL_TYPE_TIME2
+    let _ ←
+      core.fmt.Arguments.new
+        (Array.make 44#usize [
+          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
+          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
+          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
+          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
+          ]) (Array.make 1#usize [ a ])
+    fail panic
+  | constants.ColumnType.MYSQL_TYPE_TYPED_ARRAY =>
+    let a ←
+      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
+        constants.ColumnType.MYSQL_TYPE_TYPED_ARRAY
+    let _ ←
+      core.fmt.Arguments.new
+        (Array.make 44#usize [
+          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
+          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
+          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
+          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
+          ]) (Array.make 1#usize [ a ])
+    fail panic
+  | constants.ColumnType.MYSQL_TYPE_VECTOR =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_UNKNOWN =>
+    let a ←
+      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
+        constants.ColumnType.MYSQL_TYPE_UNKNOWN
+    let _ ←
+      core.fmt.Arguments.new
+        (Array.make 44#usize [
+          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
+          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
+          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
+          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
+          ]) (Array.make 1#usize [ a ])
+    fail panic
+  | constants.ColumnType.MYSQL_TYPE_JSON =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_NEWDECIMAL =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_ENUM =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_SET =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_TINY_BLOB =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_MEDIUM_BLOB =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_LONG_BLOB =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_BLOB =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_VAR_STRING =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_STRING =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+  | constants.ColumnType.MYSQL_TYPE_GEOMETRY =>
+    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
+    match o with
+    | none =>
+      let e ← misc.unexpected_buf_eof
+      ok (core.result.Result.Err e, buf1)
+    | some x =>
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
+      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
+
+/-- [mysql_common::value::{impl mysql_common::proto::MyDeserialize<'de, (mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)> for mysql_common::value::ValueDeserializer<mysql_common::value::BinValue>}::deserialize]:
+    Source: 'src/value/mod.rs', lines 166:4-169:5
+    Visibility: public -/
+def
+  value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
+  (p : (constants.ColumnType × constants.ColumnFlags)) (buf : io.ParseBuf) :
+  Result ((core.result.Result (value.ValueDeserializer value.BinValue)
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ← value.Value.deserialize_bin p buf
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    ok (core.result.Result.Ok (val, ()), buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (value.ValueDeserializer value.BinValue) (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, (mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)> for mysql_common::packets::StmtBulkExecuteParamValue}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 3518:4-3527:5
+    Visibility: public -/
+def
+  packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
+  (ctx : (constants.ColumnType × constants.ColumnFlags)) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.StmtBulkExecuteParamValue
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8
+      constants.MariadbBulkIndicator.Insts.CoreConvertTryFromU8UnknownMariadbBulkIndicator
+      constants.UnknownMariadbBulkIndicator.Insts.CoreErrorError) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let mbi ← misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref val
+    let b ←
+      constants.MariadbBulkIndicator.Insts.CoreCmpPartialEqMariadbBulkIndicator.eq
+        mbi constants.MariadbBulkIndicator.BULK_INDICATOR_NULL
+    if b
+    then
+      ok (core.result.Result.Ok
+        { indicator := val, value := value.Value.NULL }, buf1)
+    else
+      let (r1, buf2) ←
+        value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
+          ctx buf1
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (value, _) := val1
+        ok (core.result.Result.Ok { indicator := val, value }, buf2)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r2 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.StmtBulkExecuteParamValue (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.StmtBulkExecuteParamValue (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::StmtBulkExecuteParamValues}::deserialize]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3471:8-3475:5
+    Visibility: public -/
+@[rust_loop_body]
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize_loop.body
+  (params : alloc.vec.Vec (constants.ColumnType × constants.ColumnFlags))
+  (iter : core.ops.range.Range Std.Usize) (buf : io.ParseBuf)
+  (values : alloc.vec.Vec packets.StmtBulkExecuteParamValue) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × io.ParseBuf ×
+    (alloc.vec.Vec packets.StmtBulkExecuteParamValue)) ((core.result.Result
+    packets.StmtBulkExecuteParamValues core.io.error.Error) × io.ParseBuf))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done (core.result.Result.Ok { values }, buf))
+  | some i =>
+    let p ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (constants.ColumnType × constants.ColumnFlags)) params i
+    let (r, buf1) ←
+      packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
+        p buf
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let values1 ← alloc.vec.Vec.push values val
+      ok (cont (iter1, buf1, values1))
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.StmtBulkExecuteParamValues (core.convert.FromSame
+          core.io.error.Error) residual
+      ok (done (r1, buf1))
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::StmtBulkExecuteParamValues}::deserialize]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3471:8-3475:5
+    Visibility: public -/
+@[rust_loop]
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize_loop
+  (iter : core.ops.range.Range Std.Usize)
+  (params : alloc.vec.Vec (constants.ColumnType × constants.ColumnFlags))
+  (buf : io.ParseBuf)
+  (values : alloc.vec.Vec packets.StmtBulkExecuteParamValue) :
+  Result ((core.result.Result packets.StmtBulkExecuteParamValues
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  loop
+    (fun (iter1, buf1, values1) =>
+      packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize_loop.body
+      params iter1 buf1 values1)
+    (iter, buf, values)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::StmtBulkExecuteParamValues}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 3469:4-3475:5
+    Visibility: public -/
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize
+  (params : alloc.vec.Vec (constants.ColumnType × constants.ColumnFlags))
+  (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.StmtBulkExecuteParamValues
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let i := alloc.vec.Vec.len params
+  let values := alloc.vec.Vec.with_capacity packets.StmtBulkExecuteParamValue i
+  let i1 := alloc.vec.Vec.len params
+  let (r, buf1) ←
+    packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize_loop
+      { start := 0#usize, «end» := i1 } params buf values
+  ok (r, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::StmtBulkExecuteParamValues}::SIZE]
+    Source: 'src/packets/mod.rs', lines 3466:4-3466:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::StmtBulkExecuteParamValues}]
+    Source: 'src/packets/mod.rs', lines 3465:0-3476:1 -/
+@[reducible]
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags
+  : proto.MyDeserialize packets.StmtBulkExecuteParamValues (alloc.vec.Vec
+  (constants.ColumnType × constants.ColumnFlags)) := {
+  SIZE := ok
+    packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.SIZE
+  deserialize :=
+    packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamValue}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3531:4-3534:5
+    Visibility: public -/
+def
+  packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.StmtBulkExecuteParamValue) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.MariadbBulkIndicator.Insts.CoreMarkerCopy
+      (core.convert.IntoFrom U8.Insts.CoreConvertFromMariadbBulkIndicator)
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8 self.indicator buf
+  value.Value.Insts.Mysql_commonProtoMySerialize.serialize self.value buf1
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamValues}::serialize]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3480:8-3482:9
+    Visibility: public -/
+@[rust_loop_body]
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize_loop.body
+  (v : alloc.vec.Vec packets.StmtBulkExecuteParamValue)
+  (iter : core.ops.range.Range Std.Usize) (buf : alloc.vec.Vec Std.U8) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (alloc.vec.Vec
+    Std.U8)) (alloc.vec.Vec Std.U8))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done buf)
+  | some i =>
+    let sbepv ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        packets.StmtBulkExecuteParamValue) v i
+    let buf1 ←
+      packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMySerialize.serialize
+        sbepv buf
+    ok (cont (iter1, buf1))
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamValues}::serialize]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3480:8-3482:9
+    Visibility: public -/
+@[rust_loop]
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize_loop
+  (iter : core.ops.range.Range Std.Usize)
+  (v : alloc.vec.Vec packets.StmtBulkExecuteParamValue)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  loop
+    (fun (iter1, buf1) =>
+      packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize_loop.body
+      v iter1 buf1)
+    (iter, buf)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamValues}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3479:4-3483:5
+    Visibility: public -/
+def
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.StmtBulkExecuteParamValues) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i := alloc.vec.Vec.len self.values
+  packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize_loop
+    { start := 0#usize, «end» := i } self.values buf
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamValues}]
+    Source: 'src/packets/mod.rs', lines 3478:0-3484:1 -/
+@[reducible]
+def packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.StmtBulkExecuteParamValues := {
+  serialize :=
+    packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtBulkExecuteParamValue}::indicator]:
+    Source: 'src/packets/mod.rs', lines 3505:4-3507:5
+    Visibility: public -/
+def packets.StmtBulkExecuteParamValue.impl.indicator
+  (self : packets.StmtBulkExecuteParamValue) :
+  Result constants.MariadbBulkIndicator
+  := do
+  let (mbi, _) := self.indicator
+  ok mbi
+
+/-- [mysql_common::packets::{mysql_common::packets::StmtBulkExecuteParamValue}::value]:
+    Source: 'src/packets/mod.rs', lines 3509:4-3511:5
+    Visibility: public -/
+def packets.StmtBulkExecuteParamValue.impl.value
+  (self : packets.StmtBulkExecuteParamValue) : Result value.Value := do
+  ok self.value
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, (mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)> for mysql_common::packets::StmtBulkExecuteParamValue}::SIZE]
+    Source: 'src/packets/mod.rs', lines 3515:4-3515:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, (mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)> for mysql_common::packets::StmtBulkExecuteParamValue}]
+    Source: 'src/packets/mod.rs', lines 3514:0-3528:1 -/
+@[reducible]
+def
+  packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags
+  : proto.MyDeserialize packets.StmtBulkExecuteParamValue (constants.ColumnType
+  × constants.ColumnFlags) := {
+  SIZE := ok
+    packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.SIZE
+  deserialize :=
+    packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::StmtBulkExecuteParamValue}]
+    Source: 'src/packets/mod.rs', lines 3530:0-3535:1 -/
+@[reducible]
+def packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.StmtBulkExecuteParamValue := {
+  serialize :=
+    packets.StmtBulkExecuteParamValue.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::stmt_id]:
+    Source: 'src/packets/mod.rs', lines 3667:4-3669:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequest.impl.stmt_id
+  (self : packets.ComStmtBulkExecuteRequest) : Result Std.U32 := do
+  let (i, _) := self.stmt_id
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::bulk_flags]:
+    Source: 'src/packets/mod.rs', lines 3671:4-3673:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequest.impl.bulk_flags
+  (self : packets.ComStmtBulkExecuteRequest) :
+  Result constants.StmtBulkExecuteFlags
+  := do
+  let (sbef, _) := self.bulk_flags
+  ok sbef
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::types]:
+    Source: 'src/packets/mod.rs', lines 3675:4-3677:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequest.impl.types
+  (self : packets.ComStmtBulkExecuteRequest) :
+  Result (Slice packets.StmtBulkExecuteParamType)
+  := do
+  misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref
+    packets.StmtBulkExecuteParamType.Insts.CoreCloneClone self.types
+
+/-- [mysql_common::packets::{mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::values]:
+    Source: 'src/packets/mod.rs', lines 3679:4-3681:5
+    Visibility: public -/
+def packets.ComStmtBulkExecuteRequest.impl.values
+  (self : packets.ComStmtBulkExecuteRequest) :
+  Result packets.StmtBulkExecuteParamValues
+  := do
+  ok self.values
+
+/-- [mysql_common::packets::set_bulk_param_types]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 3722:4-3728:5 -/
+@[rust_loop_body]
+def packets.set_bulk_param_types_loop.body
+  (types : Slice packets.StmtBulkExecuteParamType)
+  (iter : core.ops.range.Range Std.Usize)
+  (params : Slice (constants.ColumnType × constants.ColumnFlags)) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (Slice
+    (constants.ColumnType × constants.ColumnFlags))) (Slice
+    (constants.ColumnType × constants.ColumnFlags)))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done params)
+  | some i =>
+    let sbept ← Slice.index_usize types i
+    let ct ← misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref sbept.type
+    let ((_, cf), index_mut_back) ← Slice.index_mut_usize params i
+    let params1 := index_mut_back (ct, cf)
+    let ((ct1, cf1), index_mut_back1) ← Slice.index_mut_usize params1 i
+    let sepf ←
+      misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref sbept.flags
+    let b ←
+      constants.StmtExecuteParamFlags.contains sepf
+        constants.StmtExecuteParamFlags.UNSIGNED
+    let cf2 ←
+      constants.ColumnFlags.set cf1 constants.ColumnFlags.UNSIGNED_FLAG b
+    let s := index_mut_back1 (ct1, cf2)
+    ok (cont (iter1, s))
+
+/-- [mysql_common::packets::set_bulk_param_types]: loop 0:
+    Source: 'src/packets/mod.rs', lines 3722:4-3728:5 -/
+@[rust_loop]
+def packets.set_bulk_param_types_loop
+  (iter : core.ops.range.Range Std.Usize)
+  (types : Slice packets.StmtBulkExecuteParamType)
+  (params : Slice (constants.ColumnType × constants.ColumnFlags)) :
+  Result (Slice (constants.ColumnType × constants.ColumnFlags))
+  := do
+  loop
+    (fun (iter1, params1) => packets.set_bulk_param_types_loop.body types iter1
+      params1)
+    (iter, params)
+
+/-- [mysql_common::packets::set_bulk_param_types]:
+    Source: 'src/packets/mod.rs', lines 3713:0-3729:1 -/
+def packets.set_bulk_param_types
+  (types : Slice packets.StmtBulkExecuteParamType)
+  (params : Slice (constants.ColumnType × constants.ColumnFlags)) :
+  Result (Slice (constants.ColumnType × constants.ColumnFlags))
+  := do
+  let i := Slice.len types
+  let i1 := Slice.len params
+  let n ← if i < i1
+            then ok (Slice.len types)
+            else ok (Slice.len params)
+  packets.set_bulk_param_types_loop { start := 0#usize, «end» := n } types
+    params
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::ComStmtBulkExecuteRequest<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 3688:4-3708:5
+    Visibility: public -/
+def
+  packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize
+  (params : alloc.vec.Vec (constants.ColumnType × constants.ColumnFlags))
+  (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.ComStmtBulkExecuteRequest
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 250#u8
+      packets.InvalidComStmtBulkExecuteHeader.Insts.CoreErrorError
+      packets.InvalidComStmtBulkExecuteHeader.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let (r2, buf3) ←
+        io.ParseBuf.parse
+          (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+          constants.StmtBulkExecuteFlags.Insts.CoreConvertTryFromU16UnknownStmtBulkExecuteParamsFlags
+          constants.UnknownStmtBulkExecuteParamsFlags.Insts.CoreErrorError)
+          buf2 ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let sbef ← misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref val2
+        let b ←
+          constants.StmtBulkExecuteFlags.contains sbef
+            constants.StmtBulkExecuteFlags.SEND_TYPES_TO_SERVER
+        if b
+        then
+          let i := alloc.vec.Vec.len params
+          let (r3, buf4) ←
+            io.ParseBuf.parse
+              (misc.raw.seq.Seq.Insts.Mysql_commonProtoMyDeserialize
+              packets.StmtBulkExecuteParamType.Insts.CoreCloneClone
+              packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMyDeserializeDeTuple
+              misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize)
+              buf3 i
+          let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+          match cf3 with
+          | core.ops.control_flow.ControlFlow.Continue s =>
+            let s1 ←
+              misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref
+                packets.StmtBulkExecuteParamType.Insts.CoreCloneClone s
+            let (s2, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut params)
+            let s3 ← packets.set_bulk_param_types s1 s2
+            let params1 := deref_mut_back s3
+            let (r4, buf5) ←
+              io.ParseBuf.parse
+                packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags
+                buf4 params1
+            let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+            match cf4 with
+            | core.ops.control_flow.ControlFlow.Continue val3 =>
+              ok (core.result.Result.Ok
+                {
+                  header := val,
+                  stmt_id := val1,
+                  bulk_flags := val2,
+                  types := s,
+                  values := val3
+                }, buf5)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r5 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.ComStmtBulkExecuteRequest (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r5, buf5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r4 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.ComStmtBulkExecuteRequest (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r4, buf4)
+        else
+          let types ←
+            misc.raw.seq.Seq.new misc.raw.seq.Unknown
+              packets.StmtBulkExecuteParamType.Insts.CoreCloneClone
+              (core.convert.IntoFrom
+              (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec
+              packets.StmtBulkExecuteParamType.Insts.CoreCloneClone))
+              (alloc.vec.Vec.new packets.StmtBulkExecuteParamType)
+          let (r3, buf4) ←
+            io.ParseBuf.parse
+              packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags
+              buf3 params
+          let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+          match cf3 with
+          | core.ops.control_flow.ControlFlow.Continue val3 =>
+            ok (core.result.Result.Ok
+              {
+                header := val,
+                stmt_id := val1,
+                bulk_flags := val2,
+                types,
+                values := val3
+              }, buf4)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r4 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.ComStmtBulkExecuteRequest (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r4, buf4)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.ComStmtBulkExecuteRequest (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r3, buf3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.ComStmtBulkExecuteRequest (core.convert.FromSame
+          core.io.error.Error) residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.ComStmtBulkExecuteRequest (core.convert.FromSame
+        core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::ComStmtBulkExecuteRequest<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 3685:4-3685:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, alloc::vec::Vec<(mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)>> for mysql_common::packets::ComStmtBulkExecuteRequest<'de>}]
+    Source: 'src/packets/mod.rs', lines 3684:0-3709:1 -/
+@[reducible]
+def
+  packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags
+  : proto.MyDeserialize packets.ComStmtBulkExecuteRequest (alloc.vec.Vec
+  (constants.ColumnType × constants.ColumnFlags)) := {
+  SIZE := ok
+    packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.SIZE
+  deserialize :=
+    packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMyDeserializeDeVecPairColumnTypeColumnFlags.deserialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtBulkExecuteRequest<'a>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3732:4-3745:5
+    Visibility: public -/
+def
+  packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComStmtBulkExecuteRequest) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.header buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.stmt_id
+      buf1
+  let buf3 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      constants.StmtBulkExecuteFlags.Insts.CoreMarkerCopy
+      (core.convert.IntoFrom U16.Insts.CoreConvertFromStmtBulkExecuteFlags)
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.bulk_flags
+      buf2
+  let sbef ←
+    misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref self.bulk_flags
+  let b ←
+    constants.StmtBulkExecuteFlags.contains sbef
+      constants.StmtBulkExecuteFlags.SEND_TYPES_TO_SERVER
+  if b
+  then
+    let buf4 ←
+      misc.raw.seq.Seq.Insts.Mysql_commonProtoMySerialize.serialize
+        packets.StmtBulkExecuteParamType.Insts.CoreCloneClone
+        packets.StmtBulkExecuteParamType.Insts.Mysql_commonProtoMySerialize
+        misc.raw.seq.Unknown.Insts.Mysql_commonMiscRawSeqSeqReprUsize
+        self.types buf3
+    packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize
+      self.values buf4
+  else
+    packets.StmtBulkExecuteParamValues.Insts.Mysql_commonProtoMySerialize.serialize
+      self.values buf3
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComStmtBulkExecuteRequest<'a>}]
+    Source: 'src/packets/mod.rs', lines 3731:0-3746:1 -/
+@[reducible]
+def packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.ComStmtBulkExecuteRequest := {
+  serialize :=
+    packets.ComStmtBulkExecuteRequest.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComRegisterSlaveHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1
+    Visibility: public -/
+def packets.InvalidComRegisterSlaveHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidComRegisterSlaveHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComRegisterSlaveHeader}]
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1 -/
+@[reducible]
+def packets.InvalidComRegisterSlaveHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidComRegisterSlaveHeader := {
+  default :=
+    packets.InvalidComRegisterSlaveHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComRegisterSlaveHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1
+    Visibility: public -/
+def packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidComRegisterSlaveHeader)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let a ←
+    core.fmt.Arguments.from_str_nonconst (toStr
+      "Invalid header for COM_REGISTER_SLAVE")
+  core.fmt.Formatter.write_fmt __formatter a
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComRegisterSlaveHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1 -/
+@[reducible]
+def packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDisplay :
+  core.fmt.Display packets.InvalidComRegisterSlaveHeader := {
+  fmt := packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComRegisterSlaveHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1
+    Visibility: public -/
+def packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidComRegisterSlaveHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidComRegisterSlaveHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComRegisterSlaveHeader}]
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1 -/
+@[reducible]
+def packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidComRegisterSlaveHeader := {
+  fmt := packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidComRegisterSlaveHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3748:0-3752:1 -/
+@[reducible]
+def packets.InvalidComRegisterSlaveHeader.Insts.CoreErrorError :
+  core.error.Error packets.InvalidComRegisterSlaveHeader := {
+  fmtDebugInst := packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidComRegisterSlaveHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 3794:4-3805:5
+    Visibility: public -/
+def packets.ComRegisterSlave.new
+  (server_id : Std.U32) : Result packets.ComRegisterSlave := do
+  let cu ←
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default 21#u8
+      packets.InvalidComRegisterSlaveHeader.Insts.CoreDefaultDefault
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 server_id
+  let rb ←
+    misc.raw.bytes.RawBytes.Insts.CoreDefaultDefault.default
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      misc.raw.bytes.U8Bytes.Insts.CoreDefaultDefault
+  let ri1 ←
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default
+      misc.raw.int.LeU16.Insts.CoreDefaultDefault
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+      core.default.DefaultU16
+  let ri2 ←
+    misc.raw.int.RawInt.Insts.CoreDefaultDefault.default
+      misc.raw.int.LeU32.Insts.CoreDefaultDefault
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      core.default.DefaultU32
+  ok
+    {
+      header := cu,
+      server_id := ri,
+      hostname := rb,
+      user := rb,
+      password := rb,
+      port := ri1,
+      replication_rank := ri2,
+      master_id := ri2
+    }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::with_hostname]:
+    Source: 'src/packets/mod.rs', lines 3808:4-3811:5
+    Visibility: public -/
+def packets.ComRegisterSlave.with_hostname
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComRegisterSlave) (hostname : T1) :
+  Result packets.ComRegisterSlave
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst hostname
+  ok { self with hostname := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::with_user]:
+    Source: 'src/packets/mod.rs', lines 3814:4-3817:5
+    Visibility: public -/
+def packets.ComRegisterSlave.with_user
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComRegisterSlave) (user : T1) :
+  Result packets.ComRegisterSlave
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst user
+  ok { self with user := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::with_password]:
+    Source: 'src/packets/mod.rs', lines 3820:4-3823:5
+    Visibility: public -/
+def packets.ComRegisterSlave.with_password
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.ComRegisterSlave) (password : T1) :
+  Result packets.ComRegisterSlave
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst password
+  ok { self with password := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::with_port]:
+    Source: 'src/packets/mod.rs', lines 3826:4-3829:5
+    Visibility: public -/
+def packets.ComRegisterSlave.with_port
+  (self : packets.ComRegisterSlave) (port : Std.U16) :
+  Result packets.ComRegisterSlave
+  := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 port
+  ok { self with port := ri }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::with_replication_rank]:
+    Source: 'src/packets/mod.rs', lines 3832:4-3835:5
+    Visibility: public -/
+def packets.ComRegisterSlave.with_replication_rank
+  (self : packets.ComRegisterSlave) (replication_rank : Std.U32) :
+  Result packets.ComRegisterSlave
+  := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      replication_rank
+  ok { self with replication_rank := ri }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::with_master_id]:
+    Source: 'src/packets/mod.rs', lines 3838:4-3841:5
+    Visibility: public -/
+def packets.ComRegisterSlave.with_master_id
+  (self : packets.ComRegisterSlave) (master_id : Std.U32) :
+  Result packets.ComRegisterSlave
+  := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 master_id
+  ok { self with master_id := ri }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::server_id]:
+    Source: 'src/packets/mod.rs', lines 3844:4-3846:5
+    Visibility: public -/
+def packets.ComRegisterSlave.impl.server_id
+  (self : packets.ComRegisterSlave) : Result Std.U32 := do
+  let (i, _) := self.server_id
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::hostname_raw]:
+    Source: 'src/packets/mod.rs', lines 3849:4-3851:5
+    Visibility: public -/
+def packets.ComRegisterSlave.hostname_raw
+  (self : packets.ComRegisterSlave) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.hostname
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::hostname]:
+    Source: 'src/packets/mod.rs', lines 3854:4-3856:5
+    Visibility: public -/
+def packets.ComRegisterSlave.impl.hostname
+  (self : packets.ComRegisterSlave) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.hostname
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::user_raw]:
+    Source: 'src/packets/mod.rs', lines 3859:4-3861:5
+    Visibility: public -/
+def packets.ComRegisterSlave.user_raw
+  (self : packets.ComRegisterSlave) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.user
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::user]:
+    Source: 'src/packets/mod.rs', lines 3864:4-3866:5
+    Visibility: public -/
+def packets.ComRegisterSlave.impl.user
+  (self : packets.ComRegisterSlave) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.user
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::password_raw]:
+    Source: 'src/packets/mod.rs', lines 3869:4-3871:5
+    Visibility: public -/
+def packets.ComRegisterSlave.password_raw
+  (self : packets.ComRegisterSlave) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.password
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::password]:
+    Source: 'src/packets/mod.rs', lines 3874:4-3876:5
+    Visibility: public -/
+def packets.ComRegisterSlave.impl.password
+  (self : packets.ComRegisterSlave) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.password
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::port]:
+    Source: 'src/packets/mod.rs', lines 3879:4-3881:5
+    Visibility: public -/
+def packets.ComRegisterSlave.impl.port
+  (self : packets.ComRegisterSlave) : Result Std.U16 := do
+  let (i, _) := self.port
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::replication_rank]:
+    Source: 'src/packets/mod.rs', lines 3884:4-3886:5
+    Visibility: public -/
+def packets.ComRegisterSlave.impl.replication_rank
+  (self : packets.ComRegisterSlave) : Result Std.U32 := do
+  let (i, _) := self.replication_rank
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::ComRegisterSlave<'a>}::master_id]:
+    Source: 'src/packets/mod.rs', lines 3889:4-3891:5
+    Visibility: public -/
+def packets.ComRegisterSlave.impl.master_id
+  (self : packets.ComRegisterSlave) : Result Std.U32 := do
+  let (i, _) := self.master_id
+  ok i
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComRegisterSlave<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3895:4-3904:5
+    Visibility: public -/
+def packets.ComRegisterSlave.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComRegisterSlave) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.header buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.server_id
+      buf1
+  let buf3 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.hostname buf2
+  let buf4 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.user buf3
+  let buf5 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.password buf4
+  let buf6 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.port buf5
+  let buf7 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32
+      self.replication_rank buf6
+  misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.master_id
+    buf7
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComRegisterSlave<'_0>}]
+    Source: 'src/packets/mod.rs', lines 3894:0-3905:1 -/
+@[reducible]
+def packets.ComRegisterSlave.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.ComRegisterSlave := {
+  serialize :=
+    packets.ComRegisterSlave.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComRegisterSlave<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 3911:4-3935:5
+    Visibility: public -/
+def
+  packets.ComRegisterSlave.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.ComRegisterSlave core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+      buf 5#usize
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue pb =>
+    let (r1, sbuf) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 21#u8
+        packets.InvalidComRegisterSlaveHeader.Insts.CoreErrorError
+        packets.InvalidComRegisterSlaveHeader.Insts.CoreDefaultDefault) pb ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (r2, _) ←
+        io.ParseBuf.parse_unchecked
+          (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) sbuf ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (r3, buf2) ←
+          io.ParseBuf.parse
+            (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+            misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+            buf1 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue rb =>
+          let (r4, buf3) ←
+            io.ParseBuf.parse
+              (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+              misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+              buf2 ()
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue rb1 =>
+            let (r5, buf4) ←
+              io.ParseBuf.parse
+                (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+                misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+                buf3 ()
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue rb2 =>
+              let (r6, buf5) ←
+                io.ParseBuf.parse
+                  io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize buf4
+                  10#usize
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue pb1 =>
+                let (r7, sbuf1) ←
+                  io.ParseBuf.parse_unchecked
+                    (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16)
+                    pb1 ()
+                let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
+                match cf7 with
+                | core.ops.control_flow.ControlFlow.Continue val2 =>
+                  let (r8, sbuf2) ←
+                    io.ParseBuf.parse_unchecked
+                      (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32)
+                      sbuf1 ()
+                  let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r8
+                  match cf8 with
+                  | core.ops.control_flow.ControlFlow.Continue val3 =>
+                    let (r9, _) ←
+                      io.ParseBuf.parse_unchecked
+                        (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                        misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32)
+                        sbuf2 ()
+                    let cf9 ← core.result.Result.Insts.CoreOpsTry.branch r9
+                    match cf9 with
+                    | core.ops.control_flow.ControlFlow.Continue val4 =>
+                      ok (core.result.Result.Ok
+                        {
+                          header := val,
+                          server_id := val1,
+                          hostname := rb,
+                          user := rb1,
+                          password := rb2,
+                          port := val2,
+                          replication_rank := val3,
+                          master_id := val4
+                        }, buf5)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r10 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          packets.ComRegisterSlave (core.convert.FromSame
+                          core.io.error.Error) residual
+                      ok (r10, buf5)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r9 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        packets.ComRegisterSlave (core.convert.FromSame
+                        core.io.error.Error) residual
+                    ok (r9, buf5)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r8 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      packets.ComRegisterSlave (core.convert.FromSame
+                      core.io.error.Error) residual
+                  ok (r8, buf5)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r7 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    packets.ComRegisterSlave (core.convert.FromSame
+                    core.io.error.Error) residual
+                ok (r7, buf5)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.ComRegisterSlave (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r6, buf4)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.ComRegisterSlave (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r5, buf3)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.ComRegisterSlave (core.convert.FromSame
+              core.io.error.Error) residual
+          ok (r4, buf2)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.ComRegisterSlave (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r3, buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.ComRegisterSlave (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.ComRegisterSlave (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComRegisterSlave<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 3908:4-3908:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.ComRegisterSlave.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComRegisterSlave<'de>}]
+    Source: 'src/packets/mod.rs', lines 3907:0-3936:1 -/
+@[reducible]
+def packets.ComRegisterSlave.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.ComRegisterSlave Unit := {
+  SIZE := ok
+    packets.ComRegisterSlave.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.ComRegisterSlave.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComTableDumpHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1
+    Visibility: public -/
+def packets.InvalidComTableDumpHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidComTableDumpHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidComTableDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:24-64:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1 -/
+@[reducible]
+def packets.InvalidComTableDumpHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidComTableDumpHeader := {
+  default := packets.InvalidComTableDumpHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComTableDumpHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1
+    Visibility: public -/
+def packets.InvalidComTableDumpHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidComTableDumpHeader) (__formatter : core.fmt.Formatter)
+  :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let a ←
+    core.fmt.Arguments.from_str_nonconst (toStr
+      "Invalid header for COM_TABLE_DUMP")
+  core.fmt.Formatter.write_fmt __formatter a
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComTableDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1 -/
+@[reducible]
+def packets.InvalidComTableDumpHeader.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidComTableDumpHeader := {
+  fmt := packets.InvalidComTableDumpHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComTableDumpHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1
+    Visibility: public -/
+def packets.InvalidComTableDumpHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidComTableDumpHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidComTableDumpHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComTableDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1 -/
+@[reducible]
+def packets.InvalidComTableDumpHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidComTableDumpHeader := {
+  fmt := packets.InvalidComTableDumpHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidComTableDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 3938:0-3942:1 -/
+@[reducible]
+def packets.InvalidComTableDumpHeader.Insts.CoreErrorError : core.error.Error
+  packets.InvalidComTableDumpHeader := {
+  fmtDebugInst := packets.InvalidComTableDumpHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidComTableDumpHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComTableDump<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 3964:4-3970:5
+    Visibility: public -/
+def packets.ComTableDump.new
+  {T1 : Type _} {T2 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst :
+  core.convert.Into T1 (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+  Std.U8))) (coreconvertIntoT2CowASliceU8VecU8Inst : core.convert.Into T2
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (database : T1)
+  (table : T2) :
+  Result packets.ComTableDump
+  := do
+  let cu ←
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default 19#u8
+      packets.InvalidComTableDumpHeader.Insts.CoreDefaultDefault
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst database
+  let rb1 ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT2CowASliceU8VecU8Inst table
+  ok { header := cu, database := rb, table := rb1 }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComTableDump<'a>}::database_raw]:
+    Source: 'src/packets/mod.rs', lines 3973:4-3975:5
+    Visibility: public -/
+def packets.ComTableDump.database_raw
+  (self : packets.ComTableDump) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.database
+
+/-- [mysql_common::packets::{mysql_common::packets::ComTableDump<'a>}::database]:
+    Source: 'src/packets/mod.rs', lines 3978:4-3980:5
+    Visibility: public -/
+def packets.ComTableDump.impl.database
+  (self : packets.ComTableDump) : Result (alloc.borrow.Cow Str String) := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.database
+
+/-- [mysql_common::packets::{mysql_common::packets::ComTableDump<'a>}::table_raw]:
+    Source: 'src/packets/mod.rs', lines 3983:4-3985:5
+    Visibility: public -/
+def packets.ComTableDump.table_raw
+  (self : packets.ComTableDump) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.table
+
+/-- [mysql_common::packets::{mysql_common::packets::ComTableDump<'a>}::table]:
+    Source: 'src/packets/mod.rs', lines 3988:4-3990:5
+    Visibility: public -/
+def packets.ComTableDump.impl.table
+  (self : packets.ComTableDump) : Result (alloc.borrow.Cow Str String) := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.table
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComTableDump<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 3994:4-3998:5
+    Visibility: public -/
+def packets.ComTableDump.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComTableDump) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.header buf
+  let buf2 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.database buf1
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.table buf2
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComTableDump<'_0>}]
+    Source: 'src/packets/mod.rs', lines 3993:0-3999:1 -/
+@[reducible]
+def packets.ComTableDump.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.ComTableDump := {
+  serialize :=
+    packets.ComTableDump.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComTableDump<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 4005:4-4011:5
+    Visibility: public -/
+def
+  packets.ComTableDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.ComTableDump core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse
+      (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 19#u8
+      packets.InvalidComTableDumpHeader.Insts.CoreErrorError
+      packets.InvalidComTableDumpHeader.Insts.CoreDefaultDefault) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse
+        (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+        misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+        buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue rb =>
+      let (r2, buf3) ←
+        io.ParseBuf.parse
+          (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+          misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+          buf2 ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue rb1 =>
+        ok (core.result.Result.Ok
+          { header := val, database := rb, table := rb1 }, buf3)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.ComTableDump (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r3, buf3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.ComTableDump (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.ComTableDump (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComTableDump<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 4002:4-4002:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.ComTableDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComTableDump<'de>}]
+    Source: 'src/packets/mod.rs', lines 4001:0-4012:1 -/
+@[reducible]
+def packets.ComTableDump.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.ComTableDump Unit := {
+  SIZE := ok
+    packets.ComTableDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.ComTableDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::all]:
+    Source: 'src/bitflags_ext.rs', lines 101:12-103:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.all : Result packets.BinlogDumpFlags := do
+  let i ← lift (0#u16 ||| 1#u16)
+  let i1 ← lift (i ||| 2#u16)
+  let i2 ← lift (i1 ||| 4#u16)
+  ok i2
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::from_bits_truncate]:
+    Source: 'src/bitflags_ext.rs', lines 124:12-126:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.from_bits_truncate
+  (bits : Std.U16) : Result packets.BinlogDumpFlags := do
+  let bdf ← packets.BinlogDumpFlags.all
+  let i ← lift (bits &&& bdf)
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::from_bits]:
+    Source: 'src/bitflags_ext.rs', lines 113:12-120:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.from_bits
+  (bits : Std.U16) : Result (Option packets.BinlogDumpFlags) := do
+  let bdf ← packets.BinlogDumpFlags.from_bits_truncate bits
+  if bdf = bits
+  then ok (some bits)
+  else ok none
+
+/-- [mysql_common::packets::{impl core::convert::TryFrom<u16, mysql_common::packets::UnknownBinlogDumpFlags> for mysql_common::packets::BinlogDumpFlags}::try_from]:
+    Source: 'src/bitflags_ext.rs', lines 62:12-67:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def
+  packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags.try_from
+  (val : Std.U16) :
+  Result (core.result.Result packets.BinlogDumpFlags
+    packets.UnknownBinlogDumpFlags)
+  := do
+  let o ← packets.BinlogDumpFlags.from_bits val
+  match o with
+  | none => ok (core.result.Result.Err val)
+  | some flags => ok (core.result.Result.Ok flags)
+
+/-- Trait implementation: [mysql_common::packets::{impl core::convert::TryFrom<u16, mysql_common::packets::UnknownBinlogDumpFlags> for mysql_common::packets::BinlogDumpFlags}]
+    Source: 'src/bitflags_ext.rs', lines 59:8-68:9; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1 -/
+@[reducible]
+def packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags :
+  core.convert.TryFrom packets.BinlogDumpFlags Std.U16
+  packets.UnknownBinlogDumpFlags := {
+  try_from :=
+    packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags.try_from
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::UnknownBinlogDumpFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:58-55:74; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1 -/
+@[reducible]
+def packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.UnknownBinlogDumpFlags := {
+  fmt := packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::UnknownBinlogDumpFlags}::fmt]:
+    Source: 'src/bitflags_ext.rs', lines 55:17-55:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.UnknownBinlogDumpFlags.Insts.CoreFmtDebug.fmt
+  (self : packets.UnknownBinlogDumpFlags) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ (core.fmt.DebugShared core.fmt.DebugU16) self
+  core.fmt.Formatter.debug_tuple_field1_finish f (toStr
+    "UnknownBinlogDumpFlags") dyn
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::UnknownBinlogDumpFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:17-55:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1 -/
+@[reducible]
+def packets.UnknownBinlogDumpFlags.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.UnknownBinlogDumpFlags := {
+  fmt := packets.UnknownBinlogDumpFlags.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::UnknownBinlogDumpFlags}]
+    Source: 'src/bitflags_ext.rs', lines 55:58-55:74; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1 -/
+@[reducible]
+def packets.UnknownBinlogDumpFlags.Insts.CoreErrorError : core.error.Error
+  packets.UnknownBinlogDumpFlags := {
+  fmtDebugInst := packets.UnknownBinlogDumpFlags.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.UnknownBinlogDumpFlags.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::BinlogDumpFlags}::bits]:
+    Source: 'src/bitflags_ext.rs', lines 107:12-109:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def packets.BinlogDumpFlags.bits
+  (self : packets.BinlogDumpFlags) : Result Std.U16 := do
+  ok self
+
+/-- [mysql_common::packets::{impl core::convert::From<mysql_common::packets::BinlogDumpFlags> for u16}::from]:
+    Source: 'src/bitflags_ext.rs', lines 71:12-73:13; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1
+    Visibility: public -/
+def U16.Insts.CoreConvertFromBinlogDumpFlags.from
+  (val : packets.BinlogDumpFlags) : Result Std.U16 := do
+  packets.BinlogDumpFlags.bits val
+
+/-- Trait implementation: [mysql_common::packets::{impl core::convert::From<mysql_common::packets::BinlogDumpFlags> for u16}]
+    Source: 'src/bitflags_ext.rs', lines 70:8-74:9; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4014:0-4028:1 -/
+@[reducible]
+def U16.Insts.CoreConvertFromBinlogDumpFlags : core.convert.From Std.U16
+  packets.BinlogDumpFlags := {
+  «from» := U16.Insts.CoreConvertFromBinlogDumpFlags.from
+}
+
+/-- [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::BinlogDumpFlags}::clone]:
+    Source: 'src/packets/mod.rs', lines 4021:34-4021:39
+    Visibility: public -/
+def packets.BinlogDumpFlags.Insts.CoreCloneClone.clone
+  (self : packets.BinlogDumpFlags) : Result packets.BinlogDumpFlags := do
+  ok self
+
+/-- Trait implementation: [mysql_common::packets::{impl core::clone::Clone for mysql_common::packets::BinlogDumpFlags}]
+    Source: 'src/packets/mod.rs', lines 4021:34-4021:39 -/
+@[reducible]
+def packets.BinlogDumpFlags.Insts.CoreCloneClone : core.clone.Clone
+  packets.BinlogDumpFlags := {
+  clone := packets.BinlogDumpFlags.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::marker::Copy for mysql_common::packets::BinlogDumpFlags}]
+    Source: 'src/packets/mod.rs', lines 4021:41-4021:45 -/
+@[reducible]
+def packets.BinlogDumpFlags.Insts.CoreMarkerCopy : core.marker.Copy
+  packets.BinlogDumpFlags := {
+  cloneInst := packets.BinlogDumpFlags.Insts.CoreCloneClone
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComBinlogDumpHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1
+    Visibility: public -/
+def packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidComBinlogDumpHeader)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let a ←
+    core.fmt.Arguments.from_str_nonconst (toStr
+      "Invalid header for COM_BINLOG_DUMP")
+  core.fmt.Formatter.write_fmt __formatter a
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComBinlogDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidComBinlogDumpHeader := {
+  fmt := packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComBinlogDumpHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1
+    Visibility: public -/
+def packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidComBinlogDumpHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidComBinlogDumpHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComBinlogDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidComBinlogDumpHeader := {
+  fmt := packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidComBinlogDumpHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4030:0-4034:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpHeader.Insts.CoreErrorError : core.error.Error
+  packets.InvalidComBinlogDumpHeader := {
+  fmtDebugInst := packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidComBinlogDumpHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::pos]:
+    Source: 'src/packets/mod.rs', lines 4086:4-4088:5
+    Visibility: public -/
+def packets.ComBinlogDump.impl.pos
+  (self : packets.ComBinlogDump) : Result Std.U32 := do
+  misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
+    misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.pos
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::flags]:
+    Source: 'src/packets/mod.rs', lines 4091:4-4093:5
+    Visibility: public -/
+def packets.ComBinlogDump.impl.flags
+  (self : packets.ComBinlogDump) : Result packets.BinlogDumpFlags := do
+  misc.raw._const.Const.Insts.CoreOpsDerefDeref.deref self.flags
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::server_id]:
+    Source: 'src/packets/mod.rs', lines 4096:4-4098:5
+    Visibility: public -/
+def packets.ComBinlogDump.impl.server_id
+  (self : packets.ComBinlogDump) : Result Std.U32 := do
+  misc.raw.int.RawInt.Insts.CoreOpsDerefDeref.deref
+    misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.server_id
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::filename_raw]:
+    Source: 'src/packets/mod.rs', lines 4101:4-4103:5
+    Visibility: public -/
+def packets.ComBinlogDump.filename_raw
+  (self : packets.ComBinlogDump) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDump<'a>}::filename]:
+    Source: 'src/packets/mod.rs', lines 4106:4-4108:5
+    Visibility: public -/
+def packets.ComBinlogDump.impl.filename
+  (self : packets.ComBinlogDump) : Result (alloc.borrow.Cow Str String) := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComBinlogDump<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 4112:4-4118:5
+    Visibility: public -/
+def packets.ComBinlogDump.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComBinlogDump) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.header buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.pos buf1
+  let buf3 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      packets.BinlogDumpFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U16.Insts.CoreConvertFromBinlogDumpFlags)
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.flags buf2
+  let buf4 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.server_id
+      buf3
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename buf4
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComBinlogDump<'_0>}]
+    Source: 'src/packets/mod.rs', lines 4111:0-4119:1 -/
+@[reducible]
+def packets.ComBinlogDump.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.ComBinlogDump := {
+  serialize :=
+    packets.ComBinlogDump.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDump<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 4125:4-4134:5
+    Visibility: public -/
+def
+  packets.ComBinlogDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.ComBinlogDump core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+      buf 11#usize
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue pb =>
+    let (r1, sbuf) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 18#u8
+        packets.InvalidComBinlogDumpHeader.Insts.CoreErrorError
+        packets.InvalidComBinlogDumpHeader.Insts.CoreDefaultDefault) pb ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (r2, sbuf1) ←
+        io.ParseBuf.parse_unchecked
+          (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) sbuf ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (r3, sbuf2) ←
+          io.ParseBuf.parse_unchecked
+            (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+            packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags
+            packets.UnknownBinlogDumpFlags.Insts.CoreErrorError) sbuf1 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val2 =>
+          let (r4, _) ←
+            io.ParseBuf.parse_unchecked
+              (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+              misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) sbuf2
+              ()
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue val3 =>
+            let (r5, buf2) ←
+              io.ParseBuf.parse
+                (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+                misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+                buf1 ()
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue rb =>
+              ok (core.result.Result.Ok
+                {
+                  header := val,
+                  pos := val1,
+                  flags := val2,
+                  server_id := val3,
+                  filename := rb
+                }, buf2)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.ComBinlogDump (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r6, buf2)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.ComBinlogDump (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r5, buf1)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.ComBinlogDump (core.convert.FromSame core.io.error.Error)
+              residual
+          ok (r4, buf1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.ComBinlogDump (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r3, buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.ComBinlogDump (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.ComBinlogDump (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDump<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 4122:4-4122:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.ComBinlogDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDump<'de>}]
+    Source: 'src/packets/mod.rs', lines 4121:0-4135:1 -/
+@[reducible]
+def packets.ComBinlogDump.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.ComBinlogDump Unit := {
+  SIZE := ok
+    packets.ComBinlogDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.ComBinlogDump.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::GnoInterval}::new]:
+    Source: 'src/packets/mod.rs', lines 4146:4-4151:5
+    Visibility: public -/
+def packets.GnoInterval.new
+  (start : Std.U64) («end» : Std.U64) : Result packets.GnoInterval := do
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 start
+  let ri1 ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 «end»
+  ok { start := ri, «end» := ri1 }
+
+/-- [mysql_common::packets::{mysql_common::packets::GnoInterval}::start]:
+    Source: 'src/packets/mod.rs', lines 4154:4-4156:5
+    Visibility: public -/
+def packets.GnoInterval.impl.start
+  (self : packets.GnoInterval) : Result Std.U64 := do
+  let (i, _) := self.start
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::GnoInterval}::end]:
+    Source: 'src/packets/mod.rs', lines 4159:4-4161:5
+    Visibility: public -/
+def packets.GnoInterval.impl.end
+  (self : packets.GnoInterval) : Result Std.U64 := do
+  let (i, _) := self.end
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::GnoInterval}::check_and_new]:
+    Source: 'src/packets/mod.rs', lines 4163:4-4174:5
+    Visibility: public -/
+def packets.GnoInterval.check_and_new
+  (start : Std.U64) («end» : Std.U64) :
+  Result (core.result.Result packets.GnoInterval core.io.error.Error)
+  := do
+  if start >= «end»
+  then
+    let e ← misc.trusted.gno_interval_order_error start «end»
+    ok (core.result.Result.Err e)
+  else
+    if start = 0#u64
+    then
+      let e ←
+        misc.io_error_msg core.io.error.ErrorKind.InvalidData (toStr
+          "Gno can\'t be zero")
+      ok (core.result.Result.Err e)
+    else
+      if «end» = 0#u64
+      then
+        let e ←
+          misc.io_error_msg core.io.error.ErrorKind.InvalidData (toStr
+            "Gno can\'t be zero")
+        ok (core.result.Result.Err e)
+      else
+        let gi ← packets.GnoInterval.new start «end»
+        ok (core.result.Result.Ok gi)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::GnoInterval}::serialize]:
+    Source: 'src/packets/mod.rs', lines 4178:4-4181:5
+    Visibility: public -/
+def packets.GnoInterval.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.GnoInterval) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 self.start buf
+  misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 self.end buf1
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::GnoInterval}]
+    Source: 'src/packets/mod.rs', lines 4177:0-4182:1 -/
+@[reducible]
+def packets.GnoInterval.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.GnoInterval := {
+  serialize := packets.GnoInterval.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::GnoInterval}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 4188:4-4193:5
+    Visibility: public -/
+def packets.GnoInterval.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.GnoInterval core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse_unchecked
+      (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64) buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      ok (core.result.Result.Ok { start := val, «end» := val1 }, buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.GnoInterval (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.GnoInterval (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::GnoInterval}::SIZE]
+    Source: 'src/packets/mod.rs', lines 4185:4-4185:41
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.GnoInterval.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  some 16#usize
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::GnoInterval}]
+    Source: 'src/packets/mod.rs', lines 4184:0-4194:1 -/
+@[reducible]
+def packets.GnoInterval.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.GnoInterval Unit := {
+  SIZE := ok
+    packets.GnoInterval.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.GnoInterval.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::UUID_LEN]
+    Source: 'src/packets/mod.rs', lines 4197:0-4197:31
+    Visibility: public -/
+@[global_simps, irreducible] def packets.UUID_LEN : Std.Usize := 16#usize
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::MAX_LEN]
+    Source: 'src/packets/mod.rs', lines 4211:4-4211:34
+    Visibility: public -/
+@[global_simps, irreducible] def packets.Tag.MAX_LEN : Std.Usize := 32#usize
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::validate]: loop body 0:
+    Source: 'src/packets/mod.rs', lines 4244:8-4251:5 -/
+@[rust_loop_body]
+def packets.Tag.validate_loop0.body
+  (iter : core.str.iter.Chars) :
+  Result (ControlFlow core.str.iter.Chars (core.result.Result Unit
+    packets.InvalidTag))
+  := do
+  let (o, iter1) ← core.str.iter.IteratorChars.next iter
+  match o with
+  | none => ok (done (core.result.Result.Ok ()))
+  | some c =>
+    let b ← core.char.methods.Char.is_ascii_lowercase c
+    if b
+    then ok (cont iter1)
+    else
+      let b1 ← core.char.methods.Char.is_ascii_digit c
+      if b1
+      then ok (cont iter1)
+      else
+        if c != '_'
+        then
+          ok (done (core.result.Result.Err (packets.InvalidTag.InvalidChar c)))
+        else ok (cont iter1)
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::validate]: loop 0:
+    Source: 'src/packets/mod.rs', lines 4244:8-4251:5 -/
+@[rust_loop]
+def packets.Tag.validate_loop0
+  (iter : core.str.iter.Chars) :
+  Result (core.result.Result Unit packets.InvalidTag)
+  := do
+  loop
+    (fun iter1 => packets.Tag.validate_loop0.body iter1)
+    iter
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::validate]: loop body 1:
+    Source: 'src/packets/mod.rs', lines 4244:8-4251:5 -/
+@[rust_loop_body]
+def packets.Tag.validate_loop1.body
+  (iter : core.str.iter.Chars) :
+  Result (ControlFlow core.str.iter.Chars (core.result.Result Unit
+    packets.InvalidTag))
+  := do
+  let (o, iter1) ← core.str.iter.IteratorChars.next iter
+  match o with
+  | none => ok (done (core.result.Result.Ok ()))
+  | some c =>
+    let b ← core.char.methods.Char.is_ascii_lowercase c
+    if b
+    then ok (cont iter1)
+    else
+      let b1 ← core.char.methods.Char.is_ascii_digit c
+      if b1
+      then ok (cont iter1)
+      else
+        if c != '_'
+        then
+          ok (done (core.result.Result.Err (packets.InvalidTag.InvalidChar c)))
+        else ok (cont iter1)
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::validate]: loop 1:
+    Source: 'src/packets/mod.rs', lines 4244:8-4251:5 -/
+@[rust_loop]
+def packets.Tag.validate_loop1
+  (iter : core.str.iter.Chars) :
+  Result (core.result.Result Unit packets.InvalidTag)
+  := do
+  loop
+    (fun iter1 => packets.Tag.validate_loop1.body iter1)
+    iter
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::validate]:
+    Source: 'src/packets/mod.rs', lines 4226:4-4251:5 -/
+def packets.Tag.validate
+  (s : Str) : Result (core.result.Result Unit packets.InvalidTag) := do
+  let b ← core.str.Str.is_empty s
+  if b
+  then ok (core.result.Result.Err packets.InvalidTag.Empty)
+  else
+    let i ← core.str.Str.len s
+    if i > packets.Tag.MAX_LEN
+    then ok (core.result.Result.Err (packets.InvalidTag.TooLong i))
+    else
+      let chars ← core.str.Str.chars s
+      let (o, chars1) ← core.str.iter.IteratorChars.next chars
+      match o with
+      | none => ok (core.result.Result.Err packets.InvalidTag.Empty)
+      | some c =>
+        let b1 ← core.char.methods.Char.is_ascii_lowercase c
+        if b1
+        then packets.Tag.validate_loop0 chars1
+        else
+          if c = '_'
+          then packets.Tag.validate_loop1 chars1
+          else
+            ok (core.result.Result.Err (packets.InvalidTag.InvalidFirstChar c))
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 4219:4-4223:5
+    Visibility: public -/
+def packets.Tag.new
+  {T1 : Type _} (coreconvertIntoT1CowAStrStringInst : core.convert.Into T1
+  (alloc.borrow.Cow Str String)) (s : T1) :
+  Result (core.result.Result packets.Tag packets.InvalidTag)
+  := do
+  let s1 ← coreconvertIntoT1CowAStrStringInst.into s
+  let s2 ←
+    alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+      Str.Insts.AllocBorrowToOwnedString s1
+  let r ← packets.Tag.validate s2
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    ok (core.result.Result.Ok s1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+      packets.Tag (core.convert.FromSame packets.InvalidTag) residual
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::as_str]:
+    Source: 'src/packets/mod.rs', lines 4254:4-4256:5
+    Visibility: public -/
+def packets.Tag.as_str (self : packets.Tag) : Result Str := do
+  alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+    Str.Insts.AllocBorrowToOwnedString self
+
+/-- [mysql_common::packets::{mysql_common::packets::Tag<'a>}::into_owned]:
+    Source: 'src/packets/mod.rs', lines 4259:4-4261:5
+    Visibility: public -/
+def packets.Tag.into_owned (self : packets.Tag) : Result packets.Tag := do
+  let s ← alloc.borrow.Cow.into_owned Str.Insts.AllocBorrowToOwnedString self
+  ok (alloc.borrow.Cow.Owned s)
+
+/-- [mysql_common::packets::{impl core::ops::deref::Deref<str> for mysql_common::packets::Tag<'_0>}::deref]:
+    Source: 'src/packets/mod.rs', lines 4273:4-4275:5
+    Visibility: public -/
+def packets.Tag.Insts.CoreOpsDerefDerefStr.deref
+  (self : packets.Tag) : Result Str := do
+  alloc.borrow.Cow.Insts.CoreOpsDerefDeref.deref
+    Str.Insts.AllocBorrowToOwnedString self
+
+/-- Trait implementation: [mysql_common::packets::{impl core::ops::deref::Deref<str> for mysql_common::packets::Tag<'_0>}]
+    Source: 'src/packets/mod.rs', lines 4270:0-4276:1 -/
+@[reducible]
+def packets.Tag.Insts.CoreOpsDerefDerefStr : core.ops.deref.Deref packets.Tag
+  Str := {
+  deref := packets.Tag.Insts.CoreOpsDerefDerefStr.deref
+}
+
+/-- [mysql_common::packets::{impl core::convert::TryFrom<&'a str, mysql_common::packets::InvalidTag> for mysql_common::packets::Tag<'a>}::try_from]:
+    Source: 'src/packets/mod.rs', lines 4281:4-4283:5
+    Visibility: public -/
+def packets.Tag.Insts.CoreConvertTryFromSharedAStrInvalidTag.try_from
+  (s : Str) : Result (core.result.Result packets.Tag packets.InvalidTag) := do
+  packets.Tag.new (core.convert.IntoFrom
+    alloc.borrow.CowAStrString.Insts.CoreConvertFromSharedAStr) s
+
+/-- Trait implementation: [mysql_common::packets::{impl core::convert::TryFrom<&'a str, mysql_common::packets::InvalidTag> for mysql_common::packets::Tag<'a>}]
+    Source: 'src/packets/mod.rs', lines 4278:0-4284:1 -/
+@[reducible]
+def packets.Tag.Insts.CoreConvertTryFromSharedAStrInvalidTag :
+  core.convert.TryFrom packets.Tag Str packets.InvalidTag := {
+  try_from := packets.Tag.Insts.CoreConvertTryFromSharedAStrInvalidTag.try_from
+}
+
+/-- [mysql_common::packets::{impl core::convert::TryFrom<alloc::string::String, mysql_common::packets::InvalidTag> for mysql_common::packets::Tag<'static>}::try_from]:
+    Source: 'src/packets/mod.rs', lines 4289:4-4291:5
+    Visibility: public -/
+def packets.TagStatic.Insts.CoreConvertTryFromStringInvalidTag.try_from
+  (s : String) :
+  Result (core.result.Result packets.Tag packets.InvalidTag)
+  := do
+  packets.Tag.new (core.convert.IntoFrom
+    alloc.borrow.CowAStrString.Insts.CoreConvertFromString) s
+
+/-- Trait implementation: [mysql_common::packets::{impl core::convert::TryFrom<alloc::string::String, mysql_common::packets::InvalidTag> for mysql_common::packets::Tag<'static>}]
+    Source: 'src/packets/mod.rs', lines 4286:0-4292:1 -/
+@[reducible]
+def packets.TagStatic.Insts.CoreConvertTryFromStringInvalidTag :
+  core.convert.TryFrom packets.Tag String packets.InvalidTag := {
+  try_from :=
+    packets.TagStatic.Insts.CoreConvertTryFromStringInvalidTag.try_from
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidTag}]
+    Source: 'src/packets/mod.rs', lines 4295:9-4295:14 -/
+@[reducible]
+def packets.InvalidTag.Insts.CoreFmtDebug : core.fmt.Debug packets.InvalidTag
+  := {
+  fmt := packets.InvalidTag.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidTag}]
+    Source: 'src/packets/mod.rs', lines 4295:44-4295:60 -/
+@[reducible]
+def packets.InvalidTag.Insts.CoreFmtDisplay : core.fmt.Display
+  packets.InvalidTag := {
+  fmt := packets.InvalidTag.Insts.CoreFmtDisplay.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidTag}]
+    Source: 'src/packets/mod.rs', lines 4295:44-4295:60 -/
+@[reducible]
+def packets.InvalidTag.Insts.CoreErrorError : core.error.Error
+  packets.InvalidTag := {
+  fmtDebugInst := packets.InvalidTag.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidTag.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::new]:
+    Source: 'src/packets/mod.rs', lines 4328:4-4334:5
+    Visibility: public -/
+def packets.Sid.new (uuid : Array Std.U8 16#usize) : Result packets.Sid := do
+  let s ←
+    misc.raw.seq.Seq.Insts.CoreDefaultDefault.default misc.raw.int.LeU64
+      packets.GnoInterval.Insts.CoreCloneClone
+  ok { uuid, tag := none, intervals := s }
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::uuid]:
+    Source: 'src/packets/mod.rs', lines 4337:4-4339:5
+    Visibility: public -/
+def packets.Sid.impl.uuid
+  (self : packets.Sid) : Result (Array Std.U8 16#usize) := do
+  ok self.uuid
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::tag]:
+    Source: 'src/packets/mod.rs', lines 4342:4-4347:5
+    Visibility: public -/
+def packets.Sid.impl.tag
+  (self : packets.Sid) : Result (Option packets.Tag) := do
+  match self.tag with
+  | none => ok none
+  | some t => ok (some t)
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::intervals]:
+    Source: 'src/packets/mod.rs', lines 4350:4-4352:5
+    Visibility: public -/
+def packets.Sid.impl.intervals
+  (self : packets.Sid) : Result (Slice packets.GnoInterval) := do
+  let s ←
+    misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref
+      packets.GnoInterval.Insts.CoreCloneClone self.intervals
+  core.slice.index.Slice.index (core.slice.index.SliceIndexRangeFullSlice
+    packets.GnoInterval) s ()
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::with_interval]:
+    Source: 'src/packets/mod.rs', lines 4355:4-4360:5
+    Visibility: public -/
+def packets.Sid.with_interval
+  (self : packets.Sid) (interval : packets.GnoInterval) :
+  Result packets.Sid
+  := do
+  let (c, _) := self.intervals
+  let intervals ←
+    misc.raw.cow_into_vec packets.GnoInterval.Insts.CoreCloneClone c
+  let intervals1 ← alloc.vec.Vec.push intervals interval
+  let s ←
+    misc.raw.seq.Seq.new misc.raw.int.LeU64
+      packets.GnoInterval.Insts.CoreCloneClone (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec
+      packets.GnoInterval.Insts.CoreCloneClone)) intervals1
+  ok { self with intervals := s }
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::with_intervals]:
+    Source: 'src/packets/mod.rs', lines 4363:4-4366:5
+    Visibility: public -/
+def packets.Sid.with_intervals
+  (self : packets.Sid) (intervals : alloc.vec.Vec packets.GnoInterval) :
+  Result packets.Sid
+  := do
+  let s ←
+    misc.raw.seq.Seq.new misc.raw.int.LeU64
+      packets.GnoInterval.Insts.CoreCloneClone (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec
+      packets.GnoInterval.Insts.CoreCloneClone)) intervals
+  ok { self with intervals := s }
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::len]:
+    Source: 'src/packets/mod.rs', lines 4368:4-4373:5 -/
+def packets.Sid.len (self : packets.Sid) : Result Std.U64 := do
+  let len ← lift (UScalar.cast .U64 packets.UUID_LEN)
+  let len1 ← lift (core.num.U64.saturating_add len 8#u64)
+  let i ←
+    misc.raw.seq.Seq.len packets.GnoInterval.Insts.CoreCloneClone
+      self.intervals
+  let i1 ← i * 16#usize
+  let i2 ← lift (UScalar.cast .U64 i1)
+  ok (core.num.U64.saturating_add len1 i2)
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::tag_str]:
+    Source: 'src/packets/mod.rs', lines 4376:4-4381:5 -/
+def packets.Sid.tag_str (self : packets.Sid) : Result Str := do
+  match self.tag with
+  | none => ok (toStr "")
+  | some t => packets.Tag.as_str t
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::tagged_len]:
+    Source: 'src/packets/mod.rs', lines 4386:4-4394:5 -/
+def packets.Sid.tagged_len (self : packets.Sid) : Result Std.U64 := do
+  let tag_str ← packets.Sid.tag_str self
+  let len ← lift (UScalar.cast .U64 packets.UUID_LEN)
+  let i ← core.str.Str.len tag_str
+  let i1 ← lift (UScalar.cast .U64 i)
+  let i2 ← misc.varlen_uint_size i1
+  let i3 ← lift (UScalar.cast .U64 i2)
+  let len1 ← lift (core.num.U64.saturating_add len i3)
+  let i4 ← lift (UScalar.cast .U64 i)
+  let len2 ← lift (core.num.U64.saturating_add len1 i4)
+  let len3 ← lift (core.num.U64.saturating_add len2 8#u64)
+  let i5 ←
+    misc.raw.seq.Seq.len packets.GnoInterval.Insts.CoreCloneClone
+      self.intervals
+  let i6 ← i5 * 16#usize
+  let i7 ← lift (UScalar.cast .U64 i6)
+  ok (core.num.U64.saturating_add len3 i7)
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'_0>}::serialize_tagged]:
+    Source: 'src/packets/mod.rs', lines 4399:4-4406:5 -/
+def packets.Sid.serialize_tagged
+  (self : packets.Sid) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize self.uuid buf
+  let tag_str ← packets.Sid.tag_str self
+  let i ← core.str.Str.len tag_str
+  let i1 ← lift (UScalar.cast .U64 i)
+  let buf2 ← misc.write_varlen_uint buf1 i1
+  let s ← core.str.Str.as_bytes tag_str
+  let buf3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 buf2 s
+  misc.raw.seq.Seq.Insts.Mysql_commonProtoMySerialize.serialize
+    packets.GnoInterval.Insts.CoreCloneClone
+    packets.GnoInterval.Insts.Mysql_commonProtoMySerialize
+    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple self.intervals
+    buf3
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'de>}::deserialize_tag]:
+    Source: 'src/packets/mod.rs', lines 4426:4-4444:5 -/
+def packets.Sid.deserialize_tag
+  (tag_len : Std.Usize) (buf : io.ParseBuf) :
+  Result ((core.result.Result (Option packets.Tag) core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  if tag_len > 0#usize
+  then
+    let i ← io.ParseBuf.len buf
+    if i < tag_len
+    then
+      let e ←
+        misc.io_error_msg core.io.error.ErrorKind.UnexpectedEof (toStr
+          "unexpected end of buffer reading Sid tag")
+      ok (core.result.Result.Err e, buf)
+    else
+      let tag_bytes ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) buf
+          { «end» := tag_len }
+      let r ← misc.trusted.sid_tag_from_utf8 tag_bytes
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let buf1 ← io.ParseBuf.skip buf tag_len
+        let s ← Str.Insts.AllocBorrowToOwnedString.to_owned val
+        let r1 ←
+          packets.Tag.new (core.convert.IntoFrom
+            alloc.borrow.CowAStrString.Insts.CoreConvertFromString) s
+        match r1 with
+        | core.result.Result.Ok t => ok (core.result.Result.Ok (some t), buf1)
+        | core.result.Result.Err e =>
+          let e1 ←
+            misc.io_error_from packets.InvalidTag.Insts.CoreErrorError
+              core.io.error.ErrorKind.InvalidData e
+          ok (core.result.Result.Err e1, buf1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (Option packets.Tag) (core.convert.FromSame core.io.error.Error)
+            residual
+        ok (r1, buf)
+  else ok (core.result.Result.Ok none, buf)
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'de>}::deserialize_tagged]:
+    Source: 'src/packets/mod.rs', lines 4411:4-4421:5 -/
+def packets.Sid.deserialize_tagged
+  (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.Sid core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse (ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      16#usize) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ← misc.read_varlen_uint buf1
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let tag_len ← lift (UScalar.cast .Usize val1)
+      let (r2, buf3) ← packets.Sid.deserialize_tag tag_len buf2
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let (r3, buf4) ←
+          io.ParseBuf.parse
+            (misc.raw.seq.Seq.Insts.Mysql_commonProtoMyDeserialize
+            packets.GnoInterval.Insts.CoreCloneClone
+            packets.GnoInterval.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple) buf3
+            ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue s =>
+          ok (core.result.Result.Ok
+            { uuid := val, tag := val2, intervals := s }, buf4)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.Sid (core.convert.FromSame core.io.error.Error) residual
+          ok (r4, buf4)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.Sid (core.convert.FromSame core.io.error.Error) residual
+        ok (r3, buf3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.Sid (core.convert.FromSame core.io.error.Error) residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.Sid (core.convert.FromSame core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{mysql_common::packets::Sid<'a>}::with_tag]:
+    Source: 'src/packets/mod.rs', lines 4452:4-4455:5
+    Visibility: public -/
+def packets.Sid.with_tag
+  (self : packets.Sid) (tag : packets.Tag) : Result packets.Sid := do
+  ok { self with tag := (some tag) }
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::Sid<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 4459:4-4462:5
+    Visibility: public -/
+def packets.Sid.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.Sid) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize self.uuid buf
+  misc.raw.seq.Seq.Insts.Mysql_commonProtoMySerialize.serialize
+    packets.GnoInterval.Insts.CoreCloneClone
+    packets.GnoInterval.Insts.Mysql_commonProtoMySerialize
+    misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple self.intervals
+    buf1
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::Sid<'_0>}]
+    Source: 'src/packets/mod.rs', lines 4458:0-4463:1 -/
+@[reducible]
+def packets.Sid.Insts.Mysql_commonProtoMySerialize : proto.MySerialize
+  packets.Sid := {
+  serialize := packets.Sid.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Sid<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 4469:4-4477:5
+    Visibility: public -/
+def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.Sid core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse (ArrayU8LEN.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      16#usize) buf ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, buf2) ←
+      io.ParseBuf.parse (misc.raw.seq.Seq.Insts.Mysql_commonProtoMyDeserialize
+        packets.GnoInterval.Insts.CoreCloneClone
+        packets.GnoInterval.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        misc.raw.int.LeU64.Insts.Mysql_commonMiscRawSeqSeqReprTuple) buf1 ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue s =>
+      ok (core.result.Result.Ok { uuid := val, tag := none, intervals := s },
+        buf2)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.Sid (core.convert.FromSame core.io.error.Error) residual
+      ok (r2, buf2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.Sid (core.convert.FromSame core.io.error.Error) residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Sid<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 4466:4-4466:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::Sid<'de>}]
+    Source: 'src/packets/mod.rs', lines 4465:0-4478:1 -/
+@[reducible]
+def packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.Sid Unit := {
+  SIZE := ok packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComBinlogDumpGtidHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Visibility: public -/
+def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidComBinlogDumpGtidHeader)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let a ←
+    core.fmt.Arguments.from_str_nonconst (toStr
+      "Invalid header for COM_BINLOG_DUMP_GTID")
+  core.fmt.Formatter.write_fmt __formatter a
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay :
+  core.fmt.Display packets.InvalidComBinlogDumpGtidHeader := {
+  fmt := packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComBinlogDumpGtidHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1
+    Visibility: public -/
+def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidComBinlogDumpGtidHeader) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidComBinlogDumpGtidHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
+    Source: 'src/packets/mod.rs', lines 64:17-64:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug : core.fmt.Debug
+  packets.InvalidComBinlogDumpGtidHeader := {
+  fmt := packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidComBinlogDumpGtidHeader}]
+    Source: 'src/packets/mod.rs', lines 64:67-64:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4601:0-4605:1 -/
+@[reducible]
+def packets.InvalidComBinlogDumpGtidHeader.Insts.CoreErrorError :
+  core.error.Error packets.InvalidComBinlogDumpGtidHeader := {
+  fmtDebugInst := packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDebug
+  fmtDisplayInst := packets.InvalidComBinlogDumpGtidHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::server_id]:
+    Source: 'src/packets/mod.rs', lines 4644:4-4646:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.impl.server_id
+  (self : packets.ComBinlogDumpGtid) : Result Std.U32 := do
+  let (i, _) := self.server_id
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::flags]:
+    Source: 'src/packets/mod.rs', lines 4649:4-4651:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.impl.flags
+  (self : packets.ComBinlogDumpGtid) : Result packets.BinlogDumpFlags := do
+  let (bdf, _) := self.flags
+  ok bdf
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::filename_raw]:
+    Source: 'src/packets/mod.rs', lines 4654:4-4656:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.filename_raw
+  (self : packets.ComBinlogDumpGtid) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::filename]:
+    Source: 'src/packets/mod.rs', lines 4659:4-4661:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.impl.filename
+  (self : packets.ComBinlogDumpGtid) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::pos]:
+    Source: 'src/packets/mod.rs', lines 4664:4-4666:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.impl.pos
+  (self : packets.ComBinlogDumpGtid) : Result Std.U64 := do
+  let (i, _) := self.pos
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::sids]:
+    Source: 'src/packets/mod.rs', lines 4669:4-4671:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.sids
+  (self : packets.ComBinlogDumpGtid) : Result (Slice packets.Sid) := do
+  misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref
+    packets.Sid.Insts.CoreCloneClone self.sid_block
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_server_id]:
+    Source: 'src/packets/mod.rs', lines 4686:4-4689:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.with_server_id
+  (self : packets.ComBinlogDumpGtid) (server_id : Std.U32) :
+  Result packets.ComBinlogDumpGtid
+  := do
+  let (_, pd) := self.server_id
+  ok { self with server_id := (server_id, pd) }
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::with_sid]:
+    Source: 'src/packets/mod.rs', lines 4709:4-4713:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.with_sid
+  (self : packets.ComBinlogDumpGtid) (sid : packets.Sid) :
+  Result packets.ComBinlogDumpGtid
+  := do
+  let (bdf, pd) := self.flags
+  let bdf1 ←
+    packets.BinlogDumpFlags.insert bdf
+      packets.BinlogDumpFlags.BINLOG_THROUGH_GTID
+  let s ←
+    misc.raw.seq.Seq.push packets.Sid.Insts.CoreCloneClone self.sid_block sid
+  ok { self with flags := (bdf1, pd), sid_block := s }
+
+/-- [mysql_common::packets::any_sid_tagged]:
+    Source: 'src/packets/mod.rs', lines 4753:0-4763:1 -/
+def packets.any_sid_tagged
+  (sids : Slice packets.Sid) (i : Std.Usize) : Result Bool := do
+  let i1 := Slice.len sids
+  if i < i1
+  then
+    let s ← Slice.index_usize sids i
+    let o ← packets.Sid.impl.tag s
+    let b := core.option.Option.is_some o
+    if b
+    then ok true
+    else let i2 ← i + 1#usize
+         packets.any_sid_tagged sids i2
+  else ok false
+partial_fixpoint
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::is_tagged_format]:
+    Source: 'src/packets/mod.rs', lines 4728:4-4730:5 -/
+def packets.ComBinlogDumpGtid.is_tagged_format
+  (self : packets.ComBinlogDumpGtid) : Result Bool := do
+  let s ←
+    misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref
+      packets.Sid.Insts.CoreCloneClone self.sid_block
+  packets.any_sid_tagged s 0#usize
+
+/-- [mysql_common::packets::sid_block_len_from]:
+    Source: 'src/packets/mod.rs', lines 4767:0-4782:1 -/
+def packets.sid_block_len_from
+  (sids : Slice packets.Sid) (tagged : Bool) (i : Std.Usize) (len : Std.U32) :
+  Result Std.U32
+  := do
+  let i1 := Slice.len sids
+  if i < i1
+  then
+    if tagged
+    then
+      let i2 ← i + 1#usize
+      let s ← Slice.index_usize sids i
+      let i3 ← packets.Sid.tagged_len s
+      let i4 ← lift (UScalar.cast .U32 i3)
+      let i5 ← lift (core.num.U32.saturating_add len i4)
+      packets.sid_block_len_from sids tagged i2 i5
+    else
+      let i2 ← i + 1#usize
+      let s ← Slice.index_usize sids i
+      let i3 ← packets.Sid.len s
+      let i4 ← lift (UScalar.cast .U32 i3)
+      let i5 ← lift (core.num.U32.saturating_add len i4)
+      packets.sid_block_len_from sids tagged i2 i5
+  else ok len
+partial_fixpoint
+
+/-- [mysql_common::packets::{mysql_common::packets::ComBinlogDumpGtid<'a>}::sid_block_len]:
+    Source: 'src/packets/mod.rs', lines 4732:4-4736:5 -/
+def packets.ComBinlogDumpGtid.sid_block_len
+  (self : packets.ComBinlogDumpGtid) : Result Std.U32 := do
+  let tagged ← packets.ComBinlogDumpGtid.is_tagged_format self
+  let s ←
+    misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref
+      packets.Sid.Insts.CoreCloneClone self.sid_block
+  packets.sid_block_len_from s tagged 0#usize 8#u32
+
+/-- [mysql_common::packets::n_sids_header]:
+    Source: 'src/packets/mod.rs', lines 4740:0-4750:1 -/
+def packets.n_sids_header
+  (tagged : Bool) (n_sids : Std.U64) : Result Std.U64 := do
+  let format_byte ← if tagged
+                      then ok 1#u8
+                      else ok 0#u8
+  if tagged
+  then
+    let i ← n_sids <<< 8#i32
+    let i1 ← lift (UScalar.cast .U64 format_byte)
+    let i2 ← i1 <<< 56#i32
+    ok (i ||| i2)
+  else
+    let i ← lift (UScalar.cast .U64 format_byte)
+    let i1 ← i <<< 56#i32
+    ok (n_sids ||| i1)
+
+/-- [mysql_common::packets::serialize_sids_from]:
+    Source: 'src/packets/mod.rs', lines 4785:0-4795:1 -/
+def packets.serialize_sids_from
+  (sids : Slice packets.Sid) (tagged : Bool) (i : Std.Usize)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 := Slice.len sids
+  if i < i1
+  then
+    if tagged
+    then
+      let s ← Slice.index_usize sids i
+      let buf1 ← packets.Sid.serialize_tagged s buf
+      let i2 ← i + 1#usize
+      packets.serialize_sids_from sids tagged i2 buf1
+    else
+      let s ← Slice.index_usize sids i
+      let buf1 ←
+        packets.Sid.Insts.Mysql_commonProtoMySerialize.serialize s buf
+      let i2 ← i + 1#usize
+      packets.serialize_sids_from sids tagged i2 buf1
+  else ok buf
+partial_fixpoint
+
+/-- [mysql_common::packets::deserialize_tagged_sids]:
+    Source: 'src/packets/mod.rs', lines 4798:0-4814:1 -/
+def packets.deserialize_tagged_sids
+  (sid_buf : io.ParseBuf) (n : Std.U64) (sids : alloc.vec.Vec packets.Sid) :
+  Result ((core.result.Result (alloc.vec.Vec packets.Sid) core.io.error.Error)
+    × io.ParseBuf)
+  := do
+  if n > 0#u64
+  then
+    let (r, sid_buf1) ← packets.Sid.deserialize_tagged sid_buf
+    match r with
+    | core.result.Result.Ok s =>
+      let sids1 ← alloc.vec.Vec.push sids s
+      let i ← n - 1#u64
+      packets.deserialize_tagged_sids sid_buf1 i sids1
+    | core.result.Result.Err e => ok (core.result.Result.Err e, sid_buf1)
+  else ok (core.result.Result.Ok sids, sid_buf)
+partial_fixpoint
+
+/-- [mysql_common::packets::deserialize_untagged_sids]:
+    Source: 'src/packets/mod.rs', lines 4817:0-4833:1 -/
+def packets.deserialize_untagged_sids
+  (sid_buf : io.ParseBuf) (n : Std.U64) (sids : alloc.vec.Vec packets.Sid) :
+  Result ((core.result.Result (alloc.vec.Vec packets.Sid) core.io.error.Error)
+    × io.ParseBuf)
+  := do
+  if n > 0#u64
+  then
+    let (r, sid_buf1) ←
+      io.ParseBuf.parse packets.Sid.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        sid_buf ()
+    match r with
+    | core.result.Result.Ok s =>
+      let sids1 ← alloc.vec.Vec.push sids s
+      let i ← n - 1#u64
+      packets.deserialize_untagged_sids sid_buf1 i sids1
+    | core.result.Result.Err e => ok (core.result.Result.Err e, sid_buf1)
+  else ok (core.result.Result.Ok sids, sid_buf)
+partial_fixpoint
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComBinlogDumpGtid<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 4836:4-4850:5
+    Visibility: public -/
+def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.ComBinlogDumpGtid) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.header buf
+  let buf2 ←
+    misc.raw._const.Const.Insts.Mysql_commonProtoMySerialize.serialize
+      packets.BinlogDumpFlags.Insts.CoreMarkerCopy (core.convert.IntoFrom
+      U16.Insts.CoreConvertFromBinlogDumpFlags)
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 self.flags buf1
+  let buf3 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32 self.server_id
+      buf2
+  let buf4 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.filename buf3
+  let buf5 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 self.pos buf4
+  let s ←
+    misc.raw.seq.Seq.Insts.CoreOpsDerefDerefSlice.deref
+      packets.Sid.Insts.CoreCloneClone self.sid_block
+  let tagged ← packets.any_sid_tagged s 0#usize
+  let i ← packets.sid_block_len_from s tagged 0#usize 8#u32
+  let buf6 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u32_le buf5 i
+  let i1 ←
+    misc.raw.seq.Seq.len packets.Sid.Insts.CoreCloneClone self.sid_block
+  let n_sids ← lift (UScalar.cast .U64 i1)
+  let i2 ← packets.n_sids_header tagged n_sids
+  let buf7 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u64_le buf6 i2
+  packets.serialize_sids_from s tagged 0#usize buf7
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::ComBinlogDumpGtid<'_0>}]
+    Source: 'src/packets/mod.rs', lines 4835:0-4851:1 -/
+@[reducible]
+def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.ComBinlogDumpGtid := {
+  serialize :=
+    packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDumpGtid<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 4857:4-4902:5
+    Visibility: public -/
+def
+  packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.ComBinlogDumpGtid core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+      buf 7#usize
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue pb =>
+    let (r1, sbuf) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple 30#u8
+        packets.InvalidComBinlogDumpGtidHeader.Insts.CoreErrorError
+        packets.InvalidComBinlogDumpGtidHeader.Insts.CoreDefaultDefault) pb ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (r2, sbuf1) ←
+        io.ParseBuf.parse_unchecked
+          (misc.raw._const.Const.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16
+          packets.BinlogDumpFlags.Insts.CoreConvertTryFromU16UnknownBinlogDumpFlags
+          packets.UnknownBinlogDumpFlags.Insts.CoreErrorError) sbuf ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (r3, _) ←
+          io.ParseBuf.parse_unchecked
+            (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+            misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) sbuf1 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val2 =>
+          let (r4, buf2) ←
+            io.ParseBuf.parse
+              (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+              misc.raw.bytes.U32Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+              buf1 ()
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue rb =>
+            let (r5, buf3) ←
+              io.ParseBuf.parse
+                (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64) buf2
+                ()
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val3 =>
+              let (r6, buf4) ←
+                io.ParseBuf.parse
+                  (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                  misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32)
+                  buf3 ()
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue val4 =>
+                let (i, _) := val4
+                let i1 ← lift (UScalar.cast .Usize i)
+                let (r7, buf5) ←
+                  io.ParseBuf.parse
+                    io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+                    buf4 i1
+                let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
+                match cf7 with
+                | core.ops.control_flow.ControlFlow.Continue pb1 =>
+                  let (r8, sid_buf) ←
+                    io.ParseBuf.parse
+                      (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+                      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64)
+                      pb1 ()
+                  let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r8
+                  match cf8 with
+                  | core.ops.control_flow.ControlFlow.Continue val5 =>
+                    let (i2, _) := val5
+                    let i3 ← i2 >>> 56#i32
+                    let format_byte ← lift (UScalar.cast .U8 i3)
+                    let n_sids ←
+                      if format_byte = 1#u8
+                      then
+                        do
+                        let i4 ← lift (i2 &&& 72057594037927680#u64)
+                        i4 >>> 8#i32
+                      else ok (i2 &&& 72057594037927935#u64)
+                    let i4 ← lift (UScalar.cast .Usize n_sids)
+                    let sids := alloc.vec.Vec.with_capacity packets.Sid i4
+                    match format_byte with
+                    | 1#uscalar =>
+                      let (r9, _) ←
+                        packets.deserialize_tagged_sids sid_buf n_sids sids
+                      let cf9 ← core.result.Result.Insts.CoreOpsTry.branch r9
+                      match cf9 with
+                      | core.ops.control_flow.ControlFlow.Continue val6 =>
+                        let s ←
+                          misc.raw.seq.Seq.new misc.raw.int.LeU64
+                            packets.Sid.Insts.CoreCloneClone
+                            (core.convert.IntoFrom
+                            (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec
+                            packets.Sid.Insts.CoreCloneClone)) val6
+                        ok (core.result.Result.Ok
+                          {
+                            header := val,
+                            flags := val1,
+                            server_id := val2,
+                            filename := rb,
+                            pos := val3,
+                            sid_block := s
+                          }, buf5)
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        let r10 ←
+                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                            packets.ComBinlogDumpGtid (core.convert.FromSame
+                            core.io.error.Error) residual
+                        ok (r10, buf5)
+                    | _ =>
+                      let (r9, _) ←
+                        packets.deserialize_untagged_sids sid_buf n_sids sids
+                      let cf9 ← core.result.Result.Insts.CoreOpsTry.branch r9
+                      match cf9 with
+                      | core.ops.control_flow.ControlFlow.Continue val6 =>
+                        let s ←
+                          misc.raw.seq.Seq.new misc.raw.int.LeU64
+                            packets.Sid.Insts.CoreCloneClone
+                            (core.convert.IntoFrom
+                            (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec
+                            packets.Sid.Insts.CoreCloneClone)) val6
+                        ok (core.result.Result.Ok
+                          {
+                            header := val,
+                            flags := val1,
+                            server_id := val2,
+                            filename := rb,
+                            pos := val3,
+                            sid_block := s
+                          }, buf5)
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        let r10 ←
+                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                            packets.ComBinlogDumpGtid (core.convert.FromSame
+                            core.io.error.Error) residual
+                        ok (r10, buf5)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r9 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        packets.ComBinlogDumpGtid (core.convert.FromSame
+                        core.io.error.Error) residual
+                    ok (r9, buf5)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r8 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      packets.ComBinlogDumpGtid (core.convert.FromSame
+                      core.io.error.Error) residual
+                  ok (r8, buf5)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r7 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    packets.ComBinlogDumpGtid (core.convert.FromSame
+                    core.io.error.Error) residual
+                ok (r7, buf4)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  packets.ComBinlogDumpGtid (core.convert.FromSame
+                  core.io.error.Error) residual
+              ok (r6, buf3)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                packets.ComBinlogDumpGtid (core.convert.FromSame
+                core.io.error.Error) residual
+            ok (r5, buf2)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.ComBinlogDumpGtid (core.convert.FromSame
+              core.io.error.Error) residual
+          ok (r4, buf1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.ComBinlogDumpGtid (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r3, buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.ComBinlogDumpGtid (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.ComBinlogDumpGtid (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDumpGtid<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 4854:4-4854:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::ComBinlogDumpGtid<'de>}]
+    Source: 'src/packets/mod.rs', lines 4853:0-4903:1 -/
+@[reducible]
+def packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.ComBinlogDumpGtid Unit := {
+  SIZE := ok
+    packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.ComBinlogDumpGtid.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}::default]:
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Visibility: public -/
+def
+  packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault.default
+  : Result packets.InvalidSemiSyncAckPacketPacketHeader := do
+  ok ()
+
+/-- Trait implementation: [mysql_common::packets::{impl core::default::Default for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
+    Source: 'src/packets/mod.rs', lines 58:24-58:31; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+@[reducible]
+def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault :
+  core.default.Default packets.InvalidSemiSyncAckPacketPacketHeader := {
+  default :=
+    packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault.default
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Visibility: public -/
+def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay.fmt
+  (self : packets.InvalidSemiSyncAckPacketPacketHeader)
+  (__formatter : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str __formatter (toStr
+    "Invalid semi-sync ack packet header")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Display for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+@[reducible]
+def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay :
+  core.fmt.Display packets.InvalidSemiSyncAckPacketPacketHeader := {
+  fmt := packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay.fmt
+}
+
+/-- [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}::fmt]:
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1
+    Visibility: public -/
+def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug.fmt
+  (self : packets.InvalidSemiSyncAckPacketPacketHeader)
+  (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  core.fmt.Formatter.write_str f (toStr "InvalidSemiSyncAckPacketPacketHeader")
+
+/-- Trait implementation: [mysql_common::packets::{impl core::fmt::Debug for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
+    Source: 'src/packets/mod.rs', lines 58:17-58:22; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+@[reducible]
+def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug :
+  core.fmt.Debug packets.InvalidSemiSyncAckPacketPacketHeader := {
+  fmt := packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug.fmt
+}
+
+/-- Trait implementation: [mysql_common::packets::{impl core::error::Error for mysql_common::packets::InvalidSemiSyncAckPacketPacketHeader}]
+    Source: 'src/packets/mod.rs', lines 58:67-58:83; this code is generated from a macro invocation at: 'src/packets/mod.rs', lines 4905:0-4909:1 -/
+@[reducible]
+def packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreErrorError :
+  core.error.Error packets.InvalidSemiSyncAckPacketPacketHeader := {
+  fmtDebugInst :=
+    packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDebug
+  fmtDisplayInst :=
+    packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreFmtDisplay
+}
+
+/-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::new]:
+    Source: 'src/packets/mod.rs', lines 4920:4-4926:5
+    Visibility: public -/
+def packets.SemiSyncAckPacket.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (position : Std.U64) (filename : T1) :
+  Result packets.SemiSyncAckPacket
+  := do
+  let cu ←
+    misc.raw.int.ConstU8.Insts.CoreDefaultDefault.default 239#u8
+      packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault
+  let ri ←
+    misc.raw.int.RawInt.new
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 position
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst filename
+  ok { header := cu, position := ri, filename := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::with_position]:
+    Source: 'src/packets/mod.rs', lines 4929:4-4932:5
+    Visibility: public -/
+def packets.SemiSyncAckPacket.with_position
+  (self : packets.SemiSyncAckPacket) (position : Std.U64) :
+  Result packets.SemiSyncAckPacket
+  := do
+  let (_, pd) := self.position
+  ok { self with position := (position, pd) }
+
+/-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::with_filename]:
+    Source: 'src/packets/mod.rs', lines 4935:4-4938:5
+    Visibility: public -/
+def packets.SemiSyncAckPacket.with_filename
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8)))
+  (self : packets.SemiSyncAckPacket) (filename : T1) :
+  Result packets.SemiSyncAckPacket
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst filename
+  ok { self with filename := rb }
+
+/-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::position]:
+    Source: 'src/packets/mod.rs', lines 4941:4-4943:5
+    Visibility: public -/
+def packets.SemiSyncAckPacket.impl.position
+  (self : packets.SemiSyncAckPacket) : Result Std.U64 := do
+  let (i, _) := self.position
+  ok i
+
+/-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::filename_raw]:
+    Source: 'src/packets/mod.rs', lines 4946:4-4948:5
+    Visibility: public -/
+def packets.SemiSyncAckPacket.filename_raw
+  (self : packets.SemiSyncAckPacket) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename
+
+/-- [mysql_common::packets::{mysql_common::packets::SemiSyncAckPacket<'a>}::filename]:
+    Source: 'src/packets/mod.rs', lines 4951:4-4953:5
+    Visibility: public -/
+def packets.SemiSyncAckPacket.impl.filename
+  (self : packets.SemiSyncAckPacket) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SemiSyncAckPacket<'_0>}::serialize]:
+    Source: 'src/packets/mod.rs', lines 4957:4-4961:5
+    Visibility: public -/
+def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.SemiSyncAckPacket) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.int.ConstU8.Insts.Mysql_commonProtoMySerialize.serialize
+      self.header buf
+  let buf2 ←
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64 self.position
+      buf1
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+    self.filename buf2
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MySerialize for mysql_common::packets::SemiSyncAckPacket<'_0>}]
+    Source: 'src/packets/mod.rs', lines 4956:0-4962:1 -/
+@[reducible]
+def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.SemiSyncAckPacket := {
+  serialize :=
+    packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SemiSyncAckPacket<'de>}::deserialize]:
+    Source: 'src/packets/mod.rs', lines 4968:4-4975:5
+    Visibility: public -/
+def
+  packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.SemiSyncAckPacket core.io.error.Error) ×
+    io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse io.ParseBuf.Insts.Mysql_commonProtoMyDeserializeDeUsize
+      buf 9#usize
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue pb =>
+    let (r1, sbuf) ←
+      io.ParseBuf.parse_unchecked
+        (misc.raw.int.ConstU8.Insts.Mysql_commonProtoMyDeserializeDeTuple
+        239#u8
+        packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreErrorError
+        packets.InvalidSemiSyncAckPacketPacketHeader.Insts.CoreDefaultDefault)
+        pb ()
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (r2, _) ←
+        io.ParseBuf.parse_unchecked
+          (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+          misc.raw.int.LeU64.Insts.Mysql_commonMiscRawIntIntReprU64) sbuf ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let (r3, buf2) ←
+          io.ParseBuf.parse
+            (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+            misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple)
+            buf1 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue rb =>
+          ok (core.result.Result.Ok
+            { header := val, position := val1, filename := rb }, buf2)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              packets.SemiSyncAckPacket (core.convert.FromSame
+              core.io.error.Error) residual
+          ok (r4, buf2)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            packets.SemiSyncAckPacket (core.convert.FromSame
+            core.io.error.Error) residual
+        ok (r3, buf1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          packets.SemiSyncAckPacket (core.convert.FromSame core.io.error.Error)
+          residual
+      ok (r2, buf1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        packets.SemiSyncAckPacket (core.convert.FromSame core.io.error.Error)
+        residual
+    ok (r1, buf1)
+
+/-- [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SemiSyncAckPacket<'de>}::SIZE]
+    Source: 'src/packets/mod.rs', lines 4965:4-4965:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::SemiSyncAckPacket<'de>}]
+    Source: 'src/packets/mod.rs', lines 4964:0-4976:1 -/
+@[reducible]
+def packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple :
+  proto.MyDeserialize packets.SemiSyncAckPacket Unit := {
+  SIZE := ok
+    packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.SemiSyncAckPacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl core::marker::StructuralPartialEq for mysql_common::packets::session_state_change::SessionStateChange<'a>}]
+    Source: 'src/packets/session_state_change.rs', lines 26:20-26:29 -/
+@[reducible]
+def
+  packets.session_state_change.SessionStateChange.Insts.CoreMarkerStructuralPartialEq
+  : core.marker.StructuralPartialEq
+  packets.session_state_change.SessionStateChange := {
+}
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Unsupported<'a>}::into_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 437:4-439:5
+    Visibility: public -/
+def packets.session_state_change.Unsupported.into_owned
+  (self : packets.session_state_change.Unsupported) :
+  Result packets.session_state_change.Unsupported
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionState<'a>}::into_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 394:4-396:5
+    Visibility: public -/
+def packets.session_state_change.TransactionState.into_owned
+  (self : packets.session_state_change.TransactionState) :
+  Result packets.session_state_change.TransactionState
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionCharacteristics<'a>}::into_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 348:4-350:5
+    Visibility: public -/
+def packets.session_state_change.TransactionCharacteristics.into_owned
+  (self : packets.session_state_change.TransactionCharacteristics) :
+  Result packets.session_state_change.TransactionCharacteristics
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Schema<'a>}::into_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 230:4-232:5
+    Visibility: public -/
+def packets.session_state_change.Schema.into_owned
+  (self : packets.session_state_change.Schema) :
+  Result packets.session_state_change.Schema
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Gtids<'a>}::into_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 180:4-182:5
+    Visibility: public -/
+def packets.session_state_change.Gtids.into_owned
+  (self : packets.session_state_change.Gtids) :
+  Result packets.session_state_change.Gtids
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SystemVariable<'a>}::to_owned_static]:
+    Source: 'src/packets/session_state_change.rs', lines 298:4-303:5 -/
+def packets.session_state_change.SystemVariable.to_owned_static
+  (self : packets.session_state_change.SystemVariable) :
+  Result packets.session_state_change.SystemVariable
+  := do
+  let s ←
+    misc.raw.bytes.RawBytes.as_bytes
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.name
+  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec core.clone.CloneU8))
+      v
+  let s1 ←
+    misc.raw.bytes.RawBytes.as_bytes
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.value
+  let v1 ← alloc.slice.Slice.to_vec core.clone.CloneU8 s1
+  let rb1 ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      (core.convert.IntoFrom
+      (alloc.borrow.CowASliceVec.Insts.CoreConvertFromVec core.clone.CloneU8))
+      v1
+  ok { «name» := rb, value := rb1 }
+
+/-- [mysql_common::packets::session_state_change::system_variables_to_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 116:0-127:1 -/
+def packets.session_state_change.system_variables_to_owned
+  (x : Slice packets.session_state_change.SystemVariable) (i : Std.Usize)
+  (vars : alloc.vec.Vec packets.session_state_change.SystemVariable) :
+  Result (alloc.vec.Vec packets.session_state_change.SystemVariable)
+  := do
+  let i1 := Slice.len x
+  if i < i1
+  then
+    let sv ← Slice.index_usize x i
+    let sv1 ←
+      packets.session_state_change.SystemVariable.to_owned_static
+        { «name» := sv.name, value := sv.value }
+    let vars1 ←
+      alloc.vec.Vec.push vars ({ «name» := sv1.name, value := sv1.value } :
+        packets.session_state_change.SystemVariable)
+    let i2 ← i + 1#usize
+    packets.session_state_change.system_variables_to_owned x i2 vars1
+  else ok vars
+partial_fixpoint
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SessionStateChange<'_0>}::into_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 38:4-58:5
+    Visibility: public -/
+def packets.session_state_change.SessionStateChange.into_owned
+  (self : packets.session_state_change.SessionStateChange) :
+  Result packets.session_state_change.SessionStateChange
+  := do
+  match self with
+  | packets.session_state_change.SessionStateChange.IsTracked _ => ok self
+  | packets.session_state_change.SessionStateChange.Schema s =>
+    let s1 ← packets.session_state_change.Schema.into_owned s
+    ok (packets.session_state_change.SessionStateChange.Schema s1)
+  | packets.session_state_change.SessionStateChange.SystemVariables x =>
+    let s := alloc.vec.Vec.deref x
+    let i := alloc.vec.Vec.len x
+    let v :=
+      alloc.vec.Vec.with_capacity packets.session_state_change.SystemVariable i
+    let v1 ←
+      packets.session_state_change.system_variables_to_owned s 0#usize v
+    ok (packets.session_state_change.SessionStateChange.SystemVariables v1)
+  | packets.session_state_change.SessionStateChange.Gtids g =>
+    let g1 ← packets.session_state_change.Gtids.into_owned g
+    ok (packets.session_state_change.SessionStateChange.Gtids g1)
+  | packets.session_state_change.SessionStateChange.TransactionCharacteristics
+    tc =>
+    let tc1 ←
+      packets.session_state_change.TransactionCharacteristics.into_owned tc
+    ok
+      (packets.session_state_change.SessionStateChange.TransactionCharacteristics
+      tc1)
+  | packets.session_state_change.SessionStateChange.TransactionState ts =>
+    let ts1 ← packets.session_state_change.TransactionState.into_owned ts
+    ok (packets.session_state_change.SessionStateChange.TransactionState ts1)
+  | packets.session_state_change.SessionStateChange.Unsupported u =>
+    let u1 ← packets.session_state_change.Unsupported.into_owned u
+    ok (packets.session_state_change.SessionStateChange.Unsupported u1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::Unsupported<'_0>}::serialize]:
+    Source: 'src/packets/session_state_change.rs', lines 455:4-457:5
+    Visibility: public -/
+def
+  packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.session_state_change.Unsupported)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::TransactionState<'_0>}::serialize]:
+    Source: 'src/packets/session_state_change.rs', lines 412:4-414:5
+    Visibility: public -/
+def
+  packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.session_state_change.TransactionState)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::TransactionCharacteristics<'_0>}::serialize]:
+    Source: 'src/packets/session_state_change.rs', lines 366:4-368:5
+    Visibility: public -/
+def
+  packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.session_state_change.TransactionCharacteristics)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::Schema<'_0>}::serialize]:
+    Source: 'src/packets/session_state_change.rs', lines 248:4-250:5
+    Visibility: public -/
+def
+  packets.session_state_change.Schema.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.session_state_change.Schema) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::Gtids<'_0>}::serialize]:
+    Source: 'src/packets/session_state_change.rs', lines 202:4-205:5
+    Visibility: public -/
+def
+  packets.session_state_change.Gtids.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.session_state_change.Gtids) (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ← alloc.vec.Vec.push buf 0#u8
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self buf1
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::SystemVariable<'_0>}::serialize]:
+    Source: 'src/packets/session_state_change.rs', lines 319:4-322:5
+    Visibility: public -/
+def
+  packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.session_state_change.SystemVariable)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let buf1 ←
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.name buf
+  misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple 
+    self.value buf1
+
+/-- [mysql_common::packets::session_state_change::serialize_system_variables]:
+    Source: 'src/packets/session_state_change.rs', lines 148:0-153:1 -/
+def packets.session_state_change.serialize_system_variables
+  (vars : Slice packets.session_state_change.SystemVariable) (i : Std.Usize)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 := Slice.len vars
+  if i < i1
+  then
+    let sv ← Slice.index_usize vars i
+    let buf1 ←
+      packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMySerialize.serialize
+        { «name» := sv.name, value := sv.value } buf
+    let i2 ← i + 1#usize
+    packets.session_state_change.serialize_system_variables vars i2 buf1
+  else ok buf
+partial_fixpoint
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::SessionStateChange<'_0>}::serialize]:
+    Source: 'src/packets/session_state_change.rs', lines 96:4-112:5
+    Visibility: public -/
+def
+  packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMySerialize.serialize
+  (self : packets.session_state_change.SessionStateChange)
+  (buf : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match self with
+  | packets.session_state_change.SessionStateChange.IsTracked is_tracked =>
+    if is_tracked
+    then
+      ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize
+        (Array.make 2#usize [ 1#u8, 49#u8 ]) buf
+    else
+      ArrayU8LEN.Insts.Mysql_commonProtoMySerialize.serialize
+        (Array.make 2#usize [ 1#u8, 48#u8 ]) buf
+  | packets.session_state_change.SessionStateChange.Schema s =>
+    packets.session_state_change.Schema.Insts.Mysql_commonProtoMySerialize.serialize
+      s buf
+  | packets.session_state_change.SessionStateChange.SystemVariables vars =>
+    let s := alloc.vec.Vec.deref vars
+    packets.session_state_change.serialize_system_variables s 0#usize buf
+  | packets.session_state_change.SessionStateChange.Gtids g =>
+    packets.session_state_change.Gtids.Insts.Mysql_commonProtoMySerialize.serialize
+      g buf
+  | packets.session_state_change.SessionStateChange.TransactionCharacteristics
+    tc =>
+    packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMySerialize.serialize
+      tc buf
+  | packets.session_state_change.SessionStateChange.TransactionState ts =>
+    packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMySerialize.serialize
+      ts buf
+  | packets.session_state_change.SessionStateChange.Unsupported u =>
+    packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMySerialize.serialize
+      u buf
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::SessionStateChange<'_0>}]
+    Source: 'src/packets/session_state_change.rs', lines 95:0-113:1 -/
+@[reducible]
+def
+  packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMySerialize
+  : proto.MySerialize packets.session_state_change.SessionStateChange := {
+  serialize :=
+    packets.session_state_change.SessionStateChange.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl core::marker::StructuralPartialEq for mysql_common::packets::session_state_change::Gtids<'a>}]
+    Source: 'src/packets/session_state_change.rs', lines 161:23-161:32 -/
+@[reducible]
+def packets.session_state_change.Gtids.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq packets.session_state_change.Gtids := {
+}
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Gtids<'a>}::new]:
+    Source: 'src/packets/session_state_change.rs', lines 165:4-167:5
+    Visibility: public -/
+def packets.session_state_change.Gtids.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (gtid_set : T1) :
+  Result packets.session_state_change.Gtids
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst gtid_set
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Gtids<'a>}::as_bytes]:
+    Source: 'src/packets/session_state_change.rs', lines 170:4-172:5
+    Visibility: public -/
+def packets.session_state_change.Gtids.as_bytes
+  (self : packets.session_state_change.Gtids) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Gtids<'a>}::as_str]:
+    Source: 'src/packets/session_state_change.rs', lines 175:4-177:5
+    Visibility: public -/
+def packets.session_state_change.Gtids.as_str
+  (self : packets.session_state_change.Gtids) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::Gtids<'_0>}]
+    Source: 'src/packets/session_state_change.rs', lines 201:0-206:1 -/
+@[reducible]
+def packets.session_state_change.Gtids.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.session_state_change.Gtids := {
+  serialize :=
+    packets.session_state_change.Gtids.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl core::marker::StructuralPartialEq for mysql_common::packets::session_state_change::Schema<'a>}]
+    Source: 'src/packets/session_state_change.rs', lines 211:23-211:32 -/
+@[reducible]
+def packets.session_state_change.Schema.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq packets.session_state_change.Schema := {
+}
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Schema<'a>}::new]:
+    Source: 'src/packets/session_state_change.rs', lines 215:4-217:5
+    Visibility: public -/
+def packets.session_state_change.Schema.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (schema_name : T1)
+  :
+  Result packets.session_state_change.Schema
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst schema_name
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Schema<'a>}::as_bytes]:
+    Source: 'src/packets/session_state_change.rs', lines 220:4-222:5
+    Visibility: public -/
+def packets.session_state_change.Schema.as_bytes
+  (self : packets.session_state_change.Schema) : Result (Slice Std.U8) := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Schema<'a>}::as_str]:
+    Source: 'src/packets/session_state_change.rs', lines 225:4-227:5
+    Visibility: public -/
+def packets.session_state_change.Schema.as_str
+  (self : packets.session_state_change.Schema) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::Schema<'_0>}]
+    Source: 'src/packets/session_state_change.rs', lines 247:0-251:1 -/
+@[reducible]
+def packets.session_state_change.Schema.Insts.Mysql_commonProtoMySerialize :
+  proto.MySerialize packets.session_state_change.Schema := {
+  serialize :=
+    packets.session_state_change.Schema.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl core::marker::StructuralPartialEq for mysql_common::packets::session_state_change::SystemVariable<'a>}]
+    Source: 'src/packets/session_state_change.rs', lines 255:23-255:32 -/
+@[reducible]
+def
+  packets.session_state_change.SystemVariable.Insts.CoreMarkerStructuralPartialEq
+  : core.marker.StructuralPartialEq packets.session_state_change.SystemVariable
+  := {
+}
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SystemVariable<'a>}::new]:
+    Source: 'src/packets/session_state_change.rs', lines 262:4-267:5
+    Visibility: public -/
+def packets.session_state_change.SystemVariable.new
+  {T1 : Type _} {T2 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst :
+  core.convert.Into T1 (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec
+  Std.U8))) (coreconvertIntoT2CowASliceU8VecU8Inst : core.convert.Into T2
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) («name» : T1)
+  (value : T2) :
+  Result packets.session_state_change.SystemVariable
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst «name»
+  let rb1 ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT2CowASliceU8VecU8Inst value
+  ok { «name» := rb, value := rb1 }
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SystemVariable<'a>}::name_bytes]:
+    Source: 'src/packets/session_state_change.rs', lines 270:4-272:5
+    Visibility: public -/
+def packets.session_state_change.SystemVariable.name_bytes
+  (self : packets.session_state_change.SystemVariable) :
+  Result (Slice Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple 
+    self.name
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SystemVariable<'a>}::name_str]:
+    Source: 'src/packets/session_state_change.rs', lines 275:4-277:5
+    Visibility: public -/
+def packets.session_state_change.SystemVariable.name_str
+  (self : packets.session_state_change.SystemVariable) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple 
+    self.name
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SystemVariable<'a>}::value_bytes]:
+    Source: 'src/packets/session_state_change.rs', lines 280:4-282:5
+    Visibility: public -/
+def packets.session_state_change.SystemVariable.value_bytes
+  (self : packets.session_state_change.SystemVariable) :
+  Result (Slice Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple 
+    self.value
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SystemVariable<'a>}::value_str]:
+    Source: 'src/packets/session_state_change.rs', lines 285:4-287:5
+    Visibility: public -/
+def packets.session_state_change.SystemVariable.value_str
+  (self : packets.session_state_change.SystemVariable) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple 
+    self.value
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::SystemVariable<'a>}::into_owned]:
+    Source: 'src/packets/session_state_change.rs', lines 290:4-295:5
+    Visibility: public -/
+def packets.session_state_change.SystemVariable.into_owned
+  (self : packets.session_state_change.SystemVariable) :
+  Result packets.session_state_change.SystemVariable
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.name
+  let rb1 ←
+    misc.raw.bytes.RawBytes.into_owned
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      self.value
+  ok { «name» := rb, value := rb1 }
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::SystemVariable<'_0>}]
+    Source: 'src/packets/session_state_change.rs', lines 318:0-323:1 -/
+@[reducible]
+def
+  packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMySerialize
+  : proto.MySerialize packets.session_state_change.SystemVariable := {
+  serialize :=
+    packets.session_state_change.SystemVariable.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl core::marker::StructuralPartialEq for mysql_common::packets::session_state_change::TransactionCharacteristics<'a>}]
+    Source: 'src/packets/session_state_change.rs', lines 329:23-329:32 -/
+@[reducible]
+def
+  packets.session_state_change.TransactionCharacteristics.Insts.CoreMarkerStructuralPartialEq
+  : core.marker.StructuralPartialEq
+  packets.session_state_change.TransactionCharacteristics := {
+}
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionCharacteristics<'a>}::new]:
+    Source: 'src/packets/session_state_change.rs', lines 333:4-335:5
+    Visibility: public -/
+def packets.session_state_change.TransactionCharacteristics.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (value : T1) :
+  Result packets.session_state_change.TransactionCharacteristics
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst value
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionCharacteristics<'a>}::as_bytes]:
+    Source: 'src/packets/session_state_change.rs', lines 338:4-340:5
+    Visibility: public -/
+def packets.session_state_change.TransactionCharacteristics.as_bytes
+  (self : packets.session_state_change.TransactionCharacteristics) :
+  Result (Slice Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionCharacteristics<'a>}::as_str]:
+    Source: 'src/packets/session_state_change.rs', lines 343:4-345:5
+    Visibility: public -/
+def packets.session_state_change.TransactionCharacteristics.as_str
+  (self : packets.session_state_change.TransactionCharacteristics) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::TransactionCharacteristics<'_0>}]
+    Source: 'src/packets/session_state_change.rs', lines 365:0-369:1 -/
+@[reducible]
+def
+  packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMySerialize
+  : proto.MySerialize packets.session_state_change.TransactionCharacteristics
+  := {
+  serialize :=
+    packets.session_state_change.TransactionCharacteristics.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl core::marker::StructuralPartialEq for mysql_common::packets::session_state_change::TransactionState<'a>}]
+    Source: 'src/packets/session_state_change.rs', lines 375:23-375:32 -/
+@[reducible]
+def
+  packets.session_state_change.TransactionState.Insts.CoreMarkerStructuralPartialEq
+  : core.marker.StructuralPartialEq
+  packets.session_state_change.TransactionState := {
+}
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionState<'a>}::new]:
+    Source: 'src/packets/session_state_change.rs', lines 379:4-381:5
+    Visibility: public -/
+def packets.session_state_change.TransactionState.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (value : T1) :
+  Result packets.session_state_change.TransactionState
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst value
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionState<'a>}::as_bytes]:
+    Source: 'src/packets/session_state_change.rs', lines 384:4-386:5
+    Visibility: public -/
+def packets.session_state_change.TransactionState.as_bytes
+  (self : packets.session_state_change.TransactionState) :
+  Result (Slice Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::TransactionState<'a>}::as_str]:
+    Source: 'src/packets/session_state_change.rs', lines 389:4-391:5
+    Visibility: public -/
+def packets.session_state_change.TransactionState.as_str
+  (self : packets.session_state_change.TransactionState) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::TransactionState<'_0>}]
+    Source: 'src/packets/session_state_change.rs', lines 411:0-415:1 -/
+@[reducible]
+def
+  packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMySerialize
+  : proto.MySerialize packets.session_state_change.TransactionState := {
+  serialize :=
+    packets.session_state_change.TransactionState.Insts.Mysql_commonProtoMySerialize.serialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl core::marker::StructuralPartialEq for mysql_common::packets::session_state_change::Unsupported<'a>}]
+    Source: 'src/packets/session_state_change.rs', lines 418:23-418:32 -/
+@[reducible]
+def
+  packets.session_state_change.Unsupported.Insts.CoreMarkerStructuralPartialEq
+  : core.marker.StructuralPartialEq packets.session_state_change.Unsupported
+  := {
+}
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Unsupported<'a>}::new]:
+    Source: 'src/packets/session_state_change.rs', lines 422:4-424:5
+    Visibility: public -/
+def packets.session_state_change.Unsupported.new
+  {T1 : Type _} (coreconvertIntoT1CowASliceU8VecU8Inst : core.convert.Into T1
+  (alloc.borrow.Cow (Slice Std.U8) (alloc.vec.Vec Std.U8))) (value : T1) :
+  Result packets.session_state_change.Unsupported
+  := do
+  let rb ←
+    misc.raw.bytes.RawBytes.new
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple
+      coreconvertIntoT1CowASliceU8VecU8Inst value
+  ok rb
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Unsupported<'a>}::as_bytes]:
+    Source: 'src/packets/session_state_change.rs', lines 427:4-429:5
+    Visibility: public -/
+def packets.session_state_change.Unsupported.as_bytes
+  (self : packets.session_state_change.Unsupported) :
+  Result (Slice Std.U8)
+  := do
+  misc.raw.bytes.RawBytes.as_bytes
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- [mysql_common::packets::session_state_change::{mysql_common::packets::session_state_change::Unsupported<'a>}::as_str]:
+    Source: 'src/packets/session_state_change.rs', lines 432:4-434:5
+    Visibility: public -/
+def packets.session_state_change.Unsupported.as_str
+  (self : packets.session_state_change.Unsupported) :
+  Result (alloc.borrow.Cow Str String)
+  := do
+  misc.raw.bytes.RawBytes.as_str
+    misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple self
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Unsupported<'de>}::deserialize]:
+    Source: 'src/packets/session_state_change.rs', lines 446:4-451:5
+    Visibility: public -/
+def
+  packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+  (_ : Unit) (buf : io.ParseBuf) :
+  Result ((core.result.Result packets.session_state_change.Unsupported
+    core.io.error.Error) × io.ParseBuf)
+  := do
+  let (r, buf1) ←
+    io.ParseBuf.parse_unchecked
+      (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf ()
+  match r with
+  | core.result.Result.Ok rb => ok (core.result.Result.Ok rb, buf1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, buf1)
+
+/-- [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Unsupported<'de>}::SIZE]
+    Source: 'src/packets/session_state_change.rs', lines 443:4-443:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def
+  packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  : Option Std.Usize :=
+  none
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MyDeserialize<'de, ()> for mysql_common::packets::session_state_change::Unsupported<'de>}]
+    Source: 'src/packets/session_state_change.rs', lines 442:0-452:1 -/
+@[reducible]
+def
+  packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMyDeserializeDeTuple
+  : proto.MyDeserialize packets.session_state_change.Unsupported Unit := {
+  SIZE := ok
+    packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+  deserialize :=
+    packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+}
+
+/-- Trait implementation: [mysql_common::packets::session_state_change::{impl mysql_common::proto::MySerialize for mysql_common::packets::session_state_change::Unsupported<'_0>}]
+    Source: 'src/packets/session_state_change.rs', lines 454:0-458:1 -/
+@[reducible]
+def packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMySerialize
+  : proto.MySerialize packets.session_state_change.Unsupported := {
+  serialize :=
+    packets.session_state_change.Unsupported.Insts.Mysql_commonProtoMySerialize.serialize
 }
 
 /-- [mysql_common::params::{impl core::convert::From<mysql_common::params::MissingNamedParameterError> for mysql_common::params::ParamsError}::from]:
@@ -20889,484 +32922,6 @@ def
     T
 }
 
-/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_time]:
-    Source: 'src/value/mod.rs', lines 390:4-417:5 -/
-def value.Value.deserialize_time
-  (buf : io.ParseBuf) :
-  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
-  := do
-  let (o, buf1) ← io.ParseBuf.checked_eat_u8 buf
-  match o with
-  | none =>
-    let e ← misc.unexpected_buf_eof
-    ok (core.result.Result.Err e, buf1)
-  | some x =>
-    let i ← lift (UScalar.cast .Usize x)
-    let (o1, buf2) ← io.ParseBuf.checked_eat_buf buf1 i
-    match o1 with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf2)
-    | some pb =>
-      if x >= 8#u8
-      then
-        let (i1, buf3) ← io.ParseBuf.eat_u8 pb
-        let (days, buf4) ← io.ParseBuf.eat_u32_le buf3
-        let (hours, buf5) ← io.ParseBuf.eat_u8 buf4
-        let (minutes, buf6) ← io.ParseBuf.eat_u8 buf5
-        let (seconds, buf7) ← io.ParseBuf.eat_u8 buf6
-        if x = 12#u8
-        then
-          let (micro_seconds, _) ← io.ParseBuf.eat_u32_le buf7
-          ok (core.result.Result.Ok (value.Value.Time (i1 = 1#u8) days hours
-            minutes seconds micro_seconds), buf2)
-        else
-          ok (core.result.Result.Ok (value.Value.Time (i1 = 1#u8) days hours
-            minutes seconds 0#u32), buf2)
-      else
-        ok (core.result.Result.Ok (value.Value.Time false 0#u32 0#u8 0#u8 0#u8
-          0#u32), buf2)
-
-/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_datetime]:
-    Source: 'src/value/mod.rs', lines 356:4-388:5 -/
-def value.Value.deserialize_datetime
-  (buf : io.ParseBuf) :
-  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
-  := do
-  let (o, buf1) ← io.ParseBuf.checked_eat_u8 buf
-  match o with
-  | none =>
-    let e ← misc.unexpected_buf_eof
-    ok (core.result.Result.Err e, buf1)
-  | some x =>
-    let i ← lift (UScalar.cast .Usize x)
-    let (o1, buf2) ← io.ParseBuf.checked_eat_buf buf1 i
-    match o1 with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf2)
-    | some pb =>
-      if x >= 4#u8
-      then
-        let (year, buf3) ← io.ParseBuf.eat_u16_le pb
-        let (month, buf4) ← io.ParseBuf.eat_u8 buf3
-        let (day, buf5) ← io.ParseBuf.eat_u8 buf4
-        if x >= 7#u8
-        then
-          let (hour, buf6) ← io.ParseBuf.eat_u8 buf5
-          let (minute, buf7) ← io.ParseBuf.eat_u8 buf6
-          let (second, buf8) ← io.ParseBuf.eat_u8 buf7
-          if x = 11#u8
-          then
-            let (micro_second, _) ← io.ParseBuf.eat_u32_le buf8
-            ok (core.result.Result.Ok (value.Value.Date year month day hour
-              minute second micro_second), buf2)
-          else
-            ok (core.result.Result.Ok (value.Value.Date year month day hour
-              minute second 0#u32), buf2)
-        else
-          ok (core.result.Result.Ok (value.Value.Date year month day 0#u8 0#u8
-            0#u8 0#u32), buf2)
-      else
-        ok (core.result.Result.Ok (value.Value.Date 0#u16 0#u8 0#u8 0#u8 0#u8
-          0#u8 0#u32), buf2)
-
-/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_longlong]:
-    Source: 'src/value/mod.rs', lines 338:4-354:5 -/
-def value.Value.deserialize_longlong
-  (unsigned : Bool) (buf : io.ParseBuf) :
-  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
-  := do
-  if unsigned
-  then
-    let (o, buf1) ← io.ParseBuf.checked_eat_u64_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let i ← lift (IScalar.hcast .U64 core.num.I64.MAX)
-      if x <= i
-      then
-        let i1 ← lift (UScalar.hcast .I64 x)
-        ok (core.result.Result.Ok (value.Value.Int i1), buf1)
-      else ok (core.result.Result.Ok (value.Value.UInt x), buf1)
-  else
-    let (o, buf1) ← io.ParseBuf.checked_eat_i64_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x => ok (core.result.Result.Ok (value.Value.Int x), buf1)
-
-/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_long]:
-    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 336:4-336:69 -/
-def value.Value.deserialize_long
-  (unsigned : Bool) (buf : io.ParseBuf) :
-  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
-  := do
-  if unsigned
-  then
-    let (o, buf1) ← io.ParseBuf.checked_eat_u32_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let i ← lift (UScalar.hcast .I64 x)
-      ok (core.result.Result.Ok (value.Value.Int i), buf1)
-  else
-    let (o, buf1) ← io.ParseBuf.checked_eat_i32_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let i ← lift (IScalar.cast .I64 x)
-      ok (core.result.Result.Ok (value.Value.Int i), buf1)
-
-/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_short]:
-    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 335:4-335:70 -/
-def value.Value.deserialize_short
-  (unsigned : Bool) (buf : io.ParseBuf) :
-  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
-  := do
-  if unsigned
-  then
-    let (o, buf1) ← io.ParseBuf.checked_eat_u16_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let i ← lift (UScalar.hcast .I64 x)
-      ok (core.result.Result.Ok (value.Value.Int i), buf1)
-  else
-    let (o, buf1) ← io.ParseBuf.checked_eat_i16_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let i ← lift (IScalar.cast .I64 x)
-      ok (core.result.Result.Ok (value.Value.Int i), buf1)
-
-/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_tiny]:
-    Source: 'src/value/mod.rs', lines 223:8-235:9; this code is generated from a macro invocation at: 'src/value/mod.rs', lines 334:4-334:61 -/
-def value.Value.deserialize_tiny
-  (unsigned : Bool) (buf : io.ParseBuf) :
-  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
-  := do
-  if unsigned
-  then
-    let (o, buf1) ← io.ParseBuf.checked_eat_u8 buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let i ← lift (UScalar.hcast .I64 x)
-      ok (core.result.Result.Ok (value.Value.Int i), buf1)
-  else
-    let (o, buf1) ← io.ParseBuf.checked_eat_i8 buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let i ← lift (IScalar.cast .I64 x)
-      ok (core.result.Result.Ok (value.Value.Int i), buf1)
-
-/-- [mysql_common::value::{mysql_common::value::Value}::deserialize_bin]:
-    Source: 'src/value/mod.rs', lines 419:4-473:5 -/
-def value.Value.deserialize_bin
-  (p : (constants.ColumnType × constants.ColumnFlags)) (buf : io.ParseBuf) :
-  Result ((core.result.Result value.Value core.io.error.Error) × io.ParseBuf)
-  := do
-  let (column_type, column_flags) := p
-  match column_type with
-  | constants.ColumnType.MYSQL_TYPE_DECIMAL =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_TINY =>
-    let b ←
-      constants.ColumnFlags.contains column_flags
-        constants.ColumnFlags.UNSIGNED_FLAG
-    value.Value.deserialize_tiny b buf
-  | constants.ColumnType.MYSQL_TYPE_SHORT =>
-    let b ←
-      constants.ColumnFlags.contains column_flags
-        constants.ColumnFlags.UNSIGNED_FLAG
-    value.Value.deserialize_short b buf
-  | constants.ColumnType.MYSQL_TYPE_LONG =>
-    let b ←
-      constants.ColumnFlags.contains column_flags
-        constants.ColumnFlags.UNSIGNED_FLAG
-    value.Value.deserialize_long b buf
-  | constants.ColumnType.MYSQL_TYPE_FLOAT =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_f32_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x => ok (core.result.Result.Ok (value.Value.Float x), buf1)
-  | constants.ColumnType.MYSQL_TYPE_DOUBLE =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_f64_le buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x => ok (core.result.Result.Ok (value.Value.Double x), buf1)
-  | constants.ColumnType.MYSQL_TYPE_NULL =>
-    ok (core.result.Result.Ok value.Value.NULL, buf)
-  | constants.ColumnType.MYSQL_TYPE_TIMESTAMP =>
-    value.Value.deserialize_datetime buf
-  | constants.ColumnType.MYSQL_TYPE_LONGLONG =>
-    let b ←
-      constants.ColumnFlags.contains column_flags
-        constants.ColumnFlags.UNSIGNED_FLAG
-    value.Value.deserialize_longlong b buf
-  | constants.ColumnType.MYSQL_TYPE_INT24 =>
-    let b ←
-      constants.ColumnFlags.contains column_flags
-        constants.ColumnFlags.UNSIGNED_FLAG
-    value.Value.deserialize_long b buf
-  | constants.ColumnType.MYSQL_TYPE_DATE =>
-    value.Value.deserialize_datetime buf
-  | constants.ColumnType.MYSQL_TYPE_TIME => value.Value.deserialize_time buf
-  | constants.ColumnType.MYSQL_TYPE_DATETIME =>
-    value.Value.deserialize_datetime buf
-  | constants.ColumnType.MYSQL_TYPE_YEAR =>
-    let b ←
-      constants.ColumnFlags.contains column_flags
-        constants.ColumnFlags.UNSIGNED_FLAG
-    value.Value.deserialize_short b buf
-  | constants.ColumnType.MYSQL_TYPE_NEWDATE =>
-    value.Value.deserialize_datetime buf
-  | constants.ColumnType.MYSQL_TYPE_VARCHAR =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_BIT =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_TIMESTAMP2 =>
-    let a ←
-      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
-        constants.ColumnType.MYSQL_TYPE_TIMESTAMP2
-    let _ ←
-      core.fmt.Arguments.new
-        (Array.make 44#usize [
-          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
-          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
-          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
-          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
-          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
-          ]) (Array.make 1#usize [ a ])
-    fail panic
-  | constants.ColumnType.MYSQL_TYPE_DATETIME2 =>
-    let a ←
-      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
-        constants.ColumnType.MYSQL_TYPE_DATETIME2
-    let _ ←
-      core.fmt.Arguments.new
-        (Array.make 44#usize [
-          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
-          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
-          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
-          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
-          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
-          ]) (Array.make 1#usize [ a ])
-    fail panic
-  | constants.ColumnType.MYSQL_TYPE_TIME2 =>
-    let a ←
-      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
-        constants.ColumnType.MYSQL_TYPE_TIME2
-    let _ ←
-      core.fmt.Arguments.new
-        (Array.make 44#usize [
-          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
-          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
-          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
-          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
-          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
-          ]) (Array.make 1#usize [ a ])
-    fail panic
-  | constants.ColumnType.MYSQL_TYPE_TYPED_ARRAY =>
-    let a ←
-      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
-        constants.ColumnType.MYSQL_TYPE_TYPED_ARRAY
-    let _ ←
-      core.fmt.Arguments.new
-        (Array.make 44#usize [
-          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
-          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
-          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
-          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
-          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
-          ]) (Array.make 1#usize [ a ])
-    fail panic
-  | constants.ColumnType.MYSQL_TYPE_VECTOR =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_UNKNOWN =>
-    let a ←
-      core.fmt.rt.Argument.new_debug constants.ColumnType.Insts.CoreFmtDebug
-        constants.ColumnType.MYSQL_TYPE_UNKNOWN
-    let _ ←
-      core.fmt.Arguments.new
-        (Array.make 44#usize [
-          41#u8, 110#u8, 111#u8, 116#u8, 32#u8, 105#u8, 109#u8, 112#u8, 108#u8,
-          101#u8, 109#u8, 101#u8, 110#u8, 116#u8, 101#u8, 100#u8, 58#u8, 32#u8,
-          85#u8, 110#u8, 115#u8, 117#u8, 112#u8, 112#u8, 111#u8, 114#u8,
-          116#u8, 101#u8, 100#u8, 32#u8, 99#u8, 111#u8, 108#u8, 117#u8, 109#u8,
-          110#u8, 32#u8, 116#u8, 121#u8, 112#u8, 101#u8, 32#u8, 192#u8, 0#u8
-          ]) (Array.make 1#usize [ a ])
-    fail panic
-  | constants.ColumnType.MYSQL_TYPE_JSON =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_NEWDECIMAL =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_ENUM =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_SET =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_TINY_BLOB =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_MEDIUM_BLOB =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_LONG_BLOB =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_BLOB =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_VAR_STRING =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_STRING =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-  | constants.ColumnType.MYSQL_TYPE_GEOMETRY =>
-    let (o, buf1) ← io.ParseBuf.checked_eat_lenenc_str buf
-    match o with
-    | none =>
-      let e ← misc.unexpected_buf_eof
-      ok (core.result.Result.Err e, buf1)
-    | some x =>
-      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 x
-      ok (core.result.Result.Ok (value.Value.Bytes v), buf1)
-
-/-- [mysql_common::value::{impl mysql_common::proto::MyDeserialize<'de, (mysql_common::constants::ColumnType, mysql_common::constants::ColumnFlags)> for mysql_common::value::ValueDeserializer<mysql_common::value::BinValue>}::deserialize]:
-    Source: 'src/value/mod.rs', lines 166:4-169:5
-    Visibility: public -/
-def
-  value.ValueDeserializerBinValue.Insts.Mysql_commonProtoMyDeserializeDePairColumnTypeColumnFlags.deserialize
-  (p : (constants.ColumnType × constants.ColumnFlags)) (buf : io.ParseBuf) :
-  Result ((core.result.Result (value.ValueDeserializer value.BinValue)
-    core.io.error.Error) × io.ParseBuf)
-  := do
-  let (r, buf1) ← value.Value.deserialize_bin p buf
-  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-  match cf with
-  | core.ops.control_flow.ControlFlow.Continue val =>
-    ok (core.result.Result.Ok (val, ()), buf1)
-  | core.ops.control_flow.ControlFlow.Break residual =>
-    let r1 ←
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-        (value.ValueDeserializer value.BinValue) (core.convert.FromSame
-        core.io.error.Error) residual
-    ok (r1, buf1)
-
 /-- [mysql_common::row::deserialize_bin_values]:
     Source: 'src/row/mod.rs', lines 343:0-370:1 -/
 def row.deserialize_bin_values
@@ -23360,21 +34915,25 @@ def
 /-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::PartialEq<mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind> for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}]
     Source: 'src/value/convert/mod.rs', lines 32:13-32:22 -/
 @[reducible]
-def
+impl_def
   value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind
   : core.cmp.PartialEq value.convert.parse_mysql_datetime_string.DateTimeKind
   value.convert.parse_mysql_datetime_string.DateTimeKind := {
   eq :=
     value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind
 }
 
 /-- Trait implementation: [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::Eq for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}]
     Source: 'src/value/convert/mod.rs', lines 32:24-32:26 -/
 @[reducible]
-def value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpEq :
-  core.cmp.Eq value.convert.parse_mysql_datetime_string.DateTimeKind := {
+impl_def value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpEq
+  : core.cmp.Eq value.convert.parse_mysql_datetime_string.DateTimeKind := {
   partialEqInst :=
     value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpPartialEqDateTimeKind
+  assert_fields_are_eq := core.cmp.Eq.assert_fields_are_eq.default
+    value.convert.parse_mysql_datetime_string.DateTimeKind.Insts.CoreCmpEq
 }
 
 /-- [mysql_common::value::convert::parse_mysql_datetime_string::{impl core::cmp::Ord for mysql_common::value::convert::parse_mysql_datetime_string::DateTimeKind}::cmp]:
@@ -25930,21 +37489,25 @@ def
 /-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::PartialEq<mysql_common::value::convert::parse_mysql_time_string::TimeKind> for mysql_common::value::convert::parse_mysql_time_string::TimeKind}]
     Source: 'src/value/convert/mod.rs', lines 658:13-658:22 -/
 @[reducible]
-def
+impl_def
   value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind
   : core.cmp.PartialEq value.convert.parse_mysql_time_string.TimeKind
   value.convert.parse_mysql_time_string.TimeKind := {
   eq :=
     value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind
 }
 
 /-- Trait implementation: [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::Eq for mysql_common::value::convert::parse_mysql_time_string::TimeKind}]
     Source: 'src/value/convert/mod.rs', lines 658:24-658:26 -/
 @[reducible]
-def value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpEq :
+impl_def value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpEq :
   core.cmp.Eq value.convert.parse_mysql_time_string.TimeKind := {
   partialEqInst :=
     value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpPartialEqTimeKind
+  assert_fields_are_eq := core.cmp.Eq.assert_fields_are_eq.default
+    value.convert.parse_mysql_time_string.TimeKind.Insts.CoreCmpEq
 }
 
 /-- [mysql_common::value::convert::parse_mysql_time_string::{impl core::cmp::Ord for mysql_common::value::convert::parse_mysql_time_string::TimeKind}::cmp]:

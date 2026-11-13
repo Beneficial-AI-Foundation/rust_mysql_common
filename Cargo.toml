@@ -409,8 +409,22 @@ start_from = [
   "mysql_common::packets::ComBinlogDumpGtid::_",
   "{impl mysql_common::proto::MyDeserialize for mysql_common::packets::ComBinlogDumpGtid}",
   "{impl mysql_common::proto::MySerialize for mysql_common::packets::ComBinlogDumpGtid}",
-  # src/packets/binlog_request.rs (`with_sids` collects a generic `IntoIterator`: excluded below)
-  "mysql_common::packets::binlog_request::BinlogRequest::_",
+  # src/packets/binlog_request.rs (not `with_sids`: it collects a generic `IntoIterator`, and
+  # Aeneas does not model `Iterator::collect`)
+  "mysql_common::packets::binlog_request::BinlogRequest::new",
+  "mysql_common::packets::binlog_request::BinlogRequest::server_id",
+  "mysql_common::packets::binlog_request::BinlogRequest::use_gtid",
+  "mysql_common::packets::binlog_request::BinlogRequest::flags",
+  "mysql_common::packets::binlog_request::BinlogRequest::filename_raw",
+  "mysql_common::packets::binlog_request::BinlogRequest::filename",
+  "mysql_common::packets::binlog_request::BinlogRequest::pos",
+  "mysql_common::packets::binlog_request::BinlogRequest::sids",
+  "mysql_common::packets::binlog_request::BinlogRequest::with_server_id",
+  "mysql_common::packets::binlog_request::BinlogRequest::with_use_gtid",
+  "mysql_common::packets::binlog_request::BinlogRequest::with_flags",
+  "mysql_common::packets::binlog_request::BinlogRequest::with_filename",
+  "mysql_common::packets::binlog_request::BinlogRequest::with_pos",
+  "mysql_common::packets::binlog_request::BinlogRequest::as_cmd",
   "mysql_common::packets::GnoInterval::_",
   "{impl mysql_common::proto::MyDeserialize for mysql_common::packets::GnoInterval}",
   "{impl mysql_common::proto::MySerialize for mysql_common::packets::GnoInterval}",
@@ -576,9 +590,6 @@ exclude = [
   "mysql_common::packets::session_state_change::{core::clone::Clone<_>}",
   "mysql_common::packets::session_state_change::{core::cmp::PartialEq<_, _>}",
   "mysql_common::packets::session_state_change::{core::cmp::Eq<_>}",
-  # src/packets/binlog_request.rs: `with_sids` (`sids.into_iter().collect()` over a generic
-  # `IntoIterator`; Aeneas does not model `Iterator::collect`).
-  "mysql_common::packets::binlog_request::BinlogRequest::with_sids",
   "mysql_common::packets::session_state_change::{core::hash::Hash<_>}",
   # src/value/convert/mod.rs: the conversions from/to `Arc<..>`, `Rc<..>`, `Box<..>` and
   # `Cow<'static, str>` are out of scope (they go through std conversions into shared/boxed
