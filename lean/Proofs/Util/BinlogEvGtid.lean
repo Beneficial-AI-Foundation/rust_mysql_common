@@ -36,10 +36,10 @@ theorem cast_u32_usize (x : U32) : (UScalar.cast .Usize x).val = x.val :=
   UScalar.cast_val_mod_pow_greater_numBits_eq _ _ (by simp [UScalarTy.numBits])
 
 theorem take_leBytes_append (k n : Nat) (t : List U8) : (leBytes k n ++ t).take k = leBytes k n := by
-  simp [List.take_append, PBUtil.length_leBytes]
+  simp [PBUtil.length_leBytes]
 
 theorem drop_leBytes_append (k n : Nat) (t : List U8) : (leBytes k n ++ t).drop k = t := by
-  simp [List.drop_append, PBUtil.length_leBytes]
+  simp [PBUtil.length_leBytes]
 
 theorem leNat_leBytes_of_lt (k n : Nat) (h : n < 2 ^ (8 * k)) : leNat (leBytes k n) = n := by
   rw [PBUtil.leNat_leBytes, Nat.mod_eq_of_lt h]
