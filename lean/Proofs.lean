@@ -128,5 +128,6 @@ import Proofs.Proto.Codec.ChunkDecoder
 import Proofs.Proto.Codec.PlainPacketCodec
 import Proofs.Defs.LemmasCF
 import Proofs.Defs.LemmasG
+import Proofs.Consistency.ParamsMap
 
 /-! The proofs of the spec statements, one file per Rust item (see `VERIFICATION.md` §8). -/
