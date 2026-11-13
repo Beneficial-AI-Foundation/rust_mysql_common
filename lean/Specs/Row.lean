@@ -15,12 +15,17 @@ import Proofs.Row.RowDeserializer
     its `BIT_OFFSET`, and instantiated at `ServerSide` (offset 2), which clients use for result
     sets (`*_server`).
 
+    **Panics.** The binary row reader is characterised on every input: it panics exactly when
+    `binRowCrash` holds (`deserialize_crash`), and otherwise returns what `binRowRead` says
+    (`deserialize_spec`). Facts about `binRowCrash`: `Specs/DefsCF.lean`.
+
     **Allocation caveat.** Decoding copies strings and grows the value vector; Aeneas models
     allocation as infallible, so "does not panic" means "does not panic, assuming allocation
     succeeds".
 
     **Definitions used.** `Defs/Row.lean` (`rowVals`, `colInfo`, `textRowRead`, `textEnc`,
-    `isTextVal`, `binRowRead`, `binValuesRead`, `binRowEnc`, `isNullVal`, `intWidth`, `binEncAt`,
+    `isTextVal`, `binRowRead`, `binValuesRead`, `binRowCrash`, `binValuesCrash`, `binRowEnc`,
+    `isNullVal`, `intWidth`, `binEncAt`,
     `binFitsAt`, `binNormAt`, `binRowEncAt`), `Defs/NullBitmap.lean`
     (`nullBitmapLen`, `bitmapBit`), `Defs/Value.lean` (`Val`, `textRead`, `binRead`, `binSupported`,
     `binCompatible`, `binNorm`, `isUnsigned`), `Defs/Bytes.lean`.
@@ -131,12 +136,11 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
 
 /-- [propext, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.SIZE_eq
-/-- `MyDeserialize for RowDeserializer<S, Binary>`: when every column whose type the binary value decoder does not support is marked NULL in the row's bitmap, total; `binRowRead` with `S`'s bit offset (header byte, NULL bitmap, then the non-NULL values), all present (`Some`), with the given columns. (The bound on the number of columns keeps `bitmap_len` from overflowing.) -/
+/-- `MyDeserialize for RowDeserializer<S, Binary>`: whenever it does not panic (`binRowCrash` is `false`; see `deserialize_crash` for the other case), total; `binRowRead` with `S`'s bit offset (header byte, NULL bitmap, then the non-NULL values), all present (`Some`), with the given columns. It is enough that every column of unsupported type is marked NULL in the row's bitmap (`Defs.binRowCrash_eq_false_of_supported`), but a truncated row, or one where an earlier value fails to decode, is covered too: it is an error, not a panic. (The bound on the number of columns keeps `bitmap_len` from overflowing.) -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
     (hlen : columns.length + 7 + off.val ≤ Usize.max) (buf : io.ParseBuf)
-    (hsup : ∀ (i : Nat) (c : packets.Column), columns.val[i]? = some c → binSupported c.column_type.1 = false →
-      bitmapBit off.val ((buf.val.drop 1).take (nullBitmapLen off.val columns.length)) i = true) :
+    (hnc : binRowCrash off.val (columns.val.map colInfo) buf.val = false) :
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize inst columns buf ⦃ r rest =>
       (okPart r).map (fun d => rowVals d.1) =
         (binRowRead off.val (columns.val.map colInfo) buf.val).1.map (List.map some) ∧
@@ -145,7 +149,16 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec
-/-- **Crash path.** `MyDeserialize for RowDeserializer<S, Binary>` panics when it reaches a non-NULL value of a column of unsupported type; e.g. when the first column has such a type and is not marked NULL. -/
+/-- **Crash path, exactly.** `MyDeserialize for RowDeserializer<S, Binary>` panics (`unimplemented!`) whenever `binRowCrash` is `true`: the header and bitmap are there, and the reader reaches a column of unsupported type that is not marked NULL, every earlier non-NULL value having decoded. With `deserialize_spec` this covers every input: the reader panics iff `binRowCrash`. -/
+recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_crash (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
+    (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
+    (hlen : columns.length + 7 + off.val ≤ Usize.max) (buf : io.ParseBuf)
+    (hc : binRowCrash off.val (columns.val.map colInfo) buf.val = true) :
+    row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize inst columns buf = fail .panic
+
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_crash
+/-- **Crash path, simplest case** (no `Target64` needed; `deserialize_crash` is the general statement): `MyDeserialize for RowDeserializer<S, Binary>` panics when the first column has an unsupported type and is not marked NULL. -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_unsupported {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))
     (c : packets.Column) (cs : List packets.Column) (hc : columns.val = c :: cs)
@@ -179,8 +192,7 @@ recall value.ServerSide.Insts.Mysql_commonValueSerializationSide.BIT_OFFSET_val 
 /-- `MyDeserialize for RowDeserializer<ServerSide, Binary>` (how clients read binary result-set rows): `deserialize_spec` at bit offset 2. -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec_server (h64 : Target64) (columns : alloc.sync.Arc (Slice packets.Column))
     (hlen : columns.length + 9 ≤ Usize.max) (buf : io.ParseBuf)
-    (hsup : ∀ (i : Nat) (c : packets.Column), columns.val[i]? = some c → binSupported c.column_type.1 = false →
-      bitmapBit 2 ((buf.val.drop 1).take (nullBitmapLen 2 columns.length)) i = true) :
+    (hnc : binRowCrash 2 (columns.val.map colInfo) buf.val = false) :
     row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize value.ServerSide.Insts.Mysql_commonValueSerializationSide columns buf ⦃ r rest =>
       (okPart r).map (fun d => rowVals d.1) =
         (binRowRead 2 (columns.val.map colInfo) buf.val).1.map (List.map some) ∧
@@ -189,6 +201,14 @@ recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSlice
 
 /-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_spec_server
+/-- `deserialize_crash` at `ServerSide` (bit offset 2): a binary result-set row from the server crashes the client exactly when `binRowCrash 2`. -/
+recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_crash_server (h64 : Target64) (columns : alloc.sync.Arc (Slice packets.Column))
+    (hlen : columns.length + 9 ≤ Usize.max) (buf : io.ParseBuf)
+    (hc : binRowCrash 2 (columns.val.map colInfo) buf.val = true) :
+    row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize value.ServerSide.Insts.Mysql_commonValueSerializationSide columns buf = fail .panic
+
+/-- [propext, Classical.choice, Quot.sound, core.io.error.Error, core.io.error.Error.ofMsg] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.deserialize_crash_server
 /-- Round trip at the columns' types: a binary row as the server sends it (`binRowEncAt`: each non-NULL value in its column's format, integers in the column's width) of `Value`s that are `NULL` or fit their column (`binFitsAt`: in range for a narrow integer type, else `binCompatible`) is read back, up to `binNormAt`. -/
 recall row.RowDeserializerSBinary.Insts.Mysql_commonProtoMyDeserializeDeArcSliceColumn.roundtrip_at (h64 : Target64) {S : Type} (inst : value.SerializationSide S) (off : Usize)
     (hoff : inst.BIT_OFFSET = ok off) (columns : alloc.sync.Arc (Slice packets.Column))

@@ -362,6 +362,63 @@ theorem frame_length (seq : Nat) (p : List U8) :
         rw [hM] at hp ⊢; omega
       rw [this]; rw [hM] at hp ⊢; omega
 
+/-! ## When the binary row reader panics -/
+
+private theorem binValuesCrash_eq_false_of_supported (off : Nat) (bm : List U8) :
+    ∀ (cols : List (constants.ColumnType × Bool)) (i : Nat) (bs : List U8),
+      (∀ (j : Nat) (ct : constants.ColumnType) (u : Bool), cols[j]? = some (ct, u) →
+        binSupported ct = false → bitmapBit off bm (i + j) = true) →
+      binValuesCrash off bm cols i bs = false := by
+  intro cols
+  induction cols with
+  | nil => intros; rfl
+  | cons c cols ih =>
+    obtain ⟨ct, u⟩ := c
+    intro i bs H
+    have ih' : ∀ bs', binValuesCrash off bm cols (i + 1) bs' = false := fun bs' =>
+      ih (i + 1) bs' (fun j ct' u' hj hs => by
+        have := H (j + 1) ct' u' (by simpa using hj) hs
+        rwa [show i + (j + 1) = i + 1 + j by omega] at this)
+    simp only [binValuesCrash]
+    by_cases hb : bitmapBit off bm i = true
+    · simp only [hb, ite_true]; exact ih' bs
+    · have hct : binSupported ct = true := by
+        by_contra hh
+        exact hb (by simpa using H 0 ct u rfl (by simpa using hh))
+      simp only [hb, hct, Bool.false_eq_true, ite_false, ite_true]
+      rcases binRead ct u bs with ⟨_ | v, rest⟩
+      · rfl
+      · exact ih' rest
+
+/-- The binary row reader does not panic when every column of unsupported type is marked NULL in the row's bitmap. (Sufficient, not necessary: it also does not panic when the input is too short, or an earlier value fails to decode.) -/
+theorem binRowCrash_eq_false_of_supported (off : Nat) (cols : List (constants.ColumnType × Bool)) (bs : List U8)
+    (H : ∀ (j : Nat) (ct : constants.ColumnType) (u : Bool), cols[j]? = some (ct, u) →
+      binSupported ct = false →
+      bitmapBit off ((bs.drop 1).take (nullBitmapLen off cols.length)) j = true) :
+    binRowCrash off cols bs = false := by
+  cases bs with
+  | nil => rfl
+  | cons hd rest =>
+    simp only [binRowCrash]
+    split_ifs
+    · rfl
+    · exact binValuesCrash_eq_false_of_supported off _ cols 0 _ (fun j ct u hj hs => by
+        simpa using H j ct u hj hs)
+
+/-- The binary row reader panics when the first column has an unsupported type and is not marked NULL (and the bitmap is all there). -/
+theorem binRowCrash_first (off : Nat) (ct : constants.ColumnType) (u : Bool)
+    (cols : List (constants.ColumnType × Bool)) (bs : List U8) (hs : binSupported ct = false)
+    (hlen : 1 + nullBitmapLen off (cols.length + 1) ≤ bs.length)
+    (hnn : bitmapBit off ((bs.drop 1).take (nullBitmapLen off (cols.length + 1))) 0 = false) :
+    binRowCrash off ((ct, u) :: cols) bs = true := by
+  cases bs with
+  | nil => simp at hlen
+  | cons hd rest =>
+    simp only [List.length_cons] at hlen
+    simp only [List.drop_succ_cons, List.drop_zero] at hnn
+    simp only [binRowCrash, List.length_cons, show ¬ rest.length < nullBitmapLen off (cols.length + 1) by omega,
+      ite_false, binValuesCrash, hnn, hs, Bool.false_eq_true]
+
 /-- One step of the chunk reader keeps the state valid. -/
 theorem chunkStep_valid (st : ChunkState) (hv : st.Valid) (src dst : List U8) (max : Nat) :
     (chunkStep st src dst max).2.1.Valid := by

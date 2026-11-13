@@ -36,6 +36,24 @@ recall binRead_binEncAt (ct : constants.ColumnType) (unsigned : Bool) (v : value
 
 /-- [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.binRead_binEncAt
+/-- The binary row reader does not panic when every column of unsupported type is marked NULL in the row's bitmap. (Sufficient, not necessary: it also does not panic when the input is too short, or an earlier value fails to decode.) -/
+recall binRowCrash_eq_false_of_supported (off : Nat) (cols : List (constants.ColumnType × Bool)) (bs : List U8)
+    (H : ∀ (j : Nat) (ct : constants.ColumnType) (u : Bool), cols[j]? = some (ct, u) →
+      binSupported ct = false →
+      bitmapBit off ((bs.drop 1).take (nullBitmapLen off cols.length)) j = true) :
+    binRowCrash off cols bs = false
+
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.binRowCrash_eq_false_of_supported
+/-- The binary row reader panics when the first column has an unsupported type and is not marked NULL (and the bitmap is all there). -/
+recall binRowCrash_first (off : Nat) (ct : constants.ColumnType) (u : Bool)
+    (cols : List (constants.ColumnType × Bool)) (bs : List U8) (hs : binSupported ct = false)
+    (hlen : 1 + nullBitmapLen off (cols.length + 1) ≤ bs.length)
+    (hnn : bitmapBit off ((bs.drop 1).take (nullBitmapLen off (cols.length + 1))) 0 = false) :
+    binRowCrash off ((ct, u) :: cols) bs = true
+
+/-- [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms Defs.binRowCrash_first
 /-- The text-row reader reads back a row of `NULL`s and byte strings. -/
 recall textRowRead_textEnc (vs : List Val) (hv : ∀ v ∈ vs, isTextVal v = true)
     (hs : ∀ s, Val.bytes s ∈ vs → s.length < 2 ^ 64) (t : List U8) :
