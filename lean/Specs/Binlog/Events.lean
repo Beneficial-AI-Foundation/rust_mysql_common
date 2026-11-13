@@ -411,7 +411,7 @@ recall binlog.events.Event.read_data_table_map_wire (h64 : Target64) (self : bin
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.Event.read_data_table_map_wire`
 
 /-- End to end: the `EventData` of a rows event (23–25, 30–32, 39): the `RowsEventData` variant of its type, with `rowsRead` of its data (post-header lengths from the event's FDE). -/
-recall binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.events.Event) (t : binlog.consts.EventType)
+recall binlog.events.Event.read_data_rows_wire (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (self : binlog.events.Event) (t : binlog.consts.EventType)
     (ht : eventTypeOfCode self.header.event_type.1.val = some t) (hr : eventTypeCode t ∈ [23, 24, 25, 30, 31, 32, 39])
     (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match rowsRead t (postHeaderLen (fdeLens self.fde) t) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
@@ -658,7 +658,7 @@ recall binlog.events.RowsEventData.into_owned_spec (d : binlog.events.RowsEventD
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.RowsEventData.into_owned_spec`
 
 /-- `MySerialize`: the wrapped event's layout. -/
-recall binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize_spec (d : binlog.events.RowsEventData) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc (rowsInner d)).length ≤ Usize.max) :
+recall binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (d : binlog.events.RowsEventData) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc (rowsInner d)).length ≤ Usize.max) :
     binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize d buf ⦃ buf' => buf'.val = buf.val ++ rowsEnc (rowsInner d) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize_spec`

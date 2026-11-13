@@ -173,29 +173,29 @@ theorem binlog.events.RowsEventData.into_owned_spec (d : binlog.events.RowsEvent
     exact WP.spec_bind (binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.into_owned_spec e) (fun _ h => (WP.spec_ok _).mpr ⟨rfl, h⟩)
 
 /-- `MySerialize`: the wrapped event's layout. -/
-theorem binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize_spec (d : binlog.events.RowsEventData) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc (rowsInner d)).length ≤ Usize.max) :
+theorem binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (d : binlog.events.RowsEventData) (buf : alloc.vec.Vec U8) (h : buf.length + (rowsEnc (rowsInner d)).length ≤ Usize.max) :
     binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize d buf ⦃ buf' => buf'.val = buf.val ++ rowsEnc (rowsInner d) ⦄ := by
   cases d with
   | WriteRowsEventV1 e =>
     simp only [binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize, rowsInner] at h ⊢
-    exact binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec e buf h
+    exact binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec h64 e buf h
   | UpdateRowsEventV1 e =>
     simp only [binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize, rowsInner] at h ⊢
-    exact binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec e buf h
+    exact binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec h64 e buf h
   | DeleteRowsEventV1 e =>
     simp only [binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize, rowsInner] at h ⊢
-    exact binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec e buf h
+    exact binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMySerialize.serialize_spec h64 e buf h
   | WriteRowsEvent e =>
     simp only [binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize, rowsInner] at h ⊢
-    exact binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec e buf h
+    exact binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec h64 e buf h
   | UpdateRowsEvent e =>
     simp only [binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize, rowsInner] at h ⊢
-    exact binlog.events.update_rows_event.UpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec e buf h
+    exact binlog.events.update_rows_event.UpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec h64 e buf h
   | DeleteRowsEvent e =>
     simp only [binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize, rowsInner] at h ⊢
-    exact binlog.events.delete_rows_event.DeleteRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec e buf h
+    exact binlog.events.delete_rows_event.DeleteRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec h64 e buf h
   | PartialUpdateRowsEvent e =>
     simp only [binlog.events.RowsEventData.Insts.Mysql_commonProtoMySerialize.serialize, rowsInner] at h ⊢
-    exact binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec e buf h
+    exact binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec h64 e buf h
 
 end mysql_common

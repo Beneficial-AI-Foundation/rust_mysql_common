@@ -723,7 +723,7 @@ theorem binlog.events.Event.read_data_table_map_wire (h64 : Target64) (self : bi
     exact (WP.spec_ok _).mpr ⟨x, rfl, hx⟩
 
 /-- End to end: the `EventData` of a rows event (23–25, 30–32, 39): the `RowsEventData` variant of its type, with `rowsRead` of its data (post-header lengths from the event's FDE). -/
-theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.events.Event) (t : binlog.consts.EventType)
+theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (self : binlog.events.Event) (t : binlog.consts.EventType)
     (ht : eventTypeOfCode self.header.event_type.1.val = some t) (hr : eventTypeCode t ∈ [23, 24, 25, 30, 31, 32, 39])
     (hlen : self.data.length + 19 ≤ Usize.max) :
     binlog.events.Event.read_data self ⦃ r => match rowsRead t (postHeaderLen (fdeLens self.fde) t) (postHeaderLen (fdeLens self.fde) .WRITE_ROWS_EVENT) self.data.val with
@@ -740,7 +740,7 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
       (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
       (fun ctx buf hf _ hb => by
         rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
-        apply WP.spec_mono (binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        apply WP.spec_mono (binlog.events.write_rows_event_v1.WriteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 hsz ctx buf)
         rintro ⟨r, rest⟩ hr
         rw [hb, hf] at hr
         exact ⟨hr, fun _ _ => trivial⟩))
@@ -762,7 +762,7 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
       (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
       (fun ctx buf hf _ hb => by
         rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
-        apply WP.spec_mono (binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        apply WP.spec_mono (binlog.events.update_rows_event_v1.UpdateRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 hsz ctx buf)
         rintro ⟨r, rest⟩ hr
         rw [hb, hf] at hr
         exact ⟨hr, fun _ _ => trivial⟩))
@@ -784,7 +784,7 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
       (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
       (fun ctx buf hf _ hb => by
         rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
-        apply WP.spec_mono (binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        apply WP.spec_mono (binlog.events.delete_rows_event_v1.DeleteRowsEventV1.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 hsz ctx buf)
         rintro ⟨r, rest⟩ hr
         rw [hb, hf] at hr
         exact ⟨hr, fun _ _ => trivial⟩))
@@ -806,7 +806,7 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
       (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
       (fun ctx buf hf _ hb => by
         rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
-        apply WP.spec_mono (binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        apply WP.spec_mono (binlog.events.write_rows_event.WriteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 hsz ctx buf)
         rintro ⟨r, rest⟩ hr
         rw [hb, hf] at hr
         exact ⟨hr, fun _ _ => trivial⟩))
@@ -828,7 +828,7 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
       (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
       (fun ctx buf hf _ hb => by
         rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.update_rows_event.UpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
-        apply WP.spec_mono (binlog.events.update_rows_event.UpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        apply WP.spec_mono (binlog.events.update_rows_event.UpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 hsz ctx buf)
         rintro ⟨r, rest⟩ hr
         rw [hb, hf] at hr
         exact ⟨hr, fun _ _ => trivial⟩))
@@ -850,7 +850,7 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
       (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
       (fun ctx buf hf _ hb => by
         rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.delete_rows_event.DeleteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
-        apply WP.spec_mono (binlog.events.delete_rows_event.DeleteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        apply WP.spec_mono (binlog.events.delete_rows_event.DeleteRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 hsz ctx buf)
         rintro ⟨r, rest⟩ hr
         rw [hb, hf] at hr
         exact ⟨hr, fun _ _ => trivial⟩))
@@ -872,7 +872,7 @@ theorem binlog.events.Event.read_data_rows_wire (h64 : Target64) (self : binlog.
       (fun _ => True) (by intro v t ht; exact rowsRead_tail _ _ _ _ v t ht)
       (fun ctx buf hf _ hb => by
         rw [io.ParseBuf.parse_of_size_none _ _ _ (by simp [binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.SIZE_eq])]
-        apply WP.spec_mono (binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 ctx buf)
+        apply WP.spec_mono (binlog.events.partial_update_rows_event.PartialUpdateRowsEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec h64 hsz ctx buf)
         rintro ⟨r, rest⟩ hr
         rw [hb, hf] at hr
         exact ⟨hr, fun _ _ => trivial⟩))
