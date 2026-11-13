@@ -1,0 +1,47 @@
+name = "mysql_common_verif"
+defaultTargets = ["MysqlCommon", "MysqlCommonExternal", "Defs", "Specs", "Proofs"]
+
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas.git"
+subDir = "backends/lean"
+rev = "nightly-2026.11.11-0d21a9e"
+
+# Each module belongs to exactly one library. A root's submodules also belong to its library
+# when the root is in `globs`, so the `MysqlCommon` root module is listed in `globs` only:
+# otherwise `MysqlCommon.FunsExternal` would belong to this library too.
+
+# translation/: the Aeneas translation (generated; never edited).
+[[lean_lib]]
+name = "MysqlCommon"
+srcDir = "translation"
+roots = ["MysqlCommon.Types", "MysqlCommon.Funs"]
+globs = ["MysqlCommon", "MysqlCommon.Types", "MysqlCommon.Funs"]
+
+# trusted/: the hand-written models and axioms of the code Aeneas does not translate.
+[[lean_lib]]
+name = "MysqlCommonExternal"
+srcDir = "trusted"
+roots = ["MysqlCommon.TypesExternal", "MysqlCommon.FunsExternal"]
+globs = ["MysqlCommon.TypesExternal", "MysqlCommon.FunsExternal"]
+
+# specs/: definitions needed to state the specs.
+[[lean_lib]]
+name = "Defs"
+srcDir = "specs"
+roots = ["Defs"]
+globs = ["Defs.*"]
+
+# specs/: one spec file per Rust file: the public statements and the axioms they rest on.
+[[lean_lib]]
+name = "Specs"
+srcDir = "specs"
+roots = ["Specs"]
+globs = ["Specs.*"]
+
+# proofs/: the proofs, one file per Rust item.
+[[lean_lib]]
+name = "Proofs"
+srcDir = "proofs"
+roots = ["Proofs"]
+globs = ["Proofs.*"]

@@ -1,0 +1,24 @@
+import Defs.Bytes
+import Defs.LenEnc
+import Defs.VarLen
+import Defs.Value
+import Defs.Convert
+import Defs.Flags
+import Defs.NullBitmap
+import Defs.Row
+import Defs.Framing
+import Defs.StmtExecute
+import Defs.Packets
+import Defs.RowConvert
+import Defs.Compression
+import Defs.SqlText
+import Defs.Connection
+import Defs.BinlogEvents
+import Defs.BinlogCore
+import Defs.BinlogValue
+import Defs.CmdPackets
+import Defs.SessionState
+import Defs.BinlogCmd
+
+/-! Definitions needed to state the specs (see the method,
+`VERIFICATION.md` §6, §7, kept outside this repo). -/

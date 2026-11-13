@@ -7,5 +7,6 @@ target/
 /.aeneas
 /.llbc/
 /.lake/
-*External_Template.lean
+/formal/.lake/
+/formal/translation/MysqlCommon/*External_Template.lean
 /.claude/worktrees/

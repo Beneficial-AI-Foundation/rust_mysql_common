@@ -6,10 +6,11 @@ on:
       - "src/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "translation-patches/**"
+      - "formal/trusted/patches/**"
       - "scripts/**"
-      - "lakefile.toml"
-      - "lean/MysqlCommon/**"
+      - "formal/lakefile.toml"
+      - "formal/translation/**"
+      - "formal/trusted/MysqlCommon/**"
       - ".github/workflows/aeneas-translation.yml"
   pull_request:
     paths: *paths
@@ -22,7 +23,7 @@ jobs:
 
       - name: Read the pinned Aeneas rev
         id: rev
-        run: echo "rev=$(sed -n 's/^rev *= *"\(.*\)"/\1/p' lakefile.toml | head -1)" >> "$GITHUB_OUTPUT"
+        run: echo "rev=$(sed -n 's/^rev *= *"\(.*\)"/\1/p' formal/lakefile.toml | head -1)" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Aeneas bundle and the Rust nightly
         uses: actions/cache@v4

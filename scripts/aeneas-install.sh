@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Installs the charon + aeneas binaries pinned by the `rev` of the aeneas dependency in
-# lakefile.toml into .aeneas/, the Rust nightly charon-driver was built against, and copies the
-# matching lean-toolchain. Does nothing if the right version is already installed.
+# formal/lakefile.toml into .aeneas/, the Rust nightly charon-driver was built against, and copies
+# the matching lean-toolchain to formal/. Does nothing if the right version is already installed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LAKE_ROOT="$ROOT/formal"   # the Lake project; .aeneas/ stays at the repository root
 cd "$ROOT"
 
 # The Aeneas release tag: the `rev` of the `aeneas` [[require]] block.
-REV="$(awk '/^\[\[require\]\]/{inreq=1; name=""} inreq && /^name *=/{gsub(/[" ]/,"",$0); split($0,a,"="); name=a[2]} inreq && name=="aeneas" && /^rev *=/{gsub(/[" ]/,"",$0); split($0,a,"="); print a[2]; exit}' lakefile.toml)"
+REV="$(awk '/^\[\[require\]\]/{inreq=1; name=""} inreq && /^name *=/{gsub(/[" ]/,"",$0); split($0,a,"="); name=a[2]} inreq && name=="aeneas" && /^rev *=/{gsub(/[" ]/,"",$0); split($0,a,"="); print a[2]; exit}' "$LAKE_ROOT/lakefile.toml")"
 if [[ -z "$REV" ]]; then
-  echo "error: could not read the aeneas rev from lakefile.toml" >&2
+  echo "error: could not read the aeneas rev from formal/lakefile.toml" >&2
   exit 1
 fi
 
@@ -49,17 +50,17 @@ if ! rustup run "$TOOLCHAIN" rustc --version >/dev/null 2>&1 \
 fi
 
 # Lean must match the Aeneas Lean library.
-cp "$DEST/backends/lean/lean-toolchain" "$ROOT/lean-toolchain"
+cp "$DEST/backends/lean/lean-toolchain" "$LAKE_ROOT/lean-toolchain"
 
 # The release bundle ships a prebuilt Aeneas Lean library for the same tag; seed lake's copy of
 # the package with it so `lake build` doesn't rebuild Aeneas from source.
-if [[ -d "$ROOT/.lake/packages/aeneas/backends/lean" ]] \
-   && [[ ! -d "$ROOT/.lake/packages/aeneas/backends/lean/.lake/build" ]] \
+if [[ -d "$LAKE_ROOT/.lake/packages/aeneas/backends/lean" ]] \
+   && [[ ! -d "$LAKE_ROOT/.lake/packages/aeneas/backends/lean/.lake/build" ]] \
    && [[ -d "$DEST/backends/lean/.lake/build" ]]; then
-  mkdir -p "$ROOT/.lake/packages/aeneas/backends/lean/.lake"
-  cp -R "$DEST/backends/lean/.lake/build" "$ROOT/.lake/packages/aeneas/backends/lean/.lake/"
+  mkdir -p "$LAKE_ROOT/.lake/packages/aeneas/backends/lean/.lake"
+  cp -R "$DEST/backends/lean/.lake/build" "$LAKE_ROOT/.lake/packages/aeneas/backends/lean/.lake/"
 fi
 
 echo "aeneas: $("$DEST/aeneas" -version 2>&1 | head -1)"
 echo "rust toolchain: $TOOLCHAIN"
-echo "lean toolchain: $(cat "$ROOT/lean-toolchain")"
+echo "lean toolchain: $(cat "$LAKE_ROOT/lean-toolchain")"
