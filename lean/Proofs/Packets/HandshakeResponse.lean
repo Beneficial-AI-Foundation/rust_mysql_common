@@ -1,10 +1,12 @@
 import Defs
+import Proofs.Util.ConnHandshake
 
 /-! Statements for `struct HandshakeResponse and its impls` (spec file: `Specs/Packets/Connection.lean`). -/
 
 set_option autoImplicit false
 
-open Aeneas Aeneas.Std Result mysql_common Defs
+open Aeneas Aeneas.Std Result mysql_common Defs mysql_common.PBUtil mysql_common.PKUtil mysql_common.ConnHSUtil
+open core.result.Result.Insts
 
 namespace mysql_common
 
@@ -36,54 +38,71 @@ theorem packets.HandshakeResponse.with_mariadb_ext_capabilities_spec (self : pac
     packets.HandshakeResponse.with_mariadb_ext_capabilities self mariadb_ext_capabilities ⦃ p =>
       HsResp.of p = { HsResp.of self with mariadbCaps := mariadb_ext_capabilities.val } ∧
         p.auth_plugin = self.auth_plugin ∧ p.connect_attributes = self.connect_attributes ⦄ := by
-  sorry
+  unfold packets.HandshakeResponse.with_mariadb_ext_capabilities
+  step*
+  simp_all [HsResp.of]
 
 /-- `capabilities`: the field. -/
 theorem packets.HandshakeResponse.impl.capabilities_eq (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.capabilities self = ok self.capabilities.1 := by
-  sorry
+  rfl
 
 /-- `mariadb_ext_capabilities`: the field. -/
 theorem packets.HandshakeResponse.impl.mariadb_ext_capabilities_eq (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.mariadb_ext_capabilities self = ok self.mariadb_ext_capabilities.1 := by
-  sorry
+  rfl
 
 /-- `collation`: the field. -/
 theorem packets.HandshakeResponse.impl.collation_eq (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.collation self = ok self.collation.1 := by
-  sorry
+  rfl
 
 /-- `scramble_buf`: the auth response (a 1-byte-length one at most 255 bytes, the `U8Bytes` maximum). -/
 theorem packets.HandshakeResponse.impl.scramble_buf_spec (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.scramble_buf self ⦃ s =>
       s.val = if (scrambleView self.scramble_buf).1 = .u8 then (scrambleView self.scramble_buf).2.take 255
         else (scrambleView self.scramble_buf).2 ⦄ := by
-  sorry
+  unfold packets.HandshakeResponse.impl.scramble_buf
+  rcases hs : self.scramble_buf with rb | (rb | rb) <;> simp only [scrambleView]
+  · apply WP.spec_mono (PCSUtil.lenenc_as_bytes rb)
+    intro s h; simp [h]
+  · obtain ⟨m, hm, hmv⟩ := spec_eq_ok misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
+    apply WP.spec_mono (misc.raw.bytes.RawBytes.as_bytes_spec _ m hm rb)
+    intro s h; simp [h, hmv]
+  · apply WP.spec_mono (nullbytes_as_bytes rb)
+    intro s h; simp [h]
 
 /-- `user`: the user. -/
 theorem packets.HandshakeResponse.impl.user_spec (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.user self ⦃ s => s.val = cowList self.user.1 ⦄ := by
-  sorry
+  unfold packets.HandshakeResponse.impl.user
+  step*
 
 /-- `db_name`: the database, if any. -/
 theorem packets.HandshakeResponse.impl.db_name_spec (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.db_name self ⦃ o => o.map (·.val) = self.db_name.map (fun rb => cowList rb.1) ⦄ := by
-  sorry
+  unfold packets.HandshakeResponse.impl.db_name
+  rcases hs2 : self.db_name with _ | s2 <;> simp only
+  · simp
+  · step*
+    simp_all
 
 /-- `auth_plugin`: the field. -/
 theorem packets.HandshakeResponse.impl.auth_plugin_eq (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.auth_plugin self = ok self.auth_plugin := by
-  sorry
+  unfold packets.HandshakeResponse.impl.auth_plugin
+  rcases self.auth_plugin <;> rfl
 
 /-- `connect_attributes`: the map converted to strings (`Trusted.connectAttrsToStrings`, lossy UTF-8), if any. -/
 theorem packets.HandshakeResponse.impl.connect_attributes_eq (self : packets.HandshakeResponse) :
     packets.HandshakeResponse.impl.connect_attributes self = ok (self.connect_attributes.map Trusted.connectAttrsToStrings) := by
-  sorry
+  unfold packets.HandshakeResponse.impl.connect_attributes
+  rcases self.connect_attributes <;> simp [misc.trusted.connect_attrs_to_strings]
 
 /-- `MyDeserialize for HandshakeResponse`: `SIZE` is `None`. -/
 theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq :
     packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE = none := by
-  sorry
+  unfold packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE; rfl
 
 /-- `MyDeserialize for HandshakeResponse`: total; `hsRespRead` (the fields, the plugin in normal form, the map built from the wire entries; errors; what is left). -/
 theorem packets.HandshakeResponse.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec (h64 : Target64) (buf : io.ParseBuf) :
