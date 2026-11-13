@@ -1336,3 +1336,416 @@ theorem datetime_roundtrip (dec : U32) (p : Int)
   simp [okPart, hq]
 
 end mysql_common.BinlogUtil
+
+namespace mysql_common.BinlogUtil
+
+theorem u8_lt' (b : U8) : b.val < 256 := by have := b.hBounds; simpa using this
+
+theorem wrapI64_mul (z : Int) (h : -2 ^ 39 ≤ z ∧ z < 2 ^ 39) : wrapI64 (z * 2 ^ 24) = z * 2 ^ 24 :=
+  wrapI64_exact _ (by omega)
+
+theorem cast64_i32 (z : I32) : (IScalar.cast .I64 z).val = z.val := by simp [IScalar.cast_val_eq]
+
+theorem time_ok (input : io.ParseBuf) (dec : U32) (hl : 3 + fracBytes dec.val ≤ input.length)
+    (hbug : ¬ time2NegFracBug dec.val input.val) :
+    binlog.misc.my_time_packed_from_binary input dec ⦃ r rest =>
+      ∃ p : I64, r = .Ok p ∧ time2Read dec.val input.val = some (p.val, rest.val) ⦄ := by
+  unfold binlog.misc.my_time_packed_from_binary
+  have hx24 : beNat (input.val.take 3) < 2 ^ 24 := by
+    have := PBUtil.leNat_lt (List.take 3 input.val).reverse
+    simp only [List.length_reverse, List.length_take] at this
+    rw [show min 3 input.val.length = 3 by simp only [Slice.length] at hl; unfold fracBytes at hl; split_ifs at hl <;> omega] at this
+    simpa [beNat] using this
+  split
+  case h_1 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hbug ⊢
+    norm_num [fracBytes, time2NegFracBug] at hl hbug
+    step with okS (read_u24_be_ok input (by simp only [Slice.length] at *; omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+    subst hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+    have hi : (UScalar.hcast .I64 x).val = x.val := by
+      rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+      unfold Int.bmod
+      have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    step with I64.sub_spec as ⟨intpart, hip⟩
+    · simp [binlog.misc.TIMEF_INT_OFS]; scalar_tac
+    have hip' : intpart.val = (beNat (input.val.take 3) : Int) - 8388608 := by
+      rw [hip, hi, hx]; simp [binlog.misc.TIMEF_INT_OFS]
+    step with okS (read_u8_ok in1 (by simp only [Slice.length, hin1] at *; simp; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    have hyv : (UScalar.cast UScalarTy.U32 y).val = beNat ((input.val.drop 3).take 1) := by
+      have := u8_lt' y
+      rw [UScalar.cast_val_eq, beNat_take1, ← hin1, ← hy]; simp only [UScalarTy.numBits]; omega
+    by_cases hneg : intpart < 0#i64
+    · have hy0 : ¬ (UScalar.cast UScalarTy.U32 y > 0#u32) := by
+        have h1 : intpart.val < 0 := by scalar_tac
+        intro h2
+        have h3 : (UScalar.cast UScalarTy.U32 y).val > 0 := by scalar_tac
+        rw [hyv] at h3
+        have := hbug hl (by omega)
+        omega
+      simp only [hneg, hy0, ite_true, ite_false, Std.bind_ok]
+      have hF : (UScalar.hcast IScalarTy.I64 (UScalar.cast UScalarTy.U32 y)).val = beNat ((input.val.drop 3).take 1) := by
+        rw [UScalar.hcast_val_eq, hyv]
+        have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+        simp only [IScalarTy.numBits]; unfold Int.bmod
+        have : ((beNat ((input.val.drop 3).take 1) : Int) % ((2^64 : Nat) : Int)) = beNat ((input.val.drop 3).take 1) := Int.emod_eq_of_lt (by omega) (by omega)
+        simp only [this]; split_ifs <;> omega
+      have hw : wrapI64 (intpart.val * 2 ^ 24) = intpart.val * 2 ^ 24 := wrapI64_exact _ (by rw [hip']; omega)
+      have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+      step*
+      case h => rw [hw]; scalar_tac
+      refine ⟨_, rfl, ?_⟩
+      simp only [show (1#32 : BitVec 32).toNat = 1 from rfl]
+      have hlen : ¬ (input.val.length < 3 + fracBytes 1) := by simp [fracBytes]; omega
+      simp only [time2Read, hlen, ite_false, fracBytes]
+      norm_num
+      refine ⟨hl, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+      rw [if_neg (by intro ⟨a, b⟩; exact b (hbug hl a)), i3_post, hw, i2_post, hF, hip']
+      unfold packedMake; ring
+    · simp only [hneg, ite_false, Std.bind_ok]
+      have hF : (UScalar.hcast IScalarTy.I64 (UScalar.cast UScalarTy.U32 y)).val = beNat ((input.val.drop 3).take 1) := by
+        rw [UScalar.hcast_val_eq, hyv]
+        have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+        simp only [IScalarTy.numBits]; unfold Int.bmod
+        have : ((beNat ((input.val.drop 3).take 1) : Int) % ((2^64 : Nat) : Int)) = beNat ((input.val.drop 3).take 1) := Int.emod_eq_of_lt (by omega) (by omega)
+        simp only [this]; split_ifs <;> omega
+      have hw : wrapI64 (intpart.val * 2 ^ 24) = intpart.val * 2 ^ 24 := wrapI64_exact _ (by rw [hip']; omega)
+      have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+      step*
+      case h => rw [hw]; scalar_tac
+      refine ⟨_, rfl, ?_⟩
+      simp only [show (1#32 : BitVec 32).toNat = 1 from rfl]
+      have hlen : ¬ (input.val.length < 3 + fracBytes 1) := by simp [fracBytes]; omega
+      simp only [time2Read, hlen, ite_false, fracBytes]
+      norm_num
+      refine ⟨hl, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+      rw [if_neg (by intro ⟨a, b⟩; exact b (hbug hl a)), i3_post, hw, i2_post, hF, hip']
+      unfold packedMake; ring
+
+  case h_2 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hbug ⊢
+    norm_num [fracBytes, time2NegFracBug] at hl hbug
+    step with okS (read_u24_be_ok input (by simp only [Slice.length] at *; omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+    subst hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+    have hi : (UScalar.hcast .I64 x).val = x.val := by
+      rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+      unfold Int.bmod
+      have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    step with I64.sub_spec as ⟨intpart, hip⟩
+    · simp [binlog.misc.TIMEF_INT_OFS]; scalar_tac
+    have hip' : intpart.val = (beNat (input.val.take 3) : Int) - 8388608 := by
+      rw [hip, hi, hx]; simp [binlog.misc.TIMEF_INT_OFS]
+    step with okS (read_u8_ok in1 (by simp only [Slice.length, hin1] at *; simp; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    have hyv : (UScalar.cast UScalarTy.U32 y).val = beNat ((input.val.drop 3).take 1) := by
+      have := u8_lt' y
+      rw [UScalar.cast_val_eq, beNat_take1, ← hin1, ← hy]; simp only [UScalarTy.numBits]; omega
+    by_cases hneg : intpart < 0#i64
+    · have hy0 : ¬ (UScalar.cast UScalarTy.U32 y > 0#u32) := by
+        have h1 : intpart.val < 0 := by scalar_tac
+        intro h2
+        have h3 : (UScalar.cast UScalarTy.U32 y).val > 0 := by scalar_tac
+        rw [hyv] at h3
+        have := hbug hl (by omega)
+        omega
+      simp only [hneg, hy0, ite_true, ite_false, Std.bind_ok]
+      have hF : (UScalar.hcast IScalarTy.I64 (UScalar.cast UScalarTy.U32 y)).val = beNat ((input.val.drop 3).take 1) := by
+        rw [UScalar.hcast_val_eq, hyv]
+        have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+        simp only [IScalarTy.numBits]; unfold Int.bmod
+        have : ((beNat ((input.val.drop 3).take 1) : Int) % ((2^64 : Nat) : Int)) = beNat ((input.val.drop 3).take 1) := Int.emod_eq_of_lt (by omega) (by omega)
+        simp only [this]; split_ifs <;> omega
+      have hw : wrapI64 (intpart.val * 2 ^ 24) = intpart.val * 2 ^ 24 := wrapI64_exact _ (by rw [hip']; omega)
+      have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+      step*
+      case h => rw [hw]; scalar_tac
+      refine ⟨_, rfl, ?_⟩
+      simp only [show (2#32 : BitVec 32).toNat = 2 from rfl]
+      have hlen : ¬ (input.val.length < 3 + fracBytes 2) := by simp [fracBytes]; omega
+      simp only [time2Read, hlen, ite_false, fracBytes]
+      norm_num
+      refine ⟨hl, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+      rw [if_neg (by intro ⟨a, b⟩; exact b (hbug hl a)), i3_post, hw, i2_post, hF, hip']
+      unfold packedMake; ring
+    · simp only [hneg, ite_false, Std.bind_ok]
+      have hF : (UScalar.hcast IScalarTy.I64 (UScalar.cast UScalarTy.U32 y)).val = beNat ((input.val.drop 3).take 1) := by
+        rw [UScalar.hcast_val_eq, hyv]
+        have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+        simp only [IScalarTy.numBits]; unfold Int.bmod
+        have : ((beNat ((input.val.drop 3).take 1) : Int) % ((2^64 : Nat) : Int)) = beNat ((input.val.drop 3).take 1) := Int.emod_eq_of_lt (by omega) (by omega)
+        simp only [this]; split_ifs <;> omega
+      have hw : wrapI64 (intpart.val * 2 ^ 24) = intpart.val * 2 ^ 24 := wrapI64_exact _ (by rw [hip']; omega)
+      have hb : beNat ((input.val.drop 3).take 1) < 256 := by rw [← hyv]; have := u8_lt' y; rw [UScalar.cast_val_eq]; simp only [UScalarTy.numBits]; omega
+      step*
+      case h => rw [hw]; scalar_tac
+      refine ⟨_, rfl, ?_⟩
+      simp only [show (2#32 : BitVec 32).toNat = 2 from rfl]
+      have hlen : ¬ (input.val.length < 3 + fracBytes 2) := by simp [fracBytes]; omega
+      simp only [time2Read, hlen, ite_false, fracBytes]
+      norm_num
+      refine ⟨hl, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+      rw [if_neg (by intro ⟨a, b⟩; exact b (hbug hl a)), i3_post, hw, i2_post, hF, hip']
+      unfold packedMake; ring
+
+  case h_3 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hbug ⊢
+    norm_num [fracBytes, time2NegFracBug] at hl hbug
+    step with okS (read_u24_be_ok input (by simp only [Slice.length] at *; omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+    subst hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+    have hi : (UScalar.hcast .I64 x).val = x.val := by
+      rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+      unfold Int.bmod
+      have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    step with I64.sub_spec as ⟨intpart, hip⟩
+    · simp [binlog.misc.TIMEF_INT_OFS]; scalar_tac
+    have hip' : intpart.val = (beNat (input.val.take 3) : Int) - 8388608 := by
+      rw [hip, hi, hx]; simp [binlog.misc.TIMEF_INT_OFS]
+    step with okS (read_u16_be_ok in1 (by simp only [Slice.length, hin1] at *; simp; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    have hb2 : beNat ((input.val.drop 3).take 2) < 65536 := by
+      have := PBUtil.leNat_lt ((input.val.drop 3).take 2).reverse
+      simp only [List.length_reverse, List.length_take, List.length_drop] at this
+      rw [show min 2 (input.val.length - 3) = 2 by omega] at this
+      simpa [beNat] using this
+    have hyv : (UScalar.hcast IScalarTy.I32 y).val = beNat ((input.val.drop 3).take 2) := by
+      rw [UScalar.hcast_val_eq, hy, hin1]; simp only [IScalarTy.numBits]; unfold Int.bmod
+      have : ((beNat ((input.val.drop 3).take 2) : Int) % ((2^32 : Nat) : Int)) = beNat ((input.val.drop 3).take 2) := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    have hlen : ¬ (input.val.length < 3 + fracBytes 3) := by simp [fracBytes]; omega
+    by_cases hneg : intpart < 0#i64
+    · have hneg' : intpart.val < 0 := by scalar_tac
+      by_cases hpos : UScalar.hcast IScalarTy.I32 y > 0#i32
+      · have hpos' : (UScalar.hcast IScalarTy.I32 y).val > 0 := by scalar_tac
+        simp only [hneg, hpos, ite_true, Std.bind_ok]
+        step*
+        case h =>
+          simp (disch := omega) only [wrapI64_mul] at *
+          simp only [cast64_i32] at *
+          scalar_tac
+        refine ⟨_, rfl, ?_⟩
+        simp only [show (3#32 : BitVec 32).toNat = 3 from rfl, time2Read, hlen, ite_false, fracBytes]
+        norm_num
+        refine ⟨by omega, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+        simp (disch := omega) only [wrapI64_mul] at *
+        simp only [cast64_i32] at *
+        split_ifs <;> unfold packedMake <;> omega
+      · have hpos' : ¬ (UScalar.hcast IScalarTy.I32 y).val > 0 := by scalar_tac
+        simp only [hneg, hpos, ite_true, ite_false, Std.bind_ok]
+        step*
+        case h =>
+          simp (disch := omega) only [wrapI64_mul] at *
+          simp only [cast64_i32] at *
+          scalar_tac
+        refine ⟨_, rfl, ?_⟩
+        simp only [show (3#32 : BitVec 32).toNat = 3 from rfl, time2Read, hlen, ite_false, fracBytes]
+        norm_num
+        refine ⟨by omega, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+        simp (disch := omega) only [wrapI64_mul] at *
+        simp only [cast64_i32] at *
+        split_ifs <;> unfold packedMake <;> omega
+    · have hneg' : ¬ intpart.val < 0 := by scalar_tac
+      simp only [hneg, ite_false, Std.bind_ok]
+      step*
+      case h =>
+        simp (disch := omega) only [wrapI64_mul] at *
+        simp only [cast64_i32] at *
+        scalar_tac
+      refine ⟨_, rfl, ?_⟩
+      simp only [show (3#32 : BitVec 32).toNat = 3 from rfl, time2Read, hlen, ite_false, fracBytes]
+      norm_num
+      refine ⟨by omega, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+      simp (disch := omega) only [wrapI64_mul] at *
+      simp only [cast64_i32] at *
+      split_ifs <;> unfold packedMake <;> omega
+
+  case h_4 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hbug ⊢
+    norm_num [fracBytes, time2NegFracBug] at hl hbug
+    step with okS (read_u24_be_ok input (by simp only [Slice.length] at *; omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+    subst hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+    have hi : (UScalar.hcast .I64 x).val = x.val := by
+      rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+      unfold Int.bmod
+      have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    step with I64.sub_spec as ⟨intpart, hip⟩
+    · simp [binlog.misc.TIMEF_INT_OFS]; scalar_tac
+    have hip' : intpart.val = (beNat (input.val.take 3) : Int) - 8388608 := by
+      rw [hip, hi, hx]; simp [binlog.misc.TIMEF_INT_OFS]
+    step with okS (read_u16_be_ok in1 (by simp only [Slice.length, hin1] at *; simp; omega)) as ⟨r2, in2, y, hr2, hy, hin2⟩
+    subst hr2
+    simp only [Std.bind_ok]
+    have hb2 : beNat ((input.val.drop 3).take 2) < 65536 := by
+      have := PBUtil.leNat_lt ((input.val.drop 3).take 2).reverse
+      simp only [List.length_reverse, List.length_take, List.length_drop] at this
+      rw [show min 2 (input.val.length - 3) = 2 by omega] at this
+      simpa [beNat] using this
+    have hyv : (UScalar.hcast IScalarTy.I32 y).val = beNat ((input.val.drop 3).take 2) := by
+      rw [UScalar.hcast_val_eq, hy, hin1]; simp only [IScalarTy.numBits]; unfold Int.bmod
+      have : ((beNat ((input.val.drop 3).take 2) : Int) % ((2^32 : Nat) : Int)) = beNat ((input.val.drop 3).take 2) := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    have hlen : ¬ (input.val.length < 3 + fracBytes 4) := by simp [fracBytes]; omega
+    by_cases hneg : intpart < 0#i64
+    · have hneg' : intpart.val < 0 := by scalar_tac
+      by_cases hpos : UScalar.hcast IScalarTy.I32 y > 0#i32
+      · have hpos' : (UScalar.hcast IScalarTy.I32 y).val > 0 := by scalar_tac
+        simp only [hneg, hpos, ite_true, Std.bind_ok]
+        step*
+        case h =>
+          simp (disch := omega) only [wrapI64_mul] at *
+          simp only [cast64_i32] at *
+          scalar_tac
+        refine ⟨_, rfl, ?_⟩
+        simp only [show (4#32 : BitVec 32).toNat = 4 from rfl, time2Read, hlen, ite_false, fracBytes]
+        norm_num
+        refine ⟨by omega, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+        simp (disch := omega) only [wrapI64_mul] at *
+        simp only [cast64_i32] at *
+        split_ifs <;> unfold packedMake <;> omega
+      · have hpos' : ¬ (UScalar.hcast IScalarTy.I32 y).val > 0 := by scalar_tac
+        simp only [hneg, hpos, ite_true, ite_false, Std.bind_ok]
+        step*
+        case h =>
+          simp (disch := omega) only [wrapI64_mul] at *
+          simp only [cast64_i32] at *
+          scalar_tac
+        refine ⟨_, rfl, ?_⟩
+        simp only [show (4#32 : BitVec 32).toNat = 4 from rfl, time2Read, hlen, ite_false, fracBytes]
+        norm_num
+        refine ⟨by omega, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+        simp (disch := omega) only [wrapI64_mul] at *
+        simp only [cast64_i32] at *
+        split_ifs <;> unfold packedMake <;> omega
+    · have hneg' : ¬ intpart.val < 0 := by scalar_tac
+      simp only [hneg, ite_false, Std.bind_ok]
+      step*
+      case h =>
+        simp (disch := omega) only [wrapI64_mul] at *
+        simp only [cast64_i32] at *
+        scalar_tac
+      refine ⟨_, rfl, ?_⟩
+      simp only [show (4#32 : BitVec 32).toNat = 4 from rfl, time2Read, hlen, ite_false, fracBytes]
+      norm_num
+      refine ⟨by omega, ?_, by simp [hin2, hin1, List.drop_drop]⟩
+      simp (disch := omega) only [wrapI64_mul] at *
+      simp only [cast64_i32] at *
+      split_ifs <;> unfold packedMake <;> omega
+
+  case h_5 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hbug ⊢
+    norm_num [fracBytes, time2NegFracBug] at hl
+    step with okS (read_u48_be_ok input (by simp only [Slice.length] at *; omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+    subst hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+    have hx48 : x.val < 2 ^ 48 := by
+      have := PBUtil.leNat_lt (List.take 6 input.val).reverse
+      simp only [List.length_reverse, List.length_take] at this
+      rw [show min 6 input.val.length = 6 by omega] at this
+      rw [hx]; simpa [beNat] using this
+    have hi : (UScalar.hcast .I64 x).val = x.val := by
+      rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+      unfold Int.bmod
+      have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    step with I64.sub_spec as ⟨v, hv⟩
+    · simp [binlog.misc.TIMEF_OFS]; scalar_tac
+    refine ⟨_, rfl, ?_⟩
+    have hlen : ¬ (input.val.length < 3 + fracBytes 5) := by simp [fracBytes]; omega
+    simp only [show (5#32 : BitVec 32).toNat = 5 from rfl, time2Read, hlen, ite_false, fracBytes]
+    norm_num
+    refine ⟨hl, ?_, by simp [hin1]⟩
+    rw [hv, hi, hx]; simp [binlog.misc.TIMEF_OFS]
+  case h_6 =>
+    simp only [PBUtil.val_mk, BitVec.toNat_ofNat] at hl hbug ⊢
+    norm_num [fracBytes, time2NegFracBug] at hl
+    step with okS (read_u48_be_ok input (by simp only [Slice.length] at *; omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+    subst hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+    have hx48 : x.val < 2 ^ 48 := by
+      have := PBUtil.leNat_lt (List.take 6 input.val).reverse
+      simp only [List.length_reverse, List.length_take] at this
+      rw [show min 6 input.val.length = 6 by omega] at this
+      rw [hx]; simpa [beNat] using this
+    have hi : (UScalar.hcast .I64 x).val = x.val := by
+      rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+      unfold Int.bmod
+      have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    step with I64.sub_spec as ⟨v, hv⟩
+    · simp [binlog.misc.TIMEF_OFS]; scalar_tac
+    refine ⟨_, rfl, ?_⟩
+    have hlen : ¬ (input.val.length < 3 + fracBytes 6) := by simp [fracBytes]; omega
+    simp only [show (6#32 : BitVec 32).toNat = 6 from rfl, time2Read, hlen, ite_false, fracBytes]
+    norm_num
+    refine ⟨hl, ?_, by simp [hin1]⟩
+    rw [hv, hi, hx]; simp [binlog.misc.TIMEF_OFS]
+  case h_7 h1 h2 h3 h4 h5 h6 =>
+    have hd : ¬(dec.val = 1 ∨ dec.val = 2 ∨ dec.val = 3 ∨ dec.val = 4 ∨ dec.val = 5 ∨ dec.val = 6) := by
+      intro hd
+      rcases hd with hd | hd | hd | hd | hd | hd
+      · exact h1 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h2 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h3 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h4 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h5 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+      · exact h6 (by apply UScalar.eq_of_val_eq; simpa [PBUtil.val_mk] using hd)
+    have hf : fracBytes dec.val = 0 := by unfold fracBytes; split_ifs <;> omega
+    rw [hf] at hl
+    step with okS (read_u24_be_ok input (by simp only [Slice.length] at *; omega)) as ⟨r, in1, x, hr, hx, hin1⟩
+    subst hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, Std.bind_ok, lift]
+    have hi : (UScalar.hcast .I64 x).val = x.val := by
+      rw [UScalar.hcast_val_eq]; simp only [IScalarTy.numBits]
+      unfold Int.bmod
+      have : ((x.val : Int) % ((2^64 : Nat) : Int)) = x.val := Int.emod_eq_of_lt (by omega) (by omega)
+      simp only [this]; split_ifs <;> omega
+    step with I64.sub_spec as ⟨intpart, hip⟩
+    · simp [binlog.misc.TIMEF_INT_OFS]; scalar_tac
+    have hip' : intpart.val = (beNat (input.val.take 3) : Int) - 8388608 := by
+      rw [hip, hi, hx]; simp [binlog.misc.TIMEF_INT_OFS]
+    step*
+    refine ⟨_, rfl, ?_⟩
+    have hlen : ¬ (input.val.length < 3 + fracBytes dec.val) := by simp only [Slice.length] at hl; omega
+    have hd12 : ¬(dec.val = 1 ∨ dec.val = 2) := by omega
+    have hd34 : ¬(dec.val = 3 ∨ dec.val = 4) := by omega
+    have hd56 : ¬(dec.val = 5 ∨ dec.val = 6) := by omega
+    simp only [time2Read, hlen, ite_false, hd12, hd34, hd56, hf, packedMake]
+    norm_num
+    refine ⟨by simp only [Slice.length] at hl; omega, ?_, by simp [hin1]⟩
+    rw [i2_post, wrapI64_mul _ (by rw [hip']; omega), hip']
+    norm_num
+
+theorem length_time2Bin (dec : Nat) (p : Int) : (time2Bin dec p).length = 3 + fracBytes dec := by
+  unfold time2Bin fracBytes; split_ifs <;> simp
+
+theorem time_roundtrip (dec : U32) (p : Int)
+    (hp : -2 ^ 47 ≤ p ∧ p < 2 ^ 47)
+    (hf : packedFracPart p % (fracUnit dec.val : Int) = 0 ∧ (packedFracPart p).natAbs < 10 ^ 6)
+    (hbug : ¬((dec.val = 1 ∨ dec.val = 2) ∧ p < 0 ∧ packedFracPart p ≠ 0))
+    (tail : List U8) (input : io.ParseBuf) (h : input.val = time2Bin dec.val p ++ tail) :
+    binlog.misc.my_time_packed_from_binary input dec ⦃ r rest =>
+      (okPart r).map (·.val) = some p ∧ rest.val = tail ⦄ := by
+  have hr := time2Read_time2Bin' dec.val p tail hp hf
+  have hl : 3 + fracBytes dec.val ≤ input.length := by
+    simp only [Slice.length, h, List.length_append, length_time2Bin]; omega
+  have hb : ¬ time2NegFracBug dec.val input.val := by
+    by_cases hd : dec.val = 1 ∨ dec.val = 2
+    · rw [h, time2NegFracBug_time2Bin' _ _ _ hd hp hf]; exact fun h' => hbug ⟨hd, h'⟩
+    · exact fun h' => hd h'.1
+  apply WP.spec_mono (time_ok input dec hl hb)
+  rintro ⟨r, rest⟩ ⟨q, rfl, hq⟩
+  rw [h, hr] at hq
+  simp only [Option.some.injEq, Prod.mk.injEq] at hq
+  simp [okPart, hq]
+
+end mysql_common.BinlogUtil
