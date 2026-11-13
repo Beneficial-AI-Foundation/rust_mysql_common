@@ -1435,7 +1435,11 @@ axiom paramsMapInsert : ParamsMap → alloc.vec.Vec Std.U8 → value.Value → P
     unspecified. (Nothing is assumed when `k` is present: the crate only inserts after a
     `contains_key` check, in `From<Vec<(N, V)>> for Params`.) -/
 axiom paramsMapEntries_insert (m : ParamsMap) (k : alloc.vec.Vec Std.U8) (v : value.Value)
-    (h : paramsMapLookup m k.val = none) :
+    (h : paramsMapLookup m k.val = none)
+    -- Needed for consistency with `paramsMapEntries_length`: without it, `Usize.max + 1`
+    -- inserts of distinct keys would contradict the length bound (a review derived `False`).
+    -- A real `HashMap` cannot grow past `usize::MAX` entries.
+    (hlen : (paramsMapEntries m).length < Usize.max) :
   (paramsMapEntries (paramsMapInsert m k v)).Perm ((k, v) :: paramsMapEntries m)
 
 /-- The map after `remove(k)`. -/
