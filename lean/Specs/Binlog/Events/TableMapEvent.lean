@@ -133,8 +133,8 @@ recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDese
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize_spec`
 
-/-- `MySerialize`: appends the layout `tmEnc`. -/
-recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
+/-- `MySerialize`: appends the layout `tmEnc`. (64-bit target, as configured). -/
+recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
     (h : buf.length + (tmEnc e).length ≤ Usize.max) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ tmEnc e ⦄
 
@@ -153,8 +153,9 @@ recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlo
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE_eq`
 
-/-- `BinlogStruct::len`: `tmLenCrate` (with the bitmap counted as `(n + 8) / 7` bytes: a bug). -/
-recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64) :
+/-- `BinlogStruct::len`: `tmLenCrate` (with the bitmap counted as `(n + 8) / 7` bytes: a bug). The metadata block is assumed to have a length-encoded length below `2^64`: `lenenc_str_len` is computed in `u64` and overflows (panics) otherwise. -/
+recall binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion) (hn : e.columns_count.1.val + 8 < 2 ^ 64)
+    (hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64) :
     binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = tmLenCrate e ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len_spec`
