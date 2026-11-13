@@ -40,16 +40,19 @@ import Proofs.Binlog.Consts.TransactionPayloadCompressionType
     **Not covered.** The named flag constants (plain definitions), derived `Clone`/`Copy`/
     `PartialEq`/`Eq`/`Hash`, `Debug`/`Display` (opaque), the flag iterators/`from_name` and the
     formatting impls (excluded in Cargo.toml), `From<Unknown*> for u8/u16` (not translated:
-    unused), `From<TransactionPayloadFields> for u8/u64`, `From<IncidentType> for u16` (not
-    translated: unused).
+    unused), `From<TransactionPayloadFields> for u8/u64`, `From<IncidentType> for u16`,
+    `From<InvalidGno> for u64` (not translated: unused); `Gno::MIN_GNO` (a constant, inlined by
+    the translation).
 
     **Behaviour to note.**
     * `EventType::try_from` rejects `0x29` (MySQL 8.0.26+'s `HEARTBEAT_LOG_EVENT_V2`) as unknown.
     * `TryFrom<u64> for TransactionPayloadFields` and `for TransactionPayloadCompressionType`
       **panic** on an unknown value of 256 or more (`x.try_into().unwrap()` into the `u8` error
       payload); these values come from the wire (`TransactionPayloadEvent` header fields).
-    * `Gno::try_from` accepts `0` and `[MIN_GNO, MAX_GNO)`: `MAX_GNO` itself is rejected, although
-      the type's doc and the error's message say the range is `[MIN_GNO, MAX_GNO]`.
+    * `Gno::try_from` accepts `0` and `[MIN_GNO, MAX_GNO)`, as MySQL does (8.0's `GNO_END =
+      INT64_MAX` is an exclusive bound, `parse_gno` rejects `>= GNO_END`). Only the crate's doc
+      comment and the `InvalidGno` message ("[MIN_GNO, MAX_GNO]") are wrong: a documentation
+      quirk.
 -/
 
 set_option autoImplicit false
@@ -477,7 +480,7 @@ recall binlog.consts.Gno.MAX_GNO_eq :
     binlog.consts.Gno.MAX_GNO = ok ⟨BitVec.ofNat 64 maxGno⟩
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.consts.Gno.MAX_GNO_eq`
-/-- `TryFrom<u64> for Gno`: total; `Ok` for `0` (the anonymous GTID's number) and for `MIN_GNO ≤ value < MAX_GNO`, else the value back as the error. **Quirk**: `MAX_GNO` itself is rejected, while the type's documentation and the error message ("out of range [MIN_GNO, MAX_GNO]") say it is in range. -/
+/-- `TryFrom<u64> for Gno`: total; `Ok` for `0` (the anonymous GTID's number) and for `MIN_GNO ≤ value < MAX_GNO`, else the value back as the error. This matches MySQL (`MAX_GNO` = 8.0's `GNO_END`, an exclusive bound). **Documentation quirk**: the type's doc and the error message ("out of range [MIN_GNO, MAX_GNO]") say `MAX_GNO` is in range. -/
 recall binlog.consts.Gno.Insts.CoreConvertTryFromU64InvalidGno.try_from_spec (value : U64) :
     binlog.consts.Gno.Insts.CoreConvertTryFromU64InvalidGno.try_from value =
       ok (if value.val = 0 ∨ (1 ≤ value.val ∧ value.val < maxGno) then .Ok value else .Err value)

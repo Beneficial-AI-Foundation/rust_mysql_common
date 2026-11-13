@@ -30,6 +30,9 @@ table-map metadata, from MySQL's `Field::pack`/`Field::save_field_metadata` (`sq
 The crate (`MyDeserialize for BinlogValue`) represents some of these as text, by its own choice:
 YEAR as the decimal year, TIMESTAMP2 as the decimal seconds (with a fraction `.uuuuuu` when there
 is one); TIMESTAMP as an `Int` of seconds; BIT, SET and NEWDECIMAL as `Bytes`.
+
+ENUM and SET columns arrive here already resolved by `TableMapEvent::get_column_type` (events
+half): a column of type STRING is read as a string, whatever its real-type byte (e.g. `0xF7`).
 -/
 
 set_option autoImplicit false
@@ -53,7 +56,8 @@ def resMap {α β E : Type} (f : α → β) : core.result.Result α E → core.r
 /-- The column type a value is decoded as: a `TYPED_ARRAY` column is decoded as the type whose code
     is its first metadata byte, or stays `TYPED_ARRAY` (unsupported) if that byte is not a type
     code. (Typed arrays are MySQL-internal, for multi-valued indexes; MySQL does not log them as
-    such.) -/
+    such.) For a resolved `TYPED_ARRAY` the type byte is not skipped: the element's metadata is
+    read from `md` *including* that byte. -/
 def binlogEffType : constants.ColumnType → List U8 → constants.ColumnType
   | MYSQL_TYPE_TYPED_ARRAY, b :: _ => (columnTypeOfCode b.val).getD MYSQL_TYPE_TYPED_ARRAY
   | ct, _ => ct
@@ -121,8 +125,13 @@ def binlogStr (k : Nat) (bs : List U8) : BinlogOut :=
   | (some s, rest) => .ok (.bytes s) rest
   | (none, rest) => .err rest
 
-/-- The intended value of a pre-5.6.4 TIME (3-byte LE signed `±HHMMSS`, MySQL `sint3korr`), in the
-    crate's representation of this type (days 0, all hours in `hours`). -/
+/-- The intended value of a pre-5.6.4 TIME: a 3-byte LE signed `±HHMMSS` (MySQL ≤ 5.7's
+    `Field_time`, stored with `int3store` and read with `sint3korr`; `mysqlbinlog` itself reads
+    `uint3korr`, `log_event.cc:1981`), in the crate's representation of this type: days 0, all the
+    hours in `hours`. This differs from TIME2 (`timeFromPacked`), whose hours the crate splits into
+    days and hours. For 256–838 hours no `Value` with days 0 represents the time (`hours: u8`), so
+    the crate's choice of representation is part of the defect (besides its unsigned read and its
+    `as u8` cast of the hours). -/
 def oldTimeVal (n : Nat) : Val :=
   let x := toSigned 24 n
   let a := x.natAbs
@@ -144,8 +153,9 @@ def oldTimeVal (n : Nat) : Val :=
     * TIME (pre-5.6.4): `oldTimeVal` (**the crate reads the field unsigned**: see `binlogBug`).
     * DATETIME (pre-5.6.4): the decimal digits of `YYYYMMDDhhmmss`; the year is taken mod `2^16`
       (`as u16`; only a year past 65535 is affected).
-    * YEAR: the text of `1900 + byte`. **Quirk**: the byte 0, which MySQL uses for the year
-      `0000`, gives `"1900"` (as `mysqlbinlog` prints it).
+    * YEAR: the text of `1900 + byte`, and `"0"` for the byte 0, MySQL's year `0000`
+      (`Field_year::val_int` gives 0). **The crate gives `"1900"`** for the byte 0 (as
+      `mysqlbinlog` prints it, `log_event.cc:2033`): see `binlogBug`.
     * TIMESTAMP2 without fraction: the text of the seconds (`decimalBytes`).
     * DATETIME2, TIME2: `datetimeFromPacked`, `timeFromPacked` of the packed value.
     * ENUM with a pack length other than 1, 2; BLOB types with a length-bytes count other than
@@ -169,7 +179,8 @@ def binlogRead (ct : constants.ColumnType) (md : List U8) (uns : Bool) (bs : Lis
       let s := n % 10 ^ 6
       .date (d / 10000 % 2 ^ 16) (d % 10000 / 100) (d % 100) (s / 10000) (s % 10000 / 100)
         (s % 100) 0)
-  | MYSQL_TYPE_YEAR => binlogNum 1 bs (fun y => .bytes (decimalBytes (1900 + (y : Int))))
+  | MYSQL_TYPE_YEAR =>
+    binlogNum 1 bs (fun y => .bytes (decimalBytes (if y = 0 then 0 else 1900 + (y : Int))))
   | MYSQL_TYPE_NEWDATE => binlogNum 3 bs (fun n => .date (n / 2 ^ 9) (n / 2 ^ 5 % 2 ^ 4) (n % 2 ^ 5)
       0 0 0 0)
   | MYSQL_TYPE_BIT => binlogTake ((m 1 * 8 + m 0 + 7) / 8) bs
@@ -199,19 +210,21 @@ def binlogRead (ct : constants.ColumnType) (md : List U8) (uns : Bool) (bs : Lis
   | MYSQL_TYPE_STRING => binlogStr (if stringFieldLen (m 0) (m 1) < 256 then 1 else 2) bs
   | _ => .err bs
 
-/-- The inputs on which the crate departs from `binlogRead` on data MySQL writes (upstream bugs;
-    the actual behaviour is stated separately):
+/-- The inputs on which the crate departs from `binlogRead` on data MySQL writes (and some invalid
+    inputs) (upstream bugs; the actual behaviour is stated separately):
     * a signed INT24 with bit 23 set (a negative MEDIUMINT): the crate does not sign-extend;
     * a pre-5.6.4 TIME that is negative or has 256 hours or more (MySQL's range is
       ±838:59:59): the crate reads it unsigned and takes the hours mod 256;
     * a TIME2 with 1–2 fractional digits that is negative with a non-zero fraction: the crate
-      panics (`u32` underflow). -/
+      panics (`u32` underflow);
+    * a YEAR byte 0 (MySQL's year `0000`): the crate gives `"1900"`. -/
 def binlogBug (ct : constants.ColumnType) (md : List U8) (uns : Bool) (bs : List U8) : Prop :=
   match binlogEffType ct md with
   | MYSQL_TYPE_INT24 => uns = false ∧ 3 ≤ bs.length ∧ 2 ^ 23 ≤ leNat (bs.take 3)
   | MYSQL_TYPE_TIME =>
     3 ≤ bs.length ∧ (2 ^ 23 ≤ leNat (bs.take 3) ∨ 256 ≤ leNat (bs.take 3) / 10000)
   | MYSQL_TYPE_TIME2 => time2NegFracBug (md.getD 0 (byte 0)).val bs
+  | MYSQL_TYPE_YEAR => bs.head?.map (·.val) = some 0
   | _ => False
 
 /-! ## Encoding (for the round trips)

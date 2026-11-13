@@ -240,7 +240,9 @@ def userVarFlagsAll : Nat := 0x1
 
 /-! ## GTID group numbers -/
 
-/-- `MAX_GNO` (`sql/rpl_gtid.h`): `INT64_MAX`. -/
+/-- `MAX_GNO` = `INT64_MAX` (the crate's `Gno::MAX_GNO`). In MySQL 8.0 this is `GNO_END`
+    (`sql/rpl_gtid.h`), documented as *one past* the largest group number: `parse_gno` rejects
+    `gno >= GNO_END` (`rpl_gtid_set.cc`), so the valid group numbers are `[1, maxGno)`. -/
 def maxGno : Nat := 2 ^ 63 - 1
 
 /-! ## Packed temporal values (`include/my_time.h`, `mysys/my_time.cc`)

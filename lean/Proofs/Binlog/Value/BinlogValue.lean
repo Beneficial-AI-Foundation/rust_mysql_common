@@ -90,6 +90,19 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
           ok (.Ok (binlog.value.BinlogValue.Value (.Bytes b)), rb)) := by
   sorry
 
+/-- TIMESTAMP2 round trip with a fraction: on MySQL's encoding (`timestamp2Bin`) of a timestamp in range (seconds `0 ≤ sec < 2^31`) with a non-zero fraction representable at `dec`, the decoder hands exactly the seconds and microseconds to the opaque formatter `timestamp2_frac_bytes` and leaves the rest after the value. -/
+theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_timestamp2_frac_roundtrip
+    (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
+    (ht : binlogEffType ct md.val = .MYSQL_TYPE_TIMESTAMP2) (d : U8) (t : List U8)
+    (hm : md.val = d :: t) (sec usec : I32) (hs : 0 ≤ sec.val)
+    (hu : 0 < usec.val ∧ usec.val < 10 ^ 6 ∧ usec.val % (fracUnit d.val : Int) = 0)
+    (tail : List U8) (h : buf.val = timestamp2Bin d.val sec.val.toNat usec.val.toNat ++ tail) :
+    ∃ rb : io.ParseBuf, rb.val = tail ∧
+      binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (ct, md, uns, part) buf =
+        (binlog.trusted.timestamp2_frac_bytes sec usec >>= fun b =>
+          ok (.Ok (binlog.value.BinlogValue.Value (.Bytes b)), rb)) := by
+  sorry
+
 /-- Round trip: `deserialize` reads back MySQL's binlog encoding (`binlogEnc`) of every value a column of that type and metadata holds, except the bug cases (`binlogEncBug`: negative signed INT24; negative or ≥ 256-hour pre-5.6.4 TIME; negative TIME2 with 1–2 fractional digits and a fraction). -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_roundtrip (h64 : Target64)
     (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
@@ -115,7 +128,7 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
       (okPart r).map binlogValView = some (some (.int 16777215)) ∧ rest.val = tail ⦄ := by
   sorry
 
-/-- **Bug** (pre-5.6.4 TIME). The crate reads the 3 bytes unsigned and takes the hours mod 256 (`as u8`), where MySQL reads them signed (`sint3korr`; `oldTimeVal`): negative times and times from 256 hours are misread (they agree elsewhere). -/
+/-- **Bug** (pre-5.6.4 TIME). The crate reads the 3 bytes unsigned and takes the hours mod 256 (`as u8`), where MySQL reads them signed (`sint3korr`, `Field_time` of MySQL ≤ 5.7; `oldTimeVal`): negative times and times from 256 hours are misread (they agree elsewhere). (`mysqlbinlog` itself reads `uint3korr`, `log_event.cc:1981`; the crate additionally truncates the hours `as u8`.) -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_time_unsigned (h64 : Target64)
     (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
     (ht : binlogEffType ct md.val = .MYSQL_TYPE_TIME) (hl : 3 ≤ buf.length) :
@@ -136,7 +149,7 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
 
 /-- **Bug (crash path)**, an instance: the TIME(1) value `-00:00:00.5`, which MySQL writes as `7F FF FF CE` (`Defs.time2Bin_neg_half`), crashes the decoder. -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_time2_neg_half_second (md : Slice U8) (uns part : Bool)
-    (hm : md.val = [byte 1]) (tail : List U8) (buf : io.ParseBuf)
+    (hm : md.val.head? = some (byte 1)) (tail : List U8) (buf : io.ParseBuf)
     (h : buf.val = [byte 0x7F, byte 0xFF, byte 0xFF, byte 0xCE] ++ tail) :
     binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize (.MYSQL_TYPE_TIME2, md, uns, part) buf = fail .integerOverflow := by
   sorry
@@ -150,7 +163,7 @@ theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColu
       (okPart r).map binlogValView = some (some (.bytes (decimalBytes y))) ∧ rest.val = tail ⦄ := by
   sorry
 
-/-- **Quirk**: the YEAR byte 0, MySQL's year `0000`, reads as `"1900"` (as `mysqlbinlog` prints it; MySQL's `Field_year::val_int` gives 0). -/
+/-- **Bug**: the YEAR byte 0, MySQL's year `0000` (value 0: `Field_year::val_int`; `SELECT` returns `0000`; `binlogRead` gives `"0"`), reads as `"1900"`. Only `mysqlbinlog` prints it as 1900 (`log_event.cc:2033`). -/
 theorem binlog.value.BinlogValue.Insts.Mysql_commonProtoMyDeserializeDeTupleColumnTypeSharedDeSliceU8BoolBool.deserialize_year_zero (h64 : Target64)
     (ct : constants.ColumnType) (md : Slice U8) (uns part : Bool) (buf : io.ParseBuf)
     (ht : binlogEffType ct md.val = .MYSQL_TYPE_YEAR) (tail : List U8) (h : buf.val = byte 0 :: tail) :

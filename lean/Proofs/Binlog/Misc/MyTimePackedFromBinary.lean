@@ -18,7 +18,7 @@ theorem binlog.misc.my_time_packed_from_binary_spec (input : io.ParseBuf) (dec :
          | none => (none, [])) ⦄ := by
   sorry
 
-/-- **Bug (crash path).** With 1 or 2 fractional digits, a negative integer part and a non-zero fraction byte (`time2NegFracBug`: every negative TIME(1)/TIME(2) value with a fraction, see `Defs.time2NegFracBug_time2Bin`), the crate computes MySQL's `frac -= 0x100` in `u32` (MySQL: `int`) and panics (underflow; in release builds it wraps and returns a wrong value). -/
+/-- **Bug (crash path).** With 1 or 2 fractional digits, a negative integer part and a non-zero fraction byte (`time2NegFracBug`: every negative TIME(1)/TIME(2) value with a fraction, see `Defs.time2NegFracBug_time2Bin`), the crate computes MySQL's `frac -= 0x100` (an `int` in MySQL) in `u32` and panics: in debug builds only; release builds wrap and return a wrong value (e.g. `42949672460000` as the fraction term). -/
 theorem binlog.misc.my_time_packed_from_binary_neg_frac (input : io.ParseBuf) (dec : U32)
     (h : time2NegFracBug dec.val input.val) :
     binlog.misc.my_time_packed_from_binary input dec = fail .integerOverflow := by

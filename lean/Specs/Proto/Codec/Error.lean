@@ -28,5 +28,6 @@ namespace mysql_common
 recall proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from_eq (e : core.io.error.Error) :
     proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from e = ok (.Io e)
 
--- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from_eq`
+/-- [propext, Quot.sound, core.io.error.Error] -/
+#guard_msgs (whitespace := lax, substring := true) in #print axioms proto.codec.error.PacketCodecError.Insts.CoreConvertFromError.from_eq
 end mysql_common

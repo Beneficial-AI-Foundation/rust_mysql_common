@@ -20,7 +20,9 @@ import Proofs.Binlog.Misc.MyTimestampFromBinary
     **Patch.** Patch 149 replaces the `byteorder::ReadBytesExt` calls on `&mut ParseBuf` by
     private readers (`read_u8`, `read_u24_be`, ...) on `ParseBuf`'s checked readers, with
     `read_exact`'s failure behaviour: on a short input the reader consumes what is left and fails
-    (`read_eof`). So every error of these functions leaves the buffer **empty**.
+    (`read_eof`). So every error of these functions leaves the buffer **empty**. (That
+    `read_exact` empties the slice on EOF holds with the std of the pinned toolchain; older std
+    left the slice unchanged.)
 
     **Configuration.** As in `Specs/Binlog/Mod.lean`.
 
@@ -39,10 +41,12 @@ import Proofs.Binlog.Misc.MyTimestampFromBinary
     `LimitedWrite`/`LimitWrite` (used only by `Event::write`, out of scope).
 
     **Behaviour to note.**
-    * **Bug** (`my_time_packed_from_binary`, 1–2 fractional digits): MySQL's `frac -= 0x100` is
-      computed in `u32`, so every negative TIME(1)/TIME(2) value with a non-zero fraction (e.g.
-      `-00:00:00.5`) panics in debug builds (`my_time_packed_from_binary_neg_frac`); in release
-      builds it wraps and gives a wrong value. A server can therefore crash the client.
+    * **Bug** (`my_time_packed_from_binary`, 1–2 fractional digits): the crate computes MySQL's
+      `frac -= 0x100` (an `int` in MySQL) in `u32`, so every negative TIME(1)/TIME(2) value with a
+      non-zero fraction (e.g. `-00:00:00.5`) panics in debug builds
+      (`my_time_packed_from_binary_neg_frac`); in release builds it wraps and returns a wrong
+      value (e.g. `42949672460000` as the fraction term for `-00:00:00.5`). A server can
+      therefore crash a debug-built client.
     * `my_datetime_packed_from_binary` overflows `i64` (panics) on the invalid DATETIME2 integer
       part 0 with a negative fraction; `time_from_packed`/`datetime_from_packed` panic on
       `i64::MIN` (negation), which `my_datetime_packed_from_binary` returns for an integer part 0
@@ -82,7 +86,7 @@ recall binlog.misc.DATETIMEF_INT_OFS_val :
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.DATETIMEF_INT_OFS_val`
 /-! ### `fn my_packed_time_make_int` -/
 
-/-- `my_packed_time_make_int(i)`: total; `MY_PACKED_TIME_MAKE_INT(i)` = `(i as u64) << 24`, reinterpreted as `i64` (wraps; exact, `packedMake i 0`, for `|i| < 2^39`). -/
+/-- `my_packed_time_make_int(i)`: total; `MY_PACKED_TIME_MAKE_INT(i)` = `(i as u64) << 24`, reinterpreted as `i64` (wraps; exact, `packedMake i 0`, for `-2^39 ≤ i < 2^39`). -/
 recall binlog.misc.my_packed_time_make_int_spec (i : I64) :
     binlog.misc.my_packed_time_make_int i ⦃ r => r.val = wrapI64 (i.val * 2 ^ 24) ⦄
 
@@ -113,7 +117,7 @@ recall binlog.misc.my_time_packed_from_binary_spec (input : io.ParseBuf) (dec : 
          | none => (none, [])) ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.my_time_packed_from_binary_spec`
-/-- **Bug (crash path).** With 1 or 2 fractional digits, a negative integer part and a non-zero fraction byte (`time2NegFracBug`: every negative TIME(1)/TIME(2) value with a fraction, see `Defs.time2NegFracBug_time2Bin`), the crate computes MySQL's `frac -= 0x100` in `u32` (MySQL: `int`) and panics (underflow; in release builds it wraps and returns a wrong value). -/
+/-- **Bug (crash path).** With 1 or 2 fractional digits, a negative integer part and a non-zero fraction byte (`time2NegFracBug`: every negative TIME(1)/TIME(2) value with a fraction, see `Defs.time2NegFracBug_time2Bin`), the crate computes MySQL's `frac -= 0x100` (an `int` in MySQL) in `u32` and panics: in debug builds only; release builds wrap and return a wrong value (e.g. `42949672460000` as the fraction term). -/
 recall binlog.misc.my_time_packed_from_binary_neg_frac (input : io.ParseBuf) (dec : U32)
     (h : time2NegFracBug dec.val input.val) :
     binlog.misc.my_time_packed_from_binary input dec = fail .integerOverflow
@@ -189,7 +193,7 @@ recall binlog.misc.datetime_from_packed_spec (tmp : I64) (h : tmp.val ≠ -2 ^ 6
     binlog.misc.datetime_from_packed tmp ⦃ v => Val.ofValue v = datetimeFromPacked tmp.val ⦄
 
 -- TODO(axioms): `/-- [...] -/ #guard_msgs (whitespace := lax, substring := true) in #print axioms binlog.misc.datetime_from_packed_spec`
-/-- `datetime_from_packed(i64::MIN)` panics (negation overflow). `my_datetime_packed_from_binary` returns `i64::MIN` for an integer part of five zero bytes without fraction, so the invalid DATETIME2 `00 00 00 00 00` crashes `BinlogValue` decoding. -/
+/-- `datetime_from_packed(i64::MIN)` panics (negation overflow). `my_datetime_packed_from_binary` returns `i64::MIN` for an integer part of five zero bytes with zero fraction (any `dec`), so the invalid DATETIME2 `00 00 00 00 00` crashes `BinlogValue` decoding. -/
 recall binlog.misc.datetime_from_packed_min (tmp : I64) (h : tmp.val = -2 ^ 63) :
     binlog.misc.datetime_from_packed tmp = fail .integerOverflow
 

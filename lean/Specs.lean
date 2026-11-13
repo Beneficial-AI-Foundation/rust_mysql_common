@@ -40,5 +40,9 @@ import Specs.Binlog.Misc
 import Specs.Binlog.Value
 import Specs.Binlog.Row
 import Specs.DefsBinlogCore
+import Specs.Packets.StmtBinlog
+import Specs.Packets.SessionStateChange
+import Specs.Packets.BinlogRequest
+import Specs.DefsStmtSession
 
 /-! The spec statements, one file per Rust file (see `VERIFICATION.md` §7). -/
