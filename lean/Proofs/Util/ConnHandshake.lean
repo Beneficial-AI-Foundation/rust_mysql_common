@@ -520,4 +520,97 @@ theorem rawbytes_new_borrowed (s : Slice U8) :
   apply WP.spec_mono (PKUtil.rawbytes_new_spec _ _ s (alloc.borrow.Cow.Borrowed s) rfl)
   intro r hr; rw [hr]; rfl
 
+/-! ## Handshake round trip (pure) -/
+
+theorem handshakeRead_enc (hs : Handshake) (hc : hs.Compatible) (tail : List U8)
+    (ht : hasFlag hs.capsUpper CLIENT_PLUGIN_AUTH = true → tail = []) :
+    handshakeRead (handshakeEnc hs ++ tail) = (some { hs with authDataLen := handshakeLenByte hs }, tail) ∧
+      ¬ handshakePanics (handshakeEnc hs ++ tail) := by
+  obtain ⟨hpv, hv, hcid, h1, hcl, hcoll, hst16, hst, hcu0, hcu, hmc, hsec, hs2, hpn, hpnn⟩ := hc
+  have H := ConnHS.handshakeEnc_split hs tail h1
+  obtain ⟨blk, rest, H⟩ := H
+  have hbl := H.1
+  have he := H.2.1
+  have hrest := H.2.2.1
+  have hcl' := H.2.2.2.1
+  have hst' := H.2.2.2.2.1
+  have hcu' := H.2.2.2.2.2.1
+  have hlb := H.2.2.2.2.2.2.1
+  have hcid' := H.2.2.2.2.2.2.2.1
+  have hs1' := H.2.2.2.2.2.2.2.2.1
+  have hcoll' := H.2.2.2.2.2.2.2.2.2.1
+  have hlb1 := H.2.2.2.2.2.2.2.2.2.2.1
+  have hmc' := H.2.2.2.2.2.2.2.2.2.2.2
+  clear H
+  have hlbv : handshakeLenByte hs < 128 := by
+    unfold handshakeLenByte
+    split
+    · rcases hh : hs.scramble2 with _ | s
+      · simp
+      · have := hs2 s hh; rename_i hp; simp only [hp, ite_true] at this; simp; omega
+    · omega
+  have f0 : leNat ((blk.drop 0).take 4) = hs.connectionId := by
+    rw [hcid', PBUtil.leNat_leBytes, Nat.mod_eq_of_lt hcid]
+  have f13 : leNat ((blk.drop 13).take 2) = hs.capsLower := by
+    rw [hcl', PBUtil.leNat_leBytes, Nat.mod_eq_of_lt hcl]
+  have f15 : leNat ((blk.drop 15).take 1) = hs.collation := by
+    rw [hcoll']; simp [leNat, byte_val]; omega
+  have f16 : leNat ((blk.drop 16).take 2) = hs.status := by
+    rw [hst', PBUtil.leNat_leBytes, Nat.mod_eq_of_lt hst16]
+  have f18 : leNat ((blk.drop 18).take 2) * 2 ^ 16 = hs.capsUpper := by
+    rw [hcu', PBUtil.leNat_leBytes]; omega
+  have f20 : leNat ((blk.drop 20).take 1) = handshakeLenByte hs := by
+    rw [hlb1]; simp [leNat, byte_val]; omega
+  have hm63 : hs.mariadbCaps < 2 ^ 32 := by
+    have : hs.mariadbCaps &&& mariadbCapabilitiesAll ≤ mariadbCapabilitiesAll := Nat.and_le_right
+    rw [hmc] at this; simp [mariadbCapabilitiesAll] at this; omega
+  have f27 : leNat ((blk.drop 27).take 4) &&& mariadbCapabilitiesAll = hs.mariadbCaps := by
+    rw [hmc', PBUtil.leNat_leBytes, Nat.mod_eq_of_lt hm63, hmc]
+  have fpv : (byte hs.protocolVersion).val = hs.protocolVersion := by rw [byte_val]; omega
+  have ht31 : (blk ++ rest).take 31 = blk := List.take_left' hbl
+  have hd31 : (blk ++ rest).drop 31 = rest := List.drop_left' hbl
+  have hl31 : ¬ (blk ++ rest).length < 31 := by simp; omega
+  constructor
+  · rw [he]
+    unfold handshakeRead
+    simp only [ConnHS.nulStrRead_nulStr _ _ hv, hl31, ↓reduceIte, ht31, hd31, f0, f13, f15, f16, f18, f20, f27, hst,
+      reduceCtorEq, hs1', fpv]
+    have hnul : ∀ n, hs.pluginName = some n → dropTrailingNul (nulStr n) = n := by
+      intro n hn
+      rw [CAUtil.nulStr_of_noNul n (hpnn n hn), CAUtil.dropTrailingNul_append_zero]
+    rcases hS : hs.scramble2 with _ | sc <;> rcases hP : hs.pluginName with _ | n <;>
+      simp only [hS, hP, Option.isSome_none, Option.isSome_some] at hsec hpn hrest hnul <;>
+      simp only [Option.map_none, Option.map_some, Option.getD_none, Option.getD_some, List.nil_append] at hrest
+    · have hsf : hasFlag hs.capsLower CLIENT_SECURE_CONNECTION = false := by rw [← hsec]
+      have hpf : hasFlag hs.capsUpper CLIENT_PLUGIN_AUTH = false := by rw [← hpn]
+      simp [hsf, hpf, hrest]
+    · have hsf : hasFlag hs.capsLower CLIENT_SECURE_CONNECTION = false := by rw [← hsec]
+      have hpf : hasFlag hs.capsUpper CLIENT_PLUGIN_AUTH = true := by rw [← hpn]
+      have htl := ht hpf
+      subst htl
+      simp [hsf, hpf, hrest, hnul n rfl]
+    all_goals
+      have hsf : hasFlag hs.capsLower CLIENT_SECURE_CONNECTION = true := by rw [← hsec]
+      have hsl := hs2 sc hS
+      have hlen : scramble2LenCrate (handshakeLenByte hs) = sc.length := by
+        unfold handshakeLenByte scramble2LenCrate
+        simp only [hS]
+        split_ifs at * <;> omega
+      have h247 : sc.take 247 = sc := List.take_of_length_le (by
+        split at hsl <;> omega)
+      rw [h247] at hrest
+      rw [hlen, hrest]
+    · have hpf : hasFlag hs.capsUpper CLIENT_PLUGIN_AUTH = false := by rw [← hpn]
+      simp [hsf, hpf]
+    · have hpf : hasFlag hs.capsUpper CLIENT_PLUGIN_AUTH = true := by rw [← hpn]
+      have htl := ht hpf
+      subst htl
+      simp [hsf, hpf, hnul n rfl]
+  · rw [he]
+    unfold handshakePanics
+    simp only [ConnHS.nulStrRead_nulStr _ _ hv]
+    rintro ⟨-, -, -, h5, -⟩
+    rw [ConnHS.getD_app _ _ _ _ (by omega), hlb, byte_val] at h5
+    omega
+
 end mysql_common.ConnHSUtil

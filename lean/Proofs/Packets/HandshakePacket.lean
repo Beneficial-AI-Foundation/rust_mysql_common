@@ -470,7 +470,14 @@ theorem packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.roun
     (h : buf.val = handshakeEnc hs ++ tail) :
     packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize () buf ⦃ r rest =>
       (okPart r).map Handshake.of = some { hs with authDataLen := handshakeLenByte hs } ∧ rest.val = tail ⦄ := by
-  sorry
+  obtain ⟨hr, hnp⟩ := handshakeRead_enc hs hc tail ht
+  apply WP.spec_mono (packets.HandshakePacket.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec buf
+    (by rw [h]; exact hnp))
+  rintro ⟨r, rest⟩ hrr
+  simp only [WP.uncurry'_pair] at hrr ⊢
+  rw [h, hr] at hrr
+  simp only [Prod.mk.injEq] at hrr
+  exact hrr
 
 /-- `new`: the given fields; the capabilities are split into their lower and upper 16 bits, MariaDB's capabilities are empty. The stored length byte is the scramble's length (at most 247), **without the protocol's `+ 8`**; it is not used by `serialize` (which recomputes it) or any accessor, but the derived `PartialEq`/`Debug` see it, so `new(..)` differs from `deserialize(serialize(new(..)))`. -/
 theorem packets.HandshakePacket.new_spec {T1 T2 T3 : Type} (into1 : core.convert.Into T1 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into2 : core.convert.Into T2 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8))) (into3 : core.convert.Into T3 (alloc.borrow.Cow (Slice U8) (alloc.vec.Vec U8)))
