@@ -1,0 +1,520 @@
+Translation patch: saturating arithmetic in the binlog `len` functions
+
+Change: In binlog/events/*, `let mut len = S(x); len += S(y); .. min(len.0, ..)` (the `saturating::Saturating` wrapper) becomes `let mut len: usize = x; len = len.saturating_add(y); .. min(len, ..)` (`Event::read`/`write`, which are not translated, keep `S`).
+Why: `Saturating`'s `AddAssign` is an external trait impl that Aeneas does not model.
+Behaviour: Identical: saturating 0.1.0 implements `AddAssign` as `*self = *self + other` and `Add` as `Saturating(self.0.saturating_add(other.0))`.
+
+diff --git a/src/binlog/events/begin_load_query_event.rs b/src/binlog/events/begin_load_query_event.rs
+index 689492a..bed2446 100644
+--- a/src/binlog/events/begin_load_query_event.rs
++++ b/src/binlog/events/begin_load_query_event.rs
+@@ -12,8 +12,6 @@ use std::{
+     io::{self},
+ };
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -99,12 +97,12 @@ impl MySerialize for BeginLoadQueryEvent<'_> {
+ impl<'a> BinlogStruct<'a> for BeginLoadQueryEvent<'a> {
+     /// Returns length of this load event in bytes.
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(4);
+-        len += S(self.block_data.len());
++        len = len.saturating_add(4);
++        len = len.saturating_add(self.block_data.len());
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+ 
+diff --git a/src/binlog/events/execute_load_query_event.rs b/src/binlog/events/execute_load_query_event.rs
+index 16c8111..1627260 100644
+--- a/src/binlog/events/execute_load_query_event.rs
++++ b/src/binlog/events/execute_load_query_event.rs
+@@ -8,8 +8,6 @@
+ 
+ use std::{borrow::Cow, cmp::min, io};
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -314,23 +312,23 @@ impl MySerialize for ExecuteLoadQueryEvent<'_> {
+ 
+ impl<'a> BinlogStruct<'a> for ExecuteLoadQueryEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
+-
+-        len += S(4); // thread_id
+-        len += S(4); // query_exec_time
+-        len += S(1); // db_len
+-        len += S(2); // error_code
+-        len += S(2); // status_vars_len
+-        len += S(4); // file_id
+-        len += S(4); // start_pos
+-        len += S(4); // end_pos
+-        len += S(1); // dup_handling_flags
+-        len += S(min(self.status_vars.0.len(), u16::MAX as usize - 13)); // status_vars
+-        len += S(min(self.schema.0.len(), u8::MAX as usize)); // db_len
+-        len += S(1); // null-byte
+-        len += S(self.query.0.len());
+-
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        let mut len: usize = 0;
++
++        len = len.saturating_add(4); // thread_id
++        len = len.saturating_add(4); // query_exec_time
++        len = len.saturating_add(1); // db_len
++        len = len.saturating_add(2); // error_code
++        len = len.saturating_add(2); // status_vars_len
++        len = len.saturating_add(4); // file_id
++        len = len.saturating_add(4); // start_pos
++        len = len.saturating_add(4); // end_pos
++        len = len.saturating_add(1); // dup_handling_flags
++        len = len.saturating_add(min(self.status_vars.0.len(), u16::MAX as usize - 13)); // status_vars
++        len = len.saturating_add(min(self.schema.0.len(), u8::MAX as usize)); // db_len
++        len = len.saturating_add(1); // null-byte
++        len = len.saturating_add(self.query.0.len());
++
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+ 
+diff --git a/src/binlog/events/format_description_event.rs b/src/binlog/events/format_description_event.rs
+index bd6d6a9..d99bba3 100644
+--- a/src/binlog/events/format_description_event.rs
++++ b/src/binlog/events/format_description_event.rs
+@@ -8,8 +8,6 @@
+ 
+ use std::{borrow::Cow, cmp::min, io};
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -333,15 +331,15 @@ impl MySerialize for FormatDescriptionEvent<'_> {
+ 
+ impl<'a> BinlogStruct<'a> for FormatDescriptionEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(2);
+-        len += S(Self::SERVER_VER_LEN);
+-        len += S(4);
+-        len += S(1);
+-        len += S(self.event_type_header_lengths.len());
++        len = len.saturating_add(2);
++        len = len.saturating_add(Self::SERVER_VER_LEN);
++        len = len.saturating_add(4);
++        len = len.saturating_add(1);
++        len = len.saturating_add(self.event_type_header_lengths.len());
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+ 
+diff --git a/src/binlog/events/gtid_event.rs b/src/binlog/events/gtid_event.rs
+index 70ce402..02f9f58 100644
+--- a/src/binlog/events/gtid_event.rs
++++ b/src/binlog/events/gtid_event.rs
+@@ -29,8 +29,6 @@
+ 
+ use std::{borrow::Cow, cmp::min, io};
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -1014,28 +1012,28 @@ impl<'a> BinlogStruct<'a> for GtidEvent {
+ 
+ impl GtidEvent {
+     fn len_untagged(&self) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+         // post header
+-        len += S(1); // flags
+-        len += S(Self::ENCODED_SID_LENGTH); // sid
+-        len += S(8); // gno
+-        len += S(1); // lc_typecode
+-        len += S(8); // last_committed
+-        len += S(8); // sequence_number
+-
+-        len += S(7); // immediate_commit_timestamp
++        len = len.saturating_add(1); // flags
++        len = len.saturating_add(Self::ENCODED_SID_LENGTH); // sid
++        len = len.saturating_add(8); // gno
++        len = len.saturating_add(1); // lc_typecode
++        len = len.saturating_add(8); // last_committed
++        len = len.saturating_add(8); // sequence_number
++
++        len = len.saturating_add(7); // immediate_commit_timestamp
+         if self.immediate_commit_timestamp != self.original_commit_timestamp {
+-            len += S(7); // original_commit_timestamp
++            len = len.saturating_add(7); // original_commit_timestamp
+         }
+ 
+-        len += S(crate::misc::lenenc_int_len(*self.tx_length) as usize); // tx_length
+-        len += S(4); // immediate_server_version
++        len = len.saturating_add(crate::misc::lenenc_int_len(*self.tx_length) as usize); // tx_length
++        len = len.saturating_add(4); // immediate_server_version
+         if self.immediate_server_version != self.original_server_version {
+-            len += S(4); // original_server_version
++            len = len.saturating_add(4); // original_server_version
+         }
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ 
+     fn len_tagged(&self) -> usize {
+diff --git a/src/binlog/events/incident_event.rs b/src/binlog/events/incident_event.rs
+index 21eb10c..6592265 100644
+--- a/src/binlog/events/incident_event.rs
++++ b/src/binlog/events/incident_event.rs
+@@ -12,8 +12,6 @@ use std::{
+     io::{self},
+ };
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -104,12 +102,12 @@ impl<'a> BinlogEvent<'a> for IncidentEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for IncidentEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(2);
+-        len += S(1);
+-        len += S(min(self.message.0.len(), u8::MAX as usize));
++        len = len.saturating_add(2);
++        len = len.saturating_add(1);
++        len = len.saturating_add(min(self.message.0.len(), u8::MAX as usize));
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+diff --git a/src/binlog/events/mod.rs b/src/binlog/events/mod.rs
+index 87e8930..7cd4818 100644
+--- a/src/binlog/events/mod.rs
++++ b/src/binlog/events/mod.rs
+@@ -191,20 +191,20 @@ impl Event {
+     /// Returns a length of a serialized representation of this event.
+     fn len(&self, _version: BinlogVersion) -> usize {
+         let is_fde = self.header.event_type.0 == EventType::FORMAT_DESCRIPTION_EVENT as u8;
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(BinlogEventHeader::LEN);
+-        len += S(self.data.len());
++        len = len.saturating_add(BinlogEventHeader::LEN);
++        len = len.saturating_add(self.data.len());
+         if let Ok(Some(alg)) = self.footer.get_checksum_alg() {
+             if is_fde {
+-                len += S(BinlogEventFooter::BINLOG_CHECKSUM_ALG_DESC_LEN);
++                len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_ALG_DESC_LEN);
+             }
+             if is_fde || alg != BinlogChecksumAlg::BINLOG_CHECKSUM_ALG_OFF {
+-                len += S(BinlogEventFooter::BINLOG_CHECKSUM_LEN);
++                len = len.saturating_add(BinlogEventFooter::BINLOG_CHECKSUM_LEN);
+             }
+         }
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ 
+     /// Returns a reference to the corresponding format description event.
+diff --git a/src/binlog/events/query_event.rs b/src/binlog/events/query_event.rs
+index bfbe6ce..0945f7b 100644
+--- a/src/binlog/events/query_event.rs
++++ b/src/binlog/events/query_event.rs
+@@ -14,8 +14,6 @@ use std::{
+     io,
+ };
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -254,19 +252,19 @@ impl<'a> BinlogEvent<'a> for QueryEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for QueryEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
+-
+-        len += S(4);
+-        len += S(4);
+-        len += S(1);
+-        len += S(2);
+-        len += S(2);
+-        len += S(min(self.status_vars.0.len(), u16::MAX as usize));
+-        len += S(min(self.schema.0.len(), u8::MAX as usize));
+-        len += S(1);
+-        len += S(self.query.0.len());
+-
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        let mut len: usize = 0;
++
++        len = len.saturating_add(4);
++        len = len.saturating_add(4);
++        len = len.saturating_add(1);
++        len = len.saturating_add(2);
++        len = len.saturating_add(2);
++        len = len.saturating_add(min(self.status_vars.0.len(), u16::MAX as usize));
++        len = len.saturating_add(min(self.schema.0.len(), u8::MAX as usize));
++        len = len.saturating_add(1);
++        len = len.saturating_add(self.query.0.len());
++
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+ 
+diff --git a/src/binlog/events/rotate_event.rs b/src/binlog/events/rotate_event.rs
+index e20615a..76ad579 100644
+--- a/src/binlog/events/rotate_event.rs
++++ b/src/binlog/events/rotate_event.rs
+@@ -8,8 +8,6 @@
+ 
+ use std::{borrow::Cow, cmp::min, io};
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -108,11 +106,11 @@ impl<'a> BinlogEvent<'a> for RotateEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for RotateEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(8);
+-        len += S(self.name.0.len());
++        len = len.saturating_add(8);
++        len = len.saturating_add(self.name.0.len());
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+diff --git a/src/binlog/events/rows_event.rs b/src/binlog/events/rows_event.rs
+index d866382..674573f 100644
+--- a/src/binlog/events/rows_event.rs
++++ b/src/binlog/events/rows_event.rs
+@@ -10,8 +10,6 @@ use std::{cmp::min, fmt, io};
+ 
+ use bitvec::prelude::*;
+ use bytes::BufMut;
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx,
+@@ -138,23 +136,23 @@ impl<'a> RowsEvent<'a> {
+     ///
+     /// This function will be used in `BinlogStruct` implementations for derived events.
+     pub fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(6); // table_id
+-        len += S(2); // flags
+-        len += S(2); // extra-data len
+-        len += S(min(self.extra_data.len(), u16::MAX as usize - 2)); // extra data
+-        len += S(crate::misc::lenenc_int_len(self.num_columns()) as usize); // number of columns
++        len = len.saturating_add(6); // table_id
++        len = len.saturating_add(2); // flags
++        len = len.saturating_add(2); // extra-data len
++        len = len.saturating_add(min(self.extra_data.len(), u16::MAX as usize - 2)); // extra data
++        len = len.saturating_add(crate::misc::lenenc_int_len(self.num_columns()) as usize); // number of columns
+         let bitmap_len = self.num_columns().div_ceil(8) as usize;
+         if self.columns_before_image.is_some() {
+-            len += S(bitmap_len); // columns present bitmap 1
++            len = len.saturating_add(bitmap_len); // columns present bitmap 1
+         }
+         if self.columns_after_image.is_some() {
+-            len += S(bitmap_len); // columns present bitmap 2
++            len = len.saturating_add(bitmap_len); // columns present bitmap 2
+         }
+-        len += S(self.rows_data.len());
++        len = len.saturating_add(self.rows_data.len());
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ 
+     /// Returns an iterator over event's rows given the corresponding `TableMapEvent`.
+diff --git a/src/binlog/events/rows_query_event.rs b/src/binlog/events/rows_query_event.rs
+index 5537e91..3dac1e2 100644
+--- a/src/binlog/events/rows_query_event.rs
++++ b/src/binlog/events/rows_query_event.rs
+@@ -8,8 +8,6 @@
+ 
+ use std::{borrow::Cow, cmp::min, io};
+ 
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -85,11 +83,11 @@ impl<'a> BinlogEvent<'a> for RowsQueryEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for RowsQueryEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(1);
+-        len += S(self.query.0.len());
++        len = len.saturating_add(1);
++        len = len.saturating_add(self.query.0.len());
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+diff --git a/src/binlog/events/table_map_event.rs b/src/binlog/events/table_map_event.rs
+index 312b433..1a8da2d 100644
+--- a/src/binlog/events/table_map_event.rs
++++ b/src/binlog/events/table_map_event.rs
+@@ -10,8 +10,6 @@ use std::{borrow::Cow, cmp::min, convert::TryFrom, io, iter::Peekable};
+ 
+ use bitvec::prelude::*;
+ use byteorder::ReadBytesExt;
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -332,23 +330,23 @@ impl<'a> BinlogEvent<'a> for TableMapEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for TableMapEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
+-
+-        len += S(6);
+-        len += S(2);
+-        len += S(1);
+-        len += S(min(self.database_name.0.len(), u8::MAX as usize));
+-        len += S(1);
+-        len += S(1);
+-        len += S(min(self.table_name.0.len(), u8::MAX as usize));
+-        len += S(1);
+-        len += S(crate::misc::lenenc_int_len(self.columns_count()) as usize);
+-        len += S(self.columns_count() as usize);
+-        len += S(crate::misc::lenenc_str_len(self.columns_metadata.as_bytes()) as usize);
+-        len += S((self.columns_count() as usize + 8) / 7);
+-        len += S(self.optional_metadata.len());
+-
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        let mut len: usize = 0;
++
++        len = len.saturating_add(6);
++        len = len.saturating_add(2);
++        len = len.saturating_add(1);
++        len = len.saturating_add(min(self.database_name.0.len(), u8::MAX as usize));
++        len = len.saturating_add(1);
++        len = len.saturating_add(1);
++        len = len.saturating_add(min(self.table_name.0.len(), u8::MAX as usize));
++        len = len.saturating_add(1);
++        len = len.saturating_add(crate::misc::lenenc_int_len(self.columns_count()) as usize);
++        len = len.saturating_add(self.columns_count() as usize);
++        len = len.saturating_add(crate::misc::lenenc_str_len(self.columns_metadata.as_bytes()) as usize);
++        len = len.saturating_add((self.columns_count() as usize + 8) / 7);
++        len = len.saturating_add(self.optional_metadata.len());
++
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+ 
+diff --git a/src/binlog/events/transaction_payload_event.rs b/src/binlog/events/transaction_payload_event.rs
+index ceff542..614eb05 100644
+--- a/src/binlog/events/transaction_payload_event.rs
++++ b/src/binlog/events/transaction_payload_event.rs
+@@ -14,8 +14,6 @@ use std::{
+     io::{self, BufRead},
+ };
+ 
+-use saturating::Saturating as S;
+-
+ #[allow(unused)]
+ use crate::binlog::EventStreamReader;
+ 
+@@ -357,10 +355,10 @@ impl<'a> BinlogEvent<'a> for TransactionPayloadEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for TransactionPayloadEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(self.header_size);
++        let mut len: usize = self.header_size;
+ 
+-        len += S(self.payload.0.len());
++        len = len.saturating_add(self.payload.0.len());
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }
+diff --git a/src/binlog/events/user_var_event.rs b/src/binlog/events/user_var_event.rs
+index 99bcd23..d00986a 100644
+--- a/src/binlog/events/user_var_event.rs
++++ b/src/binlog/events/user_var_event.rs
+@@ -13,8 +13,6 @@ use std::{
+ };
+ 
+ use bytes::BufMut;
+-use saturating::Saturating as S;
+-
+ use crate::{
+     binlog::{
+         BinlogCtx, BinlogEvent, BinlogStruct,
+@@ -168,20 +166,20 @@ impl<'a> BinlogEvent<'a> for UserVarEvent<'a> {
+ 
+ impl<'a> BinlogStruct<'a> for UserVarEvent<'a> {
+     fn len(&self, _version: BinlogVersion) -> usize {
+-        let mut len = S(0);
++        let mut len: usize = 0;
+ 
+-        len += S(4);
+-        len += S(min(self.name.0.len(), u32::MAX as usize));
+-        len += S(1);
++        len = len.saturating_add(4);
++        len = len.saturating_add(min(self.name.0.len(), u32::MAX as usize));
++        len = len.saturating_add(1);
+ 
+         if !self.is_null {
+-            len += S(1);
+-            len += S(4);
+-            len += S(4);
+-            len += S(min(self.value.len(), u32::MAX as usize));
+-            len += S(1);
++            len = len.saturating_add(1);
++            len = len.saturating_add(4);
++            len = len.saturating_add(4);
++            len = len.saturating_add(min(self.value.len(), u32::MAX as usize));
++            len = len.saturating_add(1);
+         }
+ 
+-        min(len.0, u32::MAX as usize - BinlogEventHeader::LEN)
++        min(len, u32::MAX as usize - BinlogEventHeader::LEN)
+     }
+ }

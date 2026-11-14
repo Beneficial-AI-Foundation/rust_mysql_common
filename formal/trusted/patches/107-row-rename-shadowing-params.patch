@@ -1,0 +1,593 @@
+Translation patch: parameter names in `row::convert` and `Row::place`
+
+Change: In src/row/convert/mod.rs (outside the nightly-only bench), every parameter and local named `row` becomes `r` and every local named `value` (in the `take_or_place!` macro) becomes `v`; the same for the `row` parameter of `FromRow for HNil` (frunk.rs) and the `value` parameter of `Row::place` (row/mod.rs). Paths (`crate::row::..`, `value::..`), the macro's `$row` metavariable, comments and string literals are unchanged.
+Why: Aeneas bug (as in patch 59): the generated Lean names definitions by module path (`row.Row.take`, `value.Value`), and a local variable `row` (or `value`) shadows that prefix, so Lean reads `row.Row..` as a field projection on the local ("Invalid field `Row`").
+Behaviour: Identical: renaming.
+
+diff --git a/src/row/convert/frunk.rs b/src/row/convert/frunk.rs
+index f43870d..b602f66 100644
+--- a/src/row/convert/frunk.rs
++++ b/src/row/convert/frunk.rs
+@@ -27,12 +27,12 @@ use crate::{
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "frunk")))]
+ impl FromRow for HNil {
+-    fn from_row_opt(row: Row) -> Result<Self, FromRowError>
++    fn from_row_opt(r: Row) -> Result<Self, FromRowError>
+     where
+         Self: Sized,
+     {
+-        if !row.is_empty() {
+-            return Err(FromRowError(row));
++        if !r.is_empty() {
++            return Err(FromRowError(r));
+         }
+         Ok(HNil)
+     }
+diff --git a/src/row/convert/mod.rs b/src/row/convert/mod.rs
+index 8764e43..500138d 100644
+--- a/src/row/convert/mod.rs
++++ b/src/row/convert/mod.rs
+@@ -39,13 +39,13 @@ impl Error for FromRowError {
+ }
+ 
+ /// Will *panic* if could not convert `row` to `T`.
+-pub fn from_row<T: FromRow>(row: Row) -> T {
+-    FromRow::from_row(row)
++pub fn from_row<T: FromRow>(r: Row) -> T {
++    FromRow::from_row(r)
+ }
+ 
+ /// Will return `Err(row)` if could not convert `row` to `T`
+-pub fn from_row_opt<T: FromRow>(row: Row) -> Result<T, FromRowError> {
+-    FromRow::from_row_opt(row)
++pub fn from_row_opt<T: FromRow>(r: Row) -> Result<T, FromRowError> {
++    FromRow::from_row_opt(r)
+ }
+ 
+ /// Trait to convert `Row` into a tuple of `FromValue` implementors up to arity 12.
+@@ -75,11 +75,11 @@ pub fn from_row_opt<T: FromRow>(row: Row) -> Result<T, FromRowError> {
+ /// from_row::<(Vec<u8>, Option<u8>, u16)>(row) // this'll work and return (vec![..], None, 1024u16)
+ /// ```
+ pub trait FromRow {
+-    fn from_row(row: Row) -> Self
++    fn from_row(r: Row) -> Self
+     where
+         Self: Sized,
+     {
+-        match Self::from_row_opt(row) {
++        match Self::from_row_opt(r) {
+             Ok(x) => x,
+             Err(FromRowError(_)) => {
+                 panic!("Couldn't convert the row to the requested type. (see FromRow documentation)")
+@@ -87,7 +87,7 @@ pub trait FromRow {
+         }
+     }
+ 
+-    fn from_row_opt(row: Row) -> Result<Self, FromRowError>
++    fn from_row_opt(r: Row) -> Result<Self, FromRowError>
+     where
+         Self: Sized;
+ }
+@@ -95,11 +95,11 @@ pub trait FromRow {
+ macro_rules! take_or_place {
+     ($row:expr_2021, $index:expr_2021, $t:ident) => (
+         match $row.take($index) {
+-            Some(value) => {
+-                match $t::get_intermediate(value) {
++            Some(v) => {
++                match $t::get_intermediate(v) {
+                     Ok(ir) => ir,
+-                    Err(FromValueError(value)) => {
+-                        $row.place($index, value);
++                    Err(FromValueError(v)) => {
++                        $row.place($index, v);
+                         return Err(FromRowError($row));
+                     },
+                 }
+@@ -109,12 +109,12 @@ macro_rules! take_or_place {
+     );
+     ($row:expr_2021, $index:expr_2021, $t:ident, $( [$idx:expr_2021, $ir:expr_2021] ),*) => (
+         match $row.take($index) {
+-            Some(value) => {
+-                match $t::get_intermediate(value) {
++            Some(v) => {
++                match $t::get_intermediate(v) {
+                     Ok(ir) => ir,
+-                    Err(FromValueError(value)) => {
++                    Err(FromValueError(v)) => {
+                         $($row.place($idx, Into::<Value>::into($ir));)*
+-                        $row.place($index, value);
++                        $row.place($index, v);
+                         return Err(FromRowError($row));
+                     },
+                 }
+@@ -125,15 +125,15 @@ macro_rules! take_or_place {
+ }
+ 
+ impl FromRow for Row {
+-    fn from_row(row: Row) -> Self {
+-        row
++    fn from_row(r: Row) -> Self {
++        r
+     }
+ 
+-    fn from_row_opt(row: Row) -> Result<Self, FromRowError>
++    fn from_row_opt(r: Row) -> Result<Self, FromRowError>
+     where
+         Self: Sized,
+     {
+-        Ok(row)
++        Ok(r)
+     }
+ }
+ 
+@@ -142,11 +142,11 @@ impl<T> FromRow for T
+ where
+     T: FromValue,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<T, FromRowError> {
+-        if row.len() == 1 {
+-            Ok(take_or_place!(row, 0, T).into())
++    fn from_row_opt(mut r: Row) -> Result<T, FromRowError> {
++        if r.len() == 1 {
++            Ok(take_or_place!(r, 0, T).into())
+         } else {
+-            Err(FromRowError(row))
++            Err(FromRowError(r))
+         }
+     }
+ }
+@@ -155,11 +155,11 @@ impl<T1> FromRow for (T1,)
+ where
+     T1: FromValue,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1,), FromRowError> {
+-        if row.len() == 1 {
+-            Ok((take_or_place!(row, 0, T1).into(),))
++    fn from_row_opt(mut r: Row) -> Result<(T1,), FromRowError> {
++        if r.len() == 1 {
++            Ok((take_or_place!(r, 0, T1).into(),))
+         } else {
+-            Err(FromRowError(row))
++            Err(FromRowError(r))
+         }
+     }
+ }
+@@ -170,12 +170,12 @@ where
+     T2: FromValue,
+     T1::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2), FromRowError> {
+-        if row.len() != 2 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2), FromRowError> {
++        if r.len() != 2 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
+         Ok((Into::<T1>::into(ir1), Into::<T2>::into(ir2)))
+     }
+ }
+@@ -188,13 +188,13 @@ where
+     T1::Intermediate: Into<Value>,
+     T2::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2, T3), FromRowError> {
+-        if row.len() != 3 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2, T3), FromRowError> {
++        if r.len() != 3 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
+         Ok((Into::<T1>::into(ir1), Into::<T2>::into(ir2), ir3.into()))
+     }
+ }
+@@ -209,14 +209,14 @@ where
+     T2::Intermediate: Into<Value>,
+     T3::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2, T3, T4), FromRowError> {
+-        if row.len() != 4 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2, T3, T4), FromRowError> {
++        if r.len() != 4 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+         Ok((
+             Into::<T1>::into(ir1),
+             Into::<T2>::into(ir2),
+@@ -238,15 +238,15 @@ where
+     T3::Intermediate: Into<Value>,
+     T4::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2, T3, T4, T5), FromRowError> {
+-        if row.len() != 5 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2, T3, T4, T5), FromRowError> {
++        if r.len() != 5 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+         Ok((
+             Into::<T1>::into(ir1),
+             Into::<T2>::into(ir2),
+@@ -271,16 +271,16 @@ where
+     T4::Intermediate: Into<Value>,
+     T5::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2, T3, T4, T5, T6), FromRowError> {
+-        if row.len() != 6 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2, T3, T4, T5, T6), FromRowError> {
++        if r.len() != 6 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+-        let ir6 = take_or_place!(row, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir6 = take_or_place!(r, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
+         Ok((
+             Into::<T1>::into(ir1),
+             Into::<T2>::into(ir2),
+@@ -308,18 +308,18 @@ where
+     T5::Intermediate: Into<Value>,
+     T6::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2, T3, T4, T5, T6, T7), FromRowError> {
+-        if row.len() != 7 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2, T3, T4, T5, T6, T7), FromRowError> {
++        if r.len() != 7 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+-        let ir6 = take_or_place!(row, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir6 = take_or_place!(r, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
+         let ir7 = take_or_place!(
+-            row,
++            r,
+             6,
+             T7,
+             [0, ir1],
+@@ -359,18 +359,18 @@ where
+     T6::Intermediate: Into<Value>,
+     T7::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8), FromRowError> {
+-        if row.len() != 8 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8), FromRowError> {
++        if r.len() != 8 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+-        let ir6 = take_or_place!(row, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir6 = take_or_place!(r, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
+         let ir7 = take_or_place!(
+-            row,
++            r,
+             6,
+             T7,
+             [0, ir1],
+@@ -381,7 +381,7 @@ where
+             [5, ir6]
+         );
+         let ir8 = take_or_place!(
+-            row,
++            r,
+             7,
+             T8,
+             [0, ir1],
+@@ -425,18 +425,18 @@ where
+     T7::Intermediate: Into<Value>,
+     T8::Intermediate: Into<Value>,
+ {
+-    fn from_row_opt(mut row: Row) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8, T9), FromRowError> {
+-        if row.len() != 9 {
+-            return Err(FromRowError(row));
++    fn from_row_opt(mut r: Row) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8, T9), FromRowError> {
++        if r.len() != 9 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+-        let ir6 = take_or_place!(row, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir6 = take_or_place!(r, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
+         let ir7 = take_or_place!(
+-            row,
++            r,
+             6,
+             T7,
+             [0, ir1],
+@@ -447,7 +447,7 @@ where
+             [5, ir6]
+         );
+         let ir8 = take_or_place!(
+-            row,
++            r,
+             7,
+             T8,
+             [0, ir1],
+@@ -459,7 +459,7 @@ where
+             [6, ir7]
+         );
+         let ir9 = take_or_place!(
+-            row,
++            r,
+             8,
+             T9,
+             [0, ir1],
+@@ -508,19 +508,19 @@ where
+     T9::Intermediate: Into<Value>,
+ {
+     fn from_row_opt(
+-        mut row: Row,
++        mut r: Row,
+     ) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10), FromRowError> {
+-        if row.len() != 10 {
+-            return Err(FromRowError(row));
++        if r.len() != 10 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+-        let ir6 = take_or_place!(row, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir6 = take_or_place!(r, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
+         let ir7 = take_or_place!(
+-            row,
++            r,
+             6,
+             T7,
+             [0, ir1],
+@@ -531,7 +531,7 @@ where
+             [5, ir6]
+         );
+         let ir8 = take_or_place!(
+-            row,
++            r,
+             7,
+             T8,
+             [0, ir1],
+@@ -543,7 +543,7 @@ where
+             [6, ir7]
+         );
+         let ir9 = take_or_place!(
+-            row,
++            r,
+             8,
+             T9,
+             [0, ir1],
+@@ -556,7 +556,7 @@ where
+             [7, ir8]
+         );
+         let ir10 = take_or_place!(
+-            row,
++            r,
+             9,
+             T10,
+             [0, ir1],
+@@ -610,19 +610,19 @@ where
+     T10::Intermediate: Into<Value>,
+ {
+     fn from_row_opt(
+-        mut row: Row,
++        mut r: Row,
+     ) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11), FromRowError> {
+-        if row.len() != 11 {
+-            return Err(FromRowError(row));
++        if r.len() != 11 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+-        let ir6 = take_or_place!(row, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir6 = take_or_place!(r, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
+         let ir7 = take_or_place!(
+-            row,
++            r,
+             6,
+             T7,
+             [0, ir1],
+@@ -633,7 +633,7 @@ where
+             [5, ir6]
+         );
+         let ir8 = take_or_place!(
+-            row,
++            r,
+             7,
+             T8,
+             [0, ir1],
+@@ -645,7 +645,7 @@ where
+             [6, ir7]
+         );
+         let ir9 = take_or_place!(
+-            row,
++            r,
+             8,
+             T9,
+             [0, ir1],
+@@ -658,7 +658,7 @@ where
+             [7, ir8]
+         );
+         let ir10 = take_or_place!(
+-            row,
++            r,
+             9,
+             T10,
+             [0, ir1],
+@@ -672,7 +672,7 @@ where
+             [8, ir9]
+         );
+         let ir11 = take_or_place!(
+-            row,
++            r,
+             10,
+             T11,
+             [0, ir1],
+@@ -730,19 +730,19 @@ where
+     T11::Intermediate: Into<Value>,
+ {
+     fn from_row_opt(
+-        mut row: Row,
++        mut r: Row,
+     ) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12), FromRowError> {
+-        if row.len() != 12 {
+-            return Err(FromRowError(row));
++        if r.len() != 12 {
++            return Err(FromRowError(r));
+         }
+-        let ir1 = take_or_place!(row, 0, T1);
+-        let ir2 = take_or_place!(row, 1, T2, [0, ir1]);
+-        let ir3 = take_or_place!(row, 2, T3, [0, ir1], [1, ir2]);
+-        let ir4 = take_or_place!(row, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
+-        let ir5 = take_or_place!(row, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
+-        let ir6 = take_or_place!(row, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
++        let ir1 = take_or_place!(r, 0, T1);
++        let ir2 = take_or_place!(r, 1, T2, [0, ir1]);
++        let ir3 = take_or_place!(r, 2, T3, [0, ir1], [1, ir2]);
++        let ir4 = take_or_place!(r, 3, T4, [0, ir1], [1, ir2], [2, ir3]);
++        let ir5 = take_or_place!(r, 4, T5, [0, ir1], [1, ir2], [2, ir3], [3, ir4]);
++        let ir6 = take_or_place!(r, 5, T6, [0, ir1], [1, ir2], [2, ir3], [3, ir4], [4, ir5]);
+         let ir7 = take_or_place!(
+-            row,
++            r,
+             6,
+             T7,
+             [0, ir1],
+@@ -753,7 +753,7 @@ where
+             [5, ir6]
+         );
+         let ir8 = take_or_place!(
+-            row,
++            r,
+             7,
+             T8,
+             [0, ir1],
+@@ -765,7 +765,7 @@ where
+             [6, ir7]
+         );
+         let ir9 = take_or_place!(
+-            row,
++            r,
+             8,
+             T9,
+             [0, ir1],
+@@ -778,7 +778,7 @@ where
+             [7, ir8]
+         );
+         let ir10 = take_or_place!(
+-            row,
++            r,
+             9,
+             T10,
+             [0, ir1],
+@@ -792,7 +792,7 @@ where
+             [8, ir9]
+         );
+         let ir11 = take_or_place!(
+-            row,
++            r,
+             10,
+             T11,
+             [0, ir1],
+@@ -807,7 +807,7 @@ where
+             [9, ir10]
+         );
+         let ir12 = take_or_place!(
+-            row,
++            r,
+             11,
+             T12,
+             [0, ir1],
+diff --git a/src/row/mod.rs b/src/row/mod.rs
+index b36c483..1893ae6 100644
+--- a/src/row/mod.rs
++++ b/src/row/mod.rs
+@@ -208,8 +208,8 @@ impl Row {
+     }
+ 
+     #[doc(hidden)]
+-    pub fn place(&mut self, index: usize, value: Value) {
+-        self.values[index] = Some(value);
++    pub fn place(&mut self, index: usize, v: Value) {
++        self.values[index] = Some(v);
+     }
+ }
+ 

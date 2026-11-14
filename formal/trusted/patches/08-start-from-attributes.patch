@@ -1,0 +1,57 @@
+Translation patch: impls of `MySerialize`/`MyDeserialize` for `&[u8]`, `[u8]`, `[u8; N]`, `f64`
+
+Change: Adds `#[verify::start_from]` to these six impls (Cargo.toml: `start_from_attribute`, and rustc flags registering the `verify` tool).
+Why: Charon `start_from` patterns only accept impls on named types (its pattern parser has no slice/array types and parses `f64` as a path), so these impls cannot be named there.
+Behaviour: No code change: attributes only.
+
+diff --git a/src/misc/raw/mod.rs b/src/misc/raw/mod.rs
+index 2d9c496..4d80673 100644
+--- a/src/misc/raw/mod.rs
++++ b/src/misc/raw/mod.rs
+@@ -33,6 +33,7 @@ pub mod flags;
+ pub mod int;
+ pub mod seq;
+ 
++#[verify::start_from]
+ impl<'de> MyDeserialize<'de> for &'de [u8] {
+     const SIZE: Option<usize> = None;
+     type Ctx = usize;
+@@ -42,12 +43,14 @@ impl<'de> MyDeserialize<'de> for &'de [u8] {
+     }
+ }
+ 
++#[verify::start_from]
+ impl MySerialize for [u8] {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         buf.put_slice(self);
+     }
+ }
+ 
++#[verify::start_from]
+ impl<'de, const LEN: usize> MyDeserialize<'de> for [u8; LEN] {
+     const SIZE: Option<usize> = Some(LEN);
+     type Ctx = ();
+@@ -60,6 +63,7 @@ impl<'de, const LEN: usize> MyDeserialize<'de> for [u8; LEN] {
+     }
+ }
+ 
++#[verify::start_from]
+ impl<const LEN: usize> MySerialize for [u8; LEN] {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         buf.put_slice(&self[..]);
+@@ -146,6 +150,7 @@ where
+     }
+ }
+ 
++#[verify::start_from]
+ impl<'de> MyDeserialize<'de> for f64 {
+     const SIZE: Option<usize> = Some(8);
+     type Ctx = ();
+@@ -155,6 +160,7 @@ impl<'de> MyDeserialize<'de> for f64 {
+     }
+ }
+ 
++#[verify::start_from]
+ impl MySerialize for f64 {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         buf.put_f64_le(*self);

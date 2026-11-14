@@ -1,0 +1,45 @@
+Translation patch: `GnoInterval::check_and_new`
+
+Change: `io::Error::new(InvalidData, format!("start({}) >= end({}) in GnoInterval", start, end))` becomes `misc::trusted::gno_interval_order_error(start, end)` (a new function of the module of patch 64 whose body is that expression), and `io::Error::new(InvalidData, "Gno can't be zero")` becomes `misc::io_error_msg(InvalidData, "Gno can't be zero")` (patch 02).
+Why: Aeneas does not support `dyn` (inside `io::Error::new`) or `format!`.
+Behaviour: Identical: the same errors are built at the same points.
+
+diff --git a/src/misc/trusted.rs b/src/misc/trusted.rs
+index 65c6fff..23773cc 100644
+--- a/src/misc/trusted.rs
++++ b/src/misc/trusted.rs
+@@ -18,6 +18,14 @@ pub(crate) fn from_utf8_lossy(bytes: &[u8]) -> Cow<'_, str> {
+     String::from_utf8_lossy(bytes)
+ }
+ 
++/// The error of `GnoInterval::check_and_new` for `start >= end`.
++pub(crate) fn gno_interval_order_error(start: u64, end: u64) -> std::io::Error {
++    std::io::Error::new(
++        std::io::ErrorKind::InvalidData,
++        format!("start({}) >= end({}) in GnoInterval", start, end),
++    )
++}
++
+ // ---- regex + btoi ------------------------------------------------------------------------------
+ 
+ // Copied verbatim from `src/packets/mod.rs`.
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 139be2c..40a6189 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -3929,13 +3929,10 @@ impl GnoInterval {
+     /// Checks if the [start, end) interval is valid and creates it.
+     pub fn check_and_new(start: u64, end: u64) -> io::Result<Self> {
+         if start >= end {
+-            return Err(io::Error::new(
+-                io::ErrorKind::InvalidData,
+-                format!("start({}) >= end({}) in GnoInterval", start, end),
+-            ));
++            return Err(crate::misc::trusted::gno_interval_order_error(start, end));
+         }
+         if start == 0 || end == 0 {
+-            return Err(io::Error::new(
++            return Err(crate::misc::io_error_msg(
+                 io::ErrorKind::InvalidData,
+                 "Gno can't be zero",
+             ));

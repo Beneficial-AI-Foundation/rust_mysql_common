@@ -1,0 +1,61 @@
+Translation patch: `ParsedNamedParams::parse` (building the query and the parameter names)
+
+Change: The loop `for (colon_offset, start, end) in params { real_query.extend(&query[last..colon_offset]); real_query.push(b'?'); last = end; out_params.push(Cow::Borrowed(&query[start..end])); } real_query.extend(&query[last..]);` becomes a call `substitute_params(query, &params, 0, 0, real_query, out_params)` of a new recursive function that handles `params[k]` the same way and then calls itself on `k + 1` with `last = end`; at `k == params.len()` it appends `&query[last..]` and returns both vectors. `Vec::extend(&[u8])` becomes `Vec::extend_from_slice`.
+Why: As an index loop, Aeneas fails with an internal error ("Found an already registered mapping") on pushing `Cow::Borrowed(&query[..])` borrows into a `Vec` inside a loop; a recursion needs no loop fixed point (as in patch 30). `Extend<&T> for Vec<T>` is not modelled by Aeneas (`extend_from_slice` is).
+Behaviour: Identical: the same slices are appended and pushed in the same order (`Extend<&T> for Vec<T: Copy>` appends the slice's elements, as `extend_from_slice` does). Stack: the patched copy recurses once per named parameter, where the loop used constant stack (the Lean model does not model the stack).
+
+diff --git a/src/named_params.rs b/src/named_params.rs
+index d0e3057..28488a1 100644
+--- a/src/named_params.rs
++++ b/src/named_params.rs
+@@ -129,6 +129,29 @@ fn parse_step(
+     state
+ }
+ 
++/// The tail of `ParsedNamedParams::parse`: for each `params[k..]`, appends the query up to its
++/// colon and a `?` to `real_query` and its name to `out_params`, then appends the rest of the
++/// query (`last` is the end of the previous parameter).
++fn substitute_params<'a>(
++    query: &'a [u8],
++    params: &[(usize, usize, usize)],
++    k: usize,
++    last: usize,
++    mut real_query: Vec<u8>,
++    mut out_params: Vec<Cow<'a, [u8]>>,
++) -> (Vec<u8>, Vec<Cow<'a, [u8]>>) {
++    if k < params.len() {
++        let (colon_offset, start, end) = params[k];
++        real_query.extend_from_slice(&query[last..colon_offset]);
++        real_query.push(b'?');
++        out_params.push(Cow::Borrowed(&query[start..end]));
++        substitute_params(query, params, k + 1, end, real_query, out_params)
++    } else {
++        real_query.extend_from_slice(&query[last..]);
++        (real_query, out_params)
++    }
++}
++
+ /// Parsed named params (see [`ParsedNamedParams::parse`]).
+ #[derive(Debug, Clone, Eq, PartialEq)]
+ pub struct ParsedNamedParams<'a> {
+@@ -170,16 +193,10 @@ impl<'a> ParsedNamedParams<'a> {
+             if have_positional {
+                 return Err(MixedParamsError);
+             }
+-            let mut real_query = Vec::with_capacity(query.len());
+-            let mut last = 0;
+-            let mut out_params = Vec::with_capacity(params.len());
+-            for (colon_offset, start, end) in params {
+-                real_query.extend(&query[last..colon_offset]);
+-                real_query.push(b'?');
+-                last = end;
+-                out_params.push(Cow::Borrowed(&query[start..end]));
+-            }
+-            real_query.extend(&query[last..]);
++            let real_query = Vec::with_capacity(query.len());
++            let out_params = Vec::with_capacity(params.len());
++            let (real_query, out_params) =
++                substitute_params(query, &params, 0, 0, real_query, out_params);
+             Ok(Self {
+                 query: Cow::Owned(real_query),
+                 params: out_params,

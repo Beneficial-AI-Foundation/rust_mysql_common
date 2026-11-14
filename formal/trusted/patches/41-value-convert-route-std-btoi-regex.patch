@@ -1,0 +1,276 @@
+Translation patch: `value::convert` (mod.rs): btoi, regex and std calls go through `trusted`
+
+Change: `btoi(&*bytes)` becomes `trusted::btoi_<ty>(&*bytes)` (the `impl_from_value_num!` macro takes the helper name as a second argument), `btou(..)` becomes `trusted::btou_u32`/`btou_u8` (the type the call was inferred at), `RE.is_match(bytes)` becomes `trusted::<re>(bytes)` (the regex statics move to trusted.rs), `from_utf8` becomes `trusted::str_from_utf8`, `f.parse::<f32/f64>()` becomes `trusted::str_parse_f32/f64`, `f64::from(x: f32)` (`x.into()`) becomes `trusted::f32_to_f64`, `String::from_utf8(b)` with `e.into_bytes()` becomes `trusted::string_from_utf8` (which returns the bytes as its error), `Duration::new`/`as_secs`/`subsec_nanos` become `trusted::duration_*`, `x.to_string().into()` (i128/u128) becomes `trusted::string_into_bytes(trusted::i128_to_string(x))`, `String::into_bytes` becomes `trusted::string_into_bytes`, and in `From<&str> for Value`, `String::from(x).into_bytes()` becomes `trusted::str_as_bytes(x).to_vec()`. `Ok`/`Err` matches on the replaced calls become `Some`/`None` matches.
+Why: Aeneas cannot translate these dependency functions (see patch 40).
+Behaviour: Identical: each helper is the call it replaces; where a helper returns `.ok()` only `Ok`/`Err` was observed (and `Option::unwrap` panics exactly where `Result::unwrap` did); `.to_string().into()` (`From<String> for Vec<u8>`) is `into_bytes`; `String::from(x).into_bytes()` and `x.as_bytes().to_vec()` are the same bytes.
+Panic message (found in review): where the replaced `btou(..).unwrap()` is now `Option::unwrap` on the helper's result, the panic condition is identical but the message changes from `called Result::unwrap() on an Err value: ParseIntegerError{..}` to `called Option::unwrap() on a None value`.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index aa67a43..9d4c7d5 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -6,17 +6,14 @@
+ // option. All files in the project carrying such notice may not be copied,
+ // modified, or distributed except according to those terms.
+ 
+-use btoi::{btoi, btou};
+ use num_traits::ToPrimitive;
+-use regex::bytes::Regex;
+ 
+ use std::{
+     any::type_name,
+     borrow::Cow,
+     convert::{TryFrom, TryInto},
+     rc::Rc,
+-    str::from_utf8,
+-    sync::{Arc, LazyLock},
++    sync::Arc,
+     time::Duration,
+ };
+ 
+@@ -30,24 +27,6 @@ pub mod time;
+ pub(crate) mod trusted;
+ pub mod uuid;
+ 
+-#[cfg(feature = "chrono")]
+-static DATETIME_RE_YMD: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap());
+-#[cfg(feature = "chrono")]
+-static DATETIME_RE_YMD_HMS: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap());
+-#[cfg(feature = "chrono")]
+-static DATETIME_RE_YMD_HMS_NS: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{1,6}$").unwrap());
+-static TIME_RE_HH_MM_SS: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^\d{2}:[0-5]\d:[0-5]\d$").unwrap());
+-static TIME_RE_HH_MM_SS_MS: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^\d{2}:[0-5]\d:[0-5]\d\.\d{1,6}$").unwrap());
+-static TIME_RE_HHH_MM_SS: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^[0-8]\d\d:[0-5]\d:[0-5]\d$").unwrap());
+-static TIME_RE_HHH_MM_SS_MS: LazyLock<Regex> =
+-    LazyLock::new(|| Regex::new(r"^[0-8]\d\d:[0-5]\d:[0-5]\d\.\d{1,6}$").unwrap());
+-
+ /// Returns (year, month, day, hour, minute, second, micros)
+ #[cfg(feature = "chrono")]
+ fn parse_mysql_datetime_string(bytes: &[u8]) -> Option<(u32, u32, u32, u32, u32, u32, u32)> {
+@@ -61,11 +40,11 @@ fn parse_mysql_datetime_string(bytes: &[u8]) -> Option<(u32, u32, u32, u32, u32,
+         YmdHmsMs,
+     }
+ 
+-    let kind = if len == 10 && DATETIME_RE_YMD.is_match(bytes) {
++    let kind = if len == 10 && trusted::datetime_re_ymd(bytes) {
+         DateTimeKind::Ymd
+-    } else if len == 19 && DATETIME_RE_YMD_HMS.is_match(bytes) {
++    } else if len == 19 && trusted::datetime_re_ymd_hms(bytes) {
+         DateTimeKind::YmdHms
+-    } else if 20 < len && len < 27 && DATETIME_RE_YMD_HMS_NS.is_match(bytes) {
++    } else if 20 < len && len < 27 && trusted::datetime_re_ymd_hms_ns(bytes) {
+         DateTimeKind::YmdHmsMs
+     } else {
+         return None;
+@@ -94,12 +73,12 @@ fn parse_mysql_datetime_string(bytes: &[u8]) -> Option<(u32, u32, u32, u32, u32,
+     };
+ 
+     Some((
+-        btou(&bytes[year]).unwrap(),
+-        btou(&bytes[month]).unwrap(),
+-        btou(&bytes[day]).unwrap(),
+-        hour.map(|pos| btou(&bytes[pos]).unwrap()).unwrap_or(0),
+-        minute.map(|pos| btou(&bytes[pos]).unwrap()).unwrap_or(0),
+-        second.map(|pos| btou(&bytes[pos]).unwrap()).unwrap_or(0),
++        trusted::btou_u32(&bytes[year]).unwrap(),
++        trusted::btou_u32(&bytes[month]).unwrap(),
++        trusted::btou_u32(&bytes[day]).unwrap(),
++        hour.map(|pos| trusted::btou_u32(&bytes[pos]).unwrap()).unwrap_or(0),
++        minute.map(|pos| trusted::btou_u32(&bytes[pos]).unwrap()).unwrap_or(0),
++        second.map(|pos| trusted::btou_u32(&bytes[pos]).unwrap()).unwrap_or(0),
+         micros.map(|pos| parse_micros(&bytes[pos])).unwrap_or(0),
+     ))
+ }
+@@ -178,7 +157,7 @@ impl<T> ParseIrOpt<T> {
+ }
+ 
+ macro_rules! impl_from_value_num {
+-    ($ty:ident) => {
++    ($ty:ident, $btoi:ident) => {
+         impl TryFrom<Value> for ParseIrOpt<$ty> {
+             type Error = FromValueError;
+ 
+@@ -190,8 +169,8 @@ macro_rules! impl_from_value_num {
+                     Value::UInt(x) => $ty::try_from(x)
+                         .map(ParseIrOpt::Ready)
+                         .map_err(|_| FromValueError(Value::UInt(x))),
+-                    Value::Bytes(bytes) => match btoi(&*bytes) {
+-                        Ok(x) => Ok(ParseIrOpt::Parsed(x, Value::Bytes(bytes))),
++                    Value::Bytes(bytes) => match trusted::$btoi(&*bytes) {
++                        Some(x) => Ok(ParseIrOpt::Parsed(x, Value::Bytes(bytes))),
+                         _ => Err(FromValueError(Value::Bytes(bytes))),
+                     },
+                     v => Err(FromValueError(v)),
+@@ -217,18 +196,18 @@ macro_rules! impl_from_value_num {
+     };
+ }
+ 
+-impl_from_value_num!(i8);
+-impl_from_value_num!(u8);
+-impl_from_value_num!(i16);
+-impl_from_value_num!(u16);
+-impl_from_value_num!(i32);
+-impl_from_value_num!(u32);
+-impl_from_value_num!(i64);
+-impl_from_value_num!(u64);
+-impl_from_value_num!(isize);
+-impl_from_value_num!(usize);
+-impl_from_value_num!(i128);
+-impl_from_value_num!(u128);
++impl_from_value_num!(i8, btoi_i8);
++impl_from_value_num!(u8, btoi_u8);
++impl_from_value_num!(i16, btoi_i16);
++impl_from_value_num!(u16, btoi_u16);
++impl_from_value_num!(i32, btoi_i32);
++impl_from_value_num!(u32, btoi_u32);
++impl_from_value_num!(i64, btoi_i64);
++impl_from_value_num!(u64, btoi_u64);
++impl_from_value_num!(isize, btoi_isize);
++impl_from_value_num!(usize, btoi_usize);
++impl_from_value_num!(i128, btoi_i128);
++impl_from_value_num!(u128, btoi_u128);
+ 
+ impl TryFrom<Value> for ParseIrOpt<bool> {
+     type Error = FromValueError;
+@@ -269,9 +248,9 @@ impl TryFrom<Value> for ParseIrOpt<f32> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+             Value::Float(x) => Ok(ParseIrOpt::Ready(x)),
+-            Value::Bytes(bytes) => match from_utf8(&bytes) {
+-                Ok(f) => match f.parse::<f32>() {
+-                    Ok(x) => Ok(ParseIrOpt::Parsed(x, Value::Bytes(bytes))),
++            Value::Bytes(bytes) => match trusted::str_from_utf8(&bytes) {
++                Some(f) => match trusted::str_parse_f32(f) {
++                    Some(x) => Ok(ParseIrOpt::Parsed(x, Value::Bytes(bytes))),
+                     _ => Err(FromValueError(Value::Bytes(bytes))),
+                 },
+                 _ => Err(FromValueError(Value::Bytes(bytes))),
+@@ -303,10 +282,10 @@ impl TryFrom<Value> for ParseIrOpt<f64> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+             Value::Double(x) => Ok(ParseIrOpt::Ready(x)),
+-            Value::Float(x) => Ok(ParseIrOpt::Ready(x.into())),
+-            Value::Bytes(bytes) => match from_utf8(&bytes) {
+-                Ok(f) => match f.parse::<f64>() {
+-                    Ok(x) => Ok(ParseIrOpt::Parsed(x, Value::Bytes(bytes))),
++            Value::Float(x) => Ok(ParseIrOpt::Ready(trusted::f32_to_f64(x))),
++            Value::Bytes(bytes) => match trusted::str_from_utf8(&bytes) {
++                Some(f) => match trusted::str_parse_f64(f) {
++                    Some(x) => Ok(ParseIrOpt::Parsed(x, Value::Bytes(bytes))),
+                     _ => Err(FromValueError(Value::Bytes(bytes))),
+                 },
+                 _ => Err(FromValueError(Value::Bytes(bytes))),
+@@ -344,7 +323,7 @@ fn mysql_time_to_duration(
+         + u64::from(minutes) * 60
+         + u64::from(hours) * 60 * 60
+         + u64::from(days) * 60 * 60 * 24;
+-    Duration::new(secs, nanos)
++    trusted::duration_new(secs, nanos)
+ }
+ 
+ impl TryFrom<Value> for ParseIrOpt<Duration> {
+@@ -393,9 +372,9 @@ impl TryFrom<Value> for String {
+ 
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+-            Value::Bytes(bytes) => match String::from_utf8(bytes) {
++            Value::Bytes(bytes) => match trusted::string_from_utf8(bytes) {
+                 Ok(x) => Ok(x),
+-                Err(e) => Err(FromValueError(Value::Bytes(e.into_bytes()))),
++                Err(bytes) => Err(FromValueError(Value::Bytes(bytes))),
+             },
+             v => Err(FromValueError(v)),
+         }
+@@ -647,7 +626,7 @@ impl<const N: usize> FromValue for [u8; N] {
+ }
+ 
+ fn parse_micros(micros_bytes: &[u8]) -> u32 {
+-    let mut micros = btou(micros_bytes).unwrap();
++    let mut micros = trusted::btou_u32(micros_bytes).unwrap();
+ 
+     let mut pad_zero_cnt = 0;
+     for b in micros_bytes.iter() {
+@@ -686,13 +665,13 @@ fn parse_mysql_time_string(mut bytes: &[u8]) -> Option<(bool, u32, u8, u8, u32)>
+ 
+     let len = bytes.len();
+ 
+-    let kind = if len == 8 && TIME_RE_HH_MM_SS.is_match(bytes) {
++    let kind = if len == 8 && trusted::time_re_hh_mm_ss(bytes) {
+         TimeKind::HhMmSs
+-    } else if len == 9 && TIME_RE_HHH_MM_SS.is_match(bytes) {
++    } else if len == 9 && trusted::time_re_hhh_mm_ss(bytes) {
+         TimeKind::HhhMmSs
+-    } else if TIME_RE_HH_MM_SS_MS.is_match(bytes) {
++    } else if trusted::time_re_hh_mm_ss_ms(bytes) {
+         TimeKind::HhMmSsMs
+-    } else if TIME_RE_HHH_MM_SS_MS.is_match(bytes) {
++    } else if trusted::time_re_hhh_mm_ss_ms(bytes) {
+         TimeKind::HhhMmSsMs
+     } else {
+         return None;
+@@ -707,17 +686,17 @@ fn parse_mysql_time_string(mut bytes: &[u8]) -> Option<(bool, u32, u8, u8, u32)>
+ 
+     Some((
+         is_neg,
+-        btou(&bytes[hour_pos]).unwrap(),
+-        btou(&bytes[min_pos]).unwrap(),
+-        btou(&bytes[sec_pos]).unwrap(),
++        trusted::btou_u32(&bytes[hour_pos]).unwrap(),
++        trusted::btou_u8(&bytes[min_pos]).unwrap(),
++        trusted::btou_u8(&bytes[sec_pos]).unwrap(),
+         micros_pos.map(|pos| parse_micros(&bytes[pos])).unwrap_or(0),
+     ))
+ }
+ 
+ impl From<Duration> for Value {
+     fn from(x: Duration) -> Value {
+-        let mut secs_total = x.as_secs();
+-        let micros = (f64::from(x.subsec_nanos()) / 1000_f64).round() as u32;
++        let mut secs_total = trusted::duration_as_secs(&x);
++        let micros = (f64::from(trusted::duration_subsec_nanos(&x)) / 1000_f64).round() as u32;
+         let seconds = (secs_total % 60) as u8;
+         secs_total -= u64::from(seconds);
+         let minutes = ((secs_total % (60 * 60)) / 60) as u8;
+@@ -795,7 +774,7 @@ impl From<i128> for Value {
+         } else if let Some(x) = x.to_u64() {
+             Value::UInt(x)
+         } else {
+-            Value::Bytes(x.to_string().into())
++            Value::Bytes(trusted::string_into_bytes(trusted::i128_to_string(x)))
+         }
+     }
+ }
+@@ -805,7 +784,7 @@ impl From<u128> for Value {
+         if let Some(x) = x.to_u64() {
+             Value::UInt(x)
+         } else {
+-            Value::Bytes(x.to_string().into())
++            Value::Bytes(trusted::string_into_bytes(trusted::u128_to_string(x)))
+         }
+     }
+ }
+@@ -860,8 +839,7 @@ impl From<Vec<u8>> for Value {
+ 
+ impl<'a> From<&'a str> for Value {
+     fn from(x: &'a str) -> Value {
+-        let string: String = x.into();
+-        Value::Bytes(string.into_bytes())
++        Value::Bytes(trusted::str_as_bytes(x).to_vec())
+     }
+ }
+ 
+@@ -898,7 +876,7 @@ where
+ 
+ impl From<String> for Value {
+     fn from(x: String) -> Value {
+-        Value::Bytes(x.into_bytes())
++        Value::Bytes(trusted::string_into_bytes(x))
+     }
+ }
+ 

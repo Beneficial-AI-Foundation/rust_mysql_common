@@ -1,0 +1,167 @@
+Translation patch: `compress_with`, `CompData::write_payload`, `PacketCodecInner::compress` (src/proto/codec): route flate2 through `codec::trusted`
+
+Change: (a) `compress_with`: `compression != Compression::none()` becomes `!trusted::compression_eq(compression, trusted::compression_none())`; `deflater.get_or_insert_with(|| Compress::new(compression, true))` followed by `deflate_into(deflater, chunk, dst)?` becomes a `match deflater`: `Some(d)` deflates with `d`; `None` creates `trusted::compress_new(compression)`, deflates with it, stores it in `*deflater`, then applies `?`. The compressed branch writes the header with the same `put_uint_le`/`put_u8` calls and then `dst.put_slice(&compressed)` in place of `unsafe { .. dst.advance_mut(compressed_len) }`. (b) `CompData::write_payload`: the same `match` for the inflater (`trusted::decompress_new()`), `trusted::inflate(inflater, payload, plain_len)?` and then `dst.extend_from_slice(&plain)`. (c) `PacketCodecInner::compress`: `c.level != level` becomes `!trusted::compression_eq(c.level, level)`. (d) `deflate_into`/`inflate_into` are removed (now unused), and the now test-only import `FlushCompress` is `#[cfg(test)]`.
+Why: Aeneas does not support closures as values (`get_or_insert_with`), `unsafe` writes into spare capacity, or flate2; see patch 120.
+Behaviour: Identical.
+  - The `match` does what `get_or_insert_with` does: it inserts a new stream only when `None`, and the stream is stored before the `?`, as upstream (where it is inserted before deflating).
+  - Upstream deflates into `dst.chunk_mut()[7..7 + chunk.len()]` (spare capacity reserved just before), writes the 7 header bytes in front of it with `put_uint_le`/`put_u8`, and exposes the deflated bytes with `advance_mut(compressed_len)`. `trusted::deflate` deflates the same input with the same stream, flush mode and output length into a fresh buffer and returns its first `compressed_len` bytes under the same condition (`StreamEnd && compressed_len < chunk.len()`), which are then appended after the same header: `dst` ends with the same bytes, and the stream's state is the same.
+  - Upstream inflates into `dst.chunk_mut()[..plain_len]` and calls `advance_mut(plain_len)` only on success; `trusted::inflate` returns the same bytes (or the same error), which are appended on success only. On error `dst`'s bytes are unchanged in both. `dst.reserve(plain_len)` only changed the capacity.
+  - `Compression` derives `PartialEq`, so `!=` is `!compression_eq`.
+
+diff --git a/src/proto/codec/mod.rs b/src/proto/codec/mod.rs
+index 0ad8ad2..ce3142b 100644
+--- a/src/proto/codec/mod.rs
++++ b/src/proto/codec/mod.rs
+@@ -12,12 +12,13 @@ pub use flate2::Compression;
+ 
+ use byteorder::{ByteOrder, LittleEndian};
+ use bytes::{Buf, BufMut, BytesMut};
+-use flate2::{Compress, Decompress, FlushCompress, FlushDecompress, Status};
++use flate2::{Compress, Decompress};
++#[cfg(test)]
++use flate2::FlushCompress;
+ 
+ use std::{
+     cmp::{max, min},
+     io, mem,
+-    ptr::slice_from_raw_parts_mut,
+ };
+ 
+ use self::buf_model::NonZeroUsize;
+@@ -96,21 +97,29 @@ fn compress_with(
+     for chunk in src.chunks(min(MAX_PAYLOAD_LEN, max_allowed_packet)) {
+         dst.reserve(7 + chunk.len());
+ 
+-        let compressed_len =
+-            if compression != Compression::none() && chunk.len() >= MIN_COMPRESS_LENGTH {
+-                let deflater = deflater.get_or_insert_with(|| Compress::new(compression, true));
+-                deflate_into(deflater, chunk, dst)?
+-            } else {
+-                None
+-            };
+-
+-        match compressed_len {
+-            Some(compressed_len) => unsafe {
+-                dst.put_uint_le(compressed_len as u64, 3);
++        let compressed = if !trusted::compression_eq(compression, trusted::compression_none())
++            && chunk.len() >= MIN_COMPRESS_LENGTH
++        {
++            match deflater {
++                Some(deflater) => trusted::deflate(deflater, chunk)?,
++                None => {
++                    let mut new_deflater = trusted::compress_new(compression);
++                    let compressed = trusted::deflate(&mut new_deflater, chunk);
++                    *deflater = Some(new_deflater);
++                    compressed?
++                }
++            }
++        } else {
++            None
++        };
++
++        match compressed {
++            Some(compressed) => {
++                dst.put_uint_le(compressed.len() as u64, 3);
+                 dst.put_u8(seq_id);
+                 dst.put_uint_le(chunk.len() as u64, 3);
+-                dst.advance_mut(compressed_len);
+-            },
++                dst.put_slice(&compressed);
++            }
+             None => {
+                 dst.put_uint_le(chunk.len() as u64, 3);
+                 dst.put_u8(seq_id);
+@@ -127,64 +136,6 @@ fn compress_with(
+     Ok(seq_id)
+ }
+ 
+-/// Deflates `chunk` into the spare capacity of `dst`, leaving room for a compressed packet
+-/// header, and returns the compressed length.
+-///
+-/// Returns `None` if `chunk` does not get smaller, so that it is sent uncompressed.
+-/// `dst` must have at least `7 + chunk.len()` bytes of spare capacity.
+-fn deflate_into(
+-    deflater: &mut Compress,
+-    chunk: &[u8],
+-    dst: &mut BytesMut,
+-) -> io::Result<Option<usize>> {
+-    deflater.reset();
+-    let dst_buf = &mut dst.chunk_mut()[7..7 + chunk.len()];
+-    let status = unsafe {
+-        deflater.compress(
+-            chunk,
+-            &mut *slice_from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.len()),
+-            FlushCompress::Finish,
+-        )
+-    }
+-    .map_err(io::Error::other)?;
+-
+-    let compressed_len = deflater.total_out() as usize;
+-    if status == Status::StreamEnd && compressed_len < chunk.len() {
+-        Ok(Some(compressed_len))
+-    } else {
+-        Ok(None)
+-    }
+-}
+-
+-/// Inflates `compressed` into `dst`, failing unless it inflates to exactly `plain_len` bytes.
+-fn inflate_into(
+-    inflater: &mut Decompress,
+-    compressed: &[u8],
+-    plain_len: usize,
+-    dst: &mut BytesMut,
+-) -> io::Result<()> {
+-    inflater.reset(true);
+-    dst.reserve(plain_len);
+-    let dst_buf = &mut dst.chunk_mut()[..plain_len];
+-    let status = unsafe {
+-        inflater.decompress(
+-            compressed,
+-            &mut *slice_from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.len()),
+-            FlushDecompress::Finish,
+-        )
+-    }
+-    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+-
+-    if status != Status::StreamEnd || inflater.total_out() != plain_len as u64 {
+-        return Err(io::Error::new(
+-            io::ErrorKind::InvalidData,
+-            "compressed packet does not inflate to its declared length",
+-        ));
+-    }
+-    unsafe { dst.advance_mut(plain_len) };
+-    Ok(())
+-}
+-
+ /// Chunk info.
+ #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+ pub enum ChunkInfo {
+@@ -353,8 +304,17 @@ impl CompData {
+                 Ok(())
+             }
+             CompData::Compressed(_, plain_len) => {
+-                let inflater = inflater.get_or_insert_with(|| Decompress::new(true));
+-                inflate_into(inflater, payload, plain_len.get(), dst)
++                let plain = match inflater {
++                    Some(inflater) => trusted::inflate(inflater, payload, plain_len.get())?,
++                    None => {
++                        let mut new_inflater = trusted::decompress_new();
++                        let plain = trusted::inflate(&mut new_inflater, payload, plain_len.get());
++                        *inflater = Some(new_inflater);
++                        plain?
++                    }
++                };
++                dst.extend_from_slice(&plain);
++                Ok(())
+             }
+         }
+     }
+@@ -534,7 +494,7 @@ impl PacketCodecInner {
+                 })
+             }
+             PacketCodecInner::Comp(c) => {
+-                if c.level != level {
++                if !trusted::compression_eq(c.level, level) {
+                     c.level = level;
+                     c.deflater = None;
+                 }

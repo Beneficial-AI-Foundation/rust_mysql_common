@@ -1,0 +1,303 @@
+Translation patch: `packet_to_chunks`, `ChunkDecoder::decode`, `PlainPacketCodec::{decode, encode}` (src/proto/codec)
+
+Change: A new module `proto::codec::buf_model` has:
+  (a) crate-local traits holding exactly the `bytes` methods the plain codec uses: `PacketBuf` (`remaining`, `chunk`, `advance`, `has_remaining`), `PacketBufMut` (`put_slice`, `put_u32_le`) and `Reserve` (`reserve`). They are implemented for every `T: bytes::Buf` / `T: bytes::BufMut`, and for `BytesMut`, by delegation.
+  (b) `VecBuf(pub Vec<u8>)`, a `Vec<u8>`-backed model of `BytesMut`, implementing these traits plus `Deref<Target = [u8]>` and `AsRef<[u8]>`. Its impls are marked `#[verify::start_from]`.
+  (c) a crate-local `NonZeroUsize` with `new`/`get` (and a `Debug` that prints the value, as std's does).
+The four functions become generic over these traits: `src: &mut BytesMut` becomes `src: &mut S` with `S: Deref<Target = [u8]> + PacketBuf`; `dst: &mut BytesMut` becomes `dst: &mut D` with `D: PacketBufMut + Reserve`; `T: Buf` becomes `T: PacketBuf` and `T: BufMut` becomes `T: PacketBufMut`. In the bodies: `dst.put(&chunk[..count])` becomes `dst.put_slice(&chunk[..count])`, `LittleEndian::read_u24(&*src)` becomes `u32::from_le_bytes([src[0], src[1], src[2], 0])`, and `dst.as_ref()` becomes `(*dst).as_ref()`. `ChunkDecoder` and `CompData` use the local `NonZeroUsize`.
+Why: `BytesMut` and the `bytes` traits are external, with `unsafe` implementations, so each method would need an axiom. With crate-local traits the codec is translated generically, and `VecBuf` is a translated instance to state specs with. Aeneas does not model `byteorder::read_u24` or `NonZeroUsize`. `dst.as_ref()` on `dst: &mut T` resolves to std's blanket `AsRef for &mut T`, which Aeneas does not model either.
+Behaviour: Identical for every instantiation the crate makes (`BytesMut`, and the caller's `T: Buf` / `T: BufMut + AsRef<[u8]>`):
+  - The trait methods delegate to the same `bytes` methods (`has_remaining` and `put_u32_le` delegate too).
+  - `BytesMut::put` of a `&[u8]` appends it, like `put_slice` does.
+  - `read_u24` is the first 3 bytes, little-endian. It is only reached with `src.len() >= 4`.
+  - `(*dst).as_ref()` is the body of `AsRef for &mut T`.
+  - The local `NonZeroUsize` has the semantics of `new`/`get`.
+The `VecBuf` methods have the semantics of the `BytesMut` ones on its bytes: `advance(cnt)` drops the first `cnt` bytes and panics if `cnt > len` (as `BytesMut` does, with another message), `put_slice` appends, and `reserve` only changes the capacity (a no-op in the model). The compressed codec is unchanged: it still uses `bytes` and `flate2` directly. The public signatures of these four functions, of `ChunkDecoder::Chunk::needed` and of `CompData` change to the crate-local traits and types. Callers outside the crate are not covered.
+Model limitation (found in review): `VecBuf::reserve` never fails, whereas `BytesMut::reserve` panics on capacity overflow (`len + additional` beyond `usize`/`isize::MAX`); this resource limit is unreachable in practice and is outside what the specs claim. `PlainPacketCodec::{decode, encode}` are private; the public signature changes are to `packet_to_chunks`, `ChunkDecoder::decode`, `ChunkDecoder::Chunk::needed` and `CompData`.
+
+diff --git a/src/proto/codec/buf_model.rs b/src/proto/codec/buf_model.rs
+new file mode 100644
+index 0000000..f56b192
+--- /dev/null
++++ b/src/proto/codec/buf_model.rs
+@@ -0,0 +1,157 @@
++//! Translation model (not part of upstream `mysql_common`): the buffer operations that the plain
++//! codec uses, as crate-local traits, with
++//!
++//! * delegating implementations for the `bytes` types (`Buf`, `BufMut`, `BytesMut`), which is
++//!   what the crate itself instantiates the codec with, and
++//! * a `Vec<u8>`-backed model type [`VecBuf`] whose methods have the semantics of the
++//!   corresponding `BytesMut` methods.
++//!
++//! Also a crate-local `NonZeroUsize` with the API of `std::num::NonZeroUsize` that the codec uses.
++
++use std::{fmt, ops::Deref};
++
++use bytes::BytesMut;
++
++/// `std::num::NonZeroUsize` (the subset the codec uses): a `usize` that is not `0`.
++#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
++pub struct NonZeroUsize(usize);
++
++#[verify::start_from]
++impl NonZeroUsize {
++    /// `NonZeroUsize::new`: `Some` iff `n != 0`.
++    #[inline]
++    pub const fn new(n: usize) -> Option<Self> {
++        if n != 0 { Some(Self(n)) } else { None }
++    }
++
++    /// `NonZeroUsize::get`.
++    #[inline]
++    pub const fn get(self) -> usize {
++        self.0
++    }
++}
++
++impl fmt::Debug for NonZeroUsize {
++    /// `NonZeroUsize` is formatted as its value.
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        fmt::Debug::fmt(&self.0, f)
++    }
++}
++
++/// The methods of `bytes::Buf` that the codec uses.
++pub trait PacketBuf {
++    /// `Buf::remaining`.
++    fn remaining(&self) -> usize;
++    /// `Buf::chunk`.
++    fn chunk(&self) -> &[u8];
++    /// `Buf::advance`.
++    fn advance(&mut self, cnt: usize);
++    /// `Buf::has_remaining` (the default body of `bytes`).
++    fn has_remaining(&self) -> bool {
++        self.remaining() > 0
++    }
++}
++
++impl<T: bytes::Buf + ?Sized> PacketBuf for T {
++    fn remaining(&self) -> usize {
++        bytes::Buf::remaining(self)
++    }
++    fn chunk(&self) -> &[u8] {
++        bytes::Buf::chunk(self)
++    }
++    fn advance(&mut self, cnt: usize) {
++        bytes::Buf::advance(self, cnt)
++    }
++    fn has_remaining(&self) -> bool {
++        bytes::Buf::has_remaining(self)
++    }
++}
++
++/// The methods of `bytes::BufMut` that the codec uses.
++pub trait PacketBufMut {
++    /// `BufMut::put_slice`.
++    fn put_slice(&mut self, src: &[u8]);
++    /// `BufMut::put_u32_le` (the default body of `bytes`).
++    fn put_u32_le(&mut self, n: u32) {
++        self.put_slice(&n.to_le_bytes())
++    }
++}
++
++impl<T: bytes::BufMut + ?Sized> PacketBufMut for T {
++    fn put_slice(&mut self, src: &[u8]) {
++        bytes::BufMut::put_slice(self, src)
++    }
++    fn put_u32_le(&mut self, n: u32) {
++        bytes::BufMut::put_u32_le(self, n)
++    }
++}
++
++/// `BytesMut::reserve`.
++pub trait Reserve {
++    /// Reserves capacity for at least `additional` more bytes (no other effect).
++    fn reserve(&mut self, additional: usize);
++}
++
++impl Reserve for BytesMut {
++    fn reserve(&mut self, additional: usize) {
++        BytesMut::reserve(self, additional)
++    }
++}
++
++/// A `Vec<u8>`-backed model of `BytesMut`: the bytes of the buffer are `self.0`.
++///
++/// Each method has the semantics of the `BytesMut` method of the same name on the buffer's
++/// bytes; capacity is not modelled.
++#[derive(Debug, Clone, Default, PartialEq, Eq)]
++pub struct VecBuf(pub Vec<u8>);
++
++#[verify::start_from]
++impl Deref for VecBuf {
++    type Target = [u8];
++
++    /// `BytesMut::deref`: the bytes of the buffer.
++    fn deref(&self) -> &[u8] {
++        &self.0
++    }
++}
++
++#[verify::start_from]
++impl AsRef<[u8]> for VecBuf {
++    /// `BytesMut::as_ref`: the bytes of the buffer.
++    fn as_ref(&self) -> &[u8] {
++        &self.0
++    }
++}
++
++#[verify::start_from]
++impl PacketBuf for VecBuf {
++    /// `Buf for BytesMut::remaining`: the length of the buffer.
++    fn remaining(&self) -> usize {
++        self.0.len()
++    }
++
++    /// `Buf for BytesMut::chunk`: all bytes of the buffer.
++    fn chunk(&self) -> &[u8] {
++        &self.0
++    }
++
++    /// `Buf for BytesMut::advance`: drops the first `cnt` bytes; panics if `cnt > len`.
++    fn advance(&mut self, cnt: usize) {
++        let rest = self.0[cnt..].to_vec();
++        self.0 = rest;
++    }
++}
++
++#[verify::start_from]
++impl PacketBufMut for VecBuf {
++    /// `BufMut for BytesMut::put_slice`: appends `src`.
++    fn put_slice(&mut self, src: &[u8]) {
++        self.0.extend_from_slice(src);
++    }
++}
++
++#[verify::start_from]
++impl Reserve for VecBuf {
++    /// `BytesMut::reserve` only changes the capacity.
++    fn reserve(&mut self, _additional: usize) {}
++}
+diff --git a/src/proto/codec/mod.rs b/src/proto/codec/mod.rs
+index 1c40486..850533e 100644
+--- a/src/proto/codec/mod.rs
++++ b/src/proto/codec/mod.rs
+@@ -17,13 +17,14 @@ use flate2::{Compress, Decompress, FlushCompress, FlushDecompress, Status};
+ use std::{
+     cmp::{max, min},
+     io, mem,
+-    num::NonZeroUsize,
+     ptr::slice_from_raw_parts_mut,
+ };
+ 
++use self::buf_model::NonZeroUsize;
+ use self::error::PacketCodecError;
+ use crate::constants::{DEFAULT_MAX_ALLOWED_PACKET, MAX_PAYLOAD_LEN, MIN_COMPRESS_LENGTH};
+ 
++pub mod buf_model;
+ pub mod error;
+ 
+ /// Will split given `packet` to MySql packet chunks and write into `dst`.
+@@ -31,7 +32,14 @@ pub mod error;
+ /// Chunk ids will start with given `seq_id`.
+ ///
+ /// Resulting sequence id will be returned.
+-pub fn packet_to_chunks<T: Buf>(mut seq_id: u8, packet: &mut T, dst: &mut BytesMut) -> u8 {
++pub fn packet_to_chunks<
++    T: buf_model::PacketBuf,
++    D: buf_model::PacketBufMut + buf_model::Reserve,
++>(
++    mut seq_id: u8,
++    packet: &mut T,
++    dst: &mut D,
++) -> u8 {
+     let extra_packet = packet.remaining().is_multiple_of(MAX_PAYLOAD_LEN);
+     dst.reserve(packet.remaining() + (packet.remaining() / MAX_PAYLOAD_LEN) * 4 + 4);
+ 
+@@ -41,7 +49,7 @@ pub fn packet_to_chunks<T: Buf>(mut seq_id: u8, packet: &mut T, dst: &mut BytesM
+         while chunk_len > 0 {
+             let chunk = packet.chunk();
+             let count = min(chunk.len(), chunk_len);
+-            dst.put(&chunk[..count]);
++            dst.put_slice(&chunk[..count]);
+             chunk_len -= count;
+             packet.advance(count);
+         }
+@@ -222,15 +230,16 @@ impl ChunkDecoder {
+     /// If the `dst` buffer isn't empty then it is expected that it contains previous chunks
+     /// of the same packet, or this function may erroneously report
+     /// [`PacketCodecError::PacketTooLarge`] error.
+-    pub fn decode<T>(
++    pub fn decode<S, T>(
+         &mut self,
+-        src: &mut BytesMut,
++        src: &mut S,
+         dst: &mut T,
+         max_allowed_packet: usize,
+     ) -> Result<Option<ChunkInfo>, PacketCodecError>
+     where
++        S: std::ops::Deref<Target = [u8]> + buf_model::PacketBuf,
+         T: AsRef<[u8]>,
+-        T: BufMut,
++        T: buf_model::PacketBufMut,
+     {
+         match *self {
+             ChunkDecoder::Idle => {
+@@ -238,12 +247,12 @@ impl ChunkDecoder {
+                     // We need at least 4 bytes to read chunk length and sequence id.
+                     Ok(None)
+                 } else {
+-                    let raw_chunk_len = LittleEndian::read_u24(&*src) as usize;
++                    let raw_chunk_len = u32::from_le_bytes([src[0], src[1], src[2], 0]) as usize;
+                     let seq_id = src[3];
+ 
+                     match NonZeroUsize::new(raw_chunk_len) {
+                         Some(chunk_len) => {
+-                            if dst.as_ref().len() + chunk_len.get() > max_allowed_packet {
++                            if (*dst).as_ref().len() + chunk_len.get() > max_allowed_packet {
+                                 return Err(PacketCodecError::PacketTooLarge);
+                             }
+ 
+@@ -274,7 +283,7 @@ impl ChunkDecoder {
+ 
+                     *self = ChunkDecoder::Idle;
+ 
+-                    if dst.as_ref().len() % MAX_PAYLOAD_LEN == 0 {
++                    if (*dst).as_ref().len() % MAX_PAYLOAD_LEN == 0 {
+                         Ok(Some(ChunkInfo::Middle(seq_id)))
+                     } else {
+                         Ok(Some(ChunkInfo::Last(seq_id)))
+@@ -591,16 +600,17 @@ impl PlainPacketCodec {
+     /// * `comp_seq_id` - is the sequence id of the last compressed packet (if any).
+     ///
+     /// If `true` is returned then `dst` contains full packet.
+-    fn decode<T>(
++    fn decode<S, T>(
+         &mut self,
+-        src: &mut BytesMut,
++        src: &mut S,
+         dst: &mut T,
+         max_allowed_packet: usize,
+         comp_seq_id: Option<u8>,
+     ) -> Result<bool, PacketCodecError>
+     where
++        S: std::ops::Deref<Target = [u8]> + buf_model::PacketBuf,
+         T: AsRef<[u8]>,
+-        T: BufMut,
++        T: buf_model::PacketBufMut,
+     {
+         match self.chunk_decoder.decode(src, dst, max_allowed_packet)? {
+             Some(chunk_info) => {
+@@ -634,10 +644,10 @@ impl PlainPacketCodec {
+     }
+ 
+     /// Will try to encode packets into `dst`.
+-    fn encode<T: Buf>(
++    fn encode<T: buf_model::PacketBuf, D: buf_model::PacketBufMut + buf_model::Reserve>(
+         &mut self,
+         packet: &mut T,
+-        dst: &mut BytesMut,
++        dst: &mut D,
+         max_allowed_packet: usize,
+     ) -> Result<(), PacketCodecError> {
+         if packet.remaining() > max_allowed_packet {

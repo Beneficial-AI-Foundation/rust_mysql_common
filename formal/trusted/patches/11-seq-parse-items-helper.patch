@@ -1,0 +1,83 @@
+Translation patch: `SeqRepr::deserialize` for `Unknown`, `LeU32`, `LeU64`
+
+Change: The loop `for _ in 0..len { seq.push(buf.parse(())?) }` (duplicated in both arms of `match T::SIZE`, and in the macro) moves into a helper `parse_items(len, buf, seq)` that takes the already-allocated `seq` by value, runs the loop and returns `Ok(Cow::Owned(seq))`; the arms call it on the local sub-buffer or on `buf`. `Vec::with_capacity(len)` stays where it was, before the `match`.
+Why: Aeneas fails ("Could not match the contexts") on the loop when it runs over a local `ParseBuf` and the result is used after the `match`.
+Behaviour: Identical: the allocation happens at the same point (so the same capacity-overflow panic / allocation failure for huge `len`), then the same parses run in the same order on the same buffer, with the same early `Err` returns; the helper is the extracted loop.
+
+diff --git a/src/misc/raw/seq.rs b/src/misc/raw/seq.rs
+index 03a5da7..39903c7 100644
+--- a/src/misc/raw/seq.rs
++++ b/src/misc/raw/seq.rs
+@@ -106,6 +106,22 @@ where
+     }
+ }
+ 
++/// Pushes `len` values of `T` parsed from `buf` onto `seq`, and returns it as an owned sequence.
++fn parse_items<'de, T>(
++    len: usize,
++    buf: &mut ParseBuf<'de>,
++    mut seq: Vec<T>,
++) -> io::Result<Cow<'de, [T]>>
++where
++    T: Clone,
++    T: MyDeserialize<'de, Ctx = ()>,
++{
++    for _ in 0..len {
++        seq.push(buf.parse(())?);
++    }
++    Ok(Cow::Owned(seq))
++}
++
+ /// Representation of a serialized bytes.
+ pub trait SeqRepr {
+     /// Maximum number of items in a sequence (depends on how lenght is stored).
+@@ -140,21 +156,14 @@ impl SeqRepr for Unknown {
+         T: Clone,
+         T: MyDeserialize<'de, Ctx = ()>,
+     {
+-        let mut seq = Vec::with_capacity(len);
++        let seq = Vec::with_capacity(len);
+         match T::SIZE {
+             Some(count) => {
+                 let mut buf: ParseBuf<'_> = buf.parse(count * len)?;
+-                for _ in 0..len {
+-                    seq.push(buf.parse(())?);
+-                }
+-            }
+-            None => {
+-                for _ in 0..len {
+-                    seq.push(buf.parse(())?);
+-                }
++                parse_items(len, &mut buf, seq)
+             }
++            None => parse_items(len, buf, seq),
+         }
+-        Ok(Cow::Owned(seq))
+     }
+ }
+ 
+@@ -182,21 +191,14 @@ macro_rules! impl_seq_repr {
+                 T: MyDeserialize<'de, Ctx = ()>,
+             {
+                 let len = *buf.parse::<RawInt<$name>>(())? as usize;
+-                let mut seq = Vec::with_capacity(len);
++                let seq = Vec::with_capacity(len);
+                 match T::SIZE {
+                     Some(count) => {
+                         let mut buf: ParseBuf<'_> = buf.parse(count * len)?;
+-                        for _ in 0..len {
+-                            seq.push(buf.parse(())?);
+-                        }
+-                    }
+-                    None => {
+-                        for _ in 0..len {
+-                            seq.push(buf.parse(())?);
+-                        }
++                        parse_items(len, &mut buf, seq)
+                     }
++                    None => parse_items(len, buf, seq),
+                 }
+-                Ok(Cow::Owned(seq))
+             }
+         }
+     };

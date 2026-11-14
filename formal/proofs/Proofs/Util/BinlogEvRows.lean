@@ -1,0 +1,1304 @@
+import Defs
+import Proofs.Util.ParseBuf
+import Proofs.Util.BinlogCommon
+import Proofs.Util.IntAndMisc
+import Proofs.Util.RawBytesSeq
+import Proofs.Util.PacketsColStmt
+import Proofs.Util.PacketsOkErr
+import Proofs.Io.ParseBuf
+import Proofs.Misc.Raw.Int.RawInt
+import Proofs.Misc.Raw.Int.LeU16
+import Proofs.Misc.Raw.Int.LeU32
+import Proofs.Misc.Raw.Int.LeU48
+import Proofs.Misc.Raw.Int.LenEnc
+import Proofs.Misc.Raw.Bytes.RawBytes
+import Proofs.Misc.Raw.Bytes.BareBytes
+import Proofs.Misc.Raw.Bytes.EofBytes
+import Proofs.Misc.Raw.Bytes.U8Bytes
+import Proofs.Misc.Raw.Bytes.LenEnc
+import Proofs.Misc.Raw.Flags.RawFlags
+import Proofs.Misc.Raw.Skip
+import Proofs.Misc.Raw.Seq.RawSeq
+import Proofs.Misc.Raw.Const.RawConst
+import Proofs.Misc.LenencIntLen
+import Proofs.Misc.LenencStrLen
+import Proofs.Constants.ColumnType
+import Proofs.Binlog.Events.FormatDescriptionEvent.FormatDescriptionEvent
+import Proofs.Defs.LemmasBinlogEvents
+import Proofs.Defs.LemmasCF
+
+/-! Helper lemmas for the table-map and rows events (`Proofs/Binlog/Events/{TableMapEvent,RowsEvent,*RowsEvent*}`). -/
+
+set_option autoImplicit false
+
+open Aeneas Aeneas.Std Result mysql_common Defs
+
+namespace mysql_common.BERUtil
+
+open BinlogCommon
+
+theorem eof_as_bytes (rb : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) :
+    misc.raw.bytes.RawBytes.as_bytes misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb
+      ⦃ s => s.val = cowList rb.1 ⦄ := PKUtil.eof_as_bytes_spec rb
+
+/-- `RowsEventFlags::from_bits_truncate` (through the `Flags` instance): the known bits. -/
+theorem rows_flags_truncate (b : U16) :
+    binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16.from_bits_truncate b ⦃ f => f.val = b.val &&& rowsEventFlagsAll ⦄ := by
+  simp [binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16.FLAGS, bitflags.traits.Flag.new,
+    U16.Insts.BitflagsTraitsBits.EMPTY,
+    binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16.bits,
+    binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16.from_bits_retain,
+    binlog.consts.RowsEventFlags.from_bits_retain, binlog.consts.RowsEventFlags.bits,
+    binlog.consts.RowsEventFlags.STMT_END, binlog.consts.RowsEventFlags.NO_FOREIGN_KEY_CHECKS,
+    binlog.consts.RowsEventFlags.RELAXED_UNIQUE_CHECKS, binlog.consts.RowsEventFlags.COMPLETE_ROWS,
+    Array.to_slice, Array.make, List.foldlM, U16.Insts.CoreOpsBitBitOrU16U16.bitor,
+    U16.Insts.CoreOpsBitBitAndU16U16.bitand]
+  simp [rowsEventFlagsAll]
+
+/-! ## Event types -/
+
+theorem disc_val (a : binlog.consts.EventType) : (read_discriminant a).val = eventTypeCode a := by
+  cases a <;> rfl
+
+theorem ev_eq (a b : binlog.consts.EventType) :
+    binlog.consts.EventType.Insts.CoreCmpPartialEqEventType.eq a b = ok (decide (eventTypeCode a = eventTypeCode b)) := by
+  simp only [binlog.consts.EventType.Insts.CoreCmpPartialEqEventType.eq, ← disc_val]
+  congr 2
+  apply propext; constructor
+  · intro h; simp only [read_discriminant] at *; rw [h]
+  · intro h; exact UScalar.eq_of_val_eq h
+
+/-! ## Arithmetic -/
+
+@[step] theorem usize_sat_add (x y : Usize) :
+    lift (core.num.Usize.saturating_add x y) ⦃ z => z.val = min (x.val + y.val) Usize.max ⦄ := by
+  simp only [lift, WP.spec_ok, core.num.Usize.saturating_add, UScalar.saturating_add]
+  have : Usize.max < 2 ^ UScalarTy.Usize.numBits := by
+    have h1 := Usize.max_def; rw [Usize.numBits_def] at h1
+    have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+    omega
+  simp only [UScalar.val, BitVec.toNat_ofNat]
+  rw [Nat.mod_eq_of_lt (by have := min_le_left (UScalar.max UScalarTy.Usize) (x.bv.toNat + y.bv.toNat); simp [UScalar.max] at *)]
+  simp [UScalar.max, Usize.max, Nat.min_comm, Usize.numBits_def]
+
+theorem bitmap_max_len (h64 : Target64) :
+    misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN ⦃ m => m.val = 2 ^ 61 ⦄ := by
+  unfold misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN
+  have hn : UScalarTy.Usize.numBits = 64 := by simp [Target64] at h64; simp [UScalarTy.numBits, h64]
+  step*
+
+/-! ## Serialization -/
+
+@[step] theorem leu48_ser (x : misc.raw.int.RawInt misc.raw.int.LeU48 U64) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 6 ≤ Usize.max) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64 x buf ⦃ b => b.val = buf.val ++ leBytes 6 x.1.val ⦄ := by
+  rw [misc.raw.int.RawInt.serialize_eq]
+  exact misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec _ _ h
+
+@[step] theorem rows_flags_ser (x : misc.raw.flags.RawFlags binlog.consts.RowsEventFlags misc.raw.int.LeU16 U16)
+    (buf : alloc.vec.Vec U8) (h : buf.length + 2 ≤ Usize.max) :
+    misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMySerialize.serialize
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 x buf ⦃ b => b.val = buf.val ++ leBytes 2 x.1.val ⦄ := by
+  rw [misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMySerialize.serialize_eq]
+  exact misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.serialize_spec _ _ h
+
+@[step] theorem lenenc_rawint_ser (x : misc.raw.int.RawInt misc.raw.int.LenEnc U64) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (lenencInt x.1.val).length ≤ Usize.max) :
+    misc.raw.int.RawInt.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64 x buf ⦃ b => b.val = buf.val ++ lenencInt x.1.val ⦄ := by
+  rw [misc.raw.int.RawInt.serialize_eq]
+  exact misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.serialize_spec _ _ h
+
+@[step] theorem eof_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.EofBytes Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (cowList rb.1).length ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb buf ⦃ b => b.val = buf.val ++ cowList rb.1 ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  rw [← hs]
+  exact misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf (by simp [Slice.length, hs, h])
+
+theorem bitmap_ser (h64 : Target64) (rb : misc.raw.bytes.RawBytes misc.raw.bytes.BareBitmapBytes Usize) (buf : alloc.vec.Vec U8)
+    (h : buf.length + min (cowList rb.1).length (2 ^ 61) ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize rb buf ⦃ b => b.val = buf.val ++ (cowList rb.1).take (2 ^ 61) ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  simp only [misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize]
+  step with bitmap_max_len h64 as ⟨ m, hm ⟩
+  step*
+  rw [b_post, s_post, len_post, hm, ← hs]
+  simp [List.slice, Slice.len]
+  exact Nat.min_comm _ _
+
+theorem extra_core (ex : misc.raw.bytes.RawBytes (misc.raw.bytes.BareBytes 65533#usize) Usize) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (2 + min (cowList ex.1).length 65533) ≤ Usize.max) :
+    (do
+      let i ← misc.raw.bytes.RawBytes.len (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) ex
+      let i1 ← lift (core.num.Usize.saturating_add i 2#usize)
+      let i2 ← lift (UScalar.cast UScalarTy.Usize core.num.U16.MAX)
+      let i3 ← core.cmp.min core.cmp.OrdUsize i1 i2
+      let len ← lift (UScalar.cast UScalarTy.U16 i3)
+      let buf1 ← alloc.vec.VecU8.Insts.Mysql_commonIoBufMut.put_u16_le buf len
+      misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+        (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) ex buf1) ⦃ b =>
+      b.val = buf.val ++ (leBytes 2 (min (cowList ex.1).length 65533 + 2) ++ (cowList ex.1).take 65533) ⦄ := by
+  have hm : (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize).MAX_LEN = ok 65533#usize := by
+    show ok (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN 65533#usize) = _
+    rw [misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN_spec]
+  step with misc.raw.bytes.RawBytes.len_spec _ 65533#usize hm as ⟨ i, hi ⟩
+  step*
+  have hcap := u32_max_le_usize
+  have hi2 : i2.val = 65535 := by
+    rw [i2_post]; simp [UScalar.cast_val_eq, core.num.U16.MAX]
+    rcases System.Platform.numBits_eq with h | h <;> simp [h, U16.rMax]
+  have hl : len.val = min (cowList ex.1).length 65533 + 2 := by
+    rw [len_post, UScalar.cast_val_eq]; simp only [UScalarTy.numBits]
+    rw [i3_post, i1_post, hi2, hi]; omega
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.serialize_spec _ s buf1 (by simp [Slice.length, hs, buf1_post] at *; omega))
+  intro b hb
+  simp [hb, buf1_post, hl, hs]
+
+theorem extra_ser (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (if rowsIsV2 e.event_type then 2 + min (cowList e.extra_data.1).length 65533 else 0) ≤ Usize.max) :
+    binlog.events.rows_event.RowsEvent.serialize_extra_data e buf ⦃ b => b.val = buf.val ++
+      (if rowsIsV2 e.event_type then leBytes 2 (min (cowList e.extra_data.1).length 65533 + 2) ++ (cowList e.extra_data.1).take 65533 else []) ⦄ := by
+  unfold binlog.events.rows_event.RowsEvent.serialize_extra_data
+  simp only [ev_eq, bind_ok]
+  have hw : eventTypeCode .WRITE_ROWS_EVENT = 30 := rfl
+  have hu : eventTypeCode .UPDATE_ROWS_EVENT = 31 := rfl
+  have hd : eventTypeCode .DELETE_ROWS_EVENT = 32 := rfl
+  have hp : eventTypeCode .PARTIAL_UPDATE_ROWS_EVENT = 39 := rfl
+  simp only [hw, hu, hd, hp]
+  by_cases c1 : eventTypeCode e.event_type = 30
+  · have hv : rowsIsV2 e.event_type = true := by simp [rowsIsV2, c1]
+    simp only [c1, decide_true, ite_true, hv] at h ⊢; exact extra_core _ _ h
+  by_cases c2 : eventTypeCode e.event_type = 31
+  · have hv : rowsIsV2 e.event_type = true := by simp [rowsIsV2, c2]
+    simp only [c2, decide_true, ite_true, hv] at h ⊢; exact extra_core _ _ h
+  by_cases c3 : eventTypeCode e.event_type = 32
+  · have hv : rowsIsV2 e.event_type = true := by simp [rowsIsV2, c3]
+    simp only [c3, decide_true, ite_true, hv] at h ⊢; exact extra_core _ _ h
+  by_cases c4 : eventTypeCode e.event_type = 39
+  · have hv : rowsIsV2 e.event_type = true := by simp [rowsIsV2, c4]
+    simp only [c4, decide_true, ite_true, hv] at h ⊢; exact extra_core _ _ h
+  have hv : rowsIsV2 e.event_type = false := by simp [rowsIsV2, c1, c2, c3, c4]
+  simp [c1, c2, c3, c4, hv]
+
+theorem ser_bitmap (h64 : Target64) (o : Option (misc.raw.bytes.RawBytes misc.raw.bytes.BareBitmapBytes Usize)) (buf : alloc.vec.Vec U8)
+    (h : buf.length + ((o.map (fun b => (cowList b.1).take (2 ^ 61))).getD []).length ≤ Usize.max) :
+    binlog.events.rows_event.serialize_bitmap o buf ⦃ b => b.val = buf.val ++ (o.map (fun b => (cowList b.1).take (2 ^ 61))).getD [] ⦄ := by
+  unfold binlog.events.rows_event.serialize_bitmap
+  cases o with
+  | none => simp
+  | some rb =>
+    simp only
+    have hb : buf.length = buf.val.length := rfl
+    exact bitmap_ser h64 rb buf (by simp at h; omega)
+
+/-- `serialize` of a rows event, on a 64-bit target. -/
+theorem rows_serialize64 (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (rowsEnc e).length ≤ Usize.max) :
+    binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ rowsEnc e ⦄ := by
+  unfold binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMySerialize.serialize
+  simp only [rowsEnc, List.length_append] at h
+  have hb : buf.length = buf.val.length := rfl
+  have hv : (if rowsIsV2 e.event_type = true then 2 + min (cowList e.extra_data.1).length 65533 else 0) = (if rowsIsV2 e.event_type = true then
+          leBytes 2 (min (cowList e.extra_data.1).length 65533 + 2) ++ List.take 65533 (cowList e.extra_data.1) else []).length := by
+    split_ifs <;> simp; omega
+  have h6 := length_leBytes 6 e.table_id.1.val
+  have h2 := length_leBytes 2 e.flags.1.val
+  step with leu48_ser as ⟨ b1, hb1 ⟩
+  step with rows_flags_ser as ⟨ b2, hb2 ⟩
+  step with extra_ser as ⟨ b3, hb3 ⟩
+  step with lenenc_rawint_ser as ⟨ b4, hb4 ⟩
+  step with ser_bitmap h64 as ⟨ b5, hb5 ⟩
+  step with ser_bitmap h64 as ⟨ b6, hb6 ⟩
+  step with eof_ser as ⟨ b7, hb7 ⟩
+  rw [hb7, hb6, hb5, hb4, hb3, hb2, hb1]; unfold rowsEnc; split_ifs <;> simp
+
+/-! ## Lengths -/
+
+theorem cast_small (x : U64) (h : x.val ≤ Usize.max) : (UScalar.cast UScalarTy.Usize x).val = x.val := by
+  rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (usize_lt_of_le_max h)
+
+theorem cast_u8max : (UScalar.cast UScalarTy.Usize core.num.U8.MAX).val = 255 := by
+  simp [UScalar.cast_val_eq, core.num.U8.MAX]
+  rcases System.Platform.numBits_eq with h | h <;> simp [h, U8.rMax]
+
+theorem cast_u16max : (UScalar.cast UScalarTy.Usize core.num.U16.MAX).val = 65535 := by
+  simp [UScalar.cast_val_eq, core.num.U16.MAX]
+  rcases System.Platform.numBits_eq with h | h <;> simp [h, U16.rMax]
+
+theorem cast_u32max : (UScalar.cast UScalarTy.Usize core.num.U32.MAX).val = 2 ^ 32 - 1 := by
+  simp [UScalar.cast_val_eq, core.num.U32.MAX]
+  rcases System.Platform.numBits_eq with h | h <;> simp [h, U32.rMax]
+
+set_option maxHeartbeats 500000 in
+theorem rows_event_len_spec (nc : U64) (exl : Usize) (hb ha : Bool) (rdl : Usize)
+    (hbl : hb = true ∨ ha = true → (nc.val + 7) / 8 ≤ Usize.max) :
+    binlog.events.rows_event.rows_event_len nc exl hb ha rdl ⦃ n => n.val =
+      min (6 + 2 + 2 + min exl.val 65533 + (lenencInt nc.val).length +
+        (if hb then (nc.val + 7) / 8 else 0) + (if ha then (nc.val + 7) / 8 else 0) + rdl.val) evLenCap ⦄ := by
+  unfold binlog.events.rows_event.rows_event_len
+  have hcap := u32_max_le_usize
+  step*
+  · rw [i_post, cast_u16max]; simp
+  step with misc.lenenc_int_len_spec as ⟨ i3, hi3 ⟩
+  step*
+  have hl9 := lenencInt_length_le nc.val
+  have hi : i.val = 65535 := by rw [i_post, cast_u16max]
+  have hi4 : i4.val = (lenencInt nc.val).length := by rw [i4_post, cast_small _ (by omega), hi3]
+  have hdc : i5.val = (nc.val + 7) / 8 := by rw [i5_post, Nat.ceilDiv_eq_add_pred_div]; rfl
+  have hbm : hb = true ∨ ha = true → bitmap_len.val = (nc.val + 7) / 8 := by
+    intro hh; rw [bitmap_len_post, cast_small _ (by have := hbl hh; omega), hdc]
+  have hcp : (UScalar.cast UScalarTy.Usize core.num.U32.MAX).val = 2 ^ 32 - 1 := cast_u32max
+  have hL : binlog.events.BinlogEventHeader.LEN.val = 19 := by simp [binlog.events.BinlogEventHeader.LEN]
+  have hsat := fun (x y : Usize) => (usize_saturating_add_val x y)
+  cases hb <;> cases ha <;> simp only [Bool.false_eq_true, ↓reduceIte, true_or, or_true, forall_const] at hbm ⊢ <;> step* <;>
+    simp only [hsat, i6_post, hcp, hL, hi4, hbm, hi, len_post, len1_post, len2_post, len3_post, len4_post, i2_post, i1_post, evLenCap] at * <;> omega
+
+
+theorem bare65533_max : (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize).MAX_LEN = ok 65533#usize := by
+  show ok (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN 65533#usize) = _
+  rw [misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.MAX_LEN_spec]
+
+theorem rows_len_gen (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion)
+    (hbl : e.columns_before_image.isSome = true ∨ e.columns_after_image.isSome = true →
+      (e.num_columns.1.val + 7) / 8 ≤ Usize.max) :
+    binlog.events.rows_event.RowsEvent.len e v ⦃ n => n.val = rowsLenCrate e ⦄ := by
+  unfold binlog.events.rows_event.RowsEvent.len
+  have hnc : binlog.events.rows_event.RowsEvent.impl.num_columns e = ok e.num_columns.1 := rfl
+  simp only [hnc, bind_ok]
+  step with misc.raw.bytes.RawBytes.len_spec _ 65533#usize bare65533_max as ⟨ exl, hexl ⟩
+  step with misc.raw.bytes.RawBytes.len_spec misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple _ rfl as ⟨ rdl, hrdl ⟩
+  have hm := misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
+  have hc := PKUtil.cowList_length_le e.rows_data.1
+  apply WP.spec_mono (rows_event_len_spec _ _ _ _ _ (by simpa using hbl))
+  intro n hn
+  rw [hn, rowsLenCrate, hexl, hrdl, hm, Nat.min_eq_left hc]
+  cases e.columns_before_image <;> cases e.columns_after_image <;> simp
+
+theorem bm_len (o : Option (misc.raw.bytes.RawBytes misc.raw.bytes.BareBitmapBytes Usize)) (bl : Nat) (c : Bool)
+    (hbl : bl ≤ 2 ^ 61) (h : o.map (fun b => (cowList b.1).length) = (if c then some bl else none)) :
+    ((o.map (fun b => (cowList b.1).take (2 ^ 61))).getD []).length = (if o.isSome then bl else 0) ∧
+      (o.isSome = true → bl ≤ Usize.max) := by
+  cases o with
+  | none => simp
+  | some b =>
+    have hb := PKUtil.cowList_length_le b.1
+    cases c <;> simp at h ⊢
+    refine ⟨by omega, by omega⟩
+
+theorem bl_le (n : U64) : (n.val + 7) / 8 ≤ 2 ^ 61 := by
+  have := n.hBounds; simp at this; omega
+
+theorem rows_consistent_bm (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) :
+    ((e.columns_before_image.map (fun b => (cowList b.1).take (2 ^ 61))).getD []).length =
+        (if e.columns_before_image.isSome then (e.num_columns.1.val + 7) / 8 else 0) ∧
+    ((e.columns_after_image.map (fun b => (cowList b.1).take (2 ^ 61))).getD []).length =
+        (if e.columns_after_image.isSome then (e.num_columns.1.val + 7) / 8 else 0) ∧
+    (e.columns_before_image.isSome = true ∨ e.columns_after_image.isSome = true →
+      (e.num_columns.1.val + 7) / 8 ≤ Usize.max) := by
+  obtain ⟨_, _, hb, ha⟩ := hc
+  have h1 := bm_len _ _ _ (bl_le _) hb
+  have ha' : e.columns_after_image.map (fun b => (cowList b.1).length) =
+      if (!rowsIsDelete e.event_type) = true then some ((e.num_columns.1.val + 7) / 8) else none := by
+    rw [ha]; cases rowsIsDelete e.event_type <;> rfl
+  have h2 := bm_len _ _ _ (bl_le _) ha'
+  refine ⟨h1.1, h2.1, ?_⟩
+  rintro (h | h)
+  · exact h1.2 h
+  · exact h2.2 h
+
+theorem rowsLenCrate_v2 (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (h2 : rowsIsV2 e.event_type = true) :
+    rowsLenCrate e = min (rowsEnc e).length evLenCap := by
+  obtain ⟨hb, ha, _⟩ := rows_consistent_bm e hc
+  simp only [rowsLenCrate, rowsEnc, h2, ↓reduceIte, List.length_append, hb, ha, length_leBytes, List.length_take]
+  omega
+
+theorem rowsLenCrate_v1' (e : binlog.events.rows_event.RowsEvent) (hc : RowsConsistent e) (h1 : rowsIsV2 e.event_type = false)
+    (hcap : (rowsEnc e).length + 2 ≤ evLenCap) : rowsLenCrate e = (rowsEnc e).length + 2 := by
+  obtain ⟨hb, ha, _⟩ := rows_consistent_bm e hc
+  have hex : cowList e.extra_data.1 = [] := hc.2.1 h1
+  simp only [rowsEnc, h1, Bool.false_eq_true, ↓reduceIte, List.length_append, hb, ha, length_leBytes, List.length_nil] at hcap ⊢
+  simp only [rowsLenCrate, hex, List.length_nil]
+  omega
+
+/-! ## Table map -/
+
+theorem json_loop (s : Slice U8) (count i : Usize) (hi : i.val ≤ s.length) (hc : count.val ≤ i.val) :
+    binlog.events.table_map_event.count_json_columns_loop s count i ⦃ r =>
+      r.val = count.val + (s.val.drop i.val).countP (fun b => b.val = 245) ⦄ := by
+  unfold binlog.events.table_map_event.count_json_columns_loop
+  apply loop.spec_decr_nat (fun x : Usize × Usize => s.length - x.2.val)
+    (fun x => x.2.val ≤ s.length ∧ x.1.val ≤ x.2.val ∧
+      x.1.val + (s.val.drop x.2.val).countP (fun b => b.val = 245) = count.val + (s.val.drop i.val).countP (fun b => b.val = 245))
+  · rintro ⟨c, j⟩ ⟨h1, h2, h3⟩
+    unfold binlog.events.table_map_event.count_json_columns_loop.body
+    simp only at h1 h2 h3
+    step*
+    · have hj : j.val < s.val.length := by scalar_tac
+      have hi4 : i4.val = 245 := by rw [i4_post]; simp [UScalar.cast_val_eq, i3_post]
+      have hd : s.val.drop j.val = s.val[j.val] :: s.val.drop (j.val+1) := List.drop_eq_getElem_cons hj
+      rw [hd] at h3
+      have hsl : s.length = s.val.length := rfl
+      split
+      · rename_i heq
+        have h245 : (s.val[j.val]).val = 245 := by rw [← i2_post, heq, hi4]
+        step*
+        simp only [List.countP_cons, h245, decide_true, ↓reduceIte] at h3
+        refine ⟨by omega, by omega, by rw [i5_post, count1_post]; omega, by omega⟩
+      · rename_i hne
+        have h245 : ¬ (s.val[j.val]).val = 245 := by
+          intro h; apply hne; rw [i2_post]; exact UScalar.eq_of_val_eq (by rw [h, hi4])
+        step*
+        simp only [List.countP_cons, h245, decide_false, Bool.false_eq_true, ↓reduceIte] at h3
+        refine ⟨by omega, by omega, by rw [i5_post]; omega, by omega⟩
+    · have hj : s.val.length ≤ j.val := by scalar_tac
+      rw [List.drop_eq_nil_of_le hj] at h3
+      simp at h3; omega
+  · exact ⟨hi, hc, rfl⟩
+
+theorem patA (ptr : Slice U8) (k : Usize) (m : Nat) (hk : k.val = m) :
+    (do
+      let o ← core.slice.Slice.get (core.slice.index.SliceIndexRangeToUsizeSlice U8) ptr { «end» := k }
+      match o with
+      | none => ok none
+      | some x => ok (some (x, k))) ⦃ o =>
+      o.map (fun p => (p.1.val, p.2.val)) = (takeExact m ptr.val).map (fun p => (p.1, m)) ∧
+      ∀ p ∈ o, p.2.val ≤ ptr.length ⦄ := by
+  simp only [core.slice.Slice.get, 
+    core.slice.index.SliceIndexRangeToUsizeSlice.get]
+  subst hk
+  by_cases h : k ≤ ptr.length
+  · have h' : k.val ≤ ptr.val.length := h
+    simp [h, takeExact, List.slice, Slice.length]
+  · have h' : ¬ k.val ≤ ptr.val.length := h
+    simp [h, takeExact]
+
+theorem patB (ptr : Slice U8) :
+    (do
+      let s ← lift (Array.to_slice (Std.Array.empty U8))
+      ok (some (s, 0#usize))) ⦃ o =>
+      o.map (fun p => (p.1.val, p.2.val)) = (takeExact 0 ptr.val).map (fun p => (p.1, 0)) ∧
+      ∀ p ∈ o, p.2.val ≤ ptr.length ⦄ := by
+  simp [lift, takeExact, Array.to_slice, Std.Array.empty]
+
+theorem get_metadata_spec : ∀ (n : Nat) (t : constants.ColumnType) (ptr : Slice U8) (isArr : Bool), ptr.length = n →
+    binlog.ColumnType.get_metadata t ptr isArr ⦃ o =>
+      o.map (fun p => (p.1.val, p.2.val)) = tmColumnMeta isArr (columnTypeCode t) ptr.val ∧
+      ∀ p ∈ o, p.2.val ≤ ptr.length ⦄ := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro t ptr isArr hn
+  have key := tmColumnMeta.eq_def isArr (columnTypeCode t) ptr.val
+  rw [(columnTypeOfCode_columnTypeCode t).2] at key
+  simp only [key]
+  rw [binlog.ColumnType.get_metadata.eq_def]
+  cases t <;> simp only [columnTypeCode, getMetadataLen, Nat.reduceEqDiff, ↓reduceIte]
+  case MYSQL_TYPE_DECIMAL | MYSQL_TYPE_TINY | MYSQL_TYPE_SHORT | MYSQL_TYPE_LONG | MYSQL_TYPE_NULL | MYSQL_TYPE_TIMESTAMP | MYSQL_TYPE_LONGLONG | MYSQL_TYPE_INT24 | MYSQL_TYPE_DATE | MYSQL_TYPE_TIME | MYSQL_TYPE_DATETIME | MYSQL_TYPE_YEAR | MYSQL_TYPE_NEWDATE | MYSQL_TYPE_UNKNOWN | MYSQL_TYPE_VAR_STRING => exact patB ptr
+  case MYSQL_TYPE_FLOAT | MYSQL_TYPE_DOUBLE | MYSQL_TYPE_TIMESTAMP2 | MYSQL_TYPE_DATETIME2 | MYSQL_TYPE_TIME2 | MYSQL_TYPE_VECTOR | MYSQL_TYPE_JSON | MYSQL_TYPE_TINY_BLOB | MYSQL_TYPE_MEDIUM_BLOB | MYSQL_TYPE_LONG_BLOB | MYSQL_TYPE_BLOB | MYSQL_TYPE_GEOMETRY => exact patA ptr _ _ rfl
+  case MYSQL_TYPE_BIT | MYSQL_TYPE_NEWDECIMAL | MYSQL_TYPE_ENUM | MYSQL_TYPE_SET | MYSQL_TYPE_STRING => exact patA ptr _ _ rfl
+  case MYSQL_TYPE_VARCHAR => cases isArr <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> exact patA ptr _ _ rfl
+  case MYSQL_TYPE_TYPED_ARRAY =>
+    simp only [core.slice.Slice.first, bind_ok]
+    rcases hp : ptr.val with _ | ⟨e, rest⟩
+    · simp
+    · simp only [List.head?_cons, constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, bind_ok]
+      have hk := tmColumnMeta.eq_def true e.val rest
+      rcases hc : columnTypeOfCode e.val with _ | ty
+      · simp only [hc] at hk; simp [hk]
+      · have hcode : columnTypeCode ty = e.val := by
+          have := List.find?_some hc; simpa using this
+        have hl1 : (1#usize).val ≤ ptr.length := by simp [Slice.length, hp]
+        simp only [core.slice.Slice.get,
+          core.slice.index.SliceIndexRangeFromUsizeSlice.get, hl1, ↓reduceIte, bind_ok]
+        have hd : (ptr.drop 1#usize).val = rest := by simp [Slice.drop, hp]
+        have hdl : (ptr.drop 1#usize).length < n := by simp [Slice.length, hd] at hn ⊢; simp [hp] at hn; omega
+        apply WP.spec_bind (ih _ hdl ty (ptr.drop 1#usize) true rfl)
+        rintro o2 ⟨h1, h2⟩
+        rw [hcode, hd] at h1
+        cases o2 with
+        | none => simp at h1; simp [← h1]
+        | some p =>
+          obtain ⟨x, k⟩ := p
+          simp at h1 h2
+          step*
+          have hpl : ptr.length = (ptr.val).length := rfl
+          rw [← h1]; simp [i_post]; omega
+
+theorem cmf_spec : ∀ (k : Nat) (cs : misc.raw.seq.RawSeq U8 constants.ColumnType U8) (md : Slice U8) (i off col : Usize),
+    col.val - i.val = k → i.val ≤ col.val → off.val ≤ md.length →
+    binlog.events.table_map_event.column_metadata_from cs md i off col ⦃ o =>
+      o.map (·.val) = tmMetaAt ((cowList cs.1).drop i.val) (md.val.drop off.val) (col.val - i.val) ⦄ := by
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+  intro cs md i off col hk hic hoff
+  rw [binlog.events.table_map_event.column_metadata_from.eq_def]
+  step with misc.raw.seq.RawSeq.get_spec as ⟨ o, ho ⟩
+  cases o with
+  | none =>
+    simp at ho
+    simp [List.drop_eq_nil_of_le ho, tmMetaAt]
+  | some x =>
+    simp at ho
+    have hlt : i.val < (cowList cs.1).length := by
+      by_contra hh; rw [List.getElem?_eq_none (by omega)] at ho; simp at ho
+    have hdrop : (cowList cs.1).drop i.val = x.1 :: (cowList cs.1).drop (i.val + 1) := by
+      rw [List.drop_eq_getElem_cons hlt]; congr; rw [List.getElem?_eq_getElem hlt] at ho; simp at ho; exact ho.symm
+    rw [hdrop]
+    simp only [misc.raw._const.RawConst.get_eq, constants.ColumnType.Insts.CoreConvertTryFromU8UnknownColumnType.try_from_spec, bind_ok]
+    have hk2 := tmColumnMeta.eq_def false x.1.val (md.val.drop off.val)
+    rcases hc : columnTypeOfCode x.1.val with _ | ty
+    · simp only [hc] at hk2; simp [tmMetaAt, hk2]
+    · have hcode : columnTypeCode ty = x.1.val := by
+        have := List.find?_some hc; simpa using this
+      have hoff' : off ≤ md.length := hoff
+      simp only [core.slice.Slice.get, core.slice.index.SliceIndexRangeFromUsizeSlice.get, hoff', ↓reduceIte, bind_ok]
+      apply WP.spec_bind (get_metadata_spec _ ty (md.drop off) false rfl)
+      rintro o2 ⟨h1, h2⟩
+      have hdv : (md.drop off).val = md.val.drop off.val := by simp [Slice.drop]
+      rw [hcode, hdv] at h1
+      cases o2 with
+      | none => simp at h1; simp [tmMetaAt, ← h1]
+      | some p =>
+        obtain ⟨mt, len⟩ := p
+        simp at h1 h2
+        simp only [tmMetaAt, ← h1]
+        split
+        · rename_i heq
+          have : col.val - i.val = 0 := by rw [heq]; simp
+          simp [this]
+        · rename_i hne
+          have hne' : i.val ≠ col.val := fun h => hne (UScalar.eq_of_val_eq h)
+          have h0 : col.val - i.val ≠ 0 := by omega
+          simp only [h0, ↓reduceIte]
+          have hml : md.length = md.val.length := rfl
+          have hmx := md.property
+          step as ⟨ i1, i1_post ⟩
+          step as ⟨ i2, i2_post ⟩
+          have hrec := ih (col.val - i1.val) (by omega) cs md i1 i2 col rfl (by omega) (by omega)
+          apply WP.spec_mono hrec
+          intro r hr
+          rw [hr, i1_post, i2_post]
+          simp [List.drop_drop]
+          congr 1
+
+theorem col_meta_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) :
+    binlog.events.table_map_event.TableMapEvent.get_column_metadata e i ⦃ o =>
+      o.map (·.val) = tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val ⦄ := by
+  unfold binlog.events.table_map_event.TableMapEvent.get_column_metadata
+  step with PKUtil.lenenc_as_bytes_spec as ⟨ s, hs ⟩
+  apply WP.spec_mono (cmf_spec _ e.columns_type s 0#usize 0#usize i rfl (by simp) (by simp))
+  intro o ho
+  simpa [hs] using ho
+
+theorem tmMetaAt_string : ∀ (tys md : List U8) (i : Nat) (m : List U8) (b : U8),
+    tmMetaAt tys md i = some m → tys[i]? = some b → b.val = 254 → m.length = 2 := by
+  intro tys
+  induction tys with
+  | nil => intro md i m b h; simp [tmMetaAt] at h
+  | cons ty tys ih =>
+    intro md i m b h hb h254
+    simp only [tmMetaAt] at h
+    rcases hm : tmColumnMeta false ty.val md with _ | ⟨m', k⟩
+    · simp [hm] at h
+    · simp only [hm] at h
+      cases i with
+      | zero =>
+        simp at h hb
+        subst hb h
+        have := tmColumnMeta.eq_def false ty.val md
+        rw [hm, h254] at this
+        simp [columnTypeOfCode, allColumnTypes, columnTypeCode, getMetadataLen, takeExact] at this
+        obtain ⟨⟨x, hx⟩, _⟩ := this
+        by_cases hl : 2 ≤ md.length
+        · simp only [hl, ↓reduceIte, Option.some.injEq, Prod.mk.injEq] at hx; rw [← hx.1]; simp; omega
+        · simp [hl] at hx
+      | succ i =>
+        simp at h hb
+        exact ih _ _ _ _ h hb h254
+
+theorem real_string_spec (rt f1 : U8) (hrt : rt.val = 254) :
+    binlog.events.table_map_event.real_string_type rt f1 ⦃ r =>
+      match tmStringRealType f1.val with
+      | some t => r = .Ok t
+      | none => r = .Err (.Unexpected (byte (f1.val ||| 0x30))) ⦄ := by
+  unfold binlog.events.table_map_event.real_string_type
+  have hrt' : rt = 254#u8 := UScalar.eq_of_val_eq (by simp [hrt])
+  subst hrt'
+  by_cases h0 : f1 = 0#u8
+  · subst h0; simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
+    exact (WP.spec_ok _).mpr rfl
+  · have h0' : f1.val ≠ 0 := fun h => h0 (UScalar.eq_of_val_eq (by simp [h]))
+    simp only [bne_iff_ne, ne_eq, h0, not_false_eq_true, ↓reduceIte, bind_ok, tmStringRealType, h0']
+    generalize hv : f1 ||| 48#u8 = v
+    have hvv : v.val = f1.val ||| 0x30 := by rw [← hv]; simp
+    split
+    · have : f1.val ||| 48 = 247 := by rw [← hvv]; rfl
+      simp [this]
+    · have : f1.val ||| 48 = 248 := by rw [← hvv]; rfl
+      simp [this]
+    · have : f1.val ||| 48 = 254 := by rw [← hvv]; rfl
+      simp [this]
+    · rename_i n1 n2 n3
+      have a1 : v.val ≠ 247 := fun h => n1 (UScalar.eq_of_val_eq (by rw [h]; rfl))
+      have a2 : v.val ≠ 248 := fun h => n2 (UScalar.eq_of_val_eq (by rw [h]; rfl))
+      have a3 : v.val ≠ 254 := fun h => n3 (UScalar.eq_of_val_eq (by rw [h]; rfl))
+      rw [← hvv]
+      simp [a1, a2, a3, PCSUtil.byte_eq_self]
+
+theorem real_type_spec (e : binlog.events.table_map_event.TableMapEvent) (i : Usize) (t : constants.ColumnType)
+    (hS : columnTypeCode t = 254 → ∀ m, tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val = some m → m ≠ []) :
+    binlog.events.table_map_event.TableMapEvent.get_real_type e i t ⦃ r =>
+      if columnTypeCode t = 10 then r = .Ok .MYSQL_TYPE_NEWDATE
+      else if columnTypeCode t = 254 then
+        match tmMetaAt (cowList e.columns_type.1) (cowList e.columns_metadata.1) i.val with
+        | none => r = .Ok t
+        | some m => match tmStringRealType (m.headD (byte 0)).val with
+          | some t' => r = .Ok t'
+          | none => r = .Err (.Unexpected (byte ((m.headD (byte 0)).val ||| 0x30)))
+      else r = .Ok t ⦄ := by
+  cases t
+  case MYSQL_TYPE_STRING =>
+    simp only [columnTypeCode] at hS ⊢
+    simp only [binlog.events.table_map_event.TableMapEvent.get_real_type, Nat.reduceEqDiff, ↓reduceIte]
+    step*
+    step with col_meta_spec as ⟨ o, ho ⟩
+    cases o with
+    | none => simp at ho; simp [← ho]
+    | some mb =>
+      simp at ho
+      have hne := hS trivial _ ho.symm
+      have h0 : 0 < mb.length := by
+        simp [Slice.length]; exact List.length_pos_iff.mpr hne
+      step*
+      rw [← ho]
+      have hrt : real_type.val = 254 := by rw [real_type_post]; rfl
+      apply WP.spec_mono (real_string_spec real_type i hrt)
+      intro r hr
+      rcases hm : mb.val with _ | ⟨a, l⟩
+      · exact absurd hm hne
+      · simp only [hm] at i_post ⊢; simp at i_post; subst i_post; simpa using hr
+  all_goals simp [binlog.events.table_map_event.TableMapEvent.get_real_type, columnTypeCode]
+
+/-! ## Table map length -/
+
+theorem uadd_overflow' {ty : UScalarTy} (x y : UScalar ty) (h : 2 ^ ty.numBits ≤ x.val + y.val) :
+    x + y = fail .integerOverflow := by
+  show UScalar.add x y = _
+  simp only [UScalar.add, UScalar.tryMk]
+  have := UScalar.tryMkOpt_eq ty (x.val + y.val)
+  cases hc : UScalar.tryMkOpt ty (x.val + y.val) with
+  | none => rfl
+  | some z => rw [hc] at this; exfalso; simp [UScalar.inBounds] at this; omega
+
+theorem lsl_cases (s : Slice U8) :
+    (∃ v, misc.lenenc_str_len s = ok v ∧ v.val = (lenencStr s.val).length) ∨
+      misc.lenenc_str_len s = fail .integerOverflow := by
+  by_cases h : (lenencStr s.val).length < 2 ^ 64
+  · left; exact PBUtil.spec_eq_ok (misc.lenenc_str_len_spec s h)
+  · right
+    unfold misc.lenenc_str_len
+    have hs : s.val.length < 2 ^ 64 := lt_two_pow_64_of_le_max s.property
+    have hl : (UScalar.cast UScalarTy.U64 (Slice.len s)).val = s.val.length := by
+      rw [UScalar.cast_val_eq]; simp [Slice.len]; simpa using hs
+    obtain ⟨i1, h1, hi1⟩ := PBUtil.spec_eq_ok (misc.lenenc_int_len_spec (UScalar.cast UScalarTy.U64 (Slice.len s)))
+    rw [hl] at hi1
+    have ho := uadd_overflow' i1 (UScalar.cast UScalarTy.U64 (Slice.len s)) (by
+      rw [hl, hi1]; simp [lenencStr] at h; simp; omega)
+    simp [lift, h1, ho]
+
+theorem tm_len_gen (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion)
+    (hn : e.columns_count.1.val + 8 < 2 ^ 64) (hm : (lenencStr (cowList e.columns_metadata.1)).length < 2 ^ 64) :
+    binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v ⦃ n => n.val = tmLenCrate e ⦄ := by
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  have hcap := u32_max_le_usize
+  have hmax : Usize.max = 2 ^ 64 - 1 := by simp [Target64] at h64; simp [Usize.max, Usize.numBits, h64]
+  have hcc : binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1 := rfl
+  simp only [hcc, bind_ok]
+  obtain ⟨tid, fl, ⟨c, u⟩, n1, ⟨c1, u1⟩, n2, cc, ct, md, nb, om⟩ := e
+  simp only at hn hm ⊢
+  step*
+  step with misc.lenenc_int_len_spec as ⟨ i6, hi6 ⟩
+  step*
+  step with misc.lenenc_str_len_spec _ (by rw [s2_post]; exact hm) as ⟨ i9, hi9 ⟩
+  step*
+  step with misc.raw.bytes.RawBytes.len_spec misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple _ rfl as ⟨ i14, hi14 ⟩
+  step*
+  · rw [i15_post, cast_u32max]; simp [binlog.events.BinlogEventHeader.LEN]
+  · have hL : binlog.events.BinlogEventHeader.LEN.val = 19 := by simp [binlog.events.BinlogEventHeader.LEN]
+    have h1 : i1.val = 255 := by rw [i1_post, cast_u8max]
+    have h4 : i4.val = 255 := by rw [i4_post, cast_u8max]
+    have h15 : i15.val = 2 ^ 32 - 1 := by rw [i15_post, cast_u32max]
+    have hl9 := lenencInt_length_le cc.1.val
+    have h7 : i7.val = (lenencInt cc.1.val).length := by rw [i7_post, cast_small _ (by omega), hi6]
+    have h8 : i8.val = cc.1.val := by rw [i8_post, PBUtil.cast_usize_64 h64]
+    have h11 : i11.val = cc.1.val := by rw [i11_post, PBUtil.cast_usize_64 h64]
+    have h10 : i10.val = (lenencStr (cowList md.1)).length := by
+      rw [i10_post, cast_small _ (by rw [hi9, s2_post]; omega), hi9, s2_post]
+    have hom := PKUtil.cowList_length_le om.1
+    have hEM := misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.MAX_LEN_spec
+    have hs : s.len.val = (cowList c).length := by simp [Slice.len, ← s_post]
+    have hs1 : s1.len.val = (cowList c1).length := by simp [Slice.len, ← s1_post]
+    simp only [tmLenCrate, evLenCap]
+    rw [hEM] at hi14
+    have hdb := min_le_right (cowList c).length 255
+    have htb := min_le_right (cowList c1).length 255
+    have e2 : len2.val = 9 := by clear * - len_post len1_post len2_post hcap; omega
+    have e3 : len3.val = 9 + min (cowList c).length 255 := by
+      rw [len3_post, i2_post, hs, h1, e2]; clear * - hcap; omega
+    have e5 : len5.val = 11 + min (cowList c).length 255 := by
+      rw [len5_post, len4_post, e3]; clear * - hcap; omega
+    have e7 : len7.val = 12 + min (cowList c).length 255 + min (cowList c1).length 255 := by
+      rw [len7_post, len6_post, i5_post, hs1, h4, e5]; clear * - hcap; omega
+    have e8 : len8.val = 6 + 2 + 1 + min (cowList c).length 255 + 1 + 1 + min (cowList c1).length 255 + 1 +
+        (lenencInt cc.1.val).length := by
+      rw [len8_post, h7, e7]; clear * - hcap hl9; omega
+    have key : ∀ (a b c d f M K : Nat), K ≤ M →
+        min (min (min (min (min (a + b) M + c) M + d) M + f) M) K = min (a + b + c + d + f) K := by
+      intros; omega
+    have hK : i16.val ≤ Usize.max := by rw [i16_post, h15, hL]; clear * - hcap; omega
+    rw [n_post, len12_post, len11_post, len10_post, len9_post, key _ _ _ _ _ _ _ hK]
+    rw [e8, h8, h10, i13_post, i12_post, h11, hi14, Nat.min_eq_left hom, i16_post, h15, hL]
+
+theorem tm_len_panics (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (v : binlog.consts.BinlogVersion)
+    (hn : 2 ^ 64 ≤ e.columns_count.1.val + 8) :
+    binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len e v = fail .integerOverflow := by
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogStruct.len
+  have hcc : binlog.events.table_map_event.TableMapEvent.impl.columns_count e = ok e.columns_count.1 := rfl
+  simp only [hcc, bind_ok]
+  obtain ⟨tid, fl, ⟨c, u⟩, n1, ⟨c1, u1⟩, n2, cc, ct, md, nb, om⟩ := e
+  simp only at hn ⊢
+  obtain ⟨s, hs, -⟩ := PBUtil.spec_eq_ok (cow_deref_spec core.clone.CloneU8 c)
+  obtain ⟨s1, hs1, -⟩ := PBUtil.spec_eq_ok (cow_deref_spec core.clone.CloneU8 c1)
+  obtain ⟨i6, hi6, -⟩ := PBUtil.spec_eq_ok (misc.lenenc_int_len_spec cc.1)
+  obtain ⟨s2, hs2, -⟩ := PBUtil.spec_eq_ok (PKUtil.lenenc_as_bytes_spec md)
+  have hadd : UScalar.cast UScalarTy.Usize cc.1 + 8#usize = fail .integerOverflow :=
+    uadd_overflow' _ _ (by
+      rw [PBUtil.cast_usize_64 h64]; simp [Target64] at h64; simp [UScalarTy.numBits, h64]; omega)
+  rcases lsl_cases s2 with ⟨i9, h9, -⟩ | h9 <;>
+    simp [hs, hs1, hi6, hs2, h9, lift, hadd]
+
+/-! ## Readers -/
+
+theorem take_form {T : Type} (k : Nat) (f : T → List U8) (r : Option T) (rest buf : io.ParseBuf)
+    (h : if k ≤ buf.length then r.map f = some (buf.val.take k) ∧ rest.val = buf.val.drop k
+      else r = none ∧ rest = buf) :
+    takeExact k buf.val = r.map (fun x => (f x, rest.val)) := by
+  have hl : buf.length = buf.val.length := rfl
+  unfold takeExact
+  split_ifs at h with hk
+  · obtain ⟨h1, h2⟩ := h
+    cases r <;> simp_all
+  · obtain ⟨h1, h2⟩ := h
+    subst h1; simp; omega
+
+theorem p48 (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r rest =>
+      readLE 6 buf.val = (okPart r).map (fun x => (x.1.val, rest.val)) ⦄ := by
+  apply WP.spec_mono (misc.raw.int.LeU48.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf)
+  rintro ⟨r, rest⟩ h
+  have hl : buf.length = buf.val.length := rfl
+  simp only [WP.uncurry'] at h ⊢
+  unfold readLE
+  split_ifs at h with hk
+  · obtain ⟨h1, h2⟩ := h; cases hr : okPart r <;> simp_all
+  · obtain ⟨h1, h2⟩ := h; subst h2; simp [h1]; omega
+
+theorem p32 (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32) buf () ⦃ r rest =>
+      readLE 4 buf.val = (okPart r).map (fun x => (x.1.val, rest.val)) ⦄ := by
+  apply WP.spec_mono (misc.raw.int.LeU32.Insts.Mysql_commonMiscRawIntIntReprU32.parse_rawint_spec buf)
+  rintro ⟨r, rest⟩ h
+  have hl : buf.length = buf.val.length := rfl
+  simp only [WP.uncurry'] at h ⊢
+  unfold readLE
+  split_ifs at h with hk
+  · obtain ⟨h1, h2⟩ := h; cases hr : okPart r <;> simp_all
+  · obtain ⟨h1, h2⟩ := h; subst h2; simp [h1]; omega
+
+theorem p16 (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () ⦃ r rest =>
+      readLE 2 buf.val = (okPart r).map (fun x => (x.1.val, rest.val)) ⦄ := by
+  apply WP.spec_mono (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.parse_rawint_spec buf)
+  rintro ⟨r, rest⟩ h
+  have hl : buf.length = buf.val.length := rfl
+  simp only [WP.uncurry'] at h ⊢
+  unfold readLE
+  split_ifs at h with hk
+  · obtain ⟨h1, h2⟩ := h; cases hr : okPart r <;> simp_all
+  · obtain ⟨h1, h2⟩ := h; subst h2; simp [h1]; omega
+
+theorem pLEI (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.int.RawInt.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64) buf () ⦃ r rest =>
+      optFst (checkedLenencInt buf.val) = (okPart r).map (fun x => (x.1.val, rest.val)) ⦄ := by
+  apply WP.spec_mono (misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawIntIntReprU64.parse_rawint_spec buf)
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry'] at h ⊢
+  rw [← h]; cases okPart r <;> simp [optFst]
+
+theorem dU8B (buf : io.ParseBuf) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple () buf ⦃ r rest =>
+      (okPart r).map (fun rb => cowList rb.1) = (checkedLenPrefixed 1 buf.val).1 ∧
+      rest.val = (checkedLenPrefixed 1 buf.val).2 ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec _ _ _
+    (fun o rest => o = (checkedLenPrefixed 1 buf.val).1 ∧ rest.val = (checkedLenPrefixed 1 buf.val).2)
+  apply WP.spec_mono (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry'] at h ⊢
+  rw [← h]; simp
+
+theorem pU8B (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      optFst (checkedLenPrefixed 1 buf.val) = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf () (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  apply WP.spec_mono (dU8B buf)
+  rintro ⟨r, rest⟩ ⟨h1, h2⟩
+  show optFst (checkedLenPrefixed 1 buf.val) = (okPart r).map (fun rb => (cowList rb.1, rest.val))
+  rcases hc : checkedLenPrefixed 1 buf.val with ⟨o, t⟩
+  rw [hc] at h1 h2
+  rw [h2]
+  simp only at h1
+  rw [← h1]
+  cases okPart r <;> simp [optFst]
+
+theorem pSkip1 (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize) buf () ⦃ r rest =>
+      takeExact 1 buf.val = (okPart r).map (fun _ => (buf.val.take 1, rest.val)) ⦄ := by
+  have hl : buf.length = buf.val.length := rfl
+  have hs : (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple 1#usize).SIZE = ok (some 1#usize) := by
+    simp [misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE_eq]
+  by_cases h1 : (1#usize).val ≤ buf.length
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size _ buf () 1#usize hs h1 (fun o => o.isSome) (by
+      intro sub hsub
+      apply WP.spec_mono (misc.raw.Skip.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec 1#usize sub
+        (by simp [Slice.length, hsub] at h1 ⊢; omega))
+      rintro ⟨r, rest⟩ ⟨h, -⟩; exact h))
+    rintro ⟨r, rest⟩ ⟨ha, hb⟩
+    simp only [WP.uncurry'] at ha hb ⊢
+    cases hr : okPart r <;> simp_all [takeExact]
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size_short _ buf () 1#usize hs (by omega))
+    rintro ⟨r, rest⟩ ⟨ha, hb⟩
+    simp only [WP.uncurry'] at ha hb ⊢
+    simp [ha, takeExact]; simp at h1; omega
+
+theorem pSeq (len : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize constants.ColumnType
+      U8.Insts.Mysql_commonMiscRawIntIntReprU8) buf len ⦃ r rest =>
+      takeExact len.val buf.val = (okPart r).map (fun s => (cowList s.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf len (by
+    simp [misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.SIZE_eq])]
+  apply WP.spec_mono (misc.raw.seq.RawSeqDeTUU8.Insts.Mysql_commonProtoMyDeserializeDeUsize.deserialize_spec
+    constants.ColumnType U8.Insts.Mysql_commonMiscRawIntIntReprU8 len buf)
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry'] at h
+  exact take_form len.val (fun s => cowList s.1) (okPart r) rest buf h
+
+theorem pLEB (h64 : Target64) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      optFst (checkedLenencStr buf.val) = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf () (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.int.LenEnc.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  apply WP.spec_mono (PCSUtil.lenenc_raw_deserialize h64 buf)
+  rintro ⟨r, rest⟩ ⟨h1, h2⟩
+  show optFst (checkedLenencStr buf.val) = (okPart r).map (fun rb => (cowList rb.1, rest.val))
+  rcases hc : checkedLenencStr buf.val with ⟨o, t⟩
+  rw [hc] at h1 h2
+  rw [h2]
+  simp only at h1
+  rw [← h1]
+  cases okPart r <;> simp [optFst]
+
+theorem pEof (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple) buf () ⦃ r rest =>
+      (okPart r).map (fun rb => (cowList rb.1, rest.val)) = some (buf.val, []) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf () (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.SIZE_eq])]
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple () buf
+    (fun o rest => o.map (fun c => (c, rest.val)) = some (buf.val, []))
+    (by
+      apply WP.spec_mono (misc.raw.bytes.EofBytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.deserialize_spec buf)
+      rintro ⟨r, rest⟩ ⟨h1, h2⟩
+      show (Option.map cowList (okPart r)).map (fun c => (c, rest.val)) = some (buf.val, [])
+      rw [h1, h2]; rfl))
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
+theorem dBM (len : Usize) (buf : io.ParseBuf) :
+    misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize len buf ⦃ r rest =>
+      if len.val ≤ buf.length then
+        (okPart r).map cowList = some (buf.val.take len.val) ∧ rest.val = buf.val.drop len.val
+      else okPart r = none ∧ rest = buf ⦄ := by
+  unfold misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize
+  step with PBUtil.checked_eat_ok as ⟨ o, b1, ho ⟩
+  split_ifs at ho with hl
+  · obtain ⟨h1, h2⟩ := ho
+    cases o with
+    | none => simp at h1
+    | some x => simp at h1; simp [okPart, hl, h1, h2]
+  · obtain ⟨h1, h2⟩ := ho
+    subst h1 h2
+    simp [okPart, misc.unexpected_buf_eof, misc.io_error_msg, hl]
+
+theorem pBM (len : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) buf len ⦃ r rest =>
+      takeExact len.val buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf len (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.SIZE])]
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize len buf
+    (fun o rest => takeExact len.val buf.val = o.map (fun c => (c, rest.val)))
+    (by
+      apply WP.spec_mono (dBM len buf)
+      rintro ⟨r, rest⟩ h
+      simp only [WP.uncurry', Option.map_map]
+      exact take_form len.val cowList (okPart r) rest buf h))
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
+theorem pBare (len : Usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) buf len ⦃ r rest =>
+      takeExact len.val buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := by
+  rw [io.ParseBuf.parse_of_size_none _ buf len (by
+    simp [misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.SIZE,
+      misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.SIZE_eq])]
+  apply WP.spec_mono (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize.deserialize_spec
+    (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize) len buf
+    (fun o rest => takeExact len.val buf.val = o.map (fun c => (c, rest.val)))
+    (by
+      apply WP.spec_mono (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize.deserialize_spec 65533#usize len buf)
+      rintro ⟨r, rest⟩ h
+      simp only [WP.uncurry', Option.map_map]
+      exact take_form len.val cowList (okPart r) rest buf h))
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
+/-! ## 64-bit lengths and table map serialization -/
+
+theorem rows_len64 (h64 : Target64) (e : binlog.events.rows_event.RowsEvent) (v : binlog.consts.BinlogVersion) :
+    binlog.events.rows_event.RowsEvent.len e v ⦃ n => n.val = rowsLenCrate e ⦄ := by
+  apply rows_len_gen e v
+  intro _
+  have := bl_le e.num_columns.1
+  have hmax : Usize.max = 2 ^ 64 - 1 := by simp [Target64] at h64; simp [Usize.max, Usize.numBits, h64]
+  omega
+
+theorem u8b_ser (rb : misc.raw.bytes.RawBytes misc.raw.bytes.U8Bytes Unit) (buf : alloc.vec.Vec U8)
+    (h : buf.length + 1 + min (cowList rb.1).length 255 ≤ Usize.max) :
+    misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize
+      misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple rb buf
+      ⦃ b => b.val = buf.val ++ u8Str (cowList rb.1) ⦄ := by
+  apply misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMySerialize.serialize_spec
+  intro s hs
+  apply WP.spec_mono (misc.raw.bytes.U8Bytes.Insts.Mysql_commonMiscRawBytesBytesReprTuple.serialize_spec s buf
+    (by simp [Slice.length, hs]; omega))
+  intro b hb
+  rw [hb, u8Str, ← hs]
+
+/-- Discharges the buffer-length side condition `h` a serializer `step` leaves, if any. -/
+macro "ser_side" : tactic => `(tactic|
+  try (case h => simp_all [alloc.vec.Vec.length, Slice.length, u8Str, length_leBytes]; omega))
+
+theorem tm_serialize64 (h64 : Target64) (e : binlog.events.table_map_event.TableMapEvent) (buf : alloc.vec.Vec U8)
+    (h : buf.length + (tmEnc e).length ≤ Usize.max) :
+    binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize e buf ⦃ buf' => buf'.val = buf.val ++ tmEnc e ⦄ := by
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMySerialize.serialize
+  have hb : buf.length = buf.val.length := rfl
+  simp only [tmEnc, u8Str, List.length_append, List.length_cons, length_leBytes, List.length_take, List.length_nil] at h
+  step with leu48_ser as ⟨ b1, hb1 ⟩
+  step with PCSUtil.rawint_u16_serialize as ⟨ b2, hb2 ⟩
+  ser_side
+  step with u8b_ser as ⟨ b3, hb3 ⟩
+  ser_side
+  step with misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b4, hb4 ⟩
+  ser_side
+  step with u8b_ser as ⟨ b5, hb5 ⟩
+  ser_side
+  step with misc.raw.Skip.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b6, hb6 ⟩
+  ser_side
+  step with lenenc_rawint_ser as ⟨ b7, hb7 ⟩
+  ser_side
+  step with misc.raw.seq.RawSeq0TUU8.Insts.Mysql_commonProtoMySerialize.serialize_spec as ⟨ b8, hb8 ⟩
+  ser_side
+  step with PCSUtil.lenenc_raw_serialize as ⟨ b9, hb9 ⟩
+  ser_side
+  step with bitmap_ser h64 as ⟨ b10, hb10 ⟩
+  ser_side
+  step with eof_ser as ⟨ b11, hb11 ⟩
+  ser_side
+  rw [hb11, hb10, hb9, hb8, hb7, hb6, hb5, hb4, hb3, hb2, hb1]
+  simp [tmEnc, u8Str]
+
+theorem from_res_spec (T : Type) (e : core.io.error.Error) :
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual T
+      (core.convert.FromSame core.io.error.Error) (core.result.Result.Err e) ⦃ r => r = core.result.Result.Err e ⦄ := by
+  simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+
+/-! ## Reader steps -/
+
+theorem rd_bind {T U A V : Type} {m : Result (core.result.Result T core.io.error.Error × io.ParseBuf)}
+    {s : Option (A × List U8)} {f : T → A}
+    (hm : m ⦃ r rest => s = (okPart r).map (fun x => (f x, rest.val)) ⦄)
+    {K : core.result.Result T core.io.error.Error × io.ParseBuf →
+      Result (core.result.Result U core.io.error.Error × io.ParseBuf)}
+    {view : U → V} {G : A × List U8 → Option (V × List U8)}
+    (hErr : ∀ e b, K (.Err e, b) ⦃ r _ => okPart r = none ⦄)
+    (hOk : ∀ v b, K (.Ok v, b) ⦃ r rest => ReadsAs view (G (f v, b.val)) r rest ⦄) :
+    Std.bind m K ⦃ r rest => ReadsAs view (s >>= G) r rest ⦄ := by
+  apply WP.spec_bind hm
+  rintro ⟨r, b⟩ h
+  simp only [WP.uncurry'] at h
+  cases r with
+  | Ok v => subst h; exact hOk v b
+  | Err e =>
+    subst h
+    apply WP.spec_mono (hErr e b)
+    rintro ⟨r', b'⟩ h'
+    simpa [ReadsAs] using h'
+
+/-- The error branch of a `?` after a reader: the residual is returned. -/
+macro "rd_err" : tactic => `(tactic| (
+  intro _ _
+  apply spec_bind_ok
+  apply WP.spec_bind (from_res_spec _ _)
+  intro _ h
+  exact (WP.spec_ok _).mpr (by rw [h]; rfl)))
+
+/-- One `?`-step `let (r, b) ← parse ..; match branch r ..` with a reader spec `h`. -/
+macro "rd_step " h:term " as " v:ident b:ident : tactic => `(tactic| (
+  refine rd_bind $h ?_ (fun $v $b => ?_)
+  · rd_err
+  apply spec_bind_ok))
+
+theorem tm_deser (h64 : Target64) (ctx : binlog.BinlogCtx) (buf : io.ParseBuf) :
+    binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize ctx buf ⦃ r rest =>
+      ReadsAs tmView (tmRead (postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT) buf.val) r rest ⦄ := by
+  unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonProtoMyDeserializeDeBinlogCtx.deserialize
+  have hET : binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE = .TABLE_MAP_EVENT := by
+    unfold binlog.events.table_map_event.TableMapEvent.Insts.Mysql_commonBinlogBinlogEvent.EVENT_TYPE; rfl
+  rw [hET]
+  step with binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec as ⟨ ph, hph ⟩
+  have hc32 : ∀ x : U32, (UScalar.cast .U64 x).val = x.val := fun x => by
+    rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by have := x.hBounds; simp at this ⊢; omega)
+  split <;> rename_i h6
+  on_goal 1 =>
+    have hp : postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT = 6 := by rw [← hph, ← h6]; rfl
+    rw [hp]; unfold tmRead
+    rd_step p32 buf as v1 b1
+    apply spec_bind_ok
+    apply spec_bind_ok
+  on_goal 2 =>
+    have hp : ¬ postHeaderLen (fdeLens ctx.fde) .TABLE_MAP_EVENT = 6 := by
+      intro h; apply h6; apply UScalar.eq_of_val_eq; rw [hph, h]; rfl
+    unfold tmRead; rw [ite_eq_right hp]
+    rd_step p48 buf as v1 b1
+  all_goals
+    rd_step p16 b1 as v2 b2
+    rd_step pU8B b2 as v3 b3
+    rd_step pSkip1 b3 as v4 b4
+    rd_step pU8B b4 as v5 b5
+    rd_step pSkip1 b5 as v6 b6
+    rd_step pLEI b6 as v7 b7
+    apply spec_bind_ok
+    have h8 := pSeq (UScalar.cast .Usize v7.1) b7
+    rw [PBUtil.cast_usize_64 h64] at h8
+    rd_step h8 as v8 b8
+    rd_step pLEB h64 b8 as v9 b9
+    apply WP.spec_bind (core.num.U64.div_ceil.spec v7.1 8#u64 (by simp))
+    intro i5 hi5
+    apply spec_bind_ok
+    have hbm : (UScalar.cast .Usize i5).val = (v7.1.val + 7) / 8 := by
+      rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
+    have h10 := pBM (UScalar.cast .Usize i5) b9
+    rw [hbm] at h10
+    rd_step h10 as v10 b10
+    apply WP.spec_bind (pEof b10)
+    rintro ⟨r11, b11⟩ h11
+    rcases r11 with v11 | e11
+    · apply spec_bind_ok
+      apply (WP.spec_ok _).mpr
+      simp only [WP.uncurry', okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h11 ⊢
+      obtain ⟨h11a, h11b⟩ := h11
+      simp [ReadsAs, okPart, hc32, tmView, h11a, h11b]
+    · simp [WP.uncurry', okPart] at h11
+
+/-! ## Rows reader -/
+
+theorem dFlags (buf sub : io.ParseBuf) (hsub : sub.val = buf.val.take 2) (h2 : 2 ≤ sub.length) :
+    misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 () sub ⦃ r _ =>
+      (okPart r).map (fun x => x.1.val) = some (leNat (buf.val.take 2)) ⦄ := by
+  have inner : misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize sub ⦃ r rest =>
+      (fun o (_ : io.ParseBuf) => o.map (fun (x : U16) => x.val) = some (leNat (buf.val.take 2))) (okPart r) rest ⦄ := by
+    apply WP.spec_mono (misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16.deserialize_spec sub h2)
+    rintro ⟨r, rest⟩ ⟨h, -⟩
+    show (okPart r).map (fun (x : U16) => x.val) = some (leNat (buf.val.take 2))
+    rw [h, hsub, List.take_take]; simp
+  apply WP.spec_mono (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.deserialize_spec
+    binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+    misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16 sub
+    (fun o (_ : io.ParseBuf) => o.map (fun (x : U16) => x.val) = some (leNat (buf.val.take 2))) inner)
+  rintro ⟨r, rest⟩ h
+  simp only [WP.uncurry', Option.map_map] at h ⊢
+  exact h
+
+theorem pFlags (hsz : core.mem.size_of Std.U16 = ok 2#usize) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () ⦃ r rest =>
+      readLE 2 buf.val = (okPart r).map (fun x => (x.1.val, rest.val)) ⦄ := by
+  have hl : buf.length = buf.val.length := rfl
+  have hs : (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16).SIZE = ok (some 2#usize) := by
+    show misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE _ _ = _
+    unfold misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple.SIZE
+    rw [hsz]; simp
+  by_cases h2 : (2#usize).val ≤ buf.length
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () 2#usize hs h2
+      (fun o => o.map (fun x => x.1.val) = some (leNat (buf.val.take 2))) (by
+        intro sub hsub
+        exact dFlags buf sub hsub (by simp [Slice.length, hsub] at h2 ⊢; omega)))
+    rintro ⟨r, rest⟩ ⟨ha, hb⟩
+    simp only [WP.uncurry'] at ha hb ⊢
+    simp at h2
+    cases hr : okPart r <;> simp_all [readLE]
+  · apply WP.spec_mono (io.ParseBuf.parse_of_size_short (misc.raw.flags.RawFlags.Insts.Mysql_commonProtoMyDeserializeDeTuple
+      binlog.consts.RowsEventFlags.Insts.BitflagsTraitsFlagsU16
+      misc.raw.int.LeU16.Insts.Mysql_commonMiscRawIntIntReprU16) buf () 2#usize hs (by omega))
+    rintro ⟨r, rest⟩ ⟨ha, hb⟩
+    simp only [WP.uncurry'] at ha hb ⊢
+    simp at h2
+    simp [ha, readLE]; omega
+
+theorem pEat16 (buf : io.ParseBuf) :
+    io.ParseBuf.checked_eat_u16_le buf ⦃ o rest => readLE 2 buf.val = o.map (fun x => (x.val, rest.val)) ⦄ := by
+  apply WP.spec_mono (io.ParseBuf.checked_eat_u16_le_spec buf)
+  rintro ⟨o, rest⟩ h
+  have hl : buf.length = buf.val.length := rfl
+  simp only [WP.uncurry'] at h ⊢
+  unfold readLE
+  split_ifs at h with hk
+  · obtain ⟨h1, h2⟩ := h; cases o <;> simp_all
+  · obtain ⟨h1, h2⟩ := h; subst h1 h2; simp; omega
+
+theorem cast16_val (x : U16) : (UScalar.cast UScalarTy.Usize x).val = x.val := by
+  rw [UScalar.cast_val_eq]; apply Nat.mod_eq_of_lt
+  have := x.hBounds
+  have : 2 ^ 16 ≤ 2 ^ UScalarTy.Usize.numBits := by
+    apply Nat.pow_le_pow_right (by omega)
+    simp [UScalarTy.numBits]
+  simp at *; omega
+
+theorem ev_bool (t a : binlog.consts.EventType) :
+    binlog.consts.EventType.Insts.CoreCmpPartialEqEventType.eq t a ⦃ b => b = decide (eventTypeCode t = eventTypeCode a) ⦄ := by
+  rw [ev_eq]; simp
+
+theorem ec : eventTypeCode .DELETE_ROWS_EVENT = 32 ∧ eventTypeCode .DELETE_ROWS_EVENT_V1 = 25 ∧
+    eventTypeCode .UPDATE_ROWS_EVENT = 31 ∧ eventTypeCode .UPDATE_ROWS_EVENT_V1 = 24 ∧
+    eventTypeCode .PARTIAL_UPDATE_ROWS_EVENT = 39 := ⟨rfl, rfl, rfl, rfl, rfl⟩
+
+theorem rd_bind_map {T U A A' V : Type} {m : Result (core.result.Result T core.io.error.Error × io.ParseBuf)}
+    {s : Option (A × List U8)} {f : T → A} {g : A × List U8 → A' × List U8}
+    (hm : m ⦃ r rest => s = (okPart r).map (fun x => (f x, rest.val)) ⦄)
+    {K : core.result.Result T core.io.error.Error × io.ParseBuf →
+      Result (core.result.Result U core.io.error.Error × io.ParseBuf)}
+    {view : U → V} {G : A' × List U8 → Option (V × List U8)}
+    (hErr : ∀ e b, K (.Err e, b) ⦃ r _ => okPart r = none ⦄)
+    (hOk : ∀ v b, K (.Ok v, b) ⦃ r rest => ReadsAs view (G (g (f v, b.val))) r rest ⦄) :
+    Std.bind m K ⦃ r rest => ReadsAs view (s.map g >>= G) r rest ⦄ := by
+  apply WP.spec_bind hm
+  rintro ⟨r, b⟩ h
+  simp only [WP.uncurry'] at h
+  cases r with
+  | Ok v => subst h; exact hOk v b
+  | Err e =>
+    subst h
+    apply WP.spec_mono (hErr e b)
+    rintro ⟨r', b'⟩ h'
+    simpa [ReadsAs] using h'
+
+theorem rd_eat {U V B : Type} {buf : io.ParseBuf}
+    {K : Option U16 × io.ParseBuf → Result (core.result.Result U core.io.error.Error × io.ParseBuf)}
+    {view : U → V} {H : Nat × List U8 → Option (B × List U8)} {G : B × List U8 → Option (V × List U8)}
+    (hNone : ∀ b, K (none, b) ⦃ r _ => okPart r = none ⦄)
+    (hSome : ∀ l b, K (some l, b) ⦃ r rest => ReadsAs view (H (l.val, b.val) >>= G) r rest ⦄) :
+    Std.bind (io.ParseBuf.checked_eat_u16_le buf) K ⦃ r rest =>
+      ReadsAs view ((readLE 2 buf.val >>= H) >>= G) r rest ⦄ := by
+  apply WP.spec_bind (pEat16 buf)
+  rintro ⟨o, b⟩ h
+  simp only [WP.uncurry'] at h
+  cases o with
+  | some l => rw [h]; exact hSome l b
+  | none =>
+    rw [h]
+    apply WP.spec_mono (hNone b)
+    rintro ⟨r', b'⟩ h'
+    simpa [ReadsAs] using h'
+
+theorem spec_ite_pos {α : Type} {c : Prop} [Decidable c] (h : c) {a b : Result α} {P : WP.Post α}
+    (ha : WP.spec a P) : WP.spec (if c then a else b) P := by rw [ite_eq_left h]; exact ha
+
+theorem spec_ite_neg {α : Type} {c : Prop} [Decidable c] (h : ¬ c) {a b : Result α} {P : WP.Post α}
+    (hb : WP.spec b P) : WP.spec (if c then a else b) P := by rw [ite_eq_right h]; exact hb
+
+/-- Decides a program condition `ph = 6#u8` / `ph = pw` from the case hypotheses. -/
+macro "rd_cond" : tactic => `(tactic| first
+  | (apply UScalar.eq_of_val_eq; simp_all; done)
+  | (intro hc; have := congrArg UScalar.val hc; simp_all; done))
+
+theorem some_bindM {α β : Type} (a : α) (f : α → Option β) : (some a >>= f) = f a := rfl
+
+theorem pBM' (len : Usize) (n : Nat) (hn : len.val = n) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      misc.raw.bytes.BareBitmapBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize) buf len ⦃ r rest =>
+      takeExact n buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := hn ▸ pBM len buf
+
+theorem pBare' (len : Usize) (n : Nat) (hn : len.val = n) (buf : io.ParseBuf) :
+    io.ParseBuf.parse (misc.raw.bytes.RawBytes.Insts.Mysql_commonProtoMyDeserialize
+      (misc.raw.bytes.BareBytes.Insts.Mysql_commonMiscRawBytesBytesReprUsize 65533#usize)) buf len ⦃ r rest =>
+      takeExact n buf.val = (okPart r).map (fun rb => (cowList rb.1, rest.val)) ⦄ := hn ▸ pBare len buf
+
+macro "rd_step_map " h:term " as " v:ident b:ident : tactic => `(tactic| (
+  refine rd_bind_map $h ?_ (fun $v $b => ?_)
+  · rd_err
+  apply spec_bind_ok))
+
+theorem rows_deser (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize) (t : binlog.consts.EventType)
+    (ph pw : U8) (buf : io.ParseBuf) :
+    binlog.events.rows_event.deserialize_rows_event t ph pw buf ⦃ r rest =>
+      ReadsAs rowsView (rowsRead t ph.val pw.val buf.val) r rest ⦄ := by
+  have hc32 : ∀ x : U32, (UScalar.cast .U64 x).val = x.val := fun x => by
+    rw [UScalar.cast_val_eq]; exact Nat.mod_eq_of_lt (by have := x.hBounds; simp at this ⊢; omega)
+  unfold binlog.events.rows_event.deserialize_rows_event
+  apply WP.spec_bind (ev_bool t .DELETE_ROWS_EVENT)
+  intro b hb
+  apply WP.spec_bind (Pₘ := fun d => d = rowsIsDelete t) (by
+    split
+    · rename_i h; apply (WP.spec_ok _).mpr; subst hb; simp [ec] at h; simp [rowsIsDelete, h]
+    · rename_i h; apply WP.spec_mono (ev_bool t .DELETE_ROWS_EVENT_V1); intro d hd; subst hb; simp [ec] at h
+      simp [hd, rowsIsDelete, h, ec])
+  intro isDel hD
+  apply WP.spec_bind (ev_bool t .UPDATE_ROWS_EVENT)
+  intro b1 hb1
+  apply WP.spec_bind (Pₘ := fun d => d = rowsIsUpdate t) (by
+    split
+    · rename_i h; apply (WP.spec_ok _).mpr; subst hb1; simp [ec] at h; simp [rowsIsUpdate, h]
+    · rename_i h
+      apply WP.spec_bind (ev_bool t .UPDATE_ROWS_EVENT_V1); intro b2 hb2
+      split
+      · rename_i h2; apply (WP.spec_ok _).mpr; subst hb1 hb2; simp [ec] at h h2; simp [rowsIsUpdate, h2]
+      · rename_i h2; apply WP.spec_mono (ev_bool t .PARTIAL_UPDATE_ROWS_EVENT); intro d hd; subst hb1 hb2
+        simp [ec] at h h2
+        simp [hd, rowsIsUpdate, h, h2, ec])
+  intro isUpd hU
+  generalize hS : rowsRead t ph.val pw.val buf.val = S
+  generalize hp : ph.val = p at hS
+  generalize hq : pw.val = q at hS
+  by_cases h6 : p = 6 <;> by_cases hw : p = q <;> (try subst h6) <;> (try subst hw) <;>
+    rcases hu : rowsIsUpdate t with _ | _ <;> rcases hd : rowsIsDelete t with _ | _
+  all_goals try (exfalso; revert hu hd; simp [rowsIsUpdate, rowsIsDelete]; omega)
+  all_goals
+    simp only [rowsRead, *, Bool.or_true, Bool.or_false, ↓reduceIte, some_bindM, Bool.false_eq_true] at hS
+    subst hS
+    rw [hu] at hU; rw [hd] at hD; subst hU hD
+    first
+    | (apply spec_ite_pos (by rd_cond)
+       rd_step p32 buf as v1 b1
+       apply spec_bind_ok
+       apply spec_bind_ok)
+    | (apply spec_ite_neg (by rd_cond)
+       rd_step p48 buf as v1 b1)
+    rd_step pFlags hsz _ as v2 b2
+    first
+    | (apply spec_ite_pos (by rd_cond)
+       refine rd_eat (fun _ => ?_) (fun l3 bx => ?_)
+       · apply WP.spec_bind IntAndMisc.unexpected_buf_eof_spec
+         intro _ _
+         exact (WP.spec_ok _).mpr rfl
+       apply spec_bind_ok
+       apply spec_bind_ok
+       rd_step (pBare' _ _ (by rw [sat_sub_usize, cast16_val]; rfl) _) as v3 b3)
+    | (apply spec_ite_neg (by rd_cond)
+       apply WP.spec_bind PKUtil.empty_index_spec
+       intro s0 hs0
+       apply WP.spec_bind (PKUtil.rawbytes_new_spec _ _ s0 (alloc.borrow.Cow.Borrowed s0) rfl)
+       intro rbx hrbx)
+    rd_step pLEI _ as v4 b4
+    apply WP.spec_bind (core.num.U64.div_ceil.spec v4.1 8#u64 (by simp))
+    intro i5 hi5
+    apply spec_bind_ok
+    have hbm : (UScalar.cast .Usize i5).val = (v4.1.val + 7) / 8 := by
+      rw [PBUtil.cast_usize_64 h64, hi5, Nat.ceilDiv_eq_add_pred_div]; simp
+    first
+    | (apply spec_ite_pos rfl
+       rd_step_map (pBM' _ _ hbm _) as v5 b5
+       rd_step_map (pBM' _ _ hbm _) as v6 b6)
+    | (apply spec_ite_neg (by decide)
+       first
+       | (apply spec_ite_pos rfl
+          rd_step_map (pBM' _ _ hbm _) as v5 b5)
+       | (apply spec_ite_neg (by decide)
+          rd_step_map (pBM' _ _ hbm _) as v5 b5))
+    apply WP.spec_bind (pEof _)
+    rintro ⟨r7, b7⟩ h7
+    rcases r7 with v7 | e7
+    · apply spec_bind_ok
+      apply (WP.spec_ok _).mpr
+      simp only [WP.uncurry', okPart, Option.map, Option.some.injEq, Prod.mk.injEq] at h7 ⊢
+      obtain ⟨h7a, h7b⟩ := h7
+      first
+      | simp [ReadsAs, okPart, hc32, rowsView, h7a, h7b]; done
+      | simp [ReadsAs, okPart, hc32, rowsView, h7a, h7b, hs0, hrbx]
+    · simp [WP.uncurry', okPart] at h7
+
+theorem rows_deser_ctx (h64 : Target64) (hsz : core.mem.size_of Std.U16 = ok 2#usize)
+    (ctx : binlog.events.rows_event.RowsEventCtx) (buf : io.ParseBuf) :
+    binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize ctx buf ⦃ r rest =>
+      ReadsAs rowsView (rowsRead ctx.event_type (postHeaderLen (fdeLens ctx.binlog_ctx.fde) ctx.event_type)
+        (postHeaderLen (fdeLens ctx.binlog_ctx.fde) .WRITE_ROWS_EVENT) buf.val) r rest ⦄ := by
+  unfold binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.deserialize
+  step with binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec as ⟨ ph, hph ⟩
+  step with binlog.events.format_description_event.FormatDescriptionEvent.get_event_type_header_length_spec as ⟨ pw, hpw ⟩
+  rw [← hph, ← hpw]
+  exact rows_deser h64 hsz _ ph pw buf
+
+theorem rowsRead_congr (t t' : binlog.consts.EventType) (h : eventTypeCode t = eventTypeCode t') (p pw : Nat) (bs : List U8) :
+    rowsRead t p pw bs = rowsRead t' p pw bs := by
+  simp [rowsRead, rowsIsUpdate, rowsIsDelete, h]
+
+theorem rows_size_none :
+    binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE = none := by
+  unfold binlog.events.rows_event.RowsEvent.Insts.Mysql_commonProtoMyDeserializeDeRowsEventCtx.SIZE; rfl
+
+end mysql_common.BERUtil

@@ -1,0 +1,15 @@
+[package]
+name = "regex-version-eval"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone: not part of the mysql_common workspace.
+[workspace]
+
+[[bin]]
+name = "regex-version-eval"
+path = "main.rs"
+
+[dependencies]
+regex = "=1.13.1"

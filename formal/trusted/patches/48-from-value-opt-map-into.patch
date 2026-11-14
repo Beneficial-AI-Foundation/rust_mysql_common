@@ -1,0 +1,22 @@
+Translation patch: `FromValue::from_value_opt`
+
+Change: `Self::Intermediate::try_from(v).map(Into::into)` becomes an explicit `match`.
+Why: Aeneas fails on a trait method used as a function value ("Unimplemented": the `FnOnce` impl of `Into::into`).
+Behaviour: Identical: the `match` is the definition of `Result::map`.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index 11997e0..26efd9a 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -105,7 +105,10 @@ pub trait FromValue: Sized {
+ 
+     /// Will return `Err(Error::FromValueError(v))` if could not convert `v` to `Self`.
+     fn from_value_opt(v: Value) -> Result<Self, FromValueError> {
+-        Self::Intermediate::try_from(v).map(Into::into)
++        match Self::Intermediate::try_from(v) {
++            Ok(x) => Ok(x.into()),
++            Err(e) => Err(e),
++        }
+     }
+ 
+     /// Will return `Err(Error::FromValueError(v))` if `v` is not convertible to `Self`.

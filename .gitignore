@@ -1,5 +1,12 @@
 target/
 **/*.rs.bk
-Cargo.lock
 .idea
 .vscode
+
+# Aeneas verification: build outputs and regenerated templates
+/.aeneas
+/.llbc/
+/.lake/
+/formal/.lake/
+/formal/translation/MysqlCommon/*External_Template.lean
+/.claude/worktrees/

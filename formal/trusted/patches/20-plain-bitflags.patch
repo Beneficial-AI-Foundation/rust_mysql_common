@@ -1,0 +1,478 @@
+Translation patch: the flags types `StatusFlags`, `CapabilityFlags`, `CursorType`, `StmtExecuteParamsFlags`, `StmtExecuteParamFlags`, `ColumnFlags`
+
+Change: A new macro `my_plain_bitflags!` (src/bitflags_ext.rs) takes the same input as `my_bitflags!` but, instead of calling `bitflags::bitflags!`, defines the flags type as `#[repr(transparent)] struct Name(T)` and writes out the API that `bitflags` 2.13 generates for it: the flag constants, `empty`, `all`, `bits`, `from_bits`, `from_bits_truncate`, `from_bits_retain`, `from_name`, `is_empty`, `is_all`, `intersects`, `contains`, `insert`, `remove`, `toggle`, `set`, `intersection`, `union`, `difference`, `symmetric_difference`, `complement`, `iter`, `iter_names`, `impl bitflags::Flags`, `Debug`, `Binary`/`Octal`/`LowerHex`/`UpperHex`, `BitOr`/`BitAnd`/`BitXor`/`Sub`/`Not` and the `*Assign` forms, `Extend`, `FromIterator`, `IntoIterator`. The six flags types used by the translated code switch to it, and drop `Debug` from their `derive` list (the macro writes the `bitflags` one). The macro's `TryFrom<T>` is `match Name::from_bits(val) { Some(flags) => Ok(flags), None => Err(Error(val)) }` instead of `Name::from_bits(val).ok_or_else(|| Error(val))`.
+Why: `bitflags!` wraps a private `InternalBitFlags` whose methods go through the external `bitflags::Bits`/`Flags` traits (`Bits::EMPTY`, `Bits::ALL`, a `const` fold over `Flags::FLAGS`), which Aeneas has no model for. A plain struct over `T` with primitive bit operations translates directly. (`ok_or_else` with a closure: see patch 09.)
+Behaviour: Identical. Each method body is the one in `bitflags` 2.13.2 (`src/public.rs`, `src/internal.rs`) with the internal wrapper inlined (`self.0` is the bits in both). `all()` is the OR of all flag values, which is what `bitflags` computes by folding over `FLAGS`. `Flags::FLAGS` lists the same (name, value) pairs in the same order, so `iter`, `iter_names`, `from_name` and the `Debug` output (`Name(A | B | 0x..)`, or `Name(0x0)` when empty, through `bitflags::parser::to_writer`) are unchanged. The derived `PartialEq`/`Eq`/`Hash`/`Clone`/`Copy` work on the bits, as before. `match` is the definition of `ok_or_else`. Not generated: the `FromStr`/`Display`/`AsRef` impls of the private internal type, and `bitflags::__private::PublicFlags`. None of these is reachable from the public type, and the crate compiles with all features.
+Deviations (behaviour-neutral, found in review): `iter`/`iter_names` are plain `fn`s here, not `const fn`; bitflags' override of `Flags::all_named` is not reproduced (the trait default is equal because no flag is unnamed); `#[repr(transparent)]` sits on the public type rather than bitflags' internal one (layout only).
+
+diff --git a/src/bitflags_ext.rs b/src/bitflags_ext.rs
+index 7d1c9ad..8a79cbd 100644
+--- a/src/bitflags_ext.rs
++++ b/src/bitflags_ext.rs
+@@ -36,3 +36,362 @@ macro_rules! my_bitflags {
+         bitflags::bitflags! { $($def)* }
+     };
+ }
++
++/// Same as `my_bitflags!`, but the flags type is a plain `struct $Name($T)` with the API that
++/// `bitflags::bitflags!` (2.x) generates, written out with the same bodies (`bitflags`
++/// `src/public.rs`, `src/internal.rs`, `src/traits.rs`). The `derive` list of the type must not
++/// contain `Debug`: the `Debug` impl generated here is the one of `bitflags`.
++macro_rules! my_plain_bitflags {
++    (
++        $name:ident, $(#[$em:meta])+ $err:ident, $ty:path,
++        $(#[$outer:meta])*
++        $vis:vis struct $Name:ident: $T:ty {
++            $(
++                $(#[$inner:meta])*
++                const $Flag:ident = $value:expr;
++            )*
++        }
++    ) => {
++        #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, thiserror::Error)]
++        $(#[$em])+
++        pub struct $err(pub $ty);
++
++        impl TryFrom<$ty> for $name {
++            type Error = $err;
++
++            fn try_from(val: $ty) -> std::result::Result<$name, $err> {
++                match $name::from_bits(val) {
++                    Some(flags) => Ok(flags),
++                    None => Err($err(val)),
++                }
++            }
++        }
++
++        impl From<$name> for $ty {
++            fn from(val: $name) -> $ty {
++                val.bits()
++            }
++        }
++
++        impl Default for $name {
++            fn default() -> $name {
++                $name::empty()
++            }
++        }
++
++        $(#[$outer])*
++        #[repr(transparent)]
++        $vis struct $Name($T);
++
++        #[allow(dead_code)]
++        impl $Name {
++            $(
++                $(#[$inner])*
++                pub const $Flag: Self = Self($value);
++            )*
++
++            /// Get a flags value with all bits unset.
++            #[inline]
++            pub const fn empty() -> Self {
++                Self(0)
++            }
++
++            /// Get a flags value with all known bits set.
++            #[inline]
++            pub const fn all() -> Self {
++                Self(0 $(| $value)*)
++            }
++
++            /// Get the underlying bits value.
++            #[inline]
++            pub const fn bits(&self) -> $T {
++                self.0
++            }
++
++            /// Convert from a bits value, unless any unset bits are set.
++            #[inline]
++            pub const fn from_bits(bits: $T) -> Option<Self> {
++                let truncated = Self::from_bits_truncate(bits).0;
++                if truncated == bits {
++                    Some(Self(bits))
++                } else {
++                    None
++                }
++            }
++
++            /// Convert from a bits value, unsetting any unknown bits.
++            #[inline]
++            pub const fn from_bits_truncate(bits: $T) -> Self {
++                Self(bits & Self::all().0)
++            }
++
++            /// Convert from a bits value exactly.
++            #[inline]
++            pub const fn from_bits_retain(bits: $T) -> Self {
++                Self(bits)
++            }
++
++            /// Whether all bits in this flags value are unset.
++            #[inline]
++            pub const fn is_empty(&self) -> bool {
++                self.0 == 0
++            }
++
++            /// Whether all known bits in this flags value are set.
++            #[inline]
++            pub const fn is_all(&self) -> bool {
++                Self::all().0 | self.0 == self.0
++            }
++
++            /// Whether any set bits in a source flags value are also set in a target flags value.
++            #[inline]
++            pub const fn intersects(&self, other: Self) -> bool {
++                self.0 & other.0 != 0
++            }
++
++            /// Whether all set bits in a source flags value are also set in a target flags value.
++            #[inline]
++            pub const fn contains(&self, other: Self) -> bool {
++                self.0 & other.0 == other.0
++            }
++
++            /// The bitwise or (`|`) of the bits in two flags values.
++            #[inline]
++            pub fn insert(&mut self, other: Self) {
++                *self = Self(self.0).union(other);
++            }
++
++            /// The intersection of a source flags value with the complement of a target flags
++            /// value (`&!`).
++            #[inline]
++            pub fn remove(&mut self, other: Self) {
++                *self = Self(self.0).difference(other);
++            }
++
++            /// The bitwise exclusive-or (`^`) of the bits in two flags values.
++            #[inline]
++            pub fn toggle(&mut self, other: Self) {
++                *self = Self(self.0).symmetric_difference(other);
++            }
++
++            /// Call `insert` when `value` is `true` or `remove` when `value` is `false`.
++            #[inline]
++            pub fn set(&mut self, other: Self, value: bool) {
++                if value {
++                    self.insert(other);
++                } else {
++                    self.remove(other);
++                }
++            }
++
++            /// The bitwise and (`&`) of the bits in two flags values.
++            #[inline]
++            #[must_use]
++            pub const fn intersection(self, other: Self) -> Self {
++                Self(self.0 & other.0)
++            }
++
++            /// The bitwise or (`|`) of the bits in two flags values.
++            #[inline]
++            #[must_use]
++            pub const fn union(self, other: Self) -> Self {
++                Self(self.0 | other.0)
++            }
++
++            /// The intersection of a source flags value with the complement of a target flags
++            /// value (`&!`).
++            #[inline]
++            #[must_use]
++            pub const fn difference(self, other: Self) -> Self {
++                Self(self.0 & !other.0)
++            }
++
++            /// The bitwise exclusive-or (`^`) of the bits in two flags values.
++            #[inline]
++            #[must_use]
++            pub const fn symmetric_difference(self, other: Self) -> Self {
++                Self(self.0 ^ other.0)
++            }
++
++            /// The bitwise negation (`!`) of the bits in a flags value, truncating the result.
++            #[inline]
++            #[must_use]
++            pub const fn complement(self) -> Self {
++                Self::from_bits_truncate(!self.0)
++            }
++
++            /// Get a flags value with the bits of a flag with the given name set.
++            #[inline]
++            pub fn from_name(name: &str) -> Option<Self> {
++                <$Name as bitflags::Flags>::from_name(name)
++            }
++
++            /// Yield a set of contained flags values.
++            #[inline]
++            pub fn iter(&self) -> bitflags::iter::Iter<$Name> {
++                <$Name as bitflags::Flags>::iter(self)
++            }
++
++            /// Yield a set of contained named flags values.
++            #[inline]
++            pub fn iter_names(&self) -> bitflags::iter::IterNames<$Name> {
++                <$Name as bitflags::Flags>::iter_names(self)
++            }
++        }
++
++        impl bitflags::Flags for $Name {
++            const FLAGS: &'static [bitflags::Flag<$Name>] = &[
++                $(bitflags::Flag::new(stringify!($Flag), $Name::$Flag),)*
++            ];
++
++            type Bits = $T;
++
++            fn bits(&self) -> $T {
++                $Name::bits(self)
++            }
++
++            fn from_bits_retain(bits: $T) -> $Name {
++                $Name::from_bits_retain(bits)
++            }
++        }
++
++        impl std::fmt::Debug for $Name {
++            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++                struct Inner<'a>(&'a $Name);
++
++                impl std::fmt::Debug for Inner<'_> {
++                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++                        if self.0.is_empty() {
++                            write!(f, "{:#x}", 0 as $T)
++                        } else {
++                            bitflags::parser::to_writer(self.0, f)
++                        }
++                    }
++                }
++
++                f.debug_tuple(stringify!($Name)).field(&Inner(self)).finish()
++            }
++        }
++
++        impl std::fmt::Binary for $Name {
++            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
++                let inner = self.0;
++                std::fmt::Binary::fmt(&inner, f)
++            }
++        }
++
++        impl std::fmt::Octal for $Name {
++            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
++                let inner = self.0;
++                std::fmt::Octal::fmt(&inner, f)
++            }
++        }
++
++        impl std::fmt::LowerHex for $Name {
++            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
++                let inner = self.0;
++                std::fmt::LowerHex::fmt(&inner, f)
++            }
++        }
++
++        impl std::fmt::UpperHex for $Name {
++            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
++                let inner = self.0;
++                std::fmt::UpperHex::fmt(&inner, f)
++            }
++        }
++
++        impl std::ops::BitOr for $Name {
++            type Output = Self;
++            #[inline]
++            fn bitor(self, other: $Name) -> Self {
++                self.union(other)
++            }
++        }
++
++        impl std::ops::BitOrAssign for $Name {
++            #[inline]
++            fn bitor_assign(&mut self, other: Self) {
++                self.insert(other);
++            }
++        }
++
++        impl std::ops::BitXor for $Name {
++            type Output = Self;
++            #[inline]
++            fn bitxor(self, other: Self) -> Self {
++                self.symmetric_difference(other)
++            }
++        }
++
++        impl std::ops::BitXorAssign for $Name {
++            #[inline]
++            fn bitxor_assign(&mut self, other: Self) {
++                self.toggle(other);
++            }
++        }
++
++        impl std::ops::BitAnd for $Name {
++            type Output = Self;
++            #[inline]
++            fn bitand(self, other: Self) -> Self {
++                self.intersection(other)
++            }
++        }
++
++        impl std::ops::BitAndAssign for $Name {
++            #[inline]
++            fn bitand_assign(&mut self, other: Self) {
++                *self = Self::from_bits_retain(self.bits()).intersection(other);
++            }
++        }
++
++        impl std::ops::Sub for $Name {
++            type Output = Self;
++            #[inline]
++            fn sub(self, other: Self) -> Self {
++                self.difference(other)
++            }
++        }
++
++        impl std::ops::SubAssign for $Name {
++            #[inline]
++            fn sub_assign(&mut self, other: Self) {
++                self.remove(other);
++            }
++        }
++
++        impl std::ops::Not for $Name {
++            type Output = Self;
++            #[inline]
++            fn not(self) -> Self {
++                self.complement()
++            }
++        }
++
++        impl std::iter::Extend<$Name> for $Name {
++            fn extend<T: std::iter::IntoIterator<Item = Self>>(&mut self, iterator: T) {
++                for item in iterator {
++                    self.insert(item)
++                }
++            }
++        }
++
++        impl std::iter::FromIterator<$Name> for $Name {
++            fn from_iter<T: std::iter::IntoIterator<Item = Self>>(iterator: T) -> Self {
++                let mut result = Self::empty();
++                result.extend(iterator);
++                result
++            }
++        }
++
++        impl std::iter::IntoIterator for $Name {
++            type Item = $Name;
++            type IntoIter = bitflags::iter::Iter<$Name>;
++
++            fn into_iter(self) -> Self::IntoIter {
++                self.iter()
++            }
++        }
++    };
++}
+diff --git a/src/constants.rs b/src/constants.rs
+index 9660ab7..72e1421 100644
+--- a/src/constants.rs
++++ b/src/constants.rs
+@@ -15,14 +15,14 @@ pub static MIN_COMPRESS_LENGTH: usize = 512;
+ pub static UTF8_GENERAL_CI: u16 = 33;
+ pub static UTF8MB4_GENERAL_CI: u16 = 45;
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     StatusFlags,
+     #[error("Unknown flags in the raw value of StatusFlags (raw={0:b})")]
+     UnknownStatusFlags,
+     u16,
+ 
+     /// MySql server status flags
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct StatusFlags: u16 {
+         /// Is raised when a multi-statement transaction has been started, either explicitly,
+         /// by means of BEGIN or COMMIT AND CHAIN, or implicitly, by the first transactional
+@@ -78,14 +78,14 @@ my_bitflags! {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     CapabilityFlags,
+     #[error("Unknown flags in the raw value of CapabilityFlags (raw={0:b})")]
+     UnknownCapabilityFlags,
+     u32,
+ 
+     /// Client capability flags
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct CapabilityFlags: u32 {
+         /// Use the improved version of Old Password Authentication. Assumed to be set since 4.1.1.
+         const CLIENT_LONG_PASSWORD                  = 0x0000_0001;
+@@ -389,14 +389,14 @@ my_bitflags! {
+   }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     CursorType,
+     #[error("Unknown flags in the raw value of CursorType (raw={0:b})")]
+     UnknownCursorType,
+     u8,
+ 
+     /// Mysql cursor type.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct CursorType: u8 {
+         const CURSOR_TYPE_NO_CURSOR  = 0_u8;
+         const CURSOR_TYPE_READ_ONLY  = 1_u8;
+@@ -405,27 +405,27 @@ my_bitflags! {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     StmtExecuteParamsFlags,
+     #[error("Unknown flags in the raw value of StmtExecuteParamsFlags (raw={0:b})")]
+     UnknownStmtExecuteParamsFlags,
+     u8,
+ 
+     /// MySql stmt execute params flags.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct StmtExecuteParamsFlags: u8 {
+         const NEW_PARAMS_BOUND  = 1_u8;
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     StmtExecuteParamFlags,
+     #[error("Unknown flags in the raw value of StmtExecuteParamFlags (raw={0:b})")]
+     UnknownStmtExecuteParamFlags,
+     u8,
+ 
+     /// MySql stmt execute params flags.
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct StmtExecuteParamFlags: u8 {
+         const UNSIGNED  = 128_u8;
+     }
+@@ -445,14 +445,14 @@ my_bitflags! {
+     }
+ }
+ 
+-my_bitflags! {
++my_plain_bitflags! {
+     ColumnFlags,
+     #[error("Unknown flags in the raw value of ColumnFlags (raw={0:b})")]
+     UnknownColumnFlags,
+     u16,
+ 
+     /// MySql column flags
+-    #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
++    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
+     pub struct ColumnFlags: u16 {
+         /// Field can't be NULL.
+         const NOT_NULL_FLAG         = 1u16;

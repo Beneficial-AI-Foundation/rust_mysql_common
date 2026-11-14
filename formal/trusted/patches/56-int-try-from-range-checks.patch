@@ -1,0 +1,39 @@
+Translation patch: `impl_from_value_num!` (`TryFrom<Value> for ParseIrOpt<$ty>`)
+
+Change: `$ty::try_from(x).map(ParseIrOpt::Ready).map_err(|_| ..)` becomes `if <x in range> { Ok(ParseIrOpt::Ready(x as $ty)) } else { Err(..) }`, where for `x: i64` the range test is `($ty::MIN as i128) <= (x as i128) && (x < 0 || (x as u128) <= ($ty::MAX as u128))` and for `x: u64` it is `(x as u128) <= ($ty::MAX as u128)`.
+Why: `TryFrom<i64>`/`TryFrom<u64>` for the integer types (and the blanket `TryFrom` via `From`) are not modelled by Aeneas.
+Behaviour: Identical for every integer type `$ty`: `$ty::MIN as i128` and `$ty::MAX as u128` are exact (`MIN <= 0 <= MAX`, both within these types), `x as i128` and `x as u128` (for `x >= 0`) are exact, and a negative `x` is always below `MAX`; so the test holds exactly when `try_from` succeeds, and then `x as $ty` is the value it returns.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index c974bf6..d051f77 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -163,12 +163,22 @@ macro_rules! impl_from_value_num {
+ 
+             fn try_from(v: Value) -> Result<Self, Self::Error> {
+                 match v {
+-                    Value::Int(x) => $ty::try_from(x)
+-                        .map(ParseIrOpt::Ready)
+-                        .map_err(|_| FromValueError(Value::Int(x))),
+-                    Value::UInt(x) => $ty::try_from(x)
+-                        .map(ParseIrOpt::Ready)
+-                        .map_err(|_| FromValueError(Value::UInt(x))),
++                    Value::Int(x) => {
++                        if ($ty::MIN as i128) <= (x as i128)
++                            && (x < 0 || (x as u128) <= ($ty::MAX as u128))
++                        {
++                            Ok(ParseIrOpt::Ready(x as $ty))
++                        } else {
++                            Err(FromValueError(Value::Int(x)))
++                        }
++                    }
++                    Value::UInt(x) => {
++                        if (x as u128) <= ($ty::MAX as u128) {
++                            Ok(ParseIrOpt::Ready(x as $ty))
++                        } else {
++                            Err(FromValueError(Value::UInt(x)))
++                        }
++                    }
+                     Value::Bytes(bytes) => match trusted::$btoi(&*bytes) {
+                         Some(x) => Ok(ParseIrOpt::Parsed(x, Value::Bytes(bytes))),
+                         _ => Err(FromValueError(Value::Bytes(bytes))),

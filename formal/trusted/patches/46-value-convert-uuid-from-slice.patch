@@ -1,0 +1,42 @@
+Translation patch: `TryFrom<Value> for ParseIr<Uuid>`
+
+Change: `Uuid::from_slice(bytes.as_slice())` becomes `uuid_from_slice(bytes)`, a new private function whose body is that of `Uuid::from_slice` in uuid 1.29.2 (`src/builder.rs`: length check, `copy_from_slice` into `[0; 16]`, `Uuid::from_bytes`), returning `None` instead of `Err(uuid::Error)`.
+Why: uuid's `from_slice` is neither generic nor `#[inline]`, so Charon has no MIR for it and it could only be an axiom. With its body copied, it is translated; `Uuid` itself is translated as its `[u8; 16]` field, and `Uuid::as_bytes` from uuid's MIR (`include` in Cargo.toml). Only `Uuid::from_bytes` (`const fn from_bytes(bytes) -> Uuid { Uuid(bytes) }`) is modelled, exactly, in FunsExternal.lean.
+Behaviour: Identical: the error value was discarded by the caller; `&Vec<u8>` derefs to the same slice as `as_slice()`.
+
+diff --git a/src/value/convert/uuid.rs b/src/value/convert/uuid.rs
+index f015426..5ddbf63 100644
+--- a/src/value/convert/uuid.rs
++++ b/src/value/convert/uuid.rs
+@@ -27,15 +27,28 @@ impl TryFrom<Value> for ParseIr<Uuid> {
+ 
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+-            Value::Bytes(ref bytes) => match Uuid::from_slice(bytes.as_slice()) {
+-                Ok(val) => Ok(ParseIr(val, v)),
+-                Err(_) => Err(FromValueError(v)),
++            Value::Bytes(ref bytes) => match uuid_from_slice(bytes) {
++                Some(val) => Ok(ParseIr(val, v)),
++                None => Err(FromValueError(v)),
+             },
+             v => Err(FromValueError(v)),
+         }
+     }
+ }
+ 
++/// `Uuid::from_slice(b).ok()`: the body of `Uuid::from_slice` in uuid 1.29.2 (`src/builder.rs`),
++/// with its error value dropped. (Translation helper: Charon has no MIR for uuid's own body, which
++/// is neither generic nor `#[inline]`.)
++fn uuid_from_slice(b: &[u8]) -> Option<Uuid> {
++    if b.len() != 16 {
++        return None;
++    }
++
++    let mut bytes: uuid::Bytes = [0; 16];
++    bytes.copy_from_slice(b);
++    Some(Uuid::from_bytes(bytes))
++}
++
+ impl From<ParseIr<Uuid>> for Uuid {
+     fn from(value: ParseIr<Uuid>) -> Self {
+         value.commit()

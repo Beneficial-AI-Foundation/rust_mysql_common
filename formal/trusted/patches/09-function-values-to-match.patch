@@ -1,0 +1,397 @@
+Translation patch: combinators taking functions or closures (misc/raw/*, io, value)
+
+Change: `.ok_or_else(unexpected_buf_eof)`, `.map(Cow::Borrowed)`, `.map(Self::new)`, `.map(Either::Left)`, `.map(Const::new)`, `.map_err(|e| ..)`, `.map(|x| x as u64)`, `.copied().map(RawConst::new)` and similar become explicit `match`es (with `return Err(unexpected_buf_eof())` where they were followed by `?`).
+Why: Aeneas fails on functions and constructors used as values ("Unimplemented": the `FnOnce` impl of a fn item/constructor) and does not model `ok_or_else`.
+Behaviour: Identical: each `match` is the definition of the combinator; `unexpected_buf_eof()` is still only called on the error path.
+
+diff --git a/src/io.rs b/src/io.rs
+index 8499cc1..cf19aff 100644
+--- a/src/io.rs
++++ b/src/io.rs
+@@ -365,8 +365,14 @@ impl<'a> ParseBuf<'a> {
+     pub fn checked_eat_lenenc_int(&mut self) -> Option<u64> {
+         match self.checked_eat_u8()? {
+             x @ 0..=0xfa => Some(x as u64),
+-            0xfc => self.checked_eat_u16_le().map(|x| x as u64),
+-            0xfd => self.checked_eat_u24_le().map(|x| x as u64),
++            0xfc => match self.checked_eat_u16_le() {
++                Some(x) => Some(x as u64),
++                None => None,
++            },
++            0xfd => match self.checked_eat_u24_le() {
++                Some(x) => Some(x as u64),
++                None => None,
++            },
+             0xfe => self.checked_eat_u64_le(),
+             0xfb | 0xff => Some(0),
+         }
+diff --git a/src/misc/raw/_const.rs b/src/misc/raw/_const.rs
+index 23b8887..c81fa01 100644
+--- a/src/misc/raw/_const.rs
++++ b/src/misc/raw/_const.rs
+@@ -61,9 +61,10 @@ where
+ 
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         let raw_val = buf.parse_unchecked::<RawInt<U>>(())?;
+-        T::try_from(*raw_val)
+-            .map_err(|e| io_error_from(io::ErrorKind::InvalidData, e))
+-            .map(Const::new)
++        match T::try_from(*raw_val) {
++            Ok(x) => Ok(Const::new(x)),
++            Err(e) => Err(io_error_from(io::ErrorKind::InvalidData, e)),
++        }
+     }
+ }
+ 
+diff --git a/src/misc/raw/bytes.rs b/src/misc/raw/bytes.rs
+index 0b3a0a7..4776299 100644
+--- a/src/misc/raw/bytes.rs
++++ b/src/misc/raw/bytes.rs
+@@ -128,9 +128,10 @@ impl BytesRepr for LenEnc {
+ 
+     fn deserialize<'de>((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
+         let len = buf.parse::<RawInt<LenEnc>>(())?;
+-        buf.checked_eat(len.0 as usize)
+-            .map(Cow::Borrowed)
+-            .ok_or_else(unexpected_buf_eof)
++        match buf.checked_eat(len.0 as usize) {
++            Some(x) => Ok(Cow::Borrowed(x)),
++            None => Err(unexpected_buf_eof()),
++        }
+     }
+ }
+ 
+@@ -151,9 +152,10 @@ impl BytesRepr for U8Bytes {
+ 
+     fn deserialize<'de>((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
+         let len: RawInt<u8> = buf.parse(())?;
+-        buf.checked_eat(len.0 as usize)
+-            .map(Cow::Borrowed)
+-            .ok_or_else(unexpected_buf_eof)
++        match buf.checked_eat(len.0 as usize) {
++            Some(x) => Ok(Cow::Borrowed(x)),
++            None => Err(unexpected_buf_eof()),
++        }
+     }
+ }
+ 
+@@ -173,9 +175,10 @@ impl BytesRepr for U32Bytes {
+     }
+ 
+     fn deserialize<'de>((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
+-        buf.checked_eat_u32_str()
+-            .map(Cow::Borrowed)
+-            .ok_or_else(unexpected_buf_eof)
++        match buf.checked_eat_u32_str() {
++            Some(x) => Ok(Cow::Borrowed(x)),
++            None => Err(unexpected_buf_eof()),
++        }
+     }
+ }
+ 
+@@ -249,9 +252,10 @@ impl<const MAX_LEN: usize> BytesRepr for BareBytes<MAX_LEN> {
+     }
+ 
+     fn deserialize<'de>(len: usize, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
+-        buf.checked_eat(len)
+-            .ok_or_else(unexpected_buf_eof)
+-            .map(Cow::Borrowed)
++        match buf.checked_eat(len) {
++            Some(x) => Ok(Cow::Borrowed(x)),
++            None => Err(unexpected_buf_eof()),
++        }
+     }
+ }
+ 
+@@ -283,10 +287,10 @@ impl<const LEN: usize> BytesRepr for FixedLengthText<LEN> {
+     fn deserialize<'de>((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
+         match Self::SIZE {
+             Some(len) => Ok(Cow::Borrowed(buf.eat(len))),
+-            None => buf
+-                .checked_eat(LEN)
+-                .map(Cow::Borrowed)
+-                .ok_or_else(unexpected_buf_eof),
++            None => match buf.checked_eat(LEN) {
++                Some(x) => Ok(Cow::Borrowed(x)),
++                None => Err(unexpected_buf_eof()),
++            },
+         }
+     }
+ }
+@@ -303,9 +307,10 @@ impl BytesRepr for VarLen {
+ 
+     fn deserialize<'de>((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Cow<'de, [u8]>> {
+         let len = buf.parse::<RawInt<VarLen>>(())?;
+-        buf.checked_eat(len.0 as usize)
+-            .map(Cow::Borrowed)
+-            .ok_or_else(unexpected_buf_eof)
++        match buf.checked_eat(len.0 as usize) {
++            Some(x) => Ok(Cow::Borrowed(x)),
++            None => Err(unexpected_buf_eof()),
++        }
+     }
+ }
+ 
+diff --git a/src/misc/raw/int.rs b/src/misc/raw/int.rs
+index a908304..f00c5cd 100644
+--- a/src/misc/raw/int.rs
++++ b/src/misc/raw/int.rs
+@@ -61,7 +61,10 @@ impl<'de, T: IntRepr> MyDeserialize<'de> for RawInt<T> {
+     type Ctx = ();
+ 
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        T::deserialize(buf).map(Self::new)
++        match T::deserialize(buf) {
++            Ok(x) => Ok(Self::new(x)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+@@ -146,7 +149,10 @@ macro_rules! def_end_repr {
+                 }
+ 
+                 fn deserialize(buf: &mut ParseBuf<'_>) -> io::Result<Self::Primitive> {
+-                    buf.$de().ok_or_else(crate::misc::unexpected_buf_eof)
++                    match buf.$de() {
++                        Some(x) => Ok(x),
++                        None => Err(crate::misc::unexpected_buf_eof()),
++                    }
+                 }
+             }
+         )+
+@@ -196,7 +202,10 @@ impl IntRepr for LeU32LowerHalf {
+     }
+ 
+     fn deserialize(buf: &mut ParseBuf<'_>) -> io::Result<Self::Primitive> {
+-        LeU16::deserialize(buf).map(|x| x as u32)
++        match LeU16::deserialize(buf) {
++            Ok(x) => Ok(x as u32),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+@@ -213,7 +222,10 @@ impl IntRepr for LeU32UpperHalf {
+     }
+ 
+     fn deserialize(buf: &mut ParseBuf<'_>) -> io::Result<Self::Primitive> {
+-        LeU16::deserialize(buf).map(|x| (x as u32) << 16)
++        match LeU16::deserialize(buf) {
++            Ok(x) => Ok((x as u32) << 16),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+diff --git a/src/misc/raw/mod.rs b/src/misc/raw/mod.rs
+index 4d80673..df2f5e3 100644
+--- a/src/misc/raw/mod.rs
++++ b/src/misc/raw/mod.rs
+@@ -39,7 +39,10 @@ impl<'de> MyDeserialize<'de> for &'de [u8] {
+     type Ctx = usize;
+ 
+     fn deserialize(len: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        buf.checked_eat(len).ok_or_else(unexpected_buf_eof)
++        match buf.checked_eat(len) {
++            Some(x) => Ok(x),
++            None => Err(unexpected_buf_eof()),
++        }
+     }
+ }
+ 
+@@ -94,7 +97,10 @@ impl<'de> MyDeserialize<'de> for ParseBuf<'de> {
+     type Ctx = usize;
+ 
+     fn deserialize(len: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        buf.checked_eat_buf(len).ok_or_else(unexpected_buf_eof)
++        match buf.checked_eat_buf(len) {
++            Some(x) => Ok(x),
++            None => Err(unexpected_buf_eof()),
++        }
+     }
+ }
+ 
+@@ -131,8 +137,14 @@ where
+ 
+     fn deserialize(ctx: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         match ctx {
+-            Either::Left(ctx) => T::deserialize(ctx, buf).map(Either::Left),
+-            Either::Right(ctx) => U::deserialize(ctx, buf).map(Either::Right),
++            Either::Left(ctx) => match T::deserialize(ctx, buf) {
++                Ok(x) => Ok(Either::Left(x)),
++                Err(e) => Err(e),
++            },
++            Either::Right(ctx) => match U::deserialize(ctx, buf) {
++                Ok(x) => Ok(Either::Right(x)),
++                Err(e) => Err(e),
++            },
+         }
+     }
+ }
+diff --git a/src/misc/raw/seq.rs b/src/misc/raw/seq.rs
+index 5a6e450..03a5da7 100644
+--- a/src/misc/raw/seq.rs
++++ b/src/misc/raw/seq.rs
+@@ -99,7 +99,10 @@ where
+     type Ctx = U::Ctx;
+ 
+     fn deserialize(ctx: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        U::deserialize(ctx, &mut *buf).map(Self::new)
++        match U::deserialize(ctx, &mut *buf) {
++            Ok(x) => Ok(Self::new(x)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+@@ -236,7 +239,10 @@ where
+ {
+     /// Returns raw value at the given position.
+     pub fn get(&self, index: usize) -> Option<RawConst<T, U>> {
+-        self.0.get(index).copied().map(RawConst::new)
++        match self.0.get(index) {
++            Some(x) => Some(RawConst::new(*x)),
++            None => None,
++        }
+     }
+ }
+ 
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index 0db34d5..d839e28 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -209,13 +209,15 @@ macro_rules! de_num {
+     ($name:ident, $i:ident, $u:ident) => {
+         fn $name(unsigned: bool, buf: &mut ParseBuf<'_>) -> io::Result<Self> {
+             if unsigned {
+-                buf.$u()
+-                    .ok_or_else(unexpected_buf_eof)
+-                    .map(|x| Int(x as i64))
++                match buf.$u() {
++                    Some(x) => Ok(Int(x as i64)),
++                    None => Err(unexpected_buf_eof()),
++                }
+             } else {
+-                buf.$i()
+-                    .ok_or_else(unexpected_buf_eof)
+-                    .map(|x| Int(x as i64))
++                match buf.$i() {
++                    Some(x) => Ok(Int(x as i64)),
++                    None => Err(unexpected_buf_eof()),
++                }
+             }
+         }
+     };
+@@ -319,18 +321,26 @@ impl Value {
+ 
+     fn deserialize_longlong(unsigned: bool, buf: &mut ParseBuf<'_>) -> io::Result<Self> {
+         if unsigned {
+-            buf.checked_eat_u64_le()
+-                .ok_or_else(unexpected_buf_eof)
+-                .map(|x| i64::try_from(x).map(Int).unwrap_or_else(|_| UInt(x)))
++            match buf.checked_eat_u64_le() {
++                Some(x) => Ok(match i64::try_from(x) {
++                    Ok(y) => Int(y),
++                    Err(_) => UInt(x),
++                }),
++                None => Err(unexpected_buf_eof()),
++            }
+         } else {
+-            buf.checked_eat_i64_le()
+-                .ok_or_else(unexpected_buf_eof)
+-                .map(Int)
++            match buf.checked_eat_i64_le() {
++                Some(x) => Ok(Int(x)),
++                None => Err(unexpected_buf_eof()),
++            }
+         }
+     }
+ 
+     fn deserialize_datetime(buf: &mut ParseBuf<'_>) -> io::Result<Self> {
+-        let len = buf.checked_eat_u8().ok_or_else(unexpected_buf_eof)?;
++        let len = match buf.checked_eat_u8() {
++            Some(x) => x,
++            None => return Err(unexpected_buf_eof()),
++        };
+ 
+         let mut year = 0u16;
+         let mut month = 0u8;
+@@ -340,9 +350,10 @@ impl Value {
+         let mut second = 0u8;
+         let mut micro_second = 0u32;
+ 
+-        let mut buf = buf
+-            .checked_eat_buf(len as usize)
+-            .ok_or_else(unexpected_buf_eof)?;
++        let mut buf = match buf.checked_eat_buf(len as usize) {
++            Some(x) => x,
++            None => return Err(unexpected_buf_eof()),
++        };
+ 
+         if len >= 4u8 {
+             year = buf.eat_u16_le();
+@@ -362,7 +373,10 @@ impl Value {
+     }
+ 
+     fn deserialize_time(buf: &mut ParseBuf<'_>) -> io::Result<Self> {
+-        let len = buf.checked_eat_u8().ok_or_else(unexpected_buf_eof)?;
++        let len = match buf.checked_eat_u8() {
++            Some(x) => x,
++            None => return Err(unexpected_buf_eof()),
++        };
+ 
+         let mut is_negative = false;
+         let mut days = 0u32;
+@@ -371,9 +385,10 @@ impl Value {
+         let mut seconds = 0u8;
+         let mut micro_seconds = 0u32;
+ 
+-        let mut buf = buf
+-            .checked_eat_buf(len as usize)
+-            .ok_or_else(unexpected_buf_eof)?;
++        let mut buf = match buf.checked_eat_buf(len as usize) {
++            Some(x) => x,
++            None => return Err(unexpected_buf_eof()),
++        };
+ 
+         if len >= 8u8 {
+             is_negative = buf.eat_u8() == 1u8;
+@@ -416,9 +431,11 @@ impl Value {
+             | ColumnType::MYSQL_TYPE_GEOMETRY
+             | ColumnType::MYSQL_TYPE_VECTOR
+             | ColumnType::MYSQL_TYPE_JSON => Ok(Bytes(
+-                buf.checked_eat_lenenc_str()
+-                    .ok_or_else(unexpected_buf_eof)?
+-                    .to_vec(),
++                match buf.checked_eat_lenenc_str() {
++                    Some(x) => x,
++                    None => return Err(unexpected_buf_eof()),
++                }
++                .to_vec(),
+             )),
+             ColumnType::MYSQL_TYPE_TINY => {
+                 Self::deserialize_tiny(column_flags.contains(ColumnFlags::UNSIGNED_FLAG), buf)
+@@ -432,14 +449,14 @@ impl Value {
+             ColumnType::MYSQL_TYPE_LONGLONG => {
+                 Self::deserialize_longlong(column_flags.contains(ColumnFlags::UNSIGNED_FLAG), buf)
+             }
+-            ColumnType::MYSQL_TYPE_FLOAT => buf
+-                .checked_eat_f32_le()
+-                .ok_or_else(unexpected_buf_eof)
+-                .map(Float),
+-            ColumnType::MYSQL_TYPE_DOUBLE => buf
+-                .checked_eat_f64_le()
+-                .ok_or_else(unexpected_buf_eof)
+-                .map(Double),
++            ColumnType::MYSQL_TYPE_FLOAT => match buf.checked_eat_f32_le() {
++                Some(x) => Ok(Float(x)),
++                None => Err(unexpected_buf_eof()),
++            },
++            ColumnType::MYSQL_TYPE_DOUBLE => match buf.checked_eat_f64_le() {
++                Some(x) => Ok(Double(x)),
++                None => Err(unexpected_buf_eof()),
++            },
+             ColumnType::MYSQL_TYPE_TIMESTAMP
+             | ColumnType::MYSQL_TYPE_DATE
+             | ColumnType::MYSQL_TYPE_NEWDATE

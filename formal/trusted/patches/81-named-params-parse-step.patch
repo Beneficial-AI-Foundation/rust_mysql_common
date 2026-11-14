@@ -1,0 +1,219 @@
+Translation patch: `ParsedNamedParams::parse` (the state-machine loop)
+
+Change: `for (i, c) in query.iter().enumerate() { <body> }` becomes `let mut i = 0; while i < query.len() { state = parse_step(state, query[i], i, &mut have_positional, &mut cur_param, &mut params); i += 1; }`, where the new function `parse_step` is the old loop body verbatim except that `c` is the byte (`u8`) instead of a `&u8` (so `*c`/`*x` become `c`/`x`), `have_positional`/`cur_param` are reached through `&mut`, and it returns the new `state`.
+Why: Aeneas does not model `Enumerate` or the slice iterator (see patches 04/05/27), and on the index loop with the body inline it fails with "Could not compute a loop fixed point in 2 iterations"; with the body in a function the loop translates.
+Behaviour: Identical: the same bytes are visited in the same order with the same index, and the step performs the same reads and writes of `state`, `have_positional`, `cur_param` and `params` (comparing `u8` values instead of `&u8` references is the same comparison).
+
+diff --git a/src/named_params.rs b/src/named_params.rs
+index 1423e19..b3f0b0a 100644
+--- a/src/named_params.rs
++++ b/src/named_params.rs
+@@ -31,6 +31,104 @@ enum ParserState {
+ 
+ use self::ParserState::*;
+ 
++/// One step of the `ParsedNamedParams::parse` state machine: the byte `c` at offset `i`.
++fn parse_step(
++    state: ParserState,
++    c: u8,
++    i: usize,
++    have_positional: &mut bool,
++    cur_param: &mut usize,
++    params: &mut Vec<(usize, usize, usize)>,
++) -> ParserState {
++    let mut state = state;
++    let mut rematch = false;
++    match state {
++        TopLevel => match c {
++            b':' => state = MaybeInNamedParam,
++            b'/' => state = MaybeInCComment1,
++            b'-' => state = MaybeInDoubleDashComment1,
++            b'#' => state = InSharpComment,
++            b'\'' => state = InStringLiteral(b'\'', false),
++            b'"' => state = InStringLiteral(b'"', false),
++            b'?' => *have_positional = true,
++            b'`' => state = InQuotedIdentifier,
++            _ => (),
++        },
++        InStringLiteral(separator, in_escape) => match c {
++            _ if in_escape => state = InStringLiteral(separator, false),
++            x if x == separator => state = TopLevel,
++            x if x == b'\\' => state = InStringLiteral(separator, true),
++            _ => state = InStringLiteral(separator, false),
++        },
++        MaybeInNamedParam => match c {
++            b'a'..=b'z' | b'_' => {
++                params.push((i - 1, i, 0));
++                state = InNamedParam;
++            }
++            _ => rematch = true,
++        },
++        InNamedParam => {
++            if !matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_') {
++                params[*cur_param].2 = i;
++                *cur_param += 1;
++                rematch = true;
++            }
++        }
++        InSharpComment => {
++            if c == b'\n' {
++                state = TopLevel
++            }
++        }
++        MaybeInDoubleDashComment1 => match c {
++            b'-' => state = MaybeInDoubleDashComment2,
++            _ => state = TopLevel,
++        },
++        MaybeInDoubleDashComment2 => {
++            if c.is_ascii_whitespace() && c != b'\n' {
++                state = InDoubleDashComment
++            } else {
++                state = TopLevel
++            }
++        }
++        InDoubleDashComment => {
++            if c == b'\n' {
++                state = TopLevel
++            }
++        }
++        MaybeInCComment1 => match c {
++            b'*' => state = MaybeInCComment2,
++            _ => state = TopLevel,
++        },
++        MaybeInCComment2 => match c {
++            b'!' | b'+' => state = TopLevel, // extensions and optimizer hints
++            _ => state = InCComment,
++        },
++        InCComment => {
++            if c == b'*' {
++                state = MaybeExitCComment
++            }
++        }
++        MaybeExitCComment => match c {
++            b'/' => state = TopLevel,
++            _ => state = InCComment,
++        },
++        InQuotedIdentifier => {
++            if c == b'`' {
++                state = TopLevel
++            }
++        }
++    }
++    if rematch {
++        match c {
++            b':' => state = MaybeInNamedParam,
++            b'\'' => state = InStringLiteral(b'\'', false),
++            b'"' => state = InStringLiteral(b'"', false),
++            _ => state = TopLevel,
++        }
++    }
++    state
++}
++
+ /// Parsed named params (see [`ParsedNamedParams::parse`]).
+ #[derive(Debug, Clone, Eq, PartialEq)]
+ pub struct ParsedNamedParams<'a> {
+@@ -51,92 +149,17 @@ impl<'a> ParsedNamedParams<'a> {
+         let mut cur_param = 0;
+         // Vec<(colon_offset, start_offset, end_offset)>
+         let mut params = Vec::new();
+-        for (i, c) in query.iter().enumerate() {
+-            let mut rematch = false;
+-            match state {
+-                TopLevel => match c {
+-                    b':' => state = MaybeInNamedParam,
+-                    b'/' => state = MaybeInCComment1,
+-                    b'-' => state = MaybeInDoubleDashComment1,
+-                    b'#' => state = InSharpComment,
+-                    b'\'' => state = InStringLiteral(b'\'', false),
+-                    b'"' => state = InStringLiteral(b'"', false),
+-                    b'?' => have_positional = true,
+-                    b'`' => state = InQuotedIdentifier,
+-                    _ => (),
+-                },
+-                InStringLiteral(separator, in_escape) => match c {
+-                    _ if in_escape => state = InStringLiteral(separator, false),
+-                    x if *x == separator => state = TopLevel,
+-                    x if *x == b'\\' => state = InStringLiteral(separator, true),
+-                    _ => state = InStringLiteral(separator, false),
+-                },
+-                MaybeInNamedParam => match c {
+-                    b'a'..=b'z' | b'_' => {
+-                        params.push((i - 1, i, 0));
+-                        state = InNamedParam;
+-                    }
+-                    _ => rematch = true,
+-                },
+-                InNamedParam => {
+-                    if !matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_') {
+-                        params[cur_param].2 = i;
+-                        cur_param += 1;
+-                        rematch = true;
+-                    }
+-                }
+-                InSharpComment => {
+-                    if *c == b'\n' {
+-                        state = TopLevel
+-                    }
+-                }
+-                MaybeInDoubleDashComment1 => match c {
+-                    b'-' => state = MaybeInDoubleDashComment2,
+-                    _ => state = TopLevel,
+-                },
+-                MaybeInDoubleDashComment2 => {
+-                    if c.is_ascii_whitespace() && *c != b'\n' {
+-                        state = InDoubleDashComment
+-                    } else {
+-                        state = TopLevel
+-                    }
+-                }
+-                InDoubleDashComment => {
+-                    if *c == b'\n' {
+-                        state = TopLevel
+-                    }
+-                }
+-                MaybeInCComment1 => match c {
+-                    b'*' => state = MaybeInCComment2,
+-                    _ => state = TopLevel,
+-                },
+-                MaybeInCComment2 => match c {
+-                    b'!' | b'+' => state = TopLevel, // extensions and optimizer hints
+-                    _ => state = InCComment,
+-                },
+-                InCComment => {
+-                    if *c == b'*' {
+-                        state = MaybeExitCComment
+-                    }
+-                }
+-                MaybeExitCComment => match c {
+-                    b'/' => state = TopLevel,
+-                    _ => state = InCComment,
+-                },
+-                InQuotedIdentifier => {
+-                    if *c == b'`' {
+-                        state = TopLevel
+-                    }
+-                }
+-            }
+-            if rematch {
+-                match c {
+-                    b':' => state = MaybeInNamedParam,
+-                    b'\'' => state = InStringLiteral(b'\'', false),
+-                    b'"' => state = InStringLiteral(b'"', false),
+-                    _ => state = TopLevel,
+-                }
+-            }
++        let mut i = 0;
++        while i < query.len() {
++            state = parse_step(
++                state,
++                query[i],
++                i,
++                &mut have_positional,
++                &mut cur_param,
++                &mut params,
++            );
++            i += 1;
+         }
+ 
+         if let InNamedParam = state {

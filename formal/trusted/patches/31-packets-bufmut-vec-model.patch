@@ -1,0 +1,19 @@
+Translation patch: `bytes::BufMut` in packets/mod.rs
+
+Change: `use bytes::BufMut` becomes `use crate::io::BufMut`, the crate-local model from patch 01.
+Why: The same as patch 01.
+Behaviour: Identical, as for patch 01: every `BufMut` call in the file is on a `Vec<u8>` (the crate compiles with all features).
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index d433c32..6443760 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -7,7 +7,7 @@
+ // modified, or distributed except according to those terms.
+ 
+ use btoi::btoi;
+-use bytes::BufMut;
++use crate::io::BufMut;
+ use regex::bytes::Regex;
+ use uuid::Uuid;
+ 

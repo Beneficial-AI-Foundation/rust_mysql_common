@@ -1,0 +1,282 @@
+Translation patch: `ComStmtBulkExecuteRequest(Builder)` and `StmtBulkExecuteParamValues`
+
+Change:
+  - `add_row`: `self.arity.get_or_insert(params.len())` becomes a `match` that stores `Some(params.len())` when `None`; `for p in &params` becomes an index loop.
+  - `build`: `mem::take(&mut self.params_set)` becomes `mem::replace(&mut self.params_set, Vec::new())`.
+  - `StmtBulkExecuteParamValues`: `for param in params` (a `Vec` of `Copy` pairs) and `for value in &self.values` become index loops.
+  - `ComStmtBulkExecuteRequest::new`: `values.first().ok_or(NoParams)?` becomes `if values.is_empty() { return Err(NoParams) }` and `values[0]`; the two `iter().map(from_value).collect()` become a helper `bulk_param_types(row)` (index loop); `for values in &values` becomes an index loop; the inner `for (left, right) in types.iter_mut().zip(&row_types)` moves into a helper `merge_bulk_param_types(&mut types, &row_types)` looping over the shorter length, with `left != right` written as `left.column_type() != right.column_type() || left.flags() != right.flags()`; `StmtBulkExecuteParamValues::new(values.into_iter().flatten())` becomes `StmtBulkExecuteParamValues { values: take_bulk_param_values(&mut values) }`, which moves each value out with `mem::replace(.., Value::NULL)` in row-major order (helper `take_bulk_param_row`) and wraps it with `StmtBulkExecuteParamValue::new`; `Vec::default()` becomes `Vec::new()`.
+  - `MyDeserialize`: the `zip` loop over the parsed types and `params` moves into a helper `set_bulk_param_types(&types, &mut params)` (index loop over the shorter length); `Seq::empty()` becomes `Seq::new(Vec::new())`.
+  - `MySerialize`: `if contains(SEND_TYPES_TO_SERVER) { types.serialize } values.serialize` becomes `if .. { types.serialize; values.serialize } else { values.serialize }`.
+Why: Aeneas does not model iterator adaptors (`map`/`collect`/`zip`/`flatten`/`iter_mut`), the `Vec` and slice iterators, `get_or_insert`, `first`, `mem::take` or `Default for Vec`; it fails on `Seq::empty`'s promoted `&[]` constant, on nested `values[i][j]` indexing, and on the join after the `if` in `serialize`.
+Behaviour: Identical results: the same elements in the same order, with the same early returns. `zip` stops at the shorter sequence. The derived `PartialEq` of `StmtBulkExecuteParamType` compares its two `Const` fields, i.e. the column type and the flags. `mem::take` is `mem::replace` with `Default::default()`, which is `Vec::new()`. `values` is not used after the values are moved out of it (it is dropped). Only the representation of the empty `types` changes, from `Cow::Borrowed(&[])` to `Cow::Owned(vec![])`; `Seq` compares, hashes, dereferences and serializes by contents, so this is not observable through its API. (`add_params`, `build_params_iter`, `build_iter`, which take `Params` or iterators, and `StmtBulkExecuteParamValues::new` are not translated.)
+
+diff --git a/src/packets/mod.rs b/src/packets/mod.rs
+index 40a6189..710f13f 100644
+--- a/src/packets/mod.rs
++++ b/src/packets/mod.rs
+@@ -3057,8 +3057,14 @@ impl ComStmtBulkExecuteRequestBuilder<'_> {
+         &mut self,
+         params: Vec<Value>,
+     ) -> Result<Option<Vec<Value>>, BulkExecuteRequestBuilderError> {
+-        let arity = self.arity.get_or_insert(params.len());
+-        if params.len() != *arity {
++        let arity = match self.arity {
++            Some(arity) => arity,
++            None => {
++                self.arity = Some(params.len());
++                params.len()
++            }
++        };
++        if params.len() != arity {
+             return Err(BulkExecuteRequestError::MixedArity.into());
+         }
+ 
+@@ -3068,9 +3074,9 @@ impl ComStmtBulkExecuteRequestBuilder<'_> {
+ 
+         let mut data_len = 0;
+ 
+-        for p in &params {
++        for i in 0..params.len() {
+             // bin_len() includes length encoding bytes
+-            match p.bin_len() as usize {
++            match params[i].bin_len() as usize {
+                 0 => data_len += 1,     // NULLs take 1 byte for the indicator
+                 x => data_len += x + 1, // non-NULLs take their length + 1 byte for the indicator
+             }
+@@ -3116,7 +3122,11 @@ impl ComStmtBulkExecuteRequestBuilder<'_> {
+ 
+         self.with_types = false;
+         self.payload_len = 0;
+-        ComStmtBulkExecuteRequest::new(self.stmt_id, bulk_flags, mem::take(&mut self.params_set))
++        ComStmtBulkExecuteRequest::new(
++            self.stmt_id,
++            bulk_flags,
++            mem::replace(&mut self.params_set, Vec::new()),
++        )
+     }
+ 
+     /// See [`ComStmtBulkExecuteRequestBuilder::build_iter`].
+@@ -3293,8 +3303,8 @@ impl<'de> MyDeserialize<'de> for StmtBulkExecuteParamValues {
+ 
+     fn deserialize(params: Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         let mut values = Vec::with_capacity(params.len());
+-        for param in params {
+-            values.push(StmtBulkExecuteParamValue::deserialize(param, &mut *buf)?);
++        for i in 0..params.len() {
++            values.push(StmtBulkExecuteParamValue::deserialize(params[i], &mut *buf)?);
+         }
+         Ok(Self { values })
+     }
+@@ -3302,8 +3312,8 @@ impl<'de> MyDeserialize<'de> for StmtBulkExecuteParamValues {
+ 
+ impl MySerialize for StmtBulkExecuteParamValues {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+-        for value in &self.values {
+-            value.serialize(&mut *buf);
++        for i in 0..self.values.len() {
++            self.values[i].serialize(&mut *buf);
+         }
+     }
+ }
+@@ -3359,6 +3369,69 @@ impl MySerialize for StmtBulkExecuteParamValue {
+     }
+ }
+ 
++// `row.iter().map(StmtBulkExecuteParamType::from_value).collect::<Vec<_>>()`.
++fn bulk_param_types(row: &[Value]) -> Vec<StmtBulkExecuteParamType> {
++    let mut types = Vec::with_capacity(row.len());
++    for i in 0..row.len() {
++        types.push(StmtBulkExecuteParamType::from_value(&row[i]));
++    }
++    types
++}
++
++// The loop `for (left, right) in types.iter_mut().zip(row_types)` of
++// `ComStmtBulkExecuteRequest::new`.
++fn merge_bulk_param_types(
++    types: &mut [StmtBulkExecuteParamType],
++    row_types: &[StmtBulkExecuteParamType],
++) {
++    let n = if types.len() < row_types.len() {
++        types.len()
++    } else {
++        row_types.len()
++    };
++    for i in 0..n {
++        let left = types[i];
++        let right = row_types[i];
++        if left.column_type() != right.column_type() || left.flags() != right.flags() {
++            if left.column_type() == ColumnType::MYSQL_TYPE_NULL {
++                types[i] = right;
++            } else if left.column_type() == right.column_type() {
++                types[i] = StmtBulkExecuteParamType::new(
++                    right.column_type(),
++                    // if flag is required by a single param value,
++                    // then it must be given for the whole batch
++                    left.flags().union(right.flags()),
++                )
++            } else {
++                // TODO: Values of different types are given for the same parameter
++                //       within the batch. Not sure if server will always error here.
++                // The error:
++                //   ERROR 1210 (HY000): Incorrect arguments to mysqld_stmt_bulk_execute
++            }
++        }
++    }
++}
++
++// `values.into_iter().flatten().map(StmtBulkExecuteParamValue::new).collect()`, moving each value
++// out of `values` (leaving `Value::NULL` behind).
++fn take_bulk_param_values(values: &mut [Vec<Value>]) -> Vec<StmtBulkExecuteParamValue> {
++    let mut out = Vec::new();
++    for i in 0..values.len() {
++        take_bulk_param_row(&mut values[i], &mut out);
++    }
++    out
++}
++
++// The inner loop of `take_bulk_param_values`.
++fn take_bulk_param_row(row: &mut [Value], out: &mut Vec<StmtBulkExecuteParamValue>) {
++    for j in 0..row.len() {
++        out.push(StmtBulkExecuteParamValue::new(mem::replace(
++            &mut row[j],
++            Value::NULL,
++        )));
++    }
++}
++
+ #[derive(Debug, Clone, PartialEq, thiserror::Error)]
+ pub enum BulkExecuteRequestError {
+     #[error("No parameters values given for the bulk operation")]
+@@ -3390,60 +3463,39 @@ impl<'a> ComStmtBulkExecuteRequest<'a> {
+     pub fn new(
+         stmt_id: u32,
+         bulk_flags: StmtBulkExecuteFlags,
+-        values: Vec<Vec<Value>>,
++        mut values: Vec<Vec<Value>>,
+     ) -> Result<Self, BulkExecuteRequestError> {
+-        let first = values.first().ok_or(BulkExecuteRequestError::NoParams)?;
+-        let arity = first.len();
++        if values.is_empty() {
++            return Err(BulkExecuteRequestError::NoParams);
++        }
++        let arity = values[0].len();
+ 
+         let mut types = if bulk_flags.contains(StmtBulkExecuteFlags::SEND_TYPES_TO_SERVER) {
+-            first
+-                .iter()
+-                .map(StmtBulkExecuteParamType::from_value)
+-                .collect::<Vec<_>>()
++            bulk_param_types(&values[0])
+         } else {
+-            Vec::default()
++            Vec::new()
+         };
+ 
+-        for values in &values {
+-            if values.len() != arity {
++        for i in 0..values.len() {
++            if values[i].len() != arity {
+                 return Err(BulkExecuteRequestError::MixedArity);
+             }
+-            let row_types = values
+-                .iter()
+-                .map(StmtBulkExecuteParamType::from_value)
+-                .collect::<Vec<_>>();
++            let row_types = bulk_param_types(&values[i]);
+ 
+             // The point here is to find proper type for every param, i.e the type
+             // that covers param values in all rows.
+             // E.g. ColumnType::MYSQL_TYPE_NULL is a proper type only if all the
+             // values for the given param are NULLs
+-            for (left, right) in types.iter_mut().zip(&row_types) {
+-                if left != right {
+-                    if left.column_type() == ColumnType::MYSQL_TYPE_NULL {
+-                        *left = *right;
+-                    } else if left.column_type() == right.column_type() {
+-                        *left = StmtBulkExecuteParamType::new(
+-                            right.column_type(),
+-                            // if flag is required by a single param value,
+-                            // then it must be given for the whole batch
+-                            left.flags().union(right.flags()),
+-                        )
+-                    } else {
+-                        // TODO: Values of different types are given for the same parameter
+-                        //       within the batch. Not sure if server will always error here.
+-                        // The error:
+-                        //   ERROR 1210 (HY000): Incorrect arguments to mysqld_stmt_bulk_execute
+-                    }
+-                }
+-            }
++            merge_bulk_param_types(&mut types, &row_types);
+         }
+ 
++        let values = take_bulk_param_values(&mut values);
+         Ok(Self {
+             header: ConstU8::new(),
+             stmt_id: RawInt::new(stmt_id),
+             bulk_flags: Const::new(bulk_flags),
+             types: Seq::new(types),
+-            values: StmtBulkExecuteParamValues::new(values.into_iter().flatten()),
++            values: StmtBulkExecuteParamValues { values },
+         })
+     }
+ 
+@@ -3474,16 +3526,10 @@ impl<'de> MyDeserialize<'de> for ComStmtBulkExecuteRequest<'de> {
+         let bulk_flags: Const<StmtBulkExecuteFlags, LeU16> = buf.parse(())?;
+         let types = if bulk_flags.contains(StmtBulkExecuteFlags::SEND_TYPES_TO_SERVER) {
+             let types: Seq<'_, StmtBulkExecuteParamType, Unknown> = buf.parse(params.len())?;
+-            for (s_type, r#type) in types.iter().zip(params.iter_mut()) {
+-                r#type.0 = *s_type.r#type;
+-                r#type.1.set(
+-                    ColumnFlags::UNSIGNED_FLAG,
+-                    s_type.flags.contains(StmtExecuteParamFlags::UNSIGNED),
+-                );
+-            }
++            set_bulk_param_types(&types, &mut params);
+             types
+         } else {
+-            Seq::empty()
++            Seq::new(Vec::new())
+         };
+         let values = buf.parse(params)?;
+ 
+@@ -3497,6 +3543,26 @@ impl<'de> MyDeserialize<'de> for ComStmtBulkExecuteRequest<'de> {
+     }
+ }
+ 
++// The loop `for (s_type, r#type) in types.iter().zip(params.iter_mut())` of
++// `MyDeserialize for ComStmtBulkExecuteRequest`.
++fn set_bulk_param_types(
++    types: &[StmtBulkExecuteParamType],
++    params: &mut [(ColumnType, ColumnFlags)],
++) {
++    let n = if types.len() < params.len() {
++        types.len()
++    } else {
++        params.len()
++    };
++    for i in 0..n {
++        params[i].0 = *types[i].r#type;
++        params[i].1.set(
++            ColumnFlags::UNSIGNED_FLAG,
++            types[i].flags.contains(StmtExecuteParamFlags::UNSIGNED),
++        );
++    }
++}
++
+ impl<'a> MySerialize for ComStmtBulkExecuteRequest<'a> {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         self.header.serialize(&mut *buf);
+@@ -3507,8 +3573,10 @@ impl<'a> MySerialize for ComStmtBulkExecuteRequest<'a> {
+             .contains(StmtBulkExecuteFlags::SEND_TYPES_TO_SERVER)
+         {
+             self.types.serialize(&mut *buf);
++            self.values.serialize(&mut *buf);
++        } else {
++            self.values.serialize(&mut *buf);
+         }
+-        self.values.serialize(&mut *buf);
+     }
+ }
+ 

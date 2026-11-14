@@ -1,0 +1,69 @@
+Translation patch: `ParseBuf::eat_*` (24/40/48/56-bit integers)
+
+Change: Instead of `for (i, b) in bytes.iter().enumerate() { x |= (*b as $t) << (8*i + 8*$offset) }; $t::from_le(x)` (or `from_be`), the bytes are copied to positions `$offset..$offset+SIZE` of a zero array of `size_of::<$t>()` bytes, which is decoded with `$t::from_le_bytes` (or `from_be_bytes`). The invocations name `from_le_bytes`/`from_be_bytes` instead of `from_le`/`from_be`.
+Why: Avoids the `enumerate` iterator adaptor and `from_le`/`from_be` (not modelled by Aeneas); `from_le_bytes`/`from_be_bytes` are.
+Behaviour: Identical. LE: both give sum of b_i << 8(i+offset). BE: `from_be(x)` = `swap_bytes(x)` on the little-endian target, giving sum of b_i << 8(N-1-i-offset), which is what `from_be_bytes` of the placed array gives (N = size of `$t`). `offset + SIZE <= N` in every invocation, so neither version panics.
+
+diff --git a/src/io.rs b/src/io.rs
+index a143225..eae9c9b 100644
+--- a/src/io.rs
++++ b/src/io.rs
+@@ -190,12 +190,10 @@ macro_rules! eat_num {
+         #[doc = "Consumes a number from the head of the buffer."]
+         pub fn $name(&mut self) -> $t {
+             const SIZE: usize = $size;
+-            let mut x: $t = 0;
+             let bytes = self.eat(SIZE);
+-            for (i, b) in bytes.iter().enumerate() {
+-                x |= (*b as $t) << ((8 * i) + (8 * $offset));
+-            }
+-            $t::$fn(x)
++            let mut array = [0_u8; std::mem::size_of::<$t>()];
++            array[$offset..$offset + SIZE].copy_from_slice(bytes);
++            $t::$fn(array)
+         }
+ 
+         #[doc = "Consumes a number from the head of the buffer. Returns `None` if buffer is too small."]
+@@ -303,26 +301,26 @@ impl<'a> ParseBuf<'a> {
+     eat_num!(eat_i16_le, checked_eat_i16_le, i16::from_le_bytes);
+     eat_num!(eat_u16_be, checked_eat_u16_be, u16::from_be_bytes);
+     eat_num!(eat_i16_be, checked_eat_i16_be, i16::from_be_bytes);
+-    eat_num!(eat_u24_le, checked_eat_u24_le, 3, 0, u32::from_le);
+-    eat_num!(eat_i24_le, checked_eat_i24_le, 3, 0, i32::from_le);
+-    eat_num!(eat_u24_be, checked_eat_u24_be, 3, 1, u32::from_be);
+-    eat_num!(eat_i24_be, checked_eat_i24_be, 3, 1, i32::from_be);
++    eat_num!(eat_u24_le, checked_eat_u24_le, 3, 0, u32::from_le_bytes);
++    eat_num!(eat_i24_le, checked_eat_i24_le, 3, 0, i32::from_le_bytes);
++    eat_num!(eat_u24_be, checked_eat_u24_be, 3, 1, u32::from_be_bytes);
++    eat_num!(eat_i24_be, checked_eat_i24_be, 3, 1, i32::from_be_bytes);
+     eat_num!(eat_u32_le, checked_eat_u32_le, u32::from_le_bytes);
+     eat_num!(eat_i32_le, checked_eat_i32_le, i32::from_le_bytes);
+     eat_num!(eat_u32_be, checked_eat_u32_be, u32::from_be_bytes);
+     eat_num!(eat_i32_be, checked_eat_i32_be, i32::from_be_bytes);
+-    eat_num!(eat_u40_le, checked_eat_u40_le, 5, 0, u64::from_le);
+-    eat_num!(eat_i40_le, checked_eat_i40_le, 5, 0, i64::from_le);
+-    eat_num!(eat_u40_be, checked_eat_u40_be, 5, 3, u64::from_be);
+-    eat_num!(eat_i40_be, checked_eat_i40_be, 5, 3, i64::from_be);
+-    eat_num!(eat_u48_le, checked_eat_u48_le, 6, 0, u64::from_le);
+-    eat_num!(eat_i48_le, checked_eat_i48_le, 6, 0, i64::from_le);
+-    eat_num!(eat_u48_be, checked_eat_u48_be, 6, 2, u64::from_be);
+-    eat_num!(eat_i48_be, checked_eat_i48_be, 6, 2, i64::from_be);
+-    eat_num!(eat_u56_le, checked_eat_u56_le, 7, 0, u64::from_le);
+-    eat_num!(eat_i56_le, checked_eat_i56_le, 7, 0, i64::from_le);
+-    eat_num!(eat_u56_be, checked_eat_u56_be, 7, 1, u64::from_be);
+-    eat_num!(eat_i56_be, checked_eat_i56_be, 7, 1, i64::from_be);
++    eat_num!(eat_u40_le, checked_eat_u40_le, 5, 0, u64::from_le_bytes);
++    eat_num!(eat_i40_le, checked_eat_i40_le, 5, 0, i64::from_le_bytes);
++    eat_num!(eat_u40_be, checked_eat_u40_be, 5, 3, u64::from_be_bytes);
++    eat_num!(eat_i40_be, checked_eat_i40_be, 5, 3, i64::from_be_bytes);
++    eat_num!(eat_u48_le, checked_eat_u48_le, 6, 0, u64::from_le_bytes);
++    eat_num!(eat_i48_le, checked_eat_i48_le, 6, 0, i64::from_le_bytes);
++    eat_num!(eat_u48_be, checked_eat_u48_be, 6, 2, u64::from_be_bytes);
++    eat_num!(eat_i48_be, checked_eat_i48_be, 6, 2, i64::from_be_bytes);
++    eat_num!(eat_u56_le, checked_eat_u56_le, 7, 0, u64::from_le_bytes);
++    eat_num!(eat_i56_le, checked_eat_i56_le, 7, 0, i64::from_le_bytes);
++    eat_num!(eat_u56_be, checked_eat_u56_be, 7, 1, u64::from_be_bytes);
++    eat_num!(eat_i56_be, checked_eat_i56_be, 7, 1, i64::from_be_bytes);
+     eat_num!(eat_u64_le, checked_eat_u64_le, u64::from_le_bytes);
+     eat_num!(eat_i64_le, checked_eat_i64_le, i64::from_le_bytes);
+     eat_num!(eat_u64_be, checked_eat_u64_be, u64::from_be_bytes);

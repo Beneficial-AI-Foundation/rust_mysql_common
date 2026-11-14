@@ -1,0 +1,206 @@
+Translation patch: `src/packets/session_state_change.rs`
+
+Change:
+  - `.map(Self)`, `.map(SessionStateChange::Schema)`, `.map(SessionStateChange::TransactionState)` become `match`es.
+  - The three loops over system variables move into recursive private helpers: `deserialize_system_variables(buf, vars)` (`while !buf.is_empty() { vars.push(buf.parse_unchecked(())?) }`), `serialize_system_variables(vars, i, buf)` (`for var in vars { var.serialize(buf) }`), and `system_variables_to_owned(&x, i, vars)` for `x.into_iter().map(SystemVariable::into_owned).collect()`, which uses a new private `SystemVariable::to_owned_static(&self)` building `RawBytes::new(bytes.to_vec())` for the name and the value.
+  - `is_tracked.as_bytes() == b"1"` becomes `is_tracked.as_bytes() == &b"1"[..]`.
+Why: Aeneas fails on constructors used as values (patch 09) and on loops over a `Vec` whose elements hold borrows ("Nested borrows", "Could not match the contexts", "loan and borrow in the same region"); `PartialEq<[u8; N]> for [u8]` is not modelled.
+Behaviour: Identical results: the recursion visits the same elements in the same order with the same early `Err` returns; `to_owned_static` gives the same value as `into_owned`: `as_bytes()` is the whole buffer because `LenEnc::MAX_LEN = usize::MAX` (no truncation), so both are an owned copy of the same bytes (it copies an already-owned buffer instead of moving it, so the `Vec`'s capacity can differ, which is not part of the value); comparing with the array or the full slice of it is the same comparison. The recursion uses stack proportional to the number of system variables.
+
+diff --git a/src/packets/session_state_change.rs b/src/packets/session_state_change.rs
+index cac3006..5a08adb 100644
+--- a/src/packets/session_state_change.rs
++++ b/src/packets/session_state_change.rs
+@@ -37,9 +37,13 @@ pub enum SessionStateChange<'a> {
+ impl SessionStateChange<'_> {
+     pub fn into_owned(self) -> SessionStateChange<'static> {
+         match self {
+-            SessionStateChange::SystemVariables(x) => SessionStateChange::SystemVariables(
+-                x.into_iter().map(SystemVariable::into_owned).collect(),
+-            ),
++            SessionStateChange::SystemVariables(x) => {
++                SessionStateChange::SystemVariables(system_variables_to_owned(
++                    &x,
++                    0,
++                    Vec::with_capacity(x.len()),
++                ))
++            }
+             SessionStateChange::Schema(schema) => SessionStateChange::Schema(schema.into_owned()),
+             SessionStateChange::IsTracked(x) => SessionStateChange::IsTracked(x),
+             SessionStateChange::Gtids(x) => SessionStateChange::Gtids(x.into_owned()),
+@@ -61,18 +65,18 @@ impl<'de> MyDeserialize<'de> for SessionStateChange<'de> {
+     fn deserialize(ty: SessionStateType, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+         match ty {
+             SessionStateType::SESSION_TRACK_SYSTEM_VARIABLES => {
+-                let mut vars = Vec::new();
+-                while !buf.is_empty() {
+-                    vars.push(buf.parse_unchecked(())?);
++                match deserialize_system_variables(buf, Vec::new()) {
++                    Ok(vars) => Ok(SessionStateChange::SystemVariables(vars)),
++                    Err(e) => Err(e),
+                 }
+-                Ok(SessionStateChange::SystemVariables(vars))
+-            }
+-            SessionStateType::SESSION_TRACK_SCHEMA => {
+-                buf.parse_unchecked(()).map(SessionStateChange::Schema)
+             }
++            SessionStateType::SESSION_TRACK_SCHEMA => match buf.parse_unchecked(()) {
++                Ok(schema) => Ok(SessionStateChange::Schema(schema)),
++                Err(e) => Err(e),
++            },
+             SessionStateType::SESSION_TRACK_STATE_CHANGE => {
+                 let is_tracked: RawBytes<'_, LenEnc> = buf.parse_unchecked(())?;
+-                Ok(SessionStateChange::IsTracked(is_tracked.as_bytes() == b"1"))
++                Ok(SessionStateChange::IsTracked(is_tracked.as_bytes() == &b"1"[..]))
+             }
+             SessionStateType::SESSION_TRACK_GTIDS => {
+                 Ok(SessionStateChange::Gtids(buf.parse_unchecked(())?))
+@@ -80,9 +84,10 @@ impl<'de> MyDeserialize<'de> for SessionStateChange<'de> {
+             SessionStateType::SESSION_TRACK_TRANSACTION_CHARACTERISTICS => Ok(
+                 SessionStateChange::TransactionCharacteristics(buf.parse_unchecked(())?),
+             ),
+-            SessionStateType::SESSION_TRACK_TRANSACTION_STATE => buf
+-                .parse_unchecked(())
+-                .map(SessionStateChange::TransactionState),
++            SessionStateType::SESSION_TRACK_TRANSACTION_STATE => match buf.parse_unchecked(()) {
++                Ok(state) => Ok(SessionStateChange::TransactionState(state)),
++                Err(e) => Err(e),
++            },
+         }
+     }
+ }
+@@ -90,11 +95,7 @@ impl<'de> MyDeserialize<'de> for SessionStateChange<'de> {
+ impl MySerialize for SessionStateChange<'_> {
+     fn serialize(&self, buf: &mut Vec<u8>) {
+         match self {
+-            SessionStateChange::SystemVariables(vars) => {
+-                for var in vars {
+-                    var.serialize(&mut *buf);
+-                }
+-            }
++            SessionStateChange::SystemVariables(vars) => serialize_system_variables(vars, 0, buf),
+             SessionStateChange::Schema(schema) => schema.serialize(buf),
+             SessionStateChange::IsTracked(is_tracked) => {
+                 if *is_tracked {
+@@ -111,6 +112,46 @@ impl MySerialize for SessionStateChange<'_> {
+     }
+ }
+ 
++// The `SystemVariables` loop of `SessionStateChange::into_owned`, from index `i` on (recursive).
++fn system_variables_to_owned(
++    x: &[SystemVariable<'_>],
++    i: usize,
++    mut vars: Vec<SystemVariable<'static>>,
++) -> Vec<SystemVariable<'static>> {
++    if i < x.len() {
++        vars.push(x[i].to_owned_static());
++        system_variables_to_owned(x, i + 1, vars)
++    } else {
++        vars
++    }
++}
++
++// The `SESSION_TRACK_SYSTEM_VARIABLES` loop of `SessionStateChange::deserialize` (recursive).
++fn deserialize_system_variables<'de>(
++    buf: &mut ParseBuf<'de>,
++    mut vars: Vec<SystemVariable<'de>>,
++) -> io::Result<Vec<SystemVariable<'de>>> {
++    if buf.is_empty() {
++        Ok(vars)
++    } else {
++        match buf.parse_unchecked(()) {
++            Ok(var) => {
++                vars.push(var);
++                deserialize_system_variables(buf, vars)
++            }
++            Err(e) => Err(e),
++        }
++    }
++}
++
++// The `SystemVariables` loop of `SessionStateChange::serialize`, from index `i` on (recursive).
++fn serialize_system_variables(vars: &[SystemVariable<'_>], i: usize, buf: &mut Vec<u8>) {
++    if i < vars.len() {
++        vars[i].serialize(&mut *buf);
++        serialize_system_variables(vars, i + 1, buf)
++    }
++}
++
+ /// This tracker type indicates that GTIDs are available and contains the GTID string.
+ ///
+ /// The GTID string is in the standard format for specifying a set of GTID values.
+@@ -150,7 +191,10 @@ impl<'de> MyDeserialize<'de> for Gtids<'de> {
+         if !buf.checked_skip(1) {
+             return Err(unexpected_buf_eof());
+         }
+-        buf.parse(()).map(Self)
++        match buf.parse(()) {
++            Ok(x) => Ok(Self(x)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+@@ -193,7 +237,10 @@ impl<'de> MyDeserialize<'de> for Schema<'de> {
+     type Ctx = ();
+ 
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        buf.parse_unchecked(()).map(Self)
++        match buf.parse_unchecked(()) {
++            Ok(x) => Ok(Self(x)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+@@ -246,6 +293,14 @@ impl<'a> SystemVariable<'a> {
+             value: self.value.into_owned(),
+         }
+     }
++
++    /// `self.clone().into_owned()`, without the intermediate clone.
++    fn to_owned_static(&self) -> SystemVariable<'static> {
++        SystemVariable {
++            name: RawBytes::new(self.name.as_bytes().to_vec()),
++            value: RawBytes::new(self.value.as_bytes().to_vec()),
++        }
++    }
+ }
+ 
+ impl<'de> MyDeserialize<'de> for SystemVariable<'de> {
+@@ -300,7 +355,10 @@ impl<'de> MyDeserialize<'de> for TransactionCharacteristics<'de> {
+     type Ctx = ();
+ 
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        buf.parse_unchecked(()).map(Self)
++        match buf.parse_unchecked(()) {
++            Ok(x) => Ok(Self(x)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+@@ -343,7 +401,10 @@ impl<'de> MyDeserialize<'de> for TransactionState<'de> {
+     type Ctx = ();
+ 
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        buf.parse_unchecked(()).map(Self)
++        match buf.parse_unchecked(()) {
++            Ok(x) => Ok(Self(x)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 
+@@ -383,7 +444,10 @@ impl<'de> MyDeserialize<'de> for Unsupported<'de> {
+     type Ctx = ();
+ 
+     fn deserialize((): Self::Ctx, buf: &mut ParseBuf<'de>) -> io::Result<Self> {
+-        buf.parse_unchecked(()).map(Self)
++        match buf.parse_unchecked(()) {
++            Ok(x) => Ok(Self(x)),
++            Err(e) => Err(e),
++        }
+     }
+ }
+ 

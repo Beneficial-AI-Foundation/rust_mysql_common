@@ -1,0 +1,163 @@
+Translation patch: `value::convert::chrono`: chrono calls go through `trusted`
+
+Change: `NaiveDate::from_ymd_opt`, `NaiveTime::from_hms_micro_opt`, `NaiveDateTime::new` and the `Datelike`/`Timelike` getters become the corresponding `trusted::naive_*` helpers. For a `NaiveDateTime x`, `x.year()`/`month()`/`day()` become the `NaiveDate` getters of `x.date()` and `x.hour()`/`minute()`/`second()`/`nanosecond()` the `NaiveTime` getters of `x.time()` (both computed once, before the year check).
+Why: chrono is not translated (see patch 40).
+Behaviour: Identical: chrono 0.4.45 implements `Datelike`/`Timelike` for `NaiveDateTime` by delegating to its `date`/`time` fields, which `date()`/`time()` return; the getters are pure.
+
+diff --git a/src/value/convert/chrono.rs b/src/value/convert/chrono.rs
+index d6c2f81..c08d6ce 100644
+--- a/src/value/convert/chrono.rs
++++ b/src/value/convert/chrono.rs
+@@ -12,12 +12,13 @@
+ 
+ use std::convert::TryFrom;
+ 
+-use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
++use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+ 
+ use crate::value::Value;
+ 
+ use super::{
+     FromValue, FromValueError, ParseIr, parse_mysql_datetime_string, parse_mysql_time_string,
++    trusted,
+ };
+ 
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+@@ -42,15 +43,15 @@ impl TryFrom<Value> for ParseIr<NaiveDateTime> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         match v {
+             Value::Date(year, month, day, hour, minute, second, micros) => {
+-                let date = NaiveDate::from_ymd_opt(year.into(), month.into(), day.into());
+-                let time = NaiveTime::from_hms_micro_opt(
++                let date = trusted::naive_date_from_ymd(year.into(), month.into(), day.into());
++                let time = trusted::naive_time_from_hms_micro(
+                     hour.into(),
+                     minute.into(),
+                     second.into(),
+                     micros,
+                 );
+                 if let Some((date, time)) = date.zip(time) {
+-                    Ok(ParseIr(NaiveDateTime::new(date, time), v))
++                    Ok(ParseIr(trusted::naive_datetime_new(date, time), v))
+                 } else {
+                     Err(FromValueError(v))
+                 }
+@@ -59,10 +60,10 @@ impl TryFrom<Value> for ParseIr<NaiveDateTime> {
+                 if let Some((year, month, day, hour, minute, second, micros)) =
+                     parse_mysql_datetime_string(bytes)
+                 {
+-                    let date = NaiveDate::from_ymd_opt(year as i32, month, day);
+-                    let time = NaiveTime::from_hms_micro_opt(hour, minute, second, micros);
++                    let date = trusted::naive_date_from_ymd(year as i32, month, day);
++                    let time = trusted::naive_time_from_hms_micro(hour, minute, second, micros);
+                     if let Some((date, time)) = date.zip(time) {
+-                        Ok(ParseIr(NaiveDateTime::new(date, time), v))
++                        Ok(ParseIr(trusted::naive_datetime_new(date, time), v))
+                     } else {
+                         Err(FromValueError(v))
+                     }
+@@ -82,7 +83,7 @@ impl TryFrom<Value> for ParseIr<NaiveDate> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         let result = match v {
+             Value::Date(year, month, day, hour, minute, second, micros) => {
+-                let date = NaiveDate::from_ymd_opt(year.into(), month.into(), day.into());
++                let date = trusted::naive_date_from_ymd(year.into(), month.into(), day.into());
+                 Ok((
+                     date,
+                     Value::Date(year, month, day, hour, minute, second, micros),
+@@ -90,7 +91,7 @@ impl TryFrom<Value> for ParseIr<NaiveDate> {
+             }
+             Value::Bytes(bytes) => {
+                 if let Some((y, m, d, _, _, _, _)) = parse_mysql_datetime_string(&bytes) {
+-                    let date = NaiveDate::from_ymd_opt(y as i32, m, d);
++                    let date = trusted::naive_date_from_ymd(y as i32, m, d);
+                     Ok((date, Value::Bytes(bytes)))
+                 } else {
+                     Err(FromValueError(Value::Bytes(bytes)))
+@@ -116,12 +117,12 @@ impl TryFrom<Value> for ParseIr<NaiveTime> {
+     fn try_from(v: Value) -> Result<Self, Self::Error> {
+         let result = match v {
+             Value::Time(false, 0, h, m, s, u) => {
+-                let time = NaiveTime::from_hms_micro_opt(h.into(), m.into(), s.into(), u);
++                let time = trusted::naive_time_from_hms_micro(h.into(), m.into(), s.into(), u);
+                 Ok((time, Value::Time(false, 0, h, m, s, u)))
+             }
+             Value::Bytes(bytes) => {
+                 if let Some((false, h, m, s, u)) = parse_mysql_time_string(&bytes) {
+-                    let time = NaiveTime::from_hms_micro_opt(h, m as u32, s as u32, u);
++                    let time = trusted::naive_time_from_hms_micro(h, m as u32, s as u32, u);
+                     Ok((time, Value::Bytes(bytes)))
+                 } else {
+                     Err(FromValueError(Value::Bytes(bytes)))
+@@ -185,17 +186,22 @@ impl From<ParseIr<NaiveTime>> for Value {
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<NaiveDateTime> for Value {
+     fn from(x: NaiveDateTime) -> Value {
+-        if 1000 > x.year() || x.year() > 9999 {
+-            panic!("Year `{}` not in supported range [1000, 9999]", x.year())
++        let date = trusted::naive_datetime_date(&x);
++        let time = trusted::naive_datetime_time(&x);
++        if 1000 > trusted::naive_date_year(&date) || trusted::naive_date_year(&date) > 9999 {
++            panic!(
++                "Year `{}` not in supported range [1000, 9999]",
++                trusted::naive_date_year(&date)
++            )
+         }
+         Value::Date(
+-            x.year() as u16,
+-            x.month() as u8,
+-            x.day() as u8,
+-            x.hour() as u8,
+-            x.minute() as u8,
+-            x.second() as u8,
+-            x.nanosecond() / 1000,
++            trusted::naive_date_year(&date) as u16,
++            trusted::naive_date_month(&date) as u8,
++            trusted::naive_date_day(&date) as u8,
++            trusted::naive_time_hour(&time) as u8,
++            trusted::naive_time_minute(&time) as u8,
++            trusted::naive_time_second(&time) as u8,
++            trusted::naive_time_nanosecond(&time) / 1000,
+         )
+     }
+ }
+@@ -203,10 +209,21 @@ impl From<NaiveDateTime> for Value {
+ #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+ impl From<NaiveDate> for Value {
+     fn from(x: NaiveDate) -> Value {
+-        if 1000 > x.year() || x.year() > 9999 {
+-            panic!("Year `{}` not in supported range [1000, 9999]", x.year())
++        if 1000 > trusted::naive_date_year(&x) || trusted::naive_date_year(&x) > 9999 {
++            panic!(
++                "Year `{}` not in supported range [1000, 9999]",
++                trusted::naive_date_year(&x)
++            )
+         }
+-        Value::Date(x.year() as u16, x.month() as u8, x.day() as u8, 0, 0, 0, 0)
++        Value::Date(
++            trusted::naive_date_year(&x) as u16,
++            trusted::naive_date_month(&x) as u8,
++            trusted::naive_date_day(&x) as u8,
++            0,
++            0,
++            0,
++            0,
++        )
+     }
+ }
+ 
+@@ -216,10 +233,10 @@ impl From<NaiveTime> for Value {
+         Value::Time(
+             false,
+             0,
+-            x.hour() as u8,
+-            x.minute() as u8,
+-            x.second() as u8,
+-            x.nanosecond() / 1000,
++            trusted::naive_time_hour(&x) as u8,
++            trusted::naive_time_minute(&x) as u8,
++            trusted::naive_time_second(&x) as u8,
++            trusted::naive_time_nanosecond(&x) / 1000,
+         )
+     }
+ }

@@ -1,0 +1,49 @@
+name: Aeneas translation is not stale
+
+on:
+  push:
+    paths: &paths
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "formal/trusted/patches/**"
+      - "scripts/**"
+      - "formal/lakefile.toml"
+      - "formal/translation/**"
+      - "formal/trusted/MysqlCommon/**"
+      - ".github/workflows/aeneas-translation.yml"
+  pull_request:
+    paths: *paths
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pinned Aeneas rev
+        id: rev
+        run: echo "rev=$(sed -n 's/^rev *= *"\(.*\)"/\1/p' formal/lakefile.toml | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Aeneas bundle and the Rust nightly
+        uses: actions/cache@v4
+        with:
+          path: |
+            .aeneas
+            ~/.rustup/toolchains
+          key: aeneas-${{ runner.os }}-${{ steps.rev.outputs.rev }}
+
+      - name: Install charon and aeneas
+        run: scripts/aeneas-install.sh
+
+      - name: Translate
+        run: scripts/aeneas-translate.sh
+
+      - name: Check the committed translation is current
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)" || {
+            echo "The committed translation differs from a fresh run of scripts/aeneas-translate.sh."
+            git diff --stat
+            exit 1
+          }

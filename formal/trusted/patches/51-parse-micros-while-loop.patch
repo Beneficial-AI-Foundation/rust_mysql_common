@@ -1,0 +1,25 @@
+Translation patch: `parse_micros`
+
+Change: `for b in micros_bytes.iter() { if *b == b'0' { pad_zero_cnt += 1; } else { break; } }` becomes `while pad_zero_cnt < micros_bytes.len() && micros_bytes[pad_zero_cnt] == b'0' { pad_zero_cnt += 1; }`.
+Why: Aeneas fails on the `for` loop with `break` over a slice iterator ("Internal error").
+Behaviour: Identical: both count the leading `b'0'` bytes.
+
+diff --git a/src/value/convert/mod.rs b/src/value/convert/mod.rs
+index 4e667c8..53d14b8 100644
+--- a/src/value/convert/mod.rs
++++ b/src/value/convert/mod.rs
+@@ -635,12 +635,8 @@ fn parse_micros(micros_bytes: &[u8]) -> u32 {
+     let mut micros = trusted::btou_u32(micros_bytes).unwrap();
+ 
+     let mut pad_zero_cnt = 0;
+-    for b in micros_bytes.iter() {
+-        if *b == b'0' {
+-            pad_zero_cnt += 1;
+-        } else {
+-            break;
+-        }
++    while pad_zero_cnt < micros_bytes.len() && micros_bytes[pad_zero_cnt] == b'0' {
++        pad_zero_cnt += 1;
+     }
+ 
+     for _ in 0..(6 - pad_zero_cnt - (micros_bytes.len() - pad_zero_cnt)) {
